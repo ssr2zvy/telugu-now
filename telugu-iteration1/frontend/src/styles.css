@@ -1,0 +1,132 @@
+:root {
+  font-family: "Noto Sans Telugu", "Nirmala UI", "Gautami", sans-serif;
+  color: #171717;
+  background: #707070;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.22), transparent 42%),
+    linear-gradient(145deg, #9a9a9a 0%, #707070 48%, #515151 100%);
+}
+
+.entry-screen {
+  display: grid;
+  place-items: center;
+}
+
+.entry-wrap {
+  display: grid;
+  place-items: center;
+  gap: 0.8rem;
+}
+
+.profile-input {
+  width: min(15rem, 66vw);
+  height: 0.48rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  outline: none;
+  background: rgba(30, 30, 30, 0.72);
+  color: transparent;
+  caret-color: transparent;
+  box-shadow: 0 0.15rem 0.7rem rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.profile-input:focus {
+  background: rgba(18, 18, 18, 0.82);
+}
+
+.telugu-error {
+  min-height: 1.2rem;
+  font-size: 0.92rem;
+  color: rgba(22, 22, 22, 0.9);
+}
+
+.observation-screen {
+  display: grid;
+  grid-template-columns: minmax(3.5rem, 16vw) 1fr minmax(3.5rem, 16vw);
+}
+
+.observation-center {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 2rem 0.5rem;
+  text-align: center;
+}
+
+.observation-text {
+  max-width: min(82vw, 70rem);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  user-select: none;
+}
+
+.diagnostic {
+  margin-top: 1.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(0.68rem, 1.6vw, 0.86rem);
+  line-height: 1.45;
+  color: rgba(20, 20, 20, 0.62);
+}
+
+.nav-zone {
+  z-index: 3;
+  border: 0;
+  background: transparent;
+  color: rgba(20, 20, 20, 0.38);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.nav-zone:disabled {
+  opacity: 0;
+  cursor: default;
+  pointer-events: none;
+}
+
+.nav-zone:not(:disabled):active {
+  color: rgba(10, 10, 10, 0.7);
+}
+
+@media (max-width: 600px) {
+  .observation-screen {
+    grid-template-columns: 13vw 1fr 13vw;
+  }
+
+  .diagnostic {
+    margin-top: 1rem;
+  }
+}
