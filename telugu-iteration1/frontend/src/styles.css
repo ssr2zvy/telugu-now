@@ -30,8 +30,17 @@ input {
   min-height: 100dvh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.22), transparent 42%),
-    linear-gradient(145deg, #9a9a9a 0%, #707070 48%, #515151 100%);
+    radial-gradient(
+      circle at 50% 35%,
+      rgba(255, 255, 255, 0.22),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      #9a9a9a 0%,
+      #707070 48%,
+      #515151 100%
+    );
 }
 
 .entry-screen {
@@ -46,32 +55,50 @@ input {
 }
 
 .profile-input {
-  width: min(15rem, 66vw);
-  height: 0.48rem;
-  padding: 0;
+  width: min(11rem, 55vw);
+  height: 2.5rem;
+  padding: 0 1rem;
+
   border: 0;
   border-radius: 999px;
   outline: none;
-  background: rgba(30, 30, 30, 0.72);
-  color: transparent;
-  caret-color: transparent;
-  box-shadow: 0 0.15rem 0.7rem rgba(0, 0, 0, 0.2);
+
+  background: rgba(30, 30, 30, 0.3);
+  color: rgba(18, 18, 18, 0.92);
+  caret-color: rgba(18, 18, 18, 0.92);
+
+  box-shadow:
+    0 0.15rem 0.7rem rgba(0, 0, 0, 0.14);
+
   text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.65rem;
+  text-indent: 0.65rem;
 }
 
 .profile-input:focus {
-  background: rgba(18, 18, 18, 0.82);
+  background: rgba(24, 24, 24, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(20, 20, 20, 0.12),
+    0 0.18rem 0.8rem rgba(0, 0, 0, 0.16);
 }
 
 .telugu-error {
   min-height: 1.2rem;
   font-size: 0.92rem;
+  line-height: 1.2rem;
   color: rgba(22, 22, 22, 0.9);
+  text-align: center;
 }
 
 .observation-screen {
   display: grid;
-  grid-template-columns: minmax(3.5rem, 16vw) 1fr minmax(3.5rem, 16vw);
+  grid-template-columns:
+    minmax(3.5rem, 16vw)
+    1fr
+    minmax(3.5rem, 16vw);
 }
 
 .observation-center {
@@ -94,7 +121,12 @@ input {
 
 .diagnostic {
   margin-top: 1.4rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
   font-size: clamp(0.68rem, 1.6vw, 0.86rem);
   line-height: 1.45;
   color: rgba(20, 20, 20, 0.62);
