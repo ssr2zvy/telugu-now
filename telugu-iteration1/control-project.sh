@@ -2,32 +2,62 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+SELF="$SCRIPT_DIR/$SCRIPT_NAME"
+
 cd "$SCRIPT_DIR"
 
 RUNTIME_DIR="$SCRIPT_DIR/.control-project"
 mkdir -p "$RUNTIME_DIR"
 
+CURRENT_LOCK=""
+
 usage() {
-  cat <<'USAGE'
+  cat <<USAGE
 Usage:
-  ./control-project.sh deps [--option install|reinstall|abort|exit]
-  ./control-project.sh test [--option start|abort|exit]
-  ./control-project.sh build [--option start|abort|exit]
-  ./control-project.sh dev [--option start|exit]
+  ./$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
+  ./$SCRIPT_NAME test [--option start|abort|exit]
+  ./$SCRIPT_NAME build [--option start|abort|exit]
+  ./$SCRIPT_NAME dev [--option start|stop|exit]
 USAGE
 }
 
-domain_dir() { printf '%s/%s' "$RUNTIME_DIR" "$1"; }
-pid_file() { printf '%s/pid' "$(domain_dir "$1")"; }
-state_file() { printf '%s/state' "$(domain_dir "$1")"; }
-result_file() { printf '%s/result' "$(domain_dir "$1")"; }
-log_file() { printf '%s/%s.log' "$RUNTIME_DIR" "$1"; }
-lock_dir() { printf '%s/%s.lock' "$RUNTIME_DIR" "$1"; }
+domain_dir() {
+  printf '%s/%s' "$RUNTIME_DIR" "$1"
+}
 
-ensure_domain_dir() { mkdir -p "$(domain_dir "$1")"; }
+pid_file() {
+  printf '%s/pid' "$(domain_dir "$1")"
+}
+
+pgid_file() {
+  printf '%s/pgid' "$(domain_dir "$1")"
+}
+
+state_file() {
+  printf '%s/state' "$(domain_dir "$1")"
+}
+
+result_file() {
+  printf '%s/result' "$(domain_dir "$1")"
+}
+
+log_file() {
+  printf '%s/%s.log' "$RUNTIME_DIR" "$1"
+}
+
+lock_dir() {
+  printf '%s/%s.lock' "$RUNTIME_DIR" "$1"
+}
+
+ensure_domain_dir() {
+  mkdir -p "$(domain_dir "$1")"
+}
 
 read_file_or() {
-  local file="$1" fallback="$2"
+  local file="$1"
+  local fallback="$2"
+
   if [[ -f "$file" ]]; then
     cat "$file"
   else
@@ -37,33 +67,58 @@ read_file_or() {
 
 process_alive() {
   local pid="$1"
+
   kill -0 "$pid" 2>/dev/null
 }
 
+process_group_alive() {
+  local pgid="$1"
+
+  kill -0 -- "-$pgid" 2>/dev/null
+}
+
 managed_process_is_ours() {
-  local pid="$1" domain="$2" command
+  local pid="$1"
+  local domain="$2"
+  local command
 
   command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
 
-  [[ "$command" == *"control-project.sh __runner $domain"* ]]
+  [[ "$command" == *"$SCRIPT_NAME __runner $domain"* ]]
 }
 
 dev_process_is_ours() {
-  local pid="$1" command
+  local pid="$1"
+  local command
 
   command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
 
-  [[ "$command" == *"control-project.sh dev"* ]]
+  [[ "$command" == *"control-project-dev"* ]]
 }
 
 dependencies_installed() {
   [[ -d "$SCRIPT_DIR/node_modules" ]] || return 1
+
   npm ls --depth=0 --silent >/dev/null 2>&1
+}
+
+clean_stale_dev_state() {
+  rm -f "$(pid_file dev)"
+  rm -f "$(pgid_file dev)"
+
+  printf 'stopped' > "$(state_file dev)"
 }
 
 status_of() {
   local domain="$1"
-  local pf pid sf stored dependency_status
+
+  local pf
+  local pgf
+  local sf
+  local pid
+  local pgid
+  local stored
+  local dependency_status
 
   ensure_domain_dir "$domain"
 
@@ -71,21 +126,25 @@ status_of() {
   sf="$(state_file "$domain")"
 
   if [[ "$domain" == "dev" ]]; then
-    if [[ -f "$pf" ]]; then
+    pgf="$(pgid_file dev)"
+
+    if [[ -f "$pf" && -f "$pgf" ]]; then
       pid="$(cat "$pf" 2>/dev/null || true)"
+      pgid="$(cat "$pgf" 2>/dev/null || true)"
 
       if [[ "$pid" =~ ^[0-9]+$ ]] &&
+         [[ "$pgid" =~ ^[0-9]+$ ]] &&
          process_alive "$pid" &&
+         process_group_alive "$pgid" &&
          dev_process_is_ours "$pid"
       then
-        printf 'running'
+        stored="$(read_file_or "$sf" running)"
+        printf '%s' "$stored"
         return
       fi
-
-      rm -f "$pf"
     fi
 
-    printf 'stopped' > "$sf"
+    clean_stale_dev_state
     printf 'stopped'
     return
   fi
@@ -123,7 +182,11 @@ status_of() {
 
 print_status() {
   local domain="$1"
-  local status result pid
+
+  local status
+  local result
+  local pid
+  local pgid
 
   status="$(status_of "$domain")"
 
@@ -139,6 +202,13 @@ print_status() {
     if [[ -f "$(pid_file "$domain")" ]]; then
       pid="$(cat "$(pid_file "$domain")")"
       printf 'PID: %s\n' "$pid"
+    fi
+
+    if [[ "$domain" == "dev" &&
+          -f "$(pgid_file dev)" ]]
+    then
+      pgid="$(cat "$(pgid_file dev)")"
+      printf 'Process group: %s\n' "$pgid"
     fi
   fi
 
@@ -187,7 +257,11 @@ valid_options() {
       printf 'start exit'
       ;;
 
-    dev:running)
+    dev:starting|dev:running)
+      printf 'stop exit'
+      ;;
+
+    dev:stopping)
       printf 'exit'
       ;;
 
@@ -199,6 +273,7 @@ valid_options() {
 
 contains_option() {
   local wanted="$1"
+
   shift
 
   local option
@@ -220,6 +295,7 @@ acquire_lock() {
     printf \
       'ERROR: another control action for "%s" is already in progress.\n' \
       "$domain" >&2
+
     return 1
   fi
 
@@ -240,7 +316,12 @@ release_lock() {
 start_managed_domain() {
   local domain="$1"
   local action="${2:-start}"
-  local sf pf lf runner_pid status
+
+  local sf
+  local pf
+  local lf
+  local runner_pid
+  local status
 
   acquire_lock "$domain" || return 1
 
@@ -277,7 +358,7 @@ start_managed_domain() {
 
   printf 'running' > "$sf"
 
-  nohup "$SCRIPT_DIR/control-project.sh" \
+  nohup bash "$SELF" \
     __runner "$domain" "$action" \
     >> "$lf" 2>&1 &
 
@@ -295,7 +376,9 @@ start_managed_domain() {
 stop_managed_domain() {
   local domain="$1"
   local action="$2"
-  local status pid
+
+  local status
+  local pid
 
   acquire_lock "$domain" || return 1
 
@@ -333,9 +416,72 @@ stop_managed_domain() {
   printf '%s requested for %s.\n' "$action" "$domain"
 }
 
+terminate_process_group() {
+  local pgid="$1"
+  local signal="${2:-TERM}"
+
+  local attempt
+
+  if ! process_group_alive "$pgid"; then
+    return 0
+  fi
+
+  kill -s "$signal" -- "-$pgid" 2>/dev/null || true
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10 \
+                 11 12 13 14 15 16 17 18 19 20
+  do
+    if ! process_group_alive "$pgid"; then
+      return 0
+    fi
+
+    sleep 0.25
+  done
+
+  if process_group_alive "$pgid"; then
+    kill -KILL -- "-$pgid" 2>/dev/null || true
+  fi
+}
+
+cleanup_dev_if_owned() {
+  local expected_pid="$1"
+  local expected_pgid="$2"
+
+  local stored_pid=""
+  local stored_pgid=""
+
+  if [[ -f "$(pid_file dev)" ]]; then
+    stored_pid="$(cat "$(pid_file dev)" 2>/dev/null || true)"
+  fi
+
+  if [[ -f "$(pgid_file dev)" ]]; then
+    stored_pgid="$(cat "$(pgid_file dev)" 2>/dev/null || true)"
+  fi
+
+  if [[ "$stored_pid" == "$expected_pid" &&
+        "$stored_pgid" == "$expected_pgid" ]]
+  then
+    rm -f "$(pid_file dev)"
+    rm -f "$(pgid_file dev)"
+
+    printf 'stopped' > "$(state_file dev)"
+  fi
+}
+
 run_dev_foreground() {
   local status
+  local dev_pid
+  local dev_pgid
+  local lf
   local rc=0
+
+  if ! command -v setsid >/dev/null 2>&1; then
+    printf \
+      'ERROR: "setsid" is required to manage the development process group.\n' \
+      >&2
+
+    return 1
+  fi
 
   acquire_lock dev || return 1
 
@@ -350,24 +496,147 @@ run_dev_foreground() {
     return 1
   fi
 
-  printf '%s' "$$" > "$(pid_file dev)"
+  ensure_domain_dir dev
+
+  lf="$(log_file dev)"
+  : > "$lf"
+
+  printf 'starting' > "$(state_file dev)"
+
+  #
+  # The dev command runs in its own process group.
+  #
+  # Output still goes directly to this terminal through tee, so the
+  # experience remains the normal foreground npm development-server
+  # experience.
+  #
+  # The separate process group lets another terminal stop the complete
+  # npm/Vite/Hono process tree safely.
+  #
+  setsid bash -c '
+    set -o pipefail
+    npm run dev 2>&1 | tee "$1"
+  ' control-project-dev "$lf" &
+
+  dev_pid=$!
+
+  #
+  # setsid makes the new process the leader of its new process group,
+  # therefore the initial PID and PGID are the same.
+  #
+  dev_pgid="$dev_pid"
+
+  printf '%s' "$dev_pid" > "$(pid_file dev)"
+  printf '%s' "$dev_pgid" > "$(pgid_file dev)"
   printf 'running' > "$(state_file dev)"
 
   release_lock
 
-  cleanup_dev() {
-    rm -f "$(pid_file dev)"
-    printf 'stopped' > "$(state_file dev)"
+  dev_interrupt() {
+    printf '\nStopping development server...\n'
+    printf 'stopping' > "$(state_file dev)"
+
+    terminate_process_group "$dev_pgid" INT
   }
 
-  trap cleanup_dev EXIT
+  dev_terminate() {
+    printf '\nStopping development server...\n'
+    printf 'stopping' > "$(state_file dev)"
+
+    terminate_process_group "$dev_pgid" TERM
+  }
+
+  dev_cleanup() {
+    cleanup_dev_if_owned "$dev_pid" "$dev_pgid"
+  }
+
+  trap dev_interrupt INT
+  trap dev_terminate TERM
+  trap dev_cleanup EXIT
 
   printf \
     'Starting development server in the foreground. Press Ctrl+C to stop.\n\n'
 
-  npm run dev || rc=$?
+  wait "$dev_pid" || rc=$?
+
+  #
+  # Make sure no descendant unexpectedly survived after the leader exited.
+  #
+  if process_group_alive "$dev_pgid"; then
+    terminate_process_group "$dev_pgid" TERM
+  fi
+
+  cleanup_dev_if_owned "$dev_pid" "$dev_pgid"
+
+  trap - INT
+  trap - TERM
+  trap - EXIT
 
   return "$rc"
+}
+
+stop_dev_domain() {
+  local status
+  local pid
+  local pgid
+
+  acquire_lock dev || return 1
+
+  status="$(status_of dev)"
+
+  if [[ "$status" != "starting" &&
+        "$status" != "running" &&
+        "$status" != "stopping" ]]
+  then
+    printf \
+      'ERROR: development server is not running.\n' \
+      >&2
+
+    release_lock
+    return 1
+  fi
+
+  if [[ ! -f "$(pid_file dev)" ||
+        ! -f "$(pgid_file dev)" ]]
+  then
+    printf \
+      'ERROR: development server has no managed process information.\n' \
+      >&2
+
+    clean_stale_dev_state
+    release_lock
+    return 1
+  fi
+
+  pid="$(cat "$(pid_file dev)")"
+  pgid="$(cat "$(pgid_file dev)")"
+
+  if [[ ! "$pid" =~ ^[0-9]+$ ||
+        ! "$pgid" =~ ^[0-9]+$ ||
+        ! process_alive "$pid" ||
+        ! process_group_alive "$pgid" ||
+        ! dev_process_is_ours "$pid" ]]
+  then
+    printf \
+      'ERROR: development process information is stale.\n' \
+      >&2
+
+    clean_stale_dev_state
+    release_lock
+    return 1
+  fi
+
+  printf 'stopping' > "$(state_file dev)"
+
+  release_lock
+
+  printf 'Stopping development server...\n'
+
+  terminate_process_group "$pgid" TERM
+
+  cleanup_dev_if_owned "$pid" "$pgid"
+
+  printf 'Development server stopped.\n'
 }
 
 deps_exec() {
@@ -389,6 +658,7 @@ deps_exec() {
 runner() {
   local domain="$1"
   local action="${2:-start}"
+
   local child_pid=""
   local rc=0
   local aborted=0
@@ -424,8 +694,7 @@ runner() {
       ;;
 
     deps)
-      "$SCRIPT_DIR/control-project.sh" \
-        __deps_exec "$action" &
+      bash "$SELF" __deps_exec "$action" &
       ;;
 
     *)
@@ -464,15 +733,25 @@ runner() {
   exit "$rc"
 }
 
+#
+# Internal commands
+#
+
 if [[ "${1:-}" == "__deps_exec" ]]; then
   [[ $# -eq 2 ]] || exit 2
+
   deps_exec "$2"
 fi
 
 if [[ "${1:-}" == "__runner" ]]; then
   [[ $# -ge 2 && $# -le 3 ]] || exit 2
+
   runner "$2" "${3:-start}"
 fi
+
+#
+# Public command parsing
+#
 
 if [[ $# -lt 1 ]]; then
   usage
@@ -584,6 +863,18 @@ case "$OPTION" in
 
   abort)
     stop_managed_domain "$DOMAIN" abort
+    ;;
+
+  stop)
+    if [[ "$DOMAIN" != "dev" ]]; then
+      printf \
+        'ERROR: stop is only valid for the dev command.\n' \
+        >&2
+
+      exit 2
+    fi
+
+    stop_dev_domain
     ;;
 
   exit)
