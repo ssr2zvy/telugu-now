@@ -43,9 +43,14 @@ export function App() {
     if (!profileCode) return;
 
     let cancelled = false;
+
     const refresh = async () => {
       try {
-        const next = await getProfileState(profileCode, document.visibilityState === 'visible');
+        const next = await getProfileState(
+          profileCode,
+          document.visibilityState === 'visible',
+        );
+
         if (!cancelled) setState(next);
       } catch {
         // Keep the last known state. The next poll will retry.
@@ -53,7 +58,9 @@ export function App() {
     };
 
     void refresh();
+
     const interval = window.setInterval(() => void refresh(), 1_000);
+
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -64,18 +71,27 @@ export function App() {
     const onVisibility = () => {
       const code = activeCodeRef.current;
       if (!code) return;
-      void setVisibility(code, { visible: document.visibilityState === 'visible' });
+
+      void setVisibility(code, {
+        visible: document.visibilityState === 'visible',
+      });
     };
 
     const onPageHide = () => {
       const code = activeCodeRef.current;
       if (!code) return;
-      const body = new Blob([JSON.stringify({ visible: false })], { type: 'application/json' });
+
+      const body = new Blob(
+        [JSON.stringify({ visible: false })],
+        { type: 'application/json' },
+      );
+
       navigator.sendBeacon(`/api/profiles/${code}/visibility`, body);
     };
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onPageHide);
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onPageHide);
@@ -87,16 +103,27 @@ export function App() {
 
   const observationStyle = useMemo(() => {
     const length = state?.currentObservation?.text.length ?? 0;
-    const size = length <= 4 ? 'clamp(4rem, 13vw, 10rem)' : 'clamp(2.4rem, 8vw, 6rem)';
+
+    const size =
+      length <= 4
+        ? 'clamp(4rem, 13vw, 10rem)'
+        : 'clamp(2.4rem, 8vw, 6rem)';
+
     return { fontSize: size };
   }, [state?.currentObservation?.text]);
 
   const submitCode = async (value: string) => {
     if (!/^\d{3}$/.test(value)) return;
+
     setBusy(true);
     setInvalidCode(false);
+
     try {
-      const loaded = await loadProfile({ code: value, visible: document.visibilityState === 'visible' });
+      const loaded = await loadProfile({
+        code: value,
+        visible: document.visibilityState === 'visible',
+      });
+
       setProfileCode(value);
       setState(loaded);
     } catch {
@@ -109,11 +136,14 @@ export function App() {
 
   const move = async (direction: 'back' | 'next') => {
     if (!profileCode) return;
+
     setBusy(true);
+
     try {
       const next = await navigate(profileCode, direction, {
         visible: document.visibilityState === 'visible',
       });
+
       setState(next);
     } catch {
       // Polling will refresh readiness/state; no English error is exposed to the user.
@@ -133,15 +163,26 @@ export function App() {
             pattern="[0-9]*"
             maxLength={3}
             value={codeInput}
-            autoFocus
             onChange={(event) => {
-              const next = event.target.value.replace(/\D/g, '').slice(0, 3);
+              const next = event.target.value
+                .replace(/\D/g, '')
+                .slice(0, 3);
+
               setCodeInput(next);
               setInvalidCode(false);
-              if (next.length === 3) void submitCode(next);
+
+              if (next.length === 3) {
+                void submitCode(next);
+              }
             }}
           />
-          {invalidCode ? <div className="telugu-error">చెల్లని కోడ్</div> : null}
+
+          <div
+            className="telugu-error"
+            role={invalidCode ? 'status' : undefined}
+          >
+            {invalidCode ? 'చెల్లని కోడ్' : '\u00A0'}
+          </div>
         </div>
       </main>
     );
@@ -162,9 +203,13 @@ export function App() {
       <section className="observation-center">
         {state?.currentObservation ? (
           <>
-            <div className="observation-text" style={observationStyle}>
+            <div
+              className="observation-text"
+              style={observationStyle}
+            >
               {state.currentObservation.text}
             </div>
+
             <Diagnostic state={state} />
           </>
         ) : null}
