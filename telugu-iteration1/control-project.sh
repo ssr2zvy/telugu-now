@@ -13,7 +13,7 @@ Usage:
   ./control-project.sh deps [--option install|reinstall|abort|exit]
   ./control-project.sh test [--option start|abort|exit]
   ./control-project.sh build [--option start|abort|exit]
-  ./control-project.sh dev [--option start|stop|exit]
+  ./control-project.sh dev [--option start|exit]
 USAGE
 }
 
@@ -28,7 +28,11 @@ ensure_domain_dir() { mkdir -p "$(domain_dir "$1")"; }
 
 read_file_or() {
   local file="$1" fallback="$2"
-  if [[ -f "$file" ]]; then cat "$file"; else printf '%s' "$fallback"; fi
+  if [[ -f "$file" ]]; then
+    cat "$file"
+  else
+    printf '%s' "$fallback"
+  fi
 }
 
 process_alive() {
@@ -36,10 +40,20 @@ process_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
-process_is_ours() {
+managed_process_is_ours() {
   local pid="$1" domain="$2" command
+
   command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+
   [[ "$command" == *"control-project.sh __runner $domain"* ]]
+}
+
+dev_process_is_ours() {
+  local pid="$1" command
+
+  command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+
+  [[ "$command" == *"control-project.sh dev"* ]]
 }
 
 dependencies_installed() {
@@ -48,18 +62,46 @@ dependencies_installed() {
 }
 
 status_of() {
-  local domain="$1" pf pid sf stored dependency_status
+  local domain="$1"
+  local pf pid sf stored dependency_status
+
   ensure_domain_dir "$domain"
+
   pf="$(pid_file "$domain")"
   sf="$(state_file "$domain")"
 
+  if [[ "$domain" == "dev" ]]; then
+    if [[ -f "$pf" ]]; then
+      pid="$(cat "$pf" 2>/dev/null || true)"
+
+      if [[ "$pid" =~ ^[0-9]+$ ]] &&
+         process_alive "$pid" &&
+         dev_process_is_ours "$pid"
+      then
+        printf 'running'
+        return
+      fi
+
+      rm -f "$pf"
+    fi
+
+    printf 'stopped' > "$sf"
+    printf 'stopped'
+    return
+  fi
+
   if [[ -f "$pf" ]]; then
     pid="$(cat "$pf" 2>/dev/null || true)"
-    if [[ "$pid" =~ ^[0-9]+$ ]] && process_alive "$pid" && process_is_ours "$pid" "$domain"; then
+
+    if [[ "$pid" =~ ^[0-9]+$ ]] &&
+       process_alive "$pid" &&
+       managed_process_is_ours "$pid" "$domain"
+    then
       stored="$(read_file_or "$sf" running)"
       printf '%s' "$stored"
       return
     fi
+
     rm -f "$pf"
   fi
 
@@ -80,38 +122,51 @@ status_of() {
 }
 
 print_status() {
-  local domain="$1" status result pid
+  local domain="$1"
+  local status result pid
+
   status="$(status_of "$domain")"
 
-  printf '%s STATUS\n' "$(printf '%s' "$domain" | tr '[:lower:]' '[:upper:]')"
+  printf '%s STATUS\n' \
+    "$(printf '%s' "$domain" | tr '[:lower:]' '[:upper:]')"
+
   printf 'Status: %s\n' "$status"
 
-  if [[ "$status" == "starting" || "$status" == "running" || "$status" == "stopping" ]]; then
+  if [[ "$status" == "starting" ||
+        "$status" == "running" ||
+        "$status" == "stopping" ]]
+  then
     if [[ -f "$(pid_file "$domain")" ]]; then
       pid="$(cat "$(pid_file "$domain")")"
       printf 'PID: %s\n' "$pid"
     fi
   fi
 
-  if [[ "$domain" != "dev" && -f "$(result_file "$domain")" ]]; then
+  if [[ "$domain" != "dev" &&
+        -f "$(result_file "$domain")" ]]
+  then
     result="$(cat "$(result_file "$domain")")"
     printf 'Last result: %s\n' "$result"
   fi
 }
 
 valid_options() {
-  local domain="$1" status="$2"
+  local domain="$1"
+  local status="$2"
 
   case "$domain:$status" in
     deps:not-installed)
       printf 'install exit'
       ;;
+
     deps:installed)
       printf 'reinstall exit'
       ;;
+
     deps:running|deps:starting)
       printf 'abort exit'
       ;;
+
     deps:stopping)
       printf 'exit'
       ;;
@@ -119,9 +174,11 @@ valid_options() {
     test:stopped|build:stopped)
       printf 'start exit'
       ;;
+
     test:running|build:running|test:starting|build:starting)
       printf 'abort exit'
       ;;
+
     test:stopping|build:stopping)
       printf 'exit'
       ;;
@@ -129,10 +186,8 @@ valid_options() {
     dev:stopped)
       printf 'start exit'
       ;;
-    dev:starting|dev:running)
-      printf 'stop exit'
-      ;;
-    dev:stopping)
+
+    dev:running)
       printf 'exit'
       ;;
 
@@ -147,6 +202,7 @@ contains_option() {
   shift
 
   local option
+
   for option in "$@"; do
     [[ "$option" == "$wanted" ]] && return 0
   done
@@ -155,16 +211,23 @@ contains_option() {
 }
 
 acquire_lock() {
-  local domain="$1" lock
+  local domain="$1"
+  local lock
+
   lock="$(lock_dir "$domain")"
 
   if ! mkdir "$lock" 2>/dev/null; then
-    printf 'ERROR: another control action for "%s" is already in progress.\n' "$domain" >&2
+    printf \
+      'ERROR: another control action for "%s" is already in progress.\n' \
+      "$domain" >&2
     return 1
   fi
 
   CURRENT_LOCK="$lock"
-  trap '[[ -n "${CURRENT_LOCK:-}" ]] && rmdir "$CURRENT_LOCK" 2>/dev/null || true' EXIT
+
+  trap \
+    '[[ -n "${CURRENT_LOCK:-}" ]] && rmdir "$CURRENT_LOCK" 2>/dev/null || true' \
+    EXIT
 }
 
 release_lock() {
@@ -174,27 +237,34 @@ release_lock() {
   fi
 }
 
-start_domain() {
+start_managed_domain() {
   local domain="$1"
   local action="${2:-start}"
   local sf pf lf runner_pid status
 
   acquire_lock "$domain" || return 1
+
   status="$(status_of "$domain")"
 
   if [[ "$domain" == "deps" ]]; then
     case "$action:$status" in
       install:not-installed|reinstall:installed)
         ;;
+
       *)
-        printf 'ERROR: option "%s" is no longer valid while %s is %s.\n' \
+        printf \
+          'ERROR: option "%s" is no longer valid while %s is %s.\n' \
           "$action" "$domain" "$status" >&2
+
         release_lock
         return 1
         ;;
     esac
   elif [[ "$status" != "stopped" ]]; then
-    printf 'ERROR: "%s" is no longer stopped.\n' "$domain" >&2
+    printf \
+      'ERROR: "%s" is no longer stopped.\n' \
+      "$domain" >&2
+
     release_lock
     return 1
   fi
@@ -205,38 +275,49 @@ start_domain() {
 
   : > "$lf"
 
-  if [[ "$domain" == "dev" ]]; then
-    printf 'starting' > "$sf"
-  else
-    printf 'running' > "$sf"
-  fi
+  printf 'running' > "$sf"
 
   nohup "$SCRIPT_DIR/control-project.sh" \
     __runner "$domain" "$action" \
     >> "$lf" 2>&1 &
 
   runner_pid=$!
+
   printf '%s' "$runner_pid" > "$pf"
 
   release_lock
 
-  printf 'Started %s %s (PID %s).\n' "$domain" "$action" "$runner_pid"
+  printf \
+    'Started %s %s (PID %s).\n' \
+    "$domain" "$action" "$runner_pid"
 }
 
-stop_domain() {
-  local domain="$1" action="$2" status pid
+stop_managed_domain() {
+  local domain="$1"
+  local action="$2"
+  local status pid
 
   acquire_lock "$domain" || return 1
+
   status="$(status_of "$domain")"
 
-  if [[ "$status" != "starting" && "$status" != "running" && "$status" != "stopping" ]]; then
-    printf 'ERROR: "%s" is not running.\n' "$domain" >&2
+  if [[ "$status" != "starting" &&
+        "$status" != "running" &&
+        "$status" != "stopping" ]]
+  then
+    printf \
+      'ERROR: "%s" is not running.\n' \
+      "$domain" >&2
+
     release_lock
     return 1
   fi
 
   if [[ ! -f "$(pid_file "$domain")" ]]; then
-    printf 'ERROR: "%s" has no managed process.\n' "$domain" >&2
+    printf \
+      'ERROR: "%s" has no managed process.\n' \
+      "$domain" >&2
+
     release_lock
     return 1
   fi
@@ -244,6 +325,7 @@ stop_domain() {
   pid="$(cat "$(pid_file "$domain")")"
 
   printf 'stopping' > "$(state_file "$domain")"
+
   kill -TERM "$pid" 2>/dev/null || true
 
   release_lock
@@ -251,44 +333,56 @@ stop_domain() {
   printf '%s requested for %s.\n' "$action" "$domain"
 }
 
-wait_for_dev_ready() {
-  local child_pid="$1" attempts=0
+run_dev_foreground() {
+  local status
+  local rc=0
 
-  while (( attempts < 60 )); do
-    if ! process_alive "$child_pid"; then
-      return 1
-    fi
+  acquire_lock dev || return 1
 
-    if node -e \
-      "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" \
-      >/dev/null 2>&1
-    then
-      return 0
-    fi
+  status="$(status_of dev)"
 
-    sleep 0.5
-    attempts=$((attempts + 1))
-  done
+  if [[ "$status" != "stopped" ]]; then
+    printf \
+      'ERROR: development server is already running.\n' \
+      >&2
 
-  return 1
+    release_lock
+    return 1
+  fi
+
+  printf '%s' "$$" > "$(pid_file dev)"
+  printf 'running' > "$(state_file dev)"
+
+  release_lock
+
+  cleanup_dev() {
+    rm -f "$(pid_file dev)"
+    printf 'stopped' > "$(state_file dev)"
+  }
+
+  trap cleanup_dev EXIT
+
+  printf \
+    'Starting development server in the foreground. Press Ctrl+C to stop.\n\n'
+
+  npm run dev || rc=$?
+
+  return "$rc"
 }
 
 deps_exec() {
   local action="$1"
 
-  # If no lockfile exists, a reinstall must remove the existing dependency
-  # tree first because npm install itself is not a clean install.
-  if [[ "$action" == "reinstall" && ! -f "$SCRIPT_DIR/package-lock.json" ]]; then
+  if [[ "$action" == "reinstall" &&
+        ! -f "$SCRIPT_DIR/package-lock.json" ]]
+  then
     rm -rf "$SCRIPT_DIR/node_modules"
   fi
 
-  # Once a lockfile exists, use npm ci so the dependency tree is installed
-  # exactly from the committed lockfile.
   if [[ -f "$SCRIPT_DIR/package-lock.json" ]]; then
     exec npm ci
   fi
 
-  # The first successful install creates package-lock.json.
   exec npm install
 }
 
@@ -303,9 +397,12 @@ runner() {
 
   on_term() {
     aborted=1
+
     printf 'stopping' > "$(state_file "$domain")"
 
-    if [[ -n "$child_pid" ]] && process_alive "$child_pid"; then
+    if [[ -n "$child_pid" ]] &&
+       process_alive "$child_pid"
+    then
       kill -TERM "$child_pid" 2>/dev/null || true
 
       for _ in 1 2 3 4 5; do
@@ -322,12 +419,15 @@ runner() {
   trap on_term TERM INT
 
   case "$domain" in
-    test|build|dev)
+    test|build)
       node "$SCRIPT_DIR/scripts/run-managed.mjs" "$domain" &
       ;;
+
     deps)
-      "$SCRIPT_DIR/control-project.sh" __deps_exec "$action" &
+      "$SCRIPT_DIR/control-project.sh" \
+        __deps_exec "$action" &
       ;;
+
     *)
       exit 2
       ;;
@@ -335,25 +435,13 @@ runner() {
 
   child_pid=$!
 
-  if [[ "$domain" == "dev" ]]; then
-    if wait_for_dev_ready "$child_pid"; then
-      printf 'running' > "$(state_file "$domain")"
-    else
-      if process_alive "$child_pid"; then
-        kill -TERM "$child_pid" 2>/dev/null || true
-      fi
-    fi
-  else
-    printf 'running' > "$(state_file "$domain")"
-  fi
+  printf 'running' > "$(state_file "$domain")"
 
   wait "$child_pid" || rc=$?
 
   if (( aborted == 1 )); then
-    if [[ "$domain" != "dev" ]]; then
-      printf 'aborted' > "$(result_file "$domain")"
-    fi
-  elif [[ "$domain" != "dev" ]]; then
+    printf 'aborted' > "$(result_file "$domain")"
+  else
     if (( rc == 0 )); then
       printf 'passed' > "$(result_file "$domain")"
     else
@@ -397,6 +485,7 @@ shift
 case "$DOMAIN" in
   deps|test|build|dev)
     ;;
+
   *)
     usage
     exit 2
@@ -409,15 +498,22 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --option)
       [[ $# -ge 2 ]] || {
-        printf 'ERROR: --option requires a value.\n' >&2
+        printf \
+          'ERROR: --option requires a value.\n' \
+          >&2
+
         exit 2
       }
 
       OPTION="$2"
       shift 2
       ;;
+
     *)
-      printf 'ERROR: unknown argument "%s".\n' "$1" >&2
+      printf \
+        'ERROR: unknown argument "%s".\n' \
+        "$1" >&2
+
       exit 2
       ;;
   esac
@@ -427,55 +523,78 @@ STATUS="$(status_of "$DOMAIN")"
 
 print_status "$DOMAIN"
 
-read -r -a OPTIONS <<< "$(valid_options "$DOMAIN" "$STATUS")"
+read -r -a OPTIONS <<< \
+  "$(valid_options "$DOMAIN" "$STATUS")"
 
 printf '\nAVAILABLE OPTIONS\n'
 
 for i in "${!OPTIONS[@]}"; do
-  printf '%d) %s\n' "$((i + 1))" "${OPTIONS[$i]}"
+  printf \
+    '%d) %s\n' \
+    "$((i + 1))" \
+    "${OPTIONS[$i]}"
 done
 
 if [[ -z "$OPTION" ]]; then
   printf '\nSelect option: '
+
   read -r selection
 
   if [[ "$selection" =~ ^[0-9]+$ ]] &&
-     (( selection >= 1 && selection <= ${#OPTIONS[@]} ))
+     (( selection >= 1 &&
+        selection <= ${#OPTIONS[@]} ))
   then
     OPTION="${OPTIONS[$((selection - 1))]}"
   else
-    printf 'ERROR: invalid selection.\n' >&2
+    printf \
+      'ERROR: invalid selection.\n' \
+      >&2
+
     exit 2
   fi
 fi
 
-if ! contains_option "$OPTION" "${OPTIONS[@]}"; then
-  printf 'ERROR: option "%s" is not valid while %s is %s.\n' \
+if ! contains_option \
+  "$OPTION" \
+  "${OPTIONS[@]}"
+then
+  printf \
+    'ERROR: option "%s" is not valid while %s is %s.\n' \
     "$OPTION" "$DOMAIN" "$STATUS" >&2
+
   exit 2
 fi
 
 case "$OPTION" in
   start)
-    start_domain "$DOMAIN" start
+    if [[ "$DOMAIN" == "dev" ]]; then
+      run_dev_foreground
+    else
+      start_managed_domain "$DOMAIN" start
+    fi
     ;;
+
   install)
-    start_domain "$DOMAIN" install
+    start_managed_domain "$DOMAIN" install
     ;;
+
   reinstall)
-    start_domain "$DOMAIN" reinstall
+    start_managed_domain "$DOMAIN" reinstall
     ;;
+
   abort)
-    stop_domain "$DOMAIN" abort
+    stop_managed_domain "$DOMAIN" abort
     ;;
-  stop)
-    stop_domain "$DOMAIN" stop
-    ;;
+
   exit)
     exit 0
     ;;
+
   *)
-    printf 'ERROR: unsupported option "%s".\n' "$OPTION" >&2
+    printf \
+      'ERROR: unsupported option "%s".\n' \
+      "$OPTION" >&2
+
     exit 2
     ;;
 esac
