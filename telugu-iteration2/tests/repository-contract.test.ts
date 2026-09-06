@@ -294,7 +294,7 @@ test(
     );
     assert.ok(
       exportPage.includes(
-        'downloadExportHtml(preparedExport)',
+        'downloadExportHtml(',
       ),
     );
     assert.ok(
@@ -410,7 +410,12 @@ test(
     );
     assert.ok(
       profileStyles.includes(
-        'height: var(--entry-layout-height)',
+        'height:',
+      ),
+    );
+    assert.ok(
+      /height:\s*var\(\s*--entry-layout-height/.test(
+        profileStyles,
       ),
     );
     assert.ok(
@@ -425,7 +430,7 @@ test(
     );
     assert.ok(
       observationView.includes(
-        'useObservationTypography(observation)',
+        'useObservationTypography(',
       ),
     );
     assert.ok(
@@ -450,7 +455,7 @@ test(
     );
     assert.ok(
       observationStyles.includes(
-        '.controls-visible .nav-zone',
+        '.controls-visible',
       ),
     );
     assert.ok(

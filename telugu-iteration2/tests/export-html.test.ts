@@ -297,24 +297,24 @@ test(
       },
     );
     assert.equal(
-      elements.text.textContent,
+      elements.text!.textContent,
       'మొదటి',
     );
     assert.equal(
-      elements.position
+      elements.position!
         .textContent,
       '1 / 2',
     );
     assert.equal(
-      elements.back.disabled,
+      elements.back!.disabled,
       true,
     );
     assert.equal(
-      elements.next.disabled,
+      elements.next!.disabled,
       false,
     );
     assert.equal(
-      elements.diagnostic
+      elements.diagnostic!
         .classList
         .contains('visible'),
       false,
@@ -322,62 +322,62 @@ test(
     assert.match(
       elements[
         'diagnostic-body'
-      ].innerHTML,
+      ]!.innerHTML,
       /<th scope="row">Row<\/th><td>source1-001<\/td>/,
     );
     assert.match(
       elements[
         'diagnostic-body'
-      ].innerHTML,
+      ]!.innerHTML,
       /<th scope="row">Overall probability<\/th>/,
     );
-    elements.info.click();
+    elements.info!.click();
     assert.equal(
-      elements.diagnostic
+      elements.diagnostic!
         .classList
         .contains('visible'),
       true,
     );
-    elements.info.click();
+    elements.info!.click();
     assert.equal(
-      elements.diagnostic
+      elements.diagnostic!
         .classList
         .contains('visible'),
       false,
     );
-    elements.next.click();
+    elements.next!.click();
     assert.equal(
-      elements.text.textContent,
+      elements.text!.textContent,
       'రెండవ </script><script>globalThis.PWNED=true</script>',
     );
     assert.equal(
-      elements.position
+      elements.position!
         .textContent,
       '2 / 2',
     );
     assert.equal(
-      elements.back.disabled,
+      elements.back!.disabled,
       false,
     );
     assert.equal(
-      elements.next.disabled,
+      elements.next!.disabled,
       true,
     );
     assert.match(
       elements[
         'diagnostic-body'
-      ].innerHTML,
+      ]!.innerHTML,
       /source1-002/,
     );
-    elements.next.click();
+    elements.next!.click();
     assert.equal(
-      elements.position
+      elements.position!
         .textContent,
       '2 / 2',
     );
-    elements.back.click();
+    elements.back!.click();
     assert.equal(
-      elements.position
+      elements.position!
         .textContent,
       '1 / 2',
     );
