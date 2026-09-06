@@ -268,8 +268,7 @@ export async function prepareEpubExport(
     format: 'epub',
     blob: new Blob(
       [
-        bytes.buffer
-          as ArrayBuffer,
+        bytes.buffer as ArrayBuffer,
       ],
       {
         type:
@@ -282,4 +281,3 @@ export async function prepareEpubExport(
       result.entries.length,
   };
 }
-
