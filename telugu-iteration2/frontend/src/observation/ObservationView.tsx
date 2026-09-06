@@ -31,10 +31,7 @@ export function ObservationView({
   ] = useState(false);
   const observation =
     state?.currentObservation ?? null;
-  const typography =
-    useObservationTypography(
-      observation,
-    );
+  const typography = useObservationTypography(observation);
   const canBack =
     Boolean(state?.canBack) &&
     !busy;

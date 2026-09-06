@@ -74,10 +74,8 @@
       140ms
       ease;
 }
-.controls-visible
-.nav-zone,
-.controls-visible
-.settings-trigger {
+.controls-visible .nav-zone,
+.controls-visible .settings-trigger {
   opacity: 1;
   pointer-events: auto;
 }
@@ -103,8 +101,7 @@
     );
   cursor: pointer;
 }
-.controls-visible
-.nav-zone:disabled {
+.controls-visible .nav-zone:disabled {
   opacity: 0.22;
   color:
     rgba(
