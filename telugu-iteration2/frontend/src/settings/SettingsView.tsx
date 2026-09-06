@@ -1,34 +1,15 @@
-import type {
-  ProfileStateResponse,
-} from '../../../shared/contracts';
-import {
-  t,
-} from './language';
-import {
-  SettingsShell,
-} from './SettingsShell';
-import type {
-  SettingsController,
-} from './useSettingsController';
-import {
-  ComplexityPage,
-} from './pages/ComplexityPage';
-import {
-  DiagnosticPage,
-} from './pages/DiagnosticPage';
-import {
-  ExportPage,
-} from './pages/ExportPage';
-import {
-  SettingsIndex,
-} from './pages/SettingsIndex';
-import {
-  SourceWeightsPage,
-} from './pages/SourceWeightsPage';
+import type { ProfileStateResponse } from '../../../shared/contracts';
+import { t } from './language';
+import { SettingsShell } from './SettingsShell';
+import type { SettingsController } from './useSettingsController';
+import { ComplexityPage } from './pages/ComplexityPage';
+import { DiagnosticPage } from './pages/DiagnosticPage';
+import { ExportPage } from './pages/ExportPage';
+import { SettingsIndex } from './pages/SettingsIndex';
+import { SourceWeightsPage } from './pages/SourceWeightsPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
-  controller:
-    SettingsController;
+  controller: SettingsController;
   onClose: () => void;
 }
 export function SettingsView({
@@ -45,30 +26,23 @@ export function SettingsView({
     exportCount,
     exporting,
     exportError,
-    preparedExport,
+    formatChooserOpen,
+    preparedArtifact,
   } = controller;
   const shellProps = {
     language,
     onClose,
-    onToggleLanguage:
-      controller.toggleLanguage,
+    onToggleLanguage: controller.toggleLanguage,
   };
   if (page === 'index') {
     return (
       <SettingsShell
         {...shellProps}
-        title={
-          t(
-            language,
-            'settings',
-          )
-        }
+        title={t(language, 'settings')}
       >
         <SettingsIndex
           language={language}
-          onNavigate={
-            controller.enterPage
-          }
+          onNavigate={controller.enterPage}
         />
       </SettingsShell>
     );
@@ -80,36 +54,17 @@ export function SettingsView({
     return (
       <SettingsShell
         {...shellProps}
-        title={
-          t(
-            language,
-            'complexity',
-          )
-        }
-        onBack={
-          controller.backToIndex
-        }
+        title={t(language, 'complexity')}
+        onBack={controller.backToIndex}
       >
         <ComplexityPage
           language={language}
           draft={draft}
-          saving={
-            settingsSaving
-          }
-          error={
-            settingsError
-          }
-          onDraftChange={
-            controller.setDraft
-          }
-          onClearError={
-            controller
-              .clearSettingsError
-          }
-          onSave={() =>
-            void controller
-              .saveComplexitySettings()
-          }
+          saving={settingsSaving}
+          error={settingsError}
+          onDraftChange={controller.setDraft}
+          onClearError={controller.clearSettingsError}
+          onSave={() => void controller.saveComplexitySettings()}
         />
       </SettingsShell>
     );
@@ -118,36 +73,17 @@ export function SettingsView({
     return (
       <SettingsShell
         {...shellProps}
-        title={
-          t(
-            language,
-            'sourceWeights',
-          )
-        }
-        onBack={
-          controller.backToIndex
-        }
+        title={t(language, 'sourceWeights')}
+        onBack={controller.backToIndex}
       >
         <SourceWeightsPage
           language={language}
           draft={draft}
-          saving={
-            settingsSaving
-          }
-          error={
-            settingsError
-          }
-          onDraftChange={
-            controller.setDraft
-          }
-          onClearError={
-            controller
-              .clearSettingsError
-          }
-          onSave={() =>
-            void controller
-              .saveSourceSettings()
-          }
+          saving={settingsSaving}
+          error={settingsError}
+          onDraftChange={controller.setDraft}
+          onClearError={controller.clearSettingsError}
+          onSave={() => void controller.saveSourceSettings()}
         />
       </SettingsShell>
     );
@@ -156,15 +92,8 @@ export function SettingsView({
     return (
       <SettingsShell
         {...shellProps}
-        title={
-          t(
-            language,
-            'diagnostic',
-          )
-        }
-        onBack={
-          controller.backToIndex
-        }
+        title={t(language, 'diagnostic')}
+        onBack={controller.backToIndex}
       >
         <DiagnosticPage
           state={state}
@@ -176,30 +105,21 @@ export function SettingsView({
   return (
     <SettingsShell
       {...shellProps}
-      title={
-        t(
-          language,
-          'export',
-        )
-      }
-      onBack={
-        controller.backToIndex
-      }
+      title={t(language, 'export')}
+      onBack={controller.backToIndex}
     >
       <ExportPage
         language={language}
         count={exportCount}
         exporting={exporting}
         error={exportError}
-        preparedExport={
-          preparedExport
-        }
-        onCountChange={
-          controller.setExportCount
-        }
-        onExport={() =>
-          void controller
-            .startExport()
+        formatChooserOpen={formatChooserOpen}
+        preparedArtifact={preparedArtifact}
+        onCountChange={controller.setExportCount}
+        onRequestExport={controller.requestExport}
+        onCancelFormatChoice={controller.cancelFormatChoice}
+        onChooseFormat={(format) =>
+          void controller.chooseExportFormat(format)
         }
       />
     </SettingsShell>

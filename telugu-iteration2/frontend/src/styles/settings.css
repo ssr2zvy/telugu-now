@@ -527,3 +527,71 @@ td {
     width: 56%;
   }
 }
+.export-format-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  background: rgba(25, 25, 25, 0.24);
+}
+.export-format-modal {
+  width: min(28rem, 100%);
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(30, 30, 30, 0.13);
+  border-radius: 1rem;
+  background: rgba(198, 198, 198, 0.98);
+  box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.22);
+}
+.export-format-modal h2 {
+  margin: 0 0 0.25rem;
+  color: rgba(20, 20, 20, 0.86);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+}
+.export-format-option {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(30, 30, 30, 0.12);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(20, 20, 20, 0.86);
+  text-align: left;
+  cursor: pointer;
+}
+.export-format-option:active {
+  background: rgba(255, 255, 255, 0.28);
+}
+.export-format-option strong {
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 650;
+}
+.export-format-option span {
+  color: rgba(20, 20, 20, 0.58);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.export-format-cancel {
+  min-height: 2.7rem;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: rgba(20, 20, 20, 0.62);
+  cursor: pointer;
+}
+.export-format-cancel:active {
+  background: rgba(35, 35, 35, 0.08);
+}

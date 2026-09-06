@@ -1,34 +1,39 @@
-import type {
-  ChangeEvent,
-} from 'react';
+import type { ChangeEvent, MouseEvent } from 'react';
 import {
-  downloadPreparedExportHtml,
-  type PreparedStandaloneExport,
-} from '../../export-html';
-import {
-  t,
-} from '../language';
-import type {
-  UiLanguage,
-} from '../types';
+  downloadPreparedExportArtifact,
+  type ExportFormat,
+  type PreparedExportArtifact,
+} from '../../export-artifact';
+import { t } from '../language';
+import type { UiLanguage } from '../types';
 interface ExportPageProps {
   language: UiLanguage;
   count: string;
   exporting: boolean;
   error: boolean;
-  preparedExport: PreparedStandaloneExport | null;
+  formatChooserOpen: boolean;
+  preparedArtifact: PreparedExportArtifact | null;
   onCountChange: (count: string) => void;
-  onExport: () => void;
+  onRequestExport: () => void;
+  onCancelFormatChoice: () => void;
+  onChooseFormat: (format: ExportFormat) => void;
 }
 export function ExportPage({
   language,
   count,
   exporting,
   error,
-  preparedExport,
+  formatChooserOpen,
+  preparedArtifact,
   onCountChange,
-  onExport,
+  onRequestExport,
+  onCancelFormatChoice,
+  onChooseFormat,
 }: ExportPageProps) {
+  const preparedFormatLabel =
+    preparedArtifact?.format === 'epub'
+      ? t(language, 'epub')
+      : t(language, 'html');
   return (
     <div className="export-page">
       <input
@@ -48,7 +53,7 @@ export function ExportPage({
         className="primary-action"
         type="button"
         disabled={exporting}
-        onClick={onExport}
+        onClick={onRequestExport}
       >
         {exporting
           ? t(language, 'exporting')
@@ -57,23 +62,65 @@ export function ExportPage({
       <button
         className="secondary-action"
         type="button"
-        disabled={exporting || preparedExport === null}
+        disabled={exporting || preparedArtifact === null}
         onClick={() => {
-          if (preparedExport) {
-            downloadPreparedExportHtml(preparedExport);
+          if (preparedArtifact) {
+            downloadPreparedExportArtifact(preparedArtifact);
           }
         }}
       >
         {t(language, 'download')}
       </button>
-      {preparedExport ? (
+      {preparedArtifact ? (
         <div className="export-ready" role="status">
-          {t(language, 'ready')}: {preparedExport.entryCount}
+          {t(language, 'ready')}: {preparedArtifact.entryCount} · {preparedFormatLabel}
         </div>
       ) : null}
       {error ? (
         <div className="settings-error">
           {t(language, 'invalidExport')}
+        </div>
+      ) : null}
+      {formatChooserOpen ? (
+        <div
+          className="export-format-backdrop"
+          role="presentation"
+          onClick={onCancelFormatChoice}
+        >
+          <section
+            className="export-format-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="export-format-title"
+            onClick={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
+          >
+            <h2 id="export-format-title">
+              {t(language, 'chooseExportFormat')}
+            </h2>
+            <button
+              className="export-format-option"
+              type="button"
+              onClick={() => onChooseFormat('epub')}
+            >
+              <strong>{t(language, 'epub')}</strong>
+              <span>{t(language, 'epubDescription')}</span>
+            </button>
+            <button
+              className="export-format-option"
+              type="button"
+              onClick={() => onChooseFormat('html')}
+            >
+              <strong>{t(language, 'html')}</strong>
+              <span>{t(language, 'htmlDescription')}</span>
+            </button>
+            <button
+              className="export-format-cancel"
+              type="button"
+              onClick={onCancelFormatChoice}
+            >
+              {t(language, 'cancel')}
+            </button>
+          </section>
         </div>
       ) : null}
     </div>

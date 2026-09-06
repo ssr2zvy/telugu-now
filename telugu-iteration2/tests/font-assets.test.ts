@@ -3,12 +3,11 @@ import test from 'node:test';
 import {
   OBSERVATION_FONT_ASSETS,
   createPlaceholderEmbeddedObservationFontBundle,
-  loadEmbeddedObservationFontBundle,
+  loadObservationFontBundle,
   observationFontFaceCss,
+  toEmbeddedObservationFontBundle,
 } from '../frontend/src/font-assets';
-import {
-  OBSERVATION_FONTS,
-} from '../frontend/src/presentation';
+import { OBSERVATION_FONTS } from '../frontend/src/presentation';
 test('font asset manifest exactly covers the curated observation font pool with local files', () => {
   assert.deepEqual(
     OBSERVATION_FONT_ASSETS.map((asset) => asset.family),
@@ -34,7 +33,7 @@ test('font-face CSS can target the same families with embedded data URLs', () =>
   }
   assert.equal(/https?:\/\//.test(css), false);
 });
-test('embedded font bundle loader reads every font and license from local application paths', async () => {
+test('binary font bundle loader reads every font and license from local application paths', async () => {
   const requested: string[] = [];
   const fakeFetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -44,11 +43,18 @@ test('embedded font bundle loader reads every font and license from local applic
     }
     return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 });
   }) as typeof fetch;
-  const bundle = await loadEmbeddedObservationFontBundle(fakeFetch);
+  const bundle = await loadObservationFontBundle(fakeFetch);
   assert.equal(bundle.fonts.length, 10);
   assert.equal(requested.length, 20);
   assert.ok(requested.every((url) => url.startsWith('/fonts/')));
   for (const font of bundle.fonts) {
+    assert.deepEqual([...font.bytes], [1, 2, 3, 4]);
+    assert.equal(font.licenseText, 'SIL OPEN FONT LICENSE TEST');
+    assert.match(font.fileName, /\.woff2$/);
+    assert.match(font.licenseFileName, /-OFL\.txt$/);
+  }
+  const embedded = toEmbeddedObservationFontBundle(bundle);
+  for (const font of embedded.fonts) {
     assert.match(font.dataUrl, /^data:font\/woff2;base64,/);
     assert.equal(font.licenseText, 'SIL OPEN FONT LICENSE TEST');
   }

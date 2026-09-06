@@ -10,6 +10,16 @@ export interface ObservationFontAsset {
   licenseFileName: string;
   googleFontsFolder: string;
 }
+export interface LoadedObservationFont {
+  family: ObservationFontFamily;
+  fileName: string;
+  licenseFileName: string;
+  bytes: Uint8Array;
+  licenseText: string;
+}
+export interface ObservationFontBundle {
+  fonts: readonly LoadedObservationFont[];
+}
 export interface EmbeddedObservationFont {
   family: ObservationFontFamily;
   dataUrl: string;
@@ -70,8 +80,13 @@ export function observationFontFaceCss(
     .join('\n');
 }
 let liveFontFacesInstalled = false;
-export function installLiveObservationFontFaces(documentValue: Document = document): void {
-  if (liveFontFacesInstalled || documentValue.getElementById('telugu-now-observation-fonts')) {
+export function installLiveObservationFontFaces(
+  documentValue: Document = document,
+): void {
+  if (
+    liveFontFacesInstalled ||
+    documentValue.getElementById('telugu-now-observation-fonts')
+  ) {
     liveFontFacesInstalled = true;
     return;
   }
@@ -86,8 +101,7 @@ export function installLiveObservationFontFaces(documentValue: Document = docume
   documentValue.head.appendChild(style);
   liveFontFacesInstalled = true;
 }
-function bytesToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunkSize = 0x8000;
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
@@ -106,11 +120,11 @@ async function fetchRequired(
   }
   return response;
 }
-export async function loadEmbeddedObservationFontBundle(
+export async function loadObservationFontBundle(
   fetchValue: typeof fetch = fetch,
-): Promise<EmbeddedObservationFontBundle> {
+): Promise<ObservationFontBundle> {
   const fonts = await Promise.all(
-    OBSERVATION_FONT_ASSETS.map(async (asset): Promise<EmbeddedObservationFont> => {
+    OBSERVATION_FONT_ASSETS.map(async (asset): Promise<LoadedObservationFont> => {
       const [fontResponse, licenseResponse] = await Promise.all([
         fetchRequired(fetchValue, localFontUrl(asset.fileName)),
         fetchRequired(fetchValue, localLicenseUrl(asset.licenseFileName)),
@@ -121,12 +135,32 @@ export async function loadEmbeddedObservationFontBundle(
       ]);
       return {
         family: asset.family,
-        dataUrl: `data:font/woff2;base64,${bytesToBase64(fontBuffer)}`,
+        fileName: asset.fileName,
+        licenseFileName: asset.licenseFileName,
+        bytes: new Uint8Array(fontBuffer),
         licenseText,
       };
     }),
   );
   return { fonts };
+}
+export function toEmbeddedObservationFontBundle(
+  bundle: ObservationFontBundle,
+): EmbeddedObservationFontBundle {
+  return {
+    fonts: bundle.fonts.map((font) => ({
+      family: font.family,
+      dataUrl: `data:font/woff2;base64,${bytesToBase64(font.bytes)}`,
+      licenseText: font.licenseText,
+    })),
+  };
+}
+export async function loadEmbeddedObservationFontBundle(
+  fetchValue: typeof fetch = fetch,
+): Promise<EmbeddedObservationFontBundle> {
+  return toEmbeddedObservationFontBundle(
+    await loadObservationFontBundle(fetchValue),
+  );
 }
 export function createPlaceholderEmbeddedObservationFontBundle(): EmbeddedObservationFontBundle {
   return {

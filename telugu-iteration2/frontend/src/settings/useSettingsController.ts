@@ -1,25 +1,21 @@
-import {
-  useState,
-} from 'react';
+import { useState } from 'react';
 import type {
+  ExportResponse,
   ProfileSelectionSettings,
   ProfileStateResponse,
 } from '../../../shared/contracts';
-import {
-  generateExport,
-  updateSelectionSettings,
-} from '../api';
-import {
-  prepareStandaloneExportHtml,
-  type PreparedStandaloneExport,
-} from '../export-html';
+import { generateExport, updateSelectionSettings } from '../api';
+import type {
+  ExportFormat,
+  PreparedExportArtifact,
+} from '../export-artifact';
+import { prepareEpubExport } from '../export-epub';
+import { prepareHtmlExport } from '../export-html';
 import {
   loadSettingsLanguage,
   saveSettingsLanguage,
 } from './language';
-import {
-  draftFromSettings,
-} from './settings-utils';
+import { draftFromSettings } from './settings-utils';
 import type {
   SettingsDraft,
   SettingsPage,
@@ -28,9 +24,7 @@ import type {
 interface UseSettingsControllerOptions {
   profileCode: string | null;
   state: ProfileStateResponse | null;
-  onSettingsSaved: (
-    settings: ProfileSelectionSettings,
-  ) => void;
+  onSettingsSaved: (settings: ProfileSelectionSettings) => void;
 }
 export interface SettingsController {
   page: SettingsPage;
@@ -41,11 +35,11 @@ export interface SettingsController {
   exportCount: string;
   exporting: boolean;
   exportError: boolean;
-  preparedExport: PreparedStandaloneExport | null;
+  formatChooserOpen: boolean;
+  generatedExport: ExportResponse | null;
+  preparedArtifact: PreparedExportArtifact | null;
   prepareOpen: () => void;
-  enterPage: (
-    page: Exclude<SettingsPage, 'index'>,
-  ) => void;
+  enterPage: (page: Exclude<SettingsPage, 'index'>) => void;
   backToIndex: () => void;
   toggleLanguage: () => void;
   setDraft: (draft: SettingsDraft) => void;
@@ -53,7 +47,9 @@ export interface SettingsController {
   saveComplexitySettings: () => Promise<void>;
   saveSourceSettings: () => Promise<void>;
   setExportCount: (count: string) => void;
-  startExport: () => Promise<void>;
+  requestExport: () => void;
+  cancelFormatChoice: () => void;
+  chooseExportFormat: (format: ExportFormat) => Promise<void>;
 }
 export function useSettingsController({
   profileCode,
@@ -70,13 +66,22 @@ export function useSettingsController({
   const [exportCount, setExportCountState] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
-  const [preparedExport, setPreparedExport] =
-    useState<PreparedStandaloneExport | null>(null);
+  const [formatChooserOpen, setFormatChooserOpen] = useState(false);
+  const [generatedExport, setGeneratedExport] = useState<ExportResponse | null>(null);
+  const [preparedArtifact, setPreparedArtifact] =
+    useState<PreparedExportArtifact | null>(null);
+  const invalidateExport = () => {
+    setGeneratedExport(null);
+    setPreparedArtifact(null);
+    setFormatChooserOpen(false);
+    setExportError(false);
+  };
   const prepareOpen = () => {
     if (!state) return;
     setDraftState(draftFromSettings(state.selectionSettings));
     setSettingsError(false);
     setExportError(false);
+    setFormatChooserOpen(false);
     setPage('index');
   };
   const enterPage = (
@@ -90,11 +95,13 @@ export function useSettingsController({
     }
     setSettingsError(false);
     setExportError(false);
+    setFormatChooserOpen(false);
     setPage(nextPage);
   };
   const backToIndex = () => {
     setSettingsError(false);
     setExportError(false);
+    setFormatChooserOpen(false);
     setPage('index');
   };
   const toggleLanguage = () => {
@@ -128,7 +135,7 @@ export function useSettingsController({
       });
       onSettingsSaved(saved);
       setDraftState(draftFromSettings(saved));
-      setPreparedExport(null);
+      invalidateExport();
     } catch {
       setSettingsError(true);
     } finally {
@@ -169,7 +176,7 @@ export function useSettingsController({
       });
       onSettingsSaved(saved);
       setDraftState(draftFromSettings(saved));
-      setPreparedExport(null);
+      invalidateExport();
     } catch {
       setSettingsError(true);
     } finally {
@@ -178,24 +185,42 @@ export function useSettingsController({
   };
   const setExportCount = (count: string) => {
     setExportCountState(count);
-    setPreparedExport(null);
-    setExportError(false);
+    invalidateExport();
   };
-  const startExport = async () => {
-    if (!profileCode) return;
+  const requestExport = () => {
     const count = Number(exportCount);
     if (!Number.isInteger(count) || count <= 0) {
-      setPreparedExport(null);
+      setFormatChooserOpen(false);
+      setPreparedArtifact(null);
       setExportError(true);
       return;
     }
+    setExportError(false);
+    setFormatChooserOpen(true);
+  };
+  const chooseExportFormat = async (format: ExportFormat) => {
+    if (!profileCode) return;
+    const count = Number(exportCount);
+    if (!Number.isInteger(count) || count <= 0) {
+      setFormatChooserOpen(false);
+      setExportError(true);
+      return;
+    }
+    setFormatChooserOpen(false);
     setExporting(true);
     setExportError(false);
-    setPreparedExport(null);
+    setPreparedArtifact(null);
     try {
-      const result = await generateExport(profileCode, { count });
-      const prepared = await prepareStandaloneExportHtml(result);
-      setPreparedExport(prepared);
+      let result = generatedExport;
+      if (!result) {
+        result = await generateExport(profileCode, { count });
+        setGeneratedExport(result);
+      }
+      const prepared =
+        format === 'epub'
+          ? await prepareEpubExport(result)
+          : await prepareHtmlExport(result);
+      setPreparedArtifact(prepared);
     } catch {
       setExportError(true);
     } finally {
@@ -211,7 +236,9 @@ export function useSettingsController({
     exportCount,
     exporting,
     exportError,
-    preparedExport,
+    formatChooserOpen,
+    generatedExport,
+    preparedArtifact,
     prepareOpen,
     enterPage,
     backToIndex,
@@ -221,6 +248,8 @@ export function useSettingsController({
     saveComplexitySettings,
     saveSourceSettings,
     setExportCount,
-    startExport,
+    requestExport,
+    cancelFormatChoice: () => setFormatChooserOpen(false),
+    chooseExportFormat,
   };
 }
