@@ -1,0 +1,62 @@
+[
+  {
+    "family": "Noto Sans Telugu",
+    "fileName": "noto-sans-telugu.woff2",
+    "licenseFileName": "notosanstelugu-OFL.txt",
+    "googleFontsFolder": "notosanstelugu"
+  },
+  {
+    "family": "Noto Serif Telugu",
+    "fileName": "noto-serif-telugu.woff2",
+    "licenseFileName": "notoseriftelugu-OFL.txt",
+    "googleFontsFolder": "notoseriftelugu"
+  },
+  {
+    "family": "Mandali",
+    "fileName": "mandali.woff2",
+    "licenseFileName": "mandali-OFL.txt",
+    "googleFontsFolder": "mandali"
+  },
+  {
+    "family": "Ramabhadra",
+    "fileName": "ramabhadra.woff2",
+    "licenseFileName": "ramabhadra-OFL.txt",
+    "googleFontsFolder": "ramabhadra"
+  },
+  {
+    "family": "NTR",
+    "fileName": "ntr.woff2",
+    "licenseFileName": "ntr-OFL.txt",
+    "googleFontsFolder": "ntr"
+  },
+  {
+    "family": "Peddana",
+    "fileName": "peddana.woff2",
+    "licenseFileName": "peddana-OFL.txt",
+    "googleFontsFolder": "peddana"
+  },
+  {
+    "family": "Ramaraja",
+    "fileName": "ramaraja.woff2",
+    "licenseFileName": "ramaraja-OFL.txt",
+    "googleFontsFolder": "ramaraja"
+  },
+  {
+    "family": "Sree Krushnadevaraya",
+    "fileName": "sree-krushnadevaraya.woff2",
+    "licenseFileName": "sreekrushnadevaraya-OFL.txt",
+    "googleFontsFolder": "sreekrushnadevaraya"
+  },
+  {
+    "family": "Suranna",
+    "fileName": "suranna.woff2",
+    "licenseFileName": "suranna-OFL.txt",
+    "googleFontsFolder": "suranna"
+  },
+  {
+    "family": "Tenali Ramakrishna",
+    "fileName": "tenali-ramakrishna.woff2",
+    "licenseFileName": "tenaliramakrishna-OFL.txt",
+    "googleFontsFolder": "tenaliramakrishna"
+  }
+]

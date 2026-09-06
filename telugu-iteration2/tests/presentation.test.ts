@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   OBSERVATION_FONTS,
+  OBSERVATION_PRESENTATION,
   chooseRandomObservationFont,
   preferredObservationFontSizePx,
 } from '../frontend/src/presentation';
@@ -18,6 +19,11 @@ test('observation font collection is the fixed curated Telugu set', () => {
     'Suranna',
     'Tenali Ramakrishna',
   ]);
+  assert.deepEqual(OBSERVATION_PRESENTATION.fonts, OBSERVATION_FONTS);
+  assert.equal(OBSERVATION_PRESENTATION.fitIterations, 10);
+  assert.equal(OBSERVATION_PRESENTATION.fitMinimumFontSizePx, 12);
+  assert.equal(OBSERVATION_PRESENTATION.preferredMinimumFontSizePx, 24);
+  assert.equal(OBSERVATION_PRESENTATION.preferredMaximumFontSizePx, 160);
 });
 test('random font selection maps the full random interval onto the curated collection', () => {
   assert.equal(chooseRandomObservationFont(() => 0), 'Noto Sans Telugu');
@@ -28,43 +34,25 @@ test('random font selection maps the full random interval onto the curated colle
 test('preferred font size decreases smoothly as observation content grows', () => {
   const width = 700;
   const height = 700;
-  const short = preferredObservationFontSizePx(
-    'తెలుగు',
-    width,
-    height,
-  );
+  const short = preferredObservationFontSizePx('తెలుగు', width, height);
   const medium = preferredObservationFontSizePx(
     'తెలుగు భాషలో కొన్ని పదాలు కలిసి ఒక వాక్యంగా కనిపిస్తున్నాయి',
     width,
     height,
   );
   const long = preferredObservationFontSizePx(
-    Array.from(
-      { length: 40 },
-      (_, index) => `పదం${index + 1}`,
-    ).join(' '),
+    Array.from({ length: 40 }, (_, index) => `పదం${index + 1}`).join(' '),
     width,
     height,
   );
   assert.ok(short > medium);
   assert.ok(medium > long);
-  assert.ok(long >= 24);
-  assert.ok(short <= 160);
+  assert.ok(long >= OBSERVATION_PRESENTATION.preferredMinimumFontSizePx);
+  assert.ok(short <= OBSERVATION_PRESENTATION.preferredMaximumFontSizePx);
 });
 test('preferred font size responds to available observation width without buckets', () => {
-  const text =
-    'ఇది ఒక మధ్యస్థ పొడవు గల తెలుగు పరిశీలన వాక్యం';
-  const narrow =
-    preferredObservationFontSizePx(
-      text,
-      240,
-      700,
-    );
-  const wide =
-    preferredObservationFontSizePx(
-      text,
-      900,
-      700,
-    );
+  const text = 'ఇది ఒక మధ్యస్థ పొడవు గల తెలుగు పరిశీలన వాక్యం';
+  const narrow = preferredObservationFontSizePx(text, 240, 700);
+  const wide = preferredObservationFontSizePx(text, 900, 700);
   assert.ok(wide > narrow);
 });
