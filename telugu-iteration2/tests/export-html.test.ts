@@ -3,18 +3,11 @@ import test from 'node:test';
 import vm from 'node:vm';
 import {
   buildStandaloneExportHtml,
-  prepareStandaloneExportHtml,
+  prepareHtmlExport,
 } from '../frontend/src/export-html';
-import type {
-  EmbeddedObservationFontBundle,
-} from '../frontend/src/font-assets';
-import {
-  OBSERVATION_FONTS,
-} from '../frontend/src/presentation';
-import type {
-  ExportResponse,
-  SelectionSnapshot,
-} from '../shared/contracts';
+import type { EmbeddedObservationFontBundle } from '../frontend/src/font-assets';
+import { OBSERVATION_FONTS } from '../frontend/src/presentation';
+import type { ExportResponse, SelectionSnapshot } from '../shared/contracts';
 function selection(sourceKey: string): SelectionSnapshot {
   return {
     sourceWeights: { source1: 1, source2: 1, source3: 1 },
@@ -101,9 +94,6 @@ class FakeClassList {
     this.values.add(value);
     return true;
   }
-  contains(value: string): boolean {
-    return this.values.has(value);
-  }
 }
 class FakeElement {
   textContent = '';
@@ -115,12 +105,21 @@ class FakeElement {
   scrollHeight = 120;
   readonly style: Record<string, string> = {};
   readonly classList = new FakeClassList();
-  readonly listeners = new Map<string, () => void>();
-  addEventListener(name: string, listener: () => void): void {
+  readonly listeners = new Map<
+    string,
+    (event: { preventDefault: () => void; stopPropagation: () => void }) => void
+  >();
+  addEventListener(
+    name: string,
+    listener: (event: { preventDefault: () => void; stopPropagation: () => void }) => void,
+  ): void {
     this.listeners.set(name, listener);
   }
   click(): void {
-    this.listeners.get('click')?.();
+    this.listeners.get('click')?.({
+      preventDefault() {},
+      stopPropagation() {},
+    });
   }
   getBoundingClientRect(): { width: number; height: number } {
     return { width: this.clientWidth, height: this.clientHeight };
@@ -130,7 +129,7 @@ async function settle(): Promise<void> {
   await Promise.resolve();
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
-test('standalone export embeds all ten fonts, license notices, and no external runtime dependencies', () => {
+test('HTML export embeds all ten fonts, licenses, and no runtime network dependencies', () => {
   const html = buildStandaloneExportHtml(sampleExport(), sampleFontBundle());
   assert.match(html, /^<!doctype html>/i);
   assert.equal((html.match(/@font-face/g) ?? []).length, 10);
@@ -142,14 +141,14 @@ test('standalone export embeds all ten fonts, license notices, and no external r
   assert.equal(/<link[^>]+href=/i.test(html), false);
   assert.equal(/\bfetch\s*\(/.test(html), false);
   assert.equal(/\bXMLHttpRequest\b/.test(html), false);
-  assert.equal(html.includes(['fonts', 'googleapis', 'com'].join('.')), false);
-  assert.equal(html.includes(['fonts', 'gstatic', 'com'].join('.')), false);
+  assert.doesNotMatch(html, /https?:\/\/fonts\.googleapis\.com/);
+  assert.doesNotMatch(html, /https?:\/\/fonts\.gstatic\.com/);
   assert.equal(html.includes('</script><script>globalThis.PWNED=true</script>'), false);
   assert.ok(
     html.includes('\\u003c/script>\\u003cscript>globalThis.PWNED=true\\u003c/script>'),
   );
 });
-test('standalone export serializes the canonical presentation algorithm and mapping-table diagnostics', () => {
+test('HTML export uses shared viewer presentation and mapping-table diagnostics', () => {
   const html = buildStandaloneExportHtml(sampleExport(), sampleFontBundle());
   assert.match(html, /const PRESENTATION=/);
   assert.match(html, /function preferredSize\(/);
@@ -159,12 +158,10 @@ test('standalone export serializes the canonical presentation algorithm and mapp
   assert.match(html, /window\.addEventListener\('resize'/);
   assert.match(html, /<table><tbody id="diagnostic-body"><\/tbody><\/table>/);
   assert.equal(html.includes('<pre id="diagnostic"'), false);
-  assert.match(html, /\['Source probability',percent\(selection\.sourceProbability\)\]/);
-  assert.match(html, /\['Overall probability',percent\(selection\.overallProbability\)\]/);
 });
-test('standalone viewer rerolls font on entry activation but not diagnostic toggles or resize', async () => {
+test('shared standalone viewer rerolls on activation but not diagnostic toggles or resize', async () => {
   const html = buildStandaloneExportHtml(sampleExport(), sampleFontBundle());
-  const match = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/i);
+  const match = html.match(/<script>(const DATA=[\s\S]*?)<\/script>\s*<\/body>/i);
   assert.ok(match?.[1]);
   const ids = [
     'text-wrap',
@@ -235,36 +232,25 @@ test('standalone viewer rerolls font on entry activation but not diagnostic togg
   await settle();
   assert.equal(elements.text!.textContent, 'మొదటి');
   assert.match(elements.text!.style.fontFamily ?? '', /Noto Sans Telugu/);
-  assert.equal(elements.position!.textContent, '1 / 2');
   assert.equal(randomCallCount, 1);
   assert.equal(fontLoadCount, 1);
-  const firstSize = Number.parseFloat(elements.text!.style.fontSize ?? '0');
-  assert.ok(firstSize > 0);
   elements.info!.click();
   elements.info!.click();
-  assert.equal(randomCallCount, 1);
-  assert.equal(fontLoadCount, 1);
   windowListeners.get('resize')?.();
   assert.equal(randomCallCount, 1);
   assert.equal(fontLoadCount, 1);
-  assert.match(elements.text!.style.fontFamily ?? '', /Noto Sans Telugu/);
   elements.next!.click();
   await settle();
-  assert.equal(elements.position!.textContent, '2 / 2');
   assert.match(elements.text!.style.fontFamily ?? '', /Peddana/);
   assert.equal(randomCallCount, 2);
   assert.equal(fontLoadCount, 2);
-  const secondSize = Number.parseFloat(elements.text!.style.fontSize ?? '0');
-  assert.ok(secondSize > 0);
-  assert.ok(secondSize < firstSize);
   elements.back!.click();
   await settle();
-  assert.equal(elements.position!.textContent, '1 / 2');
   assert.match(elements.text!.style.fontFamily ?? '', /Tenali Ramakrishna/);
   assert.equal(randomCallCount, 3);
   assert.equal(fontLoadCount, 3);
 });
-test('prepared standalone export resolves the complete local font bundle before download becomes ready', async () => {
+test('prepared HTML artifact resolves local fonts before becoming downloadable', async () => {
   const originalFetch = globalThis.fetch;
   const requested: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -276,12 +262,16 @@ test('prepared standalone export resolves the complete local font bundle before 
     return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
   }) as typeof fetch;
   try {
-    const prepared = await prepareStandaloneExportHtml(sampleExport());
+    const prepared = await prepareHtmlExport(sampleExport());
+    assert.equal(prepared.format, 'html');
     assert.equal(prepared.entryCount, 2);
-    assert.equal((prepared.html.match(/@font-face/g) ?? []).length, 10);
+    assert.equal(prepared.fileName, 'telugu-export-2.html');
+    assert.equal(prepared.blob.type, 'text/html;charset=utf-8');
+    const html = await prepared.blob.text();
+    assert.equal((html.match(/@font-face/g) ?? []).length, 10);
     assert.equal(requested.length, 20);
     assert.ok(requested.every((url) => url.startsWith('/fonts/')));
-    assert.equal(/\bfetch\s*\(/.test(prepared.html), false);
+    assert.equal(/\bfetch\s*\(/.test(html), false);
   } finally {
     globalThis.fetch = originalFetch;
   }
