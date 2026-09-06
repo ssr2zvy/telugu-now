@@ -204,3 +204,146 @@ test(
     );
   },
 );
+test(
+  'Iteration 2 presentation alterations keep controls monochrome, entry position stable, and typography activation-based',
+  () => {
+    const app =
+      fs.readFileSync(
+        path.join(
+          root,
+          'frontend/src/App.tsx',
+        ),
+        'utf8',
+      );
+    const styles =
+      fs.readFileSync(
+        path.join(
+          root,
+          'frontend/src/styles.css',
+        ),
+        'utf8',
+      );
+    const html =
+      fs.readFileSync(
+        path.join(
+          root,
+          'frontend/index.html',
+        ),
+        'utf8',
+      );
+    const presentation =
+      fs.readFileSync(
+        path.join(
+          root,
+          'frontend/src/presentation.ts',
+        ),
+        'utf8',
+      );
+    assert.ok(
+      app.includes(
+        '<SettingsIcon />',
+      ),
+    );
+    assert.ok(
+      app.includes(
+        '<LanguageIcon />',
+      ),
+    );
+    assert.equal(
+      app.includes('⚙'),
+      false,
+    );
+    assert.equal(
+      app.includes('🌐'),
+      false,
+    );
+    assert.equal(
+      (
+        app.match(
+          /chooseRandomObservationFont\(\)/g,
+        ) ?? []
+      ).length,
+      3,
+    );
+    assert.ok(
+      app.includes(
+        'observationPresentation.observationId',
+      ),
+    );
+    assert.ok(
+      app.includes(
+        'preferredObservationFontSizePx(',
+      ),
+    );
+    assert.ok(
+      app.includes(
+        'document.fonts.load(',
+      ),
+    );
+    assert.ok(
+      app.includes(
+        "'--entry-layout-height'",
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        '.settings-trigger',
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        'bottom:',
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        '.control-icon',
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        'stroke: currentColor',
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        'height: var(--entry-layout-height)',
+      ),
+    );
+    assert.ok(
+      styles.includes(
+        '.observation-text',
+      ),
+    );
+    for (
+      const family of [
+        'Noto Sans Telugu',
+        'Noto Serif Telugu',
+        'Mandali',
+        'Ramabhadra',
+        'NTR',
+        'Peddana',
+        'Ramaraja',
+        'Sree Krushnadevaraya',
+        'Suranna',
+        'Tenali Ramakrishna',
+      ]
+    ) {
+      assert.ok(
+        presentation.includes(
+          `'${family}'`,
+        ),
+      );
+    }
+    assert.ok(
+      html.includes(
+        'fonts.googleapis.com/css2?',
+      ),
+    );
+    assert.ok(
+      html.includes(
+        'Tenali+Ramakrishna',
+      ),
+    );
+  },
+);

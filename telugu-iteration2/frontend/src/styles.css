@@ -18,6 +18,7 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 button,
 input {
@@ -46,13 +47,22 @@ button {
     );
 }
 .entry-screen {
-  display: grid;
-  place-items: center;
+  position: fixed;
+  inset: 0 auto auto 0;
+  display: block;
+  width: 100%;
+  height: var(--entry-layout-height);
+  min-height: var(--entry-layout-height);
+  max-height: var(--entry-layout-height);
 }
 .entry-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: grid;
   place-items: center;
   gap: 0.8rem;
+  transform: translate(-50%, -50%);
 }
 .profile-input {
   width: min(11rem, 55vw);
@@ -107,14 +117,17 @@ button {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  min-height: 0;
   padding: 2rem 0.5rem;
   text-align: center;
 }
 .observation-text {
+  width: 100%;
   max-width: min(82vw, 70rem);
-  line-height: 1.35;
+  line-height: 1.3;
   overflow-wrap: anywhere;
   user-select: none;
+  transition: opacity 80ms linear;
 }
 .observation-placeholder {
   color: rgba(20, 20, 20, 0.55);
@@ -168,16 +181,18 @@ button {
 .settings-trigger {
   position: absolute;
   z-index: 4;
-  top:
-    max(
-      1rem,
-      env(safe-area-inset-top)
-    );
   right:
     max(
       1rem,
       env(safe-area-inset-right)
     );
+  bottom:
+    max(
+      1rem,
+      env(safe-area-inset-bottom)
+    );
+  display: grid;
+  place-items: center;
   width: 2.8rem;
   height: 2.8rem;
   padding: 0;
@@ -187,16 +202,20 @@ button {
     rgba(35, 35, 35, 0.1);
   color:
     rgba(20, 20, 20, 0.55);
-  font-family:
-    system-ui,
-    sans-serif;
-  font-size: 1.35rem;
-  line-height: 1;
   cursor: pointer;
 }
 .settings-trigger:active {
   background:
     rgba(35, 35, 35, 0.18);
+}
+.control-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .settings-screen {
   display: grid;
@@ -440,11 +459,7 @@ button span:last-child {
   background:
     rgba(35, 35, 35, 0.1);
   color:
-    rgba(20, 20, 20, 0.68);
-  font-family:
-    system-ui,
-    sans-serif;
-  font-size: 1.25rem;
+    rgba(20, 20, 20, 0.55);
   cursor: pointer;
 }
 .diagnostic-empty {
