@@ -223,3 +223,8 @@ control-project.sh
 	•	Status-driven options: After reporting status, the script computes the actions that are valid for the requested domain in its current state and displays only those available actions.
 	•	Interactive operation: If no --option argument is supplied, the script prompts the user to choose one of the currently valid options.
 	•	Noninteractive operation: The caller may provide --option
+
+---
+
+## Completion State
+The implementation of Iteration 1 is complete as of commit hash: `bc2b42d762d3f38669da8231824433c388585d45`
