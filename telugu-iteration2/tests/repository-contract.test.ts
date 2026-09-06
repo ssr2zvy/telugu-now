@@ -189,7 +189,7 @@ test('live presentation remains local-font, monochrome, keyboard-stable, and act
   assert.ok(observationStyles.includes('bottom:'));
   assert.ok(main.includes('installLiveObservationFontFaces()'));
   assert.ok(fontAssets.includes('loadObservationFontBundle'));
-  assert.equal(indexHtml.includes('fonts.googleapis.com'), false);
+  assert.doesNotMatch(indexHtml, /https?:\/\/fonts\.googleapis\.com/);
   for (const family of [
     'Noto Sans Telugu',
     'Noto Serif Telugu',

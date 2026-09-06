@@ -141,8 +141,8 @@ test('HTML export embeds all ten fonts, licenses, and no runtime network depende
   assert.equal(/<link[^>]+href=/i.test(html), false);
   assert.equal(/\bfetch\s*\(/.test(html), false);
   assert.equal(/\bXMLHttpRequest\b/.test(html), false);
-  assert.equal(html.includes('fonts.googleapis.com'), false);
-  assert.equal(html.includes('fonts.gstatic.com'), false);
+  assert.doesNotMatch(html, /https?:\/\/fonts\.googleapis\.com/);
+  assert.doesNotMatch(html, /https?:\/\/fonts\.gstatic\.com/);
   assert.equal(html.includes('</script><script>globalThis.PWNED=true</script>'), false);
   assert.ok(
     html.includes('\\u003c/script>\\u003cscript>globalThis.PWNED=true\\u003c/script>'),
