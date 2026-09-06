@@ -25,13 +25,18 @@ function xmlEscape(value: string): string {
     .replace(/'/g, '&apos;');
 }
 function makeIdentifier(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return `urn:uuid:${crypto.randomUUID()}`;
   }
   return `urn:telugu-now:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 function epubModifiedNow(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return new Date()
+    .toISOString()
+    .replace(/\.\d{3}Z$/, 'Z');
 }
 function buildContainerXml(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -66,7 +71,8 @@ function buildNavXhtml(): string {
 </html>`;
 }
 function buildViewerXhtml(): string {
-  const markup = buildStandaloneViewerMarkup();
+  const markup =
+    buildStandaloneViewerMarkup();
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
@@ -87,25 +93,28 @@ function buildPackageOpf(
   modified: string,
   fontBundle: ObservationFontBundle,
 ): string {
-  const fontItems = fontBundle.fonts
-    .map(
-      (font, index) =>
-        `    <item id="font-${index + 1}" href="fonts/${xmlEscape(font.fileName)}" media-type="font/woff2"/>`,
-    )
-    .join('\n');
-  const licenseItems = fontBundle.fonts
-    .map(
-      (font, index) =>
-        `    <item id="font-license-${index + 1}" href="licenses/${xmlEscape(font.licenseFileName)}" media-type="text/plain"/>`,
-    )
-    .join('\n');
+  const fontItems =
+    fontBundle.fonts
+      .map(
+        (font, index) =>
+          `    <item id="font-${index + 1}" href="fonts/${xmlEscape(font.fileName)}" media-type="font/woff2"/>`,
+      )
+      .join('\n');
+  const licenseItems =
+    fontBundle.fonts
+      .map(
+        (font, index) =>
+          `    <item id="font-license-${index + 1}" href="licenses/${xmlEscape(font.licenseFileName)}" media-type="text/plain"/>`,
+      )
+      .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="te">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="te" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="pub-id">${xmlEscape(identifier)}</dc:identifier>
     <dc:title>తెలుగు</dc:title>
     <dc:language>te</dc:language>
     <meta property="dcterms:modified">${xmlEscape(modified)}</meta>
+    <meta property="ibooks:specified-fonts">true</meta>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -121,12 +130,16 @@ ${licenseItems}
   </spine>
 </package>`;
 }
-function relativeFontCss(fontBundle: ObservationFontBundle): string {
+function relativeFontCss(
+  fontBundle: ObservationFontBundle,
+): string {
   return observationFontFaceCss(
-    fontBundle.fonts.map((font) => ({
-      family: font.family,
-      source: `fonts/${font.fileName}`,
-    })),
+    fontBundle.fonts.map(
+      (font) => ({
+        family: font.family,
+        source: `fonts/${font.fileName}`,
+      }),
+    ),
   );
 }
 export function buildEpubBytes(
@@ -134,59 +147,98 @@ export function buildEpubBytes(
   fontBundle: ObservationFontBundle,
   options: EpubBuildOptions = {},
 ): Uint8Array {
-  if (fontBundle.fonts.length !== OBSERVATION_FONT_ASSETS.length) {
-    throw new Error('EPUB font bundle must contain the complete observation font collection.');
+  if (
+    fontBundle.fonts.length !==
+    OBSERVATION_FONT_ASSETS.length
+  ) {
+    throw new Error(
+      'EPUB font bundle must contain the complete observation font collection.',
+    );
   }
-  const identifier = options.identifier ?? makeIdentifier();
-  const modified = options.modified ?? epubModifiedNow();
-  const viewerCss = buildStandaloneViewerCss(relativeFontCss(fontBundle));
-  const viewerScript = buildStandaloneViewerScript(result);
-  const viewerXhtml = buildViewerXhtml();
-  const navXhtml = buildNavXhtml();
-  const packageOpf = buildPackageOpf(identifier, modified, fontBundle);
-  const entries: StoredZipEntry[] = [
-    {
-      name: 'mimetype',
-      data: 'application/epub+zip',
-    },
-    {
-      name: 'META-INF/container.xml',
-      data: buildContainerXml(),
-    },
-    {
-      name: 'EPUB/package.opf',
-      data: packageOpf,
-    },
-    {
-      name: 'EPUB/nav.xhtml',
-      data: navXhtml,
-    },
-    {
-      name: 'EPUB/viewer.xhtml',
-      data: viewerXhtml,
-    },
-    {
-      name: 'EPUB/viewer.css',
-      data: viewerCss,
-    },
-    {
-      name: 'EPUB/viewer.js',
-      data: viewerScript,
-    },
-    {
-      name: 'EPUB/data.json',
-      data: JSON.stringify(result),
-    },
-  ];
-  for (const font of fontBundle.fonts) {
-    entries.push(
+  const identifier =
+    options.identifier ??
+    makeIdentifier();
+  const modified =
+    options.modified ??
+    epubModifiedNow();
+  const viewerCss =
+    buildStandaloneViewerCss(
+      relativeFontCss(
+        fontBundle,
+      ),
+    );
+  const viewerScript =
+    buildStandaloneViewerScript(
+      result,
+    );
+  const viewerXhtml =
+    buildViewerXhtml();
+  const navXhtml =
+    buildNavXhtml();
+  const packageOpf =
+    buildPackageOpf(
+      identifier,
+      modified,
+      fontBundle,
+    );
+  const entries:
+    StoredZipEntry[] = [
       {
-        name: `EPUB/fonts/${font.fileName}`,
-        data: font.bytes,
+        name: 'mimetype',
+        data: 'application/epub+zip',
       },
       {
-        name: `EPUB/licenses/${font.licenseFileName}`,
-        data: font.licenseText,
+        name: 'META-INF/container.xml',
+        data:
+          buildContainerXml(),
+      },
+      {
+        name: 'EPUB/package.opf',
+        data:
+          packageOpf,
+      },
+      {
+        name: 'EPUB/nav.xhtml',
+        data:
+          navXhtml,
+      },
+      {
+        name: 'EPUB/viewer.xhtml',
+        data:
+          viewerXhtml,
+      },
+      {
+        name: 'EPUB/viewer.css',
+        data:
+          viewerCss,
+      },
+      {
+        name: 'EPUB/viewer.js',
+        data:
+          viewerScript,
+      },
+      {
+        name: 'EPUB/data.json',
+        data:
+          JSON.stringify(result),
+      },
+    ];
+  for (
+    const font
+    of fontBundle.fonts
+  ) {
+    entries.push(
+      {
+        name:
+          `EPUB/fonts/${font.fileName}`,
+        data:
+          font.bytes,
+      },
+      {
+        name:
+          `EPUB/licenses/${font.licenseFileName}`,
+        data:
+          font.licenseText,
       },
     );
   }
@@ -195,12 +247,27 @@ export function buildEpubBytes(
 export async function prepareEpubExport(
   result: ExportResponse,
 ): Promise<PreparedExportArtifact> {
-  const fontBundle = await loadObservationFontBundle();
-  const bytes = buildEpubBytes(result, fontBundle);
+  const fontBundle =
+    await loadObservationFontBundle();
+  const bytes =
+    buildEpubBytes(
+      result,
+      fontBundle,
+    );
   return {
     format: 'epub',
-    blob: new Blob([bytes.buffer as ArrayBuffer], { type: 'application/epub+zip' }),
-    fileName: `telugu-export-${result.entries.length}.epub`,
-    entryCount: result.entries.length,
+    blob: new Blob(
+      [
+        bytes.buffer as ArrayBuffer,
+      ],
+      {
+        type:
+          'application/epub+zip',
+      },
+    ),
+    fileName:
+      `telugu-export-${result.entries.length}.epub`,
+    entryCount:
+      result.entries.length,
   };
 }
