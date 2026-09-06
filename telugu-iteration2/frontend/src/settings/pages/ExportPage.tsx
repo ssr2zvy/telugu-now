@@ -89,9 +89,7 @@ export function ExportPage({
         }
         onClick={() => {
           if (preparedExport) {
-            downloadExportHtml(
-              preparedExport,
-            );
+            downloadExportHtml(preparedExport);
           }
         }}
       >
