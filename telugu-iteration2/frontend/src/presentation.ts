@@ -22,7 +22,7 @@ export function chooseRandomObservationFont(
     ? clamp(0, 0.9999999999999999, raw)
     : 0;
   const index = Math.floor(normalized * OBSERVATION_FONTS.length);
-  return OBSERVATION_FONTS[index];
+  return OBSERVATION_FONTS[index]!;
 }
 export function preferredObservationFontSizePx(
   text: string,
