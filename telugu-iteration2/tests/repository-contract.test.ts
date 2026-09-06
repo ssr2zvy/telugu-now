@@ -10,10 +10,23 @@ import {
 } from 'node:url';
 const root = path.resolve(
   path.dirname(
-    fileURLToPath(import.meta.url),
+    fileURLToPath(
+      import.meta.url,
+    ),
   ),
   '..',
 );
+function read(
+  relativePath: string,
+): string {
+  return fs.readFileSync(
+    path.join(
+      root,
+      relativePath,
+    ),
+    'utf8',
+  );
+}
 test(
   'Iteration 2 controller is control.sh with no stale control-project.sh surface',
   () => {
@@ -37,7 +50,9 @@ test(
     );
     assert.ok(
       (
-        fs.statSync(control).mode &
+        fs.statSync(
+          control,
+        ).mode &
         0o111
       ) !== 0,
       'control.sh should remain executable',
@@ -45,7 +60,10 @@ test(
     const syntax =
       spawnSync(
         'bash',
-        ['-n', control],
+        [
+          '-n',
+          control,
+        ],
         {
           encoding: 'utf8',
         },
@@ -56,13 +74,7 @@ test(
       syntax.stderr,
     );
     const readme =
-      fs.readFileSync(
-        path.join(
-          root,
-          'README.md',
-        ),
-        'utf8',
-      );
+      read('README.md');
     assert.equal(
       readme.includes(
         'control-project.sh',
@@ -92,32 +104,75 @@ test(
   },
 );
 test(
-  'Iteration 2 frontend contract uses Settings pages, table diagnostics, and two-stage export',
+  'Iteration 2 frontend is split by profile, observation, settings, and shared UI ownership',
   () => {
+    const requiredFiles = [
+      'frontend/src/components/icons.tsx',
+      'frontend/src/profile/ProfileEntry.tsx',
+      'frontend/src/profile/useProfileSession.ts',
+      'frontend/src/observation/ObservationView.tsx',
+      'frontend/src/observation/useObservationTypography.ts',
+      'frontend/src/settings/types.ts',
+      'frontend/src/settings/language.ts',
+      'frontend/src/settings/settings-utils.ts',
+      'frontend/src/settings/diagnostic.ts',
+      'frontend/src/settings/SettingsShell.tsx',
+      'frontend/src/settings/SettingsView.tsx',
+      'frontend/src/settings/useSettingsController.ts',
+      'frontend/src/settings/pages/SettingsIndex.tsx',
+      'frontend/src/settings/pages/ComplexityPage.tsx',
+      'frontend/src/settings/pages/SourceWeightsPage.tsx',
+      'frontend/src/settings/pages/DiagnosticPage.tsx',
+      'frontend/src/settings/pages/ExportPage.tsx',
+      'frontend/src/styles/base.css',
+      'frontend/src/styles/profile.css',
+      'frontend/src/styles/observation.css',
+      'frontend/src/styles/settings.css',
+    ];
+    for (
+      const relativePath
+      of requiredFiles
+    ) {
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            root,
+            relativePath,
+          ),
+        ),
+        true,
+        `${relativePath} should exist`,
+      );
+    }
     const app =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/src/App.tsx',
-        ),
-        'utf8',
+      read(
+        'frontend/src/App.tsx',
       );
-    const styles =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/src/styles.css',
-        ),
-        'utf8',
-      );
-    const readme =
-      fs.readFileSync(
-        path.join(
-          root,
-          'README.md',
-        ),
-        'utf8',
-      );
+    assert.ok(
+      app.includes(
+        "from './profile/ProfileEntry'",
+      ),
+    );
+    assert.ok(
+      app.includes(
+        "from './profile/useProfileSession'",
+      ),
+    );
+    assert.ok(
+      app.includes(
+        "from './observation/ObservationView'",
+      ),
+    );
+    assert.ok(
+      app.includes(
+        "from './settings/SettingsView'",
+      ),
+    );
+    assert.ok(
+      app.includes(
+        "from './settings/useSettingsController'",
+      ),
+    );
     assert.equal(
       app.includes(
         'settings-modal',
@@ -130,44 +185,126 @@ test(
       ),
       false,
     );
-    assert.ok(
-      app.includes(
-        "type SettingsPage = 'index' | 'complexity' | 'sources' | 'diagnostic' | 'export'",
-      ),
-    );
-    assert.ok(
+    assert.equal(
       app.includes(
         'className="diagnostic-table"',
       ),
+      false,
+    );
+    assert.equal(
+      app.includes(
+        'chooseRandomObservationFont',
+      ),
+      false,
     );
     assert.ok(
-      app.includes(
+      app.split('\n').length <
+        100,
+      'App.tsx should remain composition-focused',
+    );
+  },
+);
+test(
+  'Iteration 2 Settings contract remains page-based with table diagnostics and two-stage export',
+  () => {
+    const settingsTypes =
+      read(
+        'frontend/src/settings/types.ts',
+      );
+    const settingsView =
+      read(
+        'frontend/src/settings/SettingsView.tsx',
+      );
+    const shell =
+      read(
+        'frontend/src/settings/SettingsShell.tsx',
+      );
+    const diagnosticPage =
+      read(
+        'frontend/src/settings/pages/DiagnosticPage.tsx',
+      );
+    const exportPage =
+      read(
+        'frontend/src/settings/pages/ExportPage.tsx',
+      );
+    const settingsController =
+      read(
+        'frontend/src/settings/useSettingsController.ts',
+      );
+    const styles =
+      read(
+        'frontend/src/styles/settings.css',
+      );
+    const readme =
+      read('README.md');
+    assert.ok(
+      settingsTypes.includes(
+        "| 'complexity'",
+      ),
+    );
+    assert.ok(
+      settingsTypes.includes(
+        "| 'sources'",
+      ),
+    );
+    assert.ok(
+      settingsTypes.includes(
+        "| 'diagnostic'",
+      ),
+    );
+    assert.ok(
+      settingsTypes.includes(
+        "| 'export'",
+      ),
+    );
+    assert.ok(
+      settingsView.includes(
+        '<SettingsIndex',
+      ),
+    );
+    assert.ok(
+      settingsView.includes(
+        '<ComplexityPage',
+      ),
+    );
+    assert.ok(
+      settingsView.includes(
+        '<SourceWeightsPage',
+      ),
+    );
+    assert.ok(
+      settingsView.includes(
+        '<DiagnosticPage',
+      ),
+    );
+    assert.ok(
+      settingsView.includes(
+        '<ExportPage',
+      ),
+    );
+    assert.ok(
+      shell.includes(
         'className="language-toggle"',
       ),
     );
     assert.ok(
-      app.includes(
-        'className="observation-placeholder"',
+      diagnosticPage.includes(
+        'className="diagnostic-table"',
       ),
     );
     assert.ok(
-      app.includes(
+      exportPage.includes(
+        'downloadExportHtml(preparedExport)',
+      ),
+    );
+    assert.ok(
+      settingsController.includes(
         'preparedExport',
       ),
     );
     assert.ok(
-      app.includes(
-        'downloadExportHtml(',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.controls-visible',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.nav-zone:disabled',
+      settingsController.includes(
+        'setPreparedExport(null)',
       ),
     );
     assert.ok(
@@ -205,114 +342,130 @@ test(
   },
 );
 test(
-  'Iteration 2 presentation alterations keep controls monochrome, entry position stable, and typography activation-based',
+  'Iteration 2 presentation alterations remain monochrome, keyboard-stable, and activation-randomized after modularization',
   () => {
-    const app =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/src/App.tsx',
-        ),
-        'utf8',
+    const icons =
+      read(
+        'frontend/src/components/icons.tsx',
       );
-    const styles =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/src/styles.css',
-        ),
-        'utf8',
+    const profileEntry =
+      read(
+        'frontend/src/profile/ProfileEntry.tsx',
       );
-    const html =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/index.html',
-        ),
-        'utf8',
+    const observationView =
+      read(
+        'frontend/src/observation/ObservationView.tsx',
+      );
+    const typography =
+      read(
+        'frontend/src/observation/useObservationTypography.ts',
       );
     const presentation =
-      fs.readFileSync(
-        path.join(
-          root,
-          'frontend/src/presentation.ts',
-        ),
-        'utf8',
+      read(
+        'frontend/src/presentation.ts',
+      );
+    const baseStyles =
+      read(
+        'frontend/src/styles/base.css',
+      );
+    const profileStyles =
+      read(
+        'frontend/src/styles/profile.css',
+      );
+    const observationStyles =
+      read(
+        'frontend/src/styles/observation.css',
+      );
+    const html =
+      read(
+        'frontend/index.html',
       );
     assert.ok(
-      app.includes(
-        '<SettingsIcon />',
+      icons.includes(
+        'export function SettingsIcon',
       ),
     );
     assert.ok(
-      app.includes(
-        '<LanguageIcon />',
+      icons.includes(
+        'export function LanguageIcon',
       ),
     );
     assert.equal(
-      app.includes('⚙'),
+      icons.includes('⚙'),
       false,
     );
     assert.equal(
-      app.includes('🌐'),
+      icons.includes('🌐'),
       false,
     );
-    assert.equal(
-      (
-        app.match(
-          /chooseRandomObservationFont\(\)/g,
-        ) ?? []
-      ).length,
-      3,
-    );
     assert.ok(
-      app.includes(
-        'observationPresentation.observationId',
-      ),
-    );
-    assert.ok(
-      app.includes(
-        'preferredObservationFontSizePx(',
-      ),
-    );
-    assert.ok(
-      app.includes(
-        'document.fonts.load(',
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "'--entry-layout-height'",
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.settings-trigger',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        'bottom:',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.control-icon',
-      ),
-    );
-    assert.ok(
-      styles.includes(
+      baseStyles.includes(
         'stroke: currentColor',
       ),
     );
     assert.ok(
-      styles.includes(
+      profileEntry.includes(
+        "'--entry-layout-height'",
+      ),
+    );
+    assert.ok(
+      profileStyles.includes(
         'height: var(--entry-layout-height)',
       ),
     );
     assert.ok(
-      styles.includes(
-        '.observation-text',
+      observationView.includes(
+        '<SettingsIcon />',
+      ),
+    );
+    assert.ok(
+      observationView.includes(
+        'className="observation-placeholder"',
+      ),
+    );
+    assert.ok(
+      observationView.includes(
+        'useObservationTypography(observation)',
+      ),
+    );
+    assert.ok(
+      typography.includes(
+        'chooseRandomObservationFont()',
+      ),
+    );
+    assert.ok(
+      typography.includes(
+        'presentation.observationId',
+      ),
+    );
+    assert.ok(
+      typography.includes(
+        'preferredObservationFontSizePx(',
+      ),
+    );
+    assert.ok(
+      typography.includes(
+        'document.fonts.load(',
+      ),
+    );
+    assert.ok(
+      observationStyles.includes(
+        '.controls-visible .nav-zone',
+      ),
+    );
+    assert.ok(
+      observationStyles.includes(
+        '.nav-zone:disabled',
+      ),
+    );
+    assert.ok(
+      observationStyles.includes(
+        '.settings-trigger',
+      ),
+    );
+    assert.ok(
+      observationStyles.includes(
+        'bottom:',
       ),
     );
     for (

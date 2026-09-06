@@ -1,0 +1,125 @@
+.entry-screen {
+  position: fixed;
+  inset: 0 auto auto 0;
+  display: block;
+  width: 100%;
+  height:
+    var(
+      --entry-layout-height
+    );
+  min-height:
+    var(
+      --entry-layout-height
+    );
+  max-height:
+    var(
+      --entry-layout-height
+    );
+}
+.entry-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  gap: 0.8rem;
+  transform:
+    translate(
+      -50%,
+      -50%
+    );
+}
+.profile-input {
+  width:
+    min(
+      11rem,
+      55vw
+    );
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  outline: none;
+  background:
+    rgba(
+      30,
+      30,
+      30,
+      0.3
+    );
+  color:
+    rgba(
+      18,
+      18,
+      18,
+      0.92
+    );
+  caret-color:
+    rgba(
+      18,
+      18,
+      18,
+      0.92
+    );
+  box-shadow:
+    0
+    0.15rem
+    0.7rem
+    rgba(
+      0,
+      0,
+      0,
+      0.14
+    );
+  text-align: center;
+  font-family:
+    system-ui,
+    sans-serif;
+  font-size: 1.5rem;
+  font-variant-numeric:
+    tabular-nums;
+  letter-spacing: 0.65rem;
+  text-indent: 0.65rem;
+}
+.profile-input:focus {
+  background:
+    rgba(
+      24,
+      24,
+      24,
+      0.38
+    );
+  box-shadow:
+    0
+    0
+    0
+    1px
+    rgba(
+      20,
+      20,
+      20,
+      0.12
+    ),
+    0
+    0.18rem
+    0.8rem
+    rgba(
+      0,
+      0,
+      0,
+      0.16
+    );
+}
+.telugu-error {
+  min-height: 1.2rem;
+  font-size: 0.92rem;
+  line-height: 1.2rem;
+  color:
+    rgba(
+      22,
+      22,
+      22,
+      0.9
+    );
+  text-align: center;
+}
