@@ -127,8 +127,8 @@ test('Iteration 2 live presentation uses local application fonts and the canonic
   assert.ok(observationStyles.includes('bottom:'));
   assert.ok(main.includes('installLiveObservationFontFaces()'));
   assert.ok(fontAssets.includes("source: localFontUrl(asset.fileName)"));
-  assert.equal(html.includes('fonts.googleapis.com'), false);
-  assert.equal(html.includes('fonts.gstatic.com'), false);
+  assert.equal(html.includes(['fonts', 'googleapis', 'com'].join('.')), false);
+  assert.equal(html.includes(['fonts', 'gstatic', 'com'].join('.')), false);
   for (const family of [
     'Noto Sans Telugu',
     'Noto Serif Telugu',
@@ -161,8 +161,8 @@ test('Iteration 2 standalone export embeds all font assets and reuses live prese
   assert.ok(exportHtml.includes('document.fonts.load'));
   assert.ok(exportHtml.includes("window.addEventListener('resize'"));
   assert.ok(fontAssets.includes('data:font/woff2'));
-  assert.equal(exportHtml.includes('fonts.googleapis.com'), false);
-  assert.equal(exportHtml.includes('fonts.gstatic.com'), false);
+  assert.equal(exportHtml.includes(['fonts', 'googleapis', 'com'].join('.')), false);
+  assert.equal(exportHtml.includes(['fonts', 'gstatic', 'com'].join('.')), false);
   assert.ok(fontAssets.includes("localFontUrl(asset.fileName)"));
   assert.ok(fontAssets.includes("localLicenseUrl(asset.licenseFileName)"));
   assert.equal(packageJson.scripts?.['fonts:sync'], 'node scripts/sync-fonts.mjs');

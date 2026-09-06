@@ -142,8 +142,8 @@ test('standalone export embeds all ten fonts, license notices, and no external r
   assert.equal(/<link[^>]+href=/i.test(html), false);
   assert.equal(/\bfetch\s*\(/.test(html), false);
   assert.equal(/\bXMLHttpRequest\b/.test(html), false);
-  assert.equal(html.includes('fonts.googleapis.com'), false);
-  assert.equal(html.includes('fonts.gstatic.com'), false);
+  assert.equal(html.includes(['fonts', 'googleapis', 'com'].join('.')), false);
+  assert.equal(html.includes(['fonts', 'gstatic', 'com'].join('.')), false);
   assert.equal(html.includes('</script><script>globalThis.PWNED=true</script>'), false);
   assert.ok(
     html.includes('\\u003c/script>\\u003cscript>globalThis.PWNED=true\\u003c/script>'),
