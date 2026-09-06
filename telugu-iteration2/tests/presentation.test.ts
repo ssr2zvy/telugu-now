@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  OBSERVATION_FONTS,
+  chooseRandomObservationFont,
+  preferredObservationFontSizePx,
+} from '../frontend/src/presentation';
+test('observation font collection is the fixed curated Telugu set', () => {
+  assert.deepEqual(OBSERVATION_FONTS, [
+    'Noto Sans Telugu',
+    'Noto Serif Telugu',
+    'Mandali',
+    'Ramabhadra',
+    'NTR',
+    'Peddana',
+    'Ramaraja',
+    'Sree Krushnadevaraya',
+    'Suranna',
+    'Tenali Ramakrishna',
+  ]);
+});
+test('random font selection maps the full random interval onto the curated collection', () => {
+  assert.equal(chooseRandomObservationFont(() => 0), 'Noto Sans Telugu');
+  assert.equal(chooseRandomObservationFont(() => 0.099999), 'Noto Sans Telugu');
+  assert.equal(chooseRandomObservationFont(() => 0.1), 'Noto Serif Telugu');
+  assert.equal(chooseRandomObservationFont(() => 0.999999), 'Tenali Ramakrishna');
+});
+test('preferred font size decreases smoothly as observation content grows', () => {
+  const width = 700;
+  const height = 700;
+  const short = preferredObservationFontSizePx(
+    'తెలుగు',
+    width,
+    height,
+  );
+  const medium = preferredObservationFontSizePx(
+    'తెలుగు భాషలో కొన్ని పదాలు కలిసి ఒక వాక్యంగా కనిపిస్తున్నాయి',
+    width,
+    height,
+  );
+  const long = preferredObservationFontSizePx(
+    Array.from(
+      { length: 40 },
+      (_, index) => `పదం${index + 1}`,
+    ).join(' '),
+    width,
+    height,
+  );
+  assert.ok(short > medium);
+  assert.ok(medium > long);
+  assert.ok(long >= 24);
+  assert.ok(short <= 160);
+});
+test('preferred font size responds to available observation width without buckets', () => {
+  const text =
+    'ఇది ఒక మధ్యస్థ పొడవు గల తెలుగు పరిశీలన వాక్యం';
+  const narrow =
+    preferredObservationFontSizePx(
+      text,
+      240,
+      700,
+    );
+  const wide =
+    preferredObservationFontSizePx(
+      text,
+      900,
+      700,
+    );
+  assert.ok(wide > narrow);
+});

@@ -1,6 +1,6 @@
 # Implementation Iteration 2
 This repository contains Implementation Iteration 2 of the Telugu observation app. Iteration 1's persistent history/timing model, ten-item future queue, continuous one-for-one replenishment, sequential live preparation, and SQLite persistence remain the foundation.
-Iteration 2 adds the real source/complexity selection engine, persistent profile settings, repeatable source-record caching, tap-revealed controls, full-page Settings navigation, bilingual Settings labels, structured diagnostics, and standalone batch export. The actual external Telugu datasets are still mocked by three deterministic local sources.
+Iteration 2 adds the source/complexity selection engine, persistent profile settings, repeatable source-record caching, tap-revealed controls, full-page Settings navigation, bilingual Settings labels, structured diagnostics, activation-time randomized Telugu typography, and standalone batch export. The actual external Telugu datasets are still mocked by three deterministic local sources.
 ## Stack
 - TypeScript
 - React + Vite
@@ -35,7 +35,7 @@ The test suite preserves the accepted Iteration 1 queue/history/timing invariant
 
 Selection is also checked against an independently implemented numerical probability oracle, a deterministic 100-selection black-box audit, injected random-number boundary cases, and a seeded 50,000-selection Monte Carlo comparison against the full expected source+row distribution.
 
-The repository-contract tests also guard the current frontend contract: Settings is page-based rather than modal/accordion-based, diagnostics use a mapping table, the empty observation state is ..., disabled navigation arrows remain present when controls are revealed, and Export generation is separate from Download.
+The frontend contract tests guard page-based Settings, mapping-table diagnostics, the ... empty observation state, permanently positioned revealed navigation arrows, two-stage Export/Download behavior, monochrome application-rendered Settings/language controls, the stable profile-entry viewport anchor, and the curated observation-font collection. Presentation tests independently verify deterministic boundaries of the random font selector and the continuous length-based preferred-size function.
 
 Deterministic dummy sources
 
@@ -81,17 +81,11 @@ Each profile configures:
 * global complexity percentile target T in [0,1];
 * global complexity percentile spread R > 0.
 
-The desired complexity curve is a normal distribution centered at T.
-
-R is the half-width corresponding to the central 98% reference interval, so:
+The desired complexity curve is a normal distribution centered at T. R is the half-width corresponding to the central 98% reference interval, so:
 
 sigma = R / 2.326347874
 
-The normal is truncated and renormalized to the valid percentile domain [0,1].
-
-Its probability mass over each tied word-count percentile interval is divided by the global number of rows with that word count to produce a per-row global complexity mass.
-
-Once a source has been selected, those masses are normalized across the rows actually available in that source.
+The normal is truncated and renormalized to the valid percentile domain [0,1]. Its probability mass over each tied word-count percentile interval is divided by the global number of rows with that word count to produce a per-row global complexity mass. Once a source has been selected, those masses are normalized across the rows actually available in that source.
 
 Source probability, conditional row probability, and overall source+row probability remain distinct and are stored in every normal acquisition’s immutable selection snapshot.
 
@@ -104,116 +98,107 @@ A stable source record and an acquisition are separate concepts:
 * a source record is the underlying source row and normalized retrieved content;
 * an acquisition is one particular probabilistic selection event.
 
-source_records is the shared persistent cache, keyed by (source_id, source_key).
-
-Once either the live queue or Export retrieves a source record, later live/export selections of that row reuse the cached content without another source request.
+source_records is the shared persistent cache, keyed by (source_id, source_key). Once either the live queue or Export retrieves a source record, later live/export selections of that row reuse the cached content without another source request.
 
 Queue behavior
 
-The live profile still maintains ten selected unseen observations.
+The live profile still maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the tail of the future queue.
 
-Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the tail of the future queue.
+Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
 
-Back/forward movement through already-seen history does not consume the queue and creates no replacement.
-
-Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
-
-Saved source/complexity settings affect only acquisitions selected after the save.
-
-Existing history, existing unseen selections, and already-pending preparation work are not resampled.
+Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
 
 Observation controls
 
-Back, Next, and the upper-right Settings icon are hidden by default.
+Back, Next, and the bottom-right Settings icon are hidden by default. A single tap on the ordinary observation surface reveals all three controls; another background tap hides them. A successful Back/Next navigation hides them again.
 
-A single tap on the ordinary observation surface reveals all three controls; another background tap hides them.
+Whenever controls are revealed, both Back and Next remain in their fixed positions. If either direction is unavailable, its arrow is visibly greyed out and disabled rather than disappearing.
 
-A successful Back/Next navigation hides them again.
-
-Whenever controls are revealed, both Back and Next remain in their fixed positions.
-
-If either direction is unavailable, its arrow is visibly greyed out and disabled rather than disappearing.
+The Settings control and the Settings-language control are application-rendered monochrome SVGs that inherit the same grey UI color through currentColor. Platform emoji glyphs are not used for either control.
 
 When a valid profile has no current observation yet, the observation area displays:
 
 ...
 
-This is only a UI placeholder.
+This is only a UI placeholder. It does not create a history entry, acquisition, source record, or timing record.
 
-It does not create a history entry, acquisition, source record, or timing record.
+Stable profile-code entry
+
+The initial three-digit profile-code input is anchored to the viewport height captured when the entry screen first renders. The entry screen uses that fixed layout height rather than the keyboard-responsive dynamic viewport height.
+
+Opening the software keyboard therefore does not recenter, shrink, or push the profile-code input upward as the mobile visual viewport changes. The bar stays at its original physical vertical position for that entry-screen session.
+
+Observation typography
+
+Each time an observation becomes the actively displayed observation, the client randomly chooses one font from this fixed curated collection:
+
+* Noto Sans Telugu
+* Noto Serif Telugu
+* Mandali
+* Ramabhadra
+* NTR
+* Peddana
+* Ramaraja
+* Sree Krushnadevaraya
+* Suranna
+* Tenali Ramakrishna
+
+Font selection is presentation-only. It is not persisted in history, the acquisition, the source record, or the selection snapshot.
+
+Navigating away from an observation and later returning to it chooses again. Closing Settings and returning to the observation also chooses again. A browser reload/new presentation session may choose again. Polling, timing refreshes, queue-readiness changes, and ordinary React rerenders do not reroll the font while the same observation remains continuously active.
+
+The preferred observation font size is derived continuously from text load rather than from a few hardcoded sentence-length buckets. Short observations receive a larger preferred size and progressively longer observations receive progressively smaller sizes.
+
+After the font is chosen, the browser loads that specific family and measures the rendered observation. The fit pass reduces the preferred size only as necessary to fit the available observation width and height. The order is:
+
+observation becomes active
+        ↓
+choose random font
+        ↓
+derive preferred size from observation length
+        ↓
+load and measure that font
+        ↓
+reduce only if necessary to fit
+        ↓
+display
+
+Iteration 2 loads the curated prototype font collection through Google Fonts so these families are actually available rather than depending on device-installed fonts. The selection remains application-controlled. Before a production/offline release, the same licensed font assets should be bundled/self-hosted by the application so runtime typography no longer depends on remote font delivery.
 
 Full-page Settings
 
-Settings replaces the observation view while it is open; it is not a modal.
-
-The Settings root page links to four child pages:
+Settings replaces the observation view while it is open; it is not a modal. The Settings root page links to four child pages:
 
 1. Complexity
 2. Source weights
 3. Diagnostic
 4. Export
 
-Every child page has a Back control that returns to the Settings root.
+Every child page has a Back control that returns to the Settings root. The × control exits the entire Settings hierarchy and returns to the same observation.
 
-The × control exits the entire Settings hierarchy and returns to the same observation.
+Because the observation is not visible while a Settings page is displayed, opening Settings pauses the current observation’s visible-time accumulation. The history-tail absolute timer continues according to the accepted Iteration 1 timing rules. Closing Settings resumes visible-time accumulation if the observation is otherwise visible and creates a fresh typography activation for that observation.
 
-Because the observation is not visible while a Settings page is displayed, opening Settings pauses the current observation’s visible-time accumulation.
-
-The history-tail absolute timer continues according to the accepted Iteration 1 timing rules.
-
-Closing Settings resumes visible-time accumulation if the observation is otherwise visible.
-
-A language control remains fixed in the bottom-right throughout the Settings hierarchy.
-
-It switches all Settings labels, including diagnostic field names, between Telugu and English.
-
-The preference is presentation-only and is persisted locally in the browser.
-
-It does not change selection settings, queue state, acquisition snapshots, or export probabilities.
+A monochrome language control remains fixed in the bottom-right throughout the Settings hierarchy. It switches all Settings labels, including diagnostic field names, between Telugu and English. The preference is presentation-only and is persisted locally in the browser. It does not change selection settings, queue state, acquisition snapshots, or export probabilities.
 
 Complexity and source-weight pages
 
-The Complexity page edits the global percentile target and spread.
+The Complexity page edits the global percentile target and spread. The Source weights page edits one canonical weight for each source. Both persist through the existing profile-settings API and backend validation remains authoritative.
 
-The Source weights page edits one canonical weight for each source.
-
-Both persist through the existing profile-settings API and backend validation remains authoritative.
-
-Saving either page affects only future selections.
-
-Already-selected unseen observations, history, and already-pending preparation work remain unchanged.
+Saving either page affects only future selections. Already-selected unseen observations, history, and already-pending preparation work remain unchanged.
 
 Diagnostic
 
 Diagnostic has its own full page and renders the current acquisition as a two-column mapping table rather than free-form diagnostic text.
 
-The table preserves the Iteration 1 trigger/preparation fields and adds the complete persisted Iteration 2 selection snapshot, including:
+The table preserves the Iteration 1 trigger/preparation fields and adds the complete persisted Iteration 2 selection snapshot, including source weights, source probability, row key, word count, global percentile interval, target/spread/reference version, conditional row probability, overall probability, and cache-hit/request information.
 
-* source weights;
-* source probability;
-* row key;
-* word count;
-* global percentile interval;
-* complexity target;
-* complexity spread;
-* complexity-reference version;
-* conditional row probability;
-* overall probability;
-* cache-hit/request information.
-
-If there is no current acquisition, the Diagnostic page displays:
-
-...
-
-rather than fabricating values.
+If there is no current acquisition, the Diagnostic page displays ... rather than fabricating values.
 
 Export
 
 Export is not a history export and does not simulate repeated Next presses.
 
-The user enters a positive integer N.
-
-Export snapshots the profile’s current source weights, complexity target/spread, and complexity-reference version once, then performs exactly N independent fresh selections using the same source and complexity selection engine used by normal acquisitions.
+The user enters a positive integer N. Export snapshots the profile’s current source weights, complexity target/spread, and complexity-reference version once, then performs exactly N independent fresh selections using the same source and complexity selection engine used by normal acquisitions.
 
 Export does not:
 
@@ -223,32 +208,15 @@ Export does not:
 * consume normal acquisition numbers;
 * alter observation timing.
 
-Export does use and populate the normal persistent source_records cache.
+Export does use and populate the normal persistent source_records cache. Selected uncached rows are resolved sequentially through the source adapter; cached rows are reused immediately.
 
-Selected uncached rows are resolved sequentially through the source adapter; cached rows are reused immediately.
-
-The Export page uses two explicit stages.
-
-Export first generates the batch.
-
-While generation is running, Download is disabled.
-
-After all N rows are selected and resolved, the generated ExportResponse is retained in the browser and Download becomes available.
+The Export page uses two explicit stages. Export first generates the batch. While generation is running, Download is disabled. After all N rows are selected and resolved, the generated ExportResponse is retained in the browser and Download becomes available.
 
 Download only serializes that already-completed result into the self-contained HTML file; it performs no new source selections or source retrievals.
 
-Editing the export count invalidates the prepared Download.
+Editing the export count invalidates the prepared Download. Successfully saving new complexity or source-weight settings also invalidates any prepared Download, so the visible count/settings cannot disagree with the batch being downloaded.
 
-Successfully saving new complexity or source-weight settings also invalidates any prepared Download, so the visible count/settings cannot disagree with the batch being downloaded.
-
-The browser builds one self-contained .html file in memory containing:
-
-* all selected Telugu observations;
-* inline CSS;
-* inline JavaScript;
-* each export item’s diagnostic mapping table.
-
-The downloaded file needs no app server, SQLite, Node.js, APIs, or external JavaScript libraries and can browse only its embedded sequence.
+The browser builds one self-contained .html file in memory containing all selected Telugu observations, inline CSS/JavaScript, and each export item’s diagnostic mapping table. The downloaded file needs no app server, SQLite, Node.js, APIs, or external JavaScript libraries and can browse only its embedded sequence.
 
 Persistence and migration
 
@@ -258,24 +226,13 @@ The default SQLite file is:
 
 Override it with DATABASE_PATH.
 
-Iteration 2 performs a non-destructive schema upgrade for Iteration 1 databases.
+Iteration 2 performs a non-destructive schema upgrade for Iteration 1 databases. In particular, it removes Iteration 1’s observation-level uniqueness on (source_id, source_key) so repeats can create distinct acquisitions, creates the stable shared source_records cache, adds profile selection settings/weights, and adds persisted selection snapshots.
 
-In particular, it:
-
-* removes Iteration 1’s observation-level uniqueness on (source_id, source_key) so repeats can create distinct acquisitions;
-* creates the stable shared source_records cache;
-* adds profile selection settings/weights;
-* adds persisted selection snapshots.
-
-Already-ready Iteration 1 observations are backfilled into the shared source-record cache.
-
-A compatibility-only disabled Iteration 1 mock resolver remains available for old pending mock rows but is not part of the three selectable Iteration 2 sources.
+Already-ready Iteration 1 observations are backfilled into the shared source-record cache. A compatibility-only disabled Iteration 1 mock resolver remains available for old pending mock rows but is not part of the three selectable Iteration 2 sources.
 
 Environment defaults
 
-See .env.example.
-
-Important defaults are:
+See .env.example. Important defaults are:
 
 SOURCE1_WEIGHT=1
 SOURCE2_WEIGHT=1
@@ -285,4 +242,3 @@ COMPLEXITY_PERCENTILE_SPREAD=0.25
 MOCK_DELAY_MIN_MS=1000
 MOCK_DELAY_MAX_MS=15000
 MAX_EXPORT_COUNT=500
-Those six are sufficient for the requested revision. `frontend/src/api.ts`, `shared/contracts.ts`, and the server-side services should remain untouched: the existing APIs already support the page-based presentation, visibility pause/resume, settings persistence, diagnostic data, two-stage client-side export handling, and shared source-record cache.
