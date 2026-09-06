@@ -15,7 +15,10 @@
     "build:server": "tsup server/src/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
     "typecheck": "tsc --noEmit",
     "start": "NODE_ENV=production node dist/server/index.js",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "fonts:sync": "node scripts/sync-fonts.mjs",
+    "predev:client": "npm run fonts:sync",
+    "prebuild:client": "npm run fonts:sync"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

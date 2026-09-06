@@ -1,11 +1,9 @@
 import type {
   ChangeEvent,
 } from 'react';
-import type {
-  ExportResponse,
-} from '../../../../shared/contracts';
 import {
-  downloadExportHtml,
+  downloadPreparedExportHtml,
+  type PreparedStandaloneExport,
 } from '../../export-html';
 import {
   t,
@@ -18,12 +16,9 @@ interface ExportPageProps {
   count: string;
   exporting: boolean;
   error: boolean;
-  preparedExport:
-    ExportResponse | null;
-  onCountChange:
-    (count: string) => void;
-  onExport:
-    () => void;
+  preparedExport: PreparedStandaloneExport | null;
+  onCountChange: (count: string) => void;
+  onExport: () => void;
 }
 export function ExportPage({
   language,
@@ -41,27 +36,12 @@ export function ExportPage({
         min="1"
         step="1"
         inputMode="numeric"
-        aria-label={
-          t(
-            language,
-            'count',
-          )
-        }
-        placeholder={
-          t(
-            language,
-            'count',
-          )
-        }
+        aria-label={t(language, 'count')}
+        placeholder={t(language, 'count')}
         value={count}
         disabled={exporting}
-        onChange={(
-          event:
-            ChangeEvent<HTMLInputElement>,
-        ) =>
-          onCountChange(
-            event.target.value,
-          )
+        onChange={(event: ChangeEvent<HTMLInputElement>) =>
+          onCountChange(event.target.value)
         }
       />
       <button
@@ -71,57 +51,29 @@ export function ExportPage({
         onClick={onExport}
       >
         {exporting
-          ? t(
-              language,
-              'exporting',
-            )
-          : t(
-              language,
-              'export',
-            )}
+          ? t(language, 'exporting')
+          : t(language, 'export')}
       </button>
       <button
         className="secondary-action"
         type="button"
-        disabled={
-          exporting ||
-          preparedExport === null
-        }
+        disabled={exporting || preparedExport === null}
         onClick={() => {
           if (preparedExport) {
-            downloadExportHtml(
-              preparedExport,
-            );
+            downloadPreparedExportHtml(preparedExport);
           }
         }}
       >
-        {t(
-          language,
-          'download',
-        )}
+        {t(language, 'download')}
       </button>
       {preparedExport ? (
-        <div
-          className="export-ready"
-          role="status"
-        >
-          {t(
-            language,
-            'ready',
-          )}
-          :{' '}
-          {
-            preparedExport
-              .entries.length
-          }
+        <div className="export-ready" role="status">
+          {t(language, 'ready')}: {preparedExport.entryCount}
         </div>
       ) : null}
       {error ? (
         <div className="settings-error">
-          {t(
-            language,
-            'invalidExport',
-          )}
+          {t(language, 'invalidExport')}
         </div>
       ) : null}
     </div>

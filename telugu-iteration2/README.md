@@ -26,6 +26,24 @@ The browser app is served by Vite on port 5173. The Hono API runs on 127.0.0.1:8
 
 The configured prototype profile code is 001.
 
+Font assets
+
+The live application and standalone exports use the same ten application-controlled Telugu WOFF2 assets. They are materialized under:
+
+frontend/public/fonts/
+
+The canonical family/file mapping is frontend/font-assets.json.
+
+Run:
+
+npm run fonts:sync
+
+The sync script obtains the Telugu WOFF2 face for each configured family, stores the corresponding SIL Open Font License text, and writes frontend/public/fonts/font-assets.lock.json containing the exact resolved source URLs and SHA-256 hashes. If a lock already exists, the script verifies the local assets and restores a missing asset only from its locked source URL, rejecting hash mismatches.
+
+npm run dev:client and npm run build:client automatically run fonts:sync first. A release repository should commit the generated WOFF2 files, license files, and lock file so normal production builds do not depend on a later upstream font change.
+
+No font is fetched from the internet while a user generates or opens an export. Export preparation reads only the local application font assets.
+
 Build and tests
 
 ./control.sh build --option start
@@ -35,7 +53,7 @@ The test suite preserves the accepted Iteration 1 queue/history/timing invariant
 
 Selection is also checked against an independently implemented numerical probability oracle, a deterministic 100-selection black-box audit, injected random-number boundary cases, and a seeded 50,000-selection Monte Carlo comparison against the full expected source+row distribution.
 
-The frontend contract tests guard page-based Settings, mapping-table diagnostics, the ... empty observation state, permanently positioned revealed navigation arrows, two-stage Export/Download behavior, monochrome application-rendered Settings/language controls, the stable profile-entry viewport anchor, and the curated observation-font collection. Presentation tests independently verify deterministic boundaries of the random font selector and the continuous length-based preferred-size function.
+Frontend tests guard page-based Settings, mapping-table diagnostics, the ... empty observation state, permanently positioned revealed navigation arrows, two-stage Export/Download behavior, monochrome application-rendered Settings/language controls, the stable profile-entry viewport anchor, the curated font collection, local font asset coverage, and live/export presentation parity.
 
 Deterministic dummy sources
 
@@ -147,9 +165,13 @@ Font selection is presentation-only. It is not persisted in history, the acquisi
 
 Navigating away from an observation and later returning to it chooses again. Closing Settings and returning to the observation also chooses again. A browser reload/new presentation session may choose again. Polling, timing refreshes, queue-readiness changes, and ordinary React rerenders do not reroll the font while the same observation remains continuously active.
 
+The canonical presentation configuration is defined in frontend/src/presentation.ts. It contains the font pool and every sizing/fitting constant used by the live and standalone viewers.
+
 The preferred observation font size is derived continuously from text load rather than from a few hardcoded sentence-length buckets. Short observations receive a larger preferred size and progressively longer observations receive progressively smaller sizes.
 
-After the font is chosen, the browser loads that specific family and measures the rendered observation. The fit pass reduces the preferred size only as necessary to fit the available observation width and height. The order is:
+After the font is chosen, the browser loads that specific local family and measures the rendered observation. The fit pass reduces the preferred size only as necessary to fit the available observation width and height.
+
+The order is:
 
 observation becomes active
         ↓
@@ -162,8 +184,6 @@ load and measure that font
 reduce only if necessary to fit
         ↓
 display
-
-Iteration 2 loads the curated prototype font collection through Google Fonts so these families are actually available rather than depending on device-installed fonts. The selection remains application-controlled. Before a production/offline release, the same licensed font assets should be bundled/self-hosted by the application so runtime typography no longer depends on remote font delivery.
 
 Full-page Settings
 
@@ -210,13 +230,31 @@ Export does not:
 
 Export does use and populate the normal persistent source_records cache. Selected uncached rows are resolved sequentially through the source adapter; cached rows are reused immediately.
 
-The Export page uses two explicit stages. Export first generates the batch. While generation is running, Download is disabled. After all N rows are selected and resolved, the generated ExportResponse is retained in the browser and Download becomes available.
+The Export page uses two explicit stages. Export first generates the batch and then prepares the complete standalone artifact, including all ten local WOFF2 fonts and their license notices. While either step is running, Download is disabled. Download becomes available only after the self-contained HTML is fully prepared in memory.
 
-Download only serializes that already-completed result into the self-contained HTML file; it performs no new source selections or source retrievals.
+Editing the export count invalidates the prepared Download. Successfully saving new complexity or source-weight settings also invalidates any prepared Download.
 
-Editing the export count invalidates the prepared Download. Successfully saving new complexity or source-weight settings also invalidates any prepared Download, so the visible count/settings cannot disagree with the batch being downloaded.
+The standalone viewer contains all observations, diagnostics, CSS, JavaScript, the canonical presentation configuration, all ten embedded font binaries, and font-license notices in one .html file. It performs no network requests after download and does not depend on the Telugu Now server, Node.js, SQLite, APIs, installed Telugu fonts, Google Fonts, or external JavaScript/CSS.
 
-The browser builds one self-contained .html file in memory containing all selected Telugu observations, inline CSS/JavaScript, and each export item’s diagnostic mapping table. The downloaded file needs no app server, SQLite, Node.js, APIs, or external JavaScript libraries and can browse only its embedded sequence.
+Each exported observation activation follows the same presentation semantics as the live viewer:
+
+entry becomes active
+        ↓
+randomly choose one of the same ten fonts
+        ↓
+wait for that embedded font
+        ↓
+derive preferred size from observation length
+        ↓
+measure the rendered text
+        ↓
+reduce only if necessary to fit
+        ↓
+display
+
+Next/Back navigation rerolls the font for the newly activated entry, including when returning to an earlier entry. Opening or closing Diagnostic does not reroll. Viewport resize/orientation changes refit the current text while retaining its active font. Reopening the HTML starts a new presentation session.
+
+The export renderer serializes OBSERVATION_PRESENTATION rather than maintaining a separate hand-written set of typography constants, so live and exported sizing behavior cannot silently drift.
 
 Persistence and migration
 

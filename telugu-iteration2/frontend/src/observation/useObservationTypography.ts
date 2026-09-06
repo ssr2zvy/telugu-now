@@ -10,6 +10,7 @@ import type {
   DisplayObservation,
 } from '../../../shared/contracts';
 import {
+  OBSERVATION_PRESENTATION,
   chooseRandomObservationFont,
   preferredObservationFontSizePx,
   type ObservationFontFamily,
@@ -19,174 +20,101 @@ interface ObservationPresentation {
   fontFamily: ObservationFontFamily;
 }
 export interface ObservationTypography {
-  containerRef:
-    RefObject<HTMLElement | null>;
-  textRef:
-    RefObject<HTMLDivElement | null>;
-  style:
-    CSSProperties;
+  containerRef: RefObject<HTMLElement | null>;
+  textRef: RefObject<HTMLDivElement | null>;
+  style: CSSProperties;
 }
 export function useObservationTypography(
-  observation:
-    DisplayObservation | null,
+  observation: DisplayObservation | null,
 ): ObservationTypography {
-  const containerRef =
-    useRef<HTMLElement | null>(
-      null,
-    );
-  const textRef =
-    useRef<HTMLDivElement | null>(
-      null,
-    );
-  const [
-    presentation,
-    setPresentation,
-  ] =
-    useState<ObservationPresentation>(
-      () => ({
-        observationId:
-          observation?.id ?? null,
-        fontFamily:
-          chooseRandomObservationFont(),
-      }),
-    );
-  const [
-    fontSizePx,
-    setFontSizePx,
-  ] = useState(64);
-  const [
-    ready,
-    setReady,
-  ] = useState(false);
+  const containerRef = useRef<HTMLElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const [presentation, setPresentation] = useState<ObservationPresentation>(
+    () => ({
+      observationId: observation?.id ?? null,
+      fontFamily: chooseRandomObservationFont(),
+    }),
+  );
+  const [fontSizePx, setFontSizePx] = useState<number>(
+    OBSERVATION_PRESENTATION.emptyFontSizePx,
+  );
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    const observationId =
-      observation?.id ?? null;
-    if (
-      observationId ===
-      presentation.observationId
-    ) {
-      return;
-    }
+    const observationId = observation?.id ?? null;
+    if (observationId === presentation.observationId) return;
     setPresentation({
       observationId,
-      fontFamily:
-        chooseRandomObservationFont(),
+      fontFamily: chooseRandomObservationFont(),
     });
-  }, [
-    observation?.id,
-    presentation.observationId,
-  ]);
+  }, [observation?.id, presentation.observationId]);
   useLayoutEffect(() => {
-    const container =
-      containerRef.current;
-    const element =
-      textRef.current;
-    if (
-      !observation ||
-      !container ||
-      !element
-    ) {
+    const container = containerRef.current;
+    const element = textRef.current;
+    if (!observation || !container || !element) {
       setReady(false);
       return;
     }
     let cancelled = false;
-    let resizeObserver:
-      ResizeObserver | null =
-      null;
+    let resizeObserver: ResizeObserver | null = null;
     const fit = async () => {
       setReady(false);
-      const containerRect =
-        container
-          .getBoundingClientRect();
-      const availableHeight =
-        Math.max(
-          1,
-          containerRect.height -
-            64,
-        );
-      const desired =
-        preferredObservationFontSizePx(
-          observation.text,
-          containerRect.width,
-          availableHeight,
-        );
+      const containerRect = container.getBoundingClientRect();
+      const availableHeight = Math.max(
+        1,
+        containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx,
+      );
+      const desired = preferredObservationFontSizePx(
+        observation.text,
+        containerRect.width,
+        availableHeight,
+      );
       try {
         await document.fonts.load(
-          `400 ${Math.max(
-            24,
+          `${OBSERVATION_PRESENTATION.fontWeight} ${Math.max(
+            OBSERVATION_PRESENTATION.preferredMinimumFontSizePx,
             desired,
-          )}px "${
-            presentation.fontFamily
-          }"`,
-          observation.text.slice(
-            0,
-            64,
-          ),
+          )}px "${presentation.fontFamily}"`,
+          observation.text.slice(0, 64),
         );
       } catch {
-        // Device fallback fonts remain usable
-        // if a webfont cannot be loaded.
+        // The local fallback stack remains usable if a font cannot be loaded.
       }
       if (cancelled) return;
-      let low = 12;
-      let high = desired;
-      let best =
-        Math.min(
-          low,
-          desired,
-        );
+      let low: number = OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
+      let high: number = desired;
+      let best: number = Math.min(low, desired);
       for (
         let iteration = 0;
-        iteration < 10;
+        iteration < OBSERVATION_PRESENTATION.fitIterations;
         iteration += 1
       ) {
-        const candidate =
-          (low + high) / 2;
-        element.style.fontSize =
-          `${candidate}px`;
-        const fitsWidth =
-          element.scrollWidth <=
-          element.clientWidth + 1;
-        const fitsHeight =
-          element.scrollHeight <=
-          availableHeight + 1;
-        if (
-          fitsWidth &&
-          fitsHeight
-        ) {
+        const candidate = (low + high) / 2;
+        element.style.fontSize = `${candidate}px`;
+        const fitsWidth = element.scrollWidth <= element.clientWidth + 1;
+        const fitsHeight = element.scrollHeight <= availableHeight + 1;
+        if (fitsWidth && fitsHeight) {
           best = candidate;
           low = candidate;
         } else {
           high = candidate;
         }
       }
-      const finalSize =
-        Math.max(
-          12,
-          Math.min(
-            desired,
-            best,
-          ),
-        );
-      element.style.fontSize =
-        `${finalSize}px`;
+      const finalSize = Math.max(
+        OBSERVATION_PRESENTATION.fitMinimumFontSizePx,
+        Math.min(desired, best),
+      );
+      element.style.fontSize = `${finalSize}px`;
       setFontSizePx(finalSize);
       setReady(true);
     };
     void fit();
-    resizeObserver =
-      new ResizeObserver(
-        () => {
-          void fit();
-        },
-      );
-    resizeObserver.observe(
-      container,
-    );
+    resizeObserver = new ResizeObserver(() => {
+      void fit();
+    });
+    resizeObserver.observe(container);
     return () => {
       cancelled = true;
-      resizeObserver
-        ?.disconnect();
+      resizeObserver?.disconnect();
     };
   }, [
     observation?.id,
@@ -199,12 +127,10 @@ export function useObservationTypography(
     style: {
       fontFamily:
         `"${presentation.fontFamily}", ` +
-        '"Noto Sans Telugu", ' +
-        '"Nirmala UI", sans-serif',
-      fontSize:
-        `${fontSizePx}px`,
-      opacity:
-        ready ? 1 : 0,
+        '"Noto Sans Telugu", "Nirmala UI", sans-serif',
+      fontSize: `${fontSizePx}px`,
+      lineHeight: OBSERVATION_PRESENTATION.lineHeight,
+      opacity: ready ? 1 : 0,
     },
   };
 }
