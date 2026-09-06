@@ -185,48 +185,40 @@ export function buildEpubBytes(
     StoredZipEntry[] = [
       {
         name: 'mimetype',
-        data:
-          'application/epub+zip',
+        data: 'application/epub+zip',
       },
       {
-        name:
-          'META-INF/container.xml',
+        name: 'META-INF/container.xml',
         data:
           buildContainerXml(),
       },
       {
-        name:
-          'EPUB/package.opf',
+        name: 'EPUB/package.opf',
         data:
           packageOpf,
       },
       {
-        name:
-          'EPUB/nav.xhtml',
+        name: 'EPUB/nav.xhtml',
         data:
           navXhtml,
       },
       {
-        name:
-          'EPUB/viewer.xhtml',
+        name: 'EPUB/viewer.xhtml',
         data:
           viewerXhtml,
       },
       {
-        name:
-          'EPUB/viewer.css',
+        name: 'EPUB/viewer.css',
         data:
           viewerCss,
       },
       {
-        name:
-          'EPUB/viewer.js',
+        name: 'EPUB/viewer.js',
         data:
           viewerScript,
       },
       {
-        name:
-          'EPUB/data.json',
+        name: 'EPUB/data.json',
         data:
           JSON.stringify(result),
       },
@@ -250,9 +242,7 @@ export function buildEpubBytes(
       },
     );
   }
-  return createStoredZip(
-    entries,
-  );
+  return createStoredZip(entries);
 }
 export async function prepareEpubExport(
   result: ExportResponse,
