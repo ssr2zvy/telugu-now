@@ -1,6 +1,7 @@
 export type PreparationGroupKind = 'launch-fill' | 'rolling-replenishment';
 export type AcquisitionTriggerKind = 'initial-fill' | 'observation-consumed';
 export type ObservationStatus = 'pending' | 'preparing' | 'ready';
+export type ComplexityMetric = 'word-count' | 'grapheme-count';
 
 export interface ProfileSelectionSettings {
   sourceWeights: Record<string, number>;
@@ -25,6 +26,9 @@ export interface SelectionSnapshot {
   sourceProbability: number;
   sourceKey: string;
   wordCount: number;
+  complexityMetric?: ComplexityMetric;
+  complexityValue?: number;
+  intrinsicComplexityValue?: number;
   complexityReferenceVersion: number;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
@@ -33,11 +37,49 @@ export interface SelectionSnapshot {
   globalPercentileEnd: number;
   globalIntervalMass: number;
   globalRowsAtWordCount: number;
+  globalRowsAtComplexityValue?: number;
   globalPerRowComplexityMass: number;
   selectedSourceRowsAtWordCount: number;
+  selectedSourceRowsAtComplexityValue?: number;
   selectedSourceNormalizationDenominator: number;
   rowProbabilityWithinSource: number;
   overallProbability: number;
+  // Historical Iteration 2 compatibility aliases.
+  globalRowsAtComplexity?: number;
+  selectedSourceRowsAtComplexity?: number;
+}
+
+export interface TextMedia {
+  kind: 'text';
+  language: 'te';
+  text: string;
+}
+
+export interface AudioMedia {
+  kind: 'audio';
+  objectKey: string;
+  mimeType: string;
+  durationSeconds: number;
+  sha256: string;
+}
+
+export type MediaItem = TextMedia | AudioMedia;
+
+export interface DataSourceInfo {
+  sourceId: string;
+  displayName: string;
+  provider: string;
+  license: string;
+  upstreamUrl: string | null;
+  catalogVersion: number;
+  acceptedRows: number;
+  rejectedRows: number;
+  complexityMetric: ComplexityMetric;
+  status: 'ready' | 'fixture' | 'invalid';
+}
+
+export interface DataSourcesResponse {
+  sources: DataSourceInfo[];
 }
 
 export interface ObservationDiagnostic {
