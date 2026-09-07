@@ -3,12 +3,14 @@ import type { DataSource, SourceCatalogRow } from '../domain/source';
 import { sourceRegistry, SourceRegistry } from './source-registry';
 
 export const COMPLEXITY_REFERENCE_VERSION = 1;
+const SUPPORTED_REFERENCE_VERSIONS = new Set([1]);
 const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
 
 interface ComplexityClass {
   wordCount: number;
+  complexityValue?: number;
   globalCount: number;
   percentileStart: number;
   percentileEnd: number;
@@ -23,6 +25,7 @@ export interface SelectionResult {
   sourceId: string;
   sourceKey: string;
   wordCount: number;
+  complexityValue?: number;
   snapshot: SelectionSnapshot;
 }
 
@@ -31,14 +34,13 @@ export interface ComplexityReferenceDescription {
   totalRows: number;
   classes: Array<{
     wordCount: number;
+    complexityValue?: number;
     globalCount: number;
     percentileStart: number;
     percentileEnd: number;
   }>;
 }
 
-// Numerical Recipes-style complementary error-function approximation. Unlike computing
-// 1 - erf(x), this remains useful deep enough into the tails for our percentile model.
 function erfcApprox(x: number): number {
   if (x < 0) return 2 - erfcApprox(-x);
   const t = 1 / (1 + 0.5 * x);
@@ -64,9 +66,6 @@ function standardNormalDensity(z: number): number {
   return INV_SQRT_TWO_PI * Math.exp(-0.5 * z * z);
 }
 
-// Stable Phi(upper) - Phi(lower). Tail subtraction is accurate for ordinary
-// intervals, while the midpoint form avoids catastrophic cancellation when a very
-// wide configured spread maps the entire [0,1] percentile domain into a tiny z range.
 function standardNormalInterval(lower: number, upper: number): number {
   if (!(upper > lower)) return 0;
 
@@ -100,12 +99,40 @@ function weightedPick<T>(
   return positive[positive.length - 1]!.item;
 }
 
+function sourceCatalogRows(source: DataSource): SourceCatalogRow[] {
+  if (source.catalog) {
+    return source.catalog().map((row) => ({
+      sourceKey: row.sourceKey,
+      wordCount: row.wordCount,
+      complexityValue: row.complexityValue ?? row.wordCount,
+    }));
+  }
+
+  if (source.complexityClasses && typeof source.candidateAt === 'function') {
+    const rows: SourceCatalogRow[] = [];
+    for (const klass of source.complexityClasses()) {
+      for (let index = 0; index < klass.rowCount; index += 1) {
+        const candidate = source.candidateAt(klass.complexityValue, index);
+        rows.push({
+          sourceKey: candidate.sourceKey,
+          wordCount: klass.complexityValue,
+          complexityValue: klass.complexityValue,
+        });
+      }
+    }
+    return rows;
+  }
+
+  return [];
+}
+
 function sourceWordCountMap(source: DataSource): Map<number, SourceCatalogRow[]> {
   const map = new Map<number, SourceCatalogRow[]>();
-  for (const row of source.catalog()) {
-    const rows = map.get(row.wordCount) ?? [];
+  for (const row of sourceCatalogRows(source)) {
+    const key = row.wordCount;
+    const rows = map.get(key) ?? [];
     rows.push(row);
-    map.set(row.wordCount, rows);
+    map.set(key, rows);
   }
   return map;
 }
@@ -120,8 +147,9 @@ export class SelectionEngine {
   ) {
     const counts = new Map<number, number>();
     for (const source of registry.selectableSources()) {
-      for (const row of source.catalog()) {
-        counts.set(row.wordCount, (counts.get(row.wordCount) ?? 0) + 1);
+      for (const row of sourceCatalogRows(source)) {
+        const key = row.wordCount;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
       }
     }
 
@@ -136,6 +164,7 @@ export class SelectionEngine {
         cumulative += globalCount;
         return {
           wordCount,
+          complexityValue: wordCount,
           globalCount,
           percentileStart,
           percentileEnd: cumulative / this.totalRows,
@@ -162,8 +191,6 @@ export class SelectionEngine {
       const lowerZ = (item.percentileStart - target) / sigma;
       const upperZ = (item.percentileEnd - target) / sigma;
       const rawIntervalMass = standardNormalInterval(lowerZ, upperZ) / normalization;
-      // Normal mass is mathematically positive. Number.MIN_VALUE is only a numerical
-      // representation floor for extreme settings beyond IEEE-754 tail precision.
       const intervalMass = Math.max(rawIntervalMass, Number.MIN_VALUE);
       const perRowMass = Math.max(intervalMass / item.globalCount, Number.MIN_VALUE);
       return { ...item, intervalMass, perRowMass };
@@ -171,7 +198,7 @@ export class SelectionEngine {
   }
 
   select(settings: ProfileSelectionSettings): SelectionResult {
-    if (settings.complexityReferenceVersion !== COMPLEXITY_REFERENCE_VERSION) {
+    if (!SUPPORTED_REFERENCE_VERSIONS.has(settings.complexityReferenceVersion)) {
       throw new Error(`Unsupported complexity reference version ${settings.complexityReferenceVersion}.`);
     }
 
@@ -179,7 +206,8 @@ export class SelectionEngine {
     const sourceEntries = sources.map((source) => {
       const sourceWeight = settings.sourceWeights[source.id];
       if (sourceWeight === undefined) throw new Error(`Missing source weight for ${source.id}.`);
-      const sourceRowCount = source.catalog().length;
+      const rows = sourceCatalogRows(source);
+      const sourceRowCount = rows.length;
       return {
         source,
         sourceWeight,
@@ -229,34 +257,45 @@ export class SelectionEngine {
       Number.MIN_VALUE,
     );
 
+    const complexityValue = selectedRow.complexityValue ?? selectedRow.wordCount;
+    const snapshot: SelectionSnapshot = {
+      sourceWeights: { ...settings.sourceWeights },
+      sourceId: selectedSourceEntry.source.id,
+      sourceRowCount: selectedSourceEntry.sourceRowCount,
+      sourceWeight: selectedSourceEntry.sourceWeight,
+      sourceMass: selectedSourceEntry.sourceMass,
+      totalSourceMass,
+      sourceProbability,
+      sourceKey: selectedRow.sourceKey,
+      wordCount: selectedRow.wordCount,
+      complexityMetric: 'grapheme-count',
+      complexityValue,
+      intrinsicComplexityValue: complexityValue,
+      complexityReferenceVersion: settings.complexityReferenceVersion,
+      complexityPercentileTarget: settings.complexityPercentileTarget,
+      complexityPercentileSpread: settings.complexityPercentileSpread,
+      derivedStandardDeviation: sigma,
+      globalPercentileStart: selectedClass.complexity.percentileStart,
+      globalPercentileEnd: selectedClass.complexity.percentileEnd,
+      globalIntervalMass: selectedClass.complexity.intervalMass,
+      globalRowsAtWordCount: selectedClass.complexity.globalCount,
+      globalRowsAtComplexityValue: selectedClass.complexity.globalCount,
+      globalPerRowComplexityMass: selectedClass.complexity.perRowMass,
+      selectedSourceRowsAtWordCount: selectedClass.rows.length,
+      selectedSourceRowsAtComplexityValue: selectedClass.rows.length,
+      selectedSourceNormalizationDenominator: denominator,
+      rowProbabilityWithinSource,
+      overallProbability,
+      globalRowsAtComplexity: selectedClass.complexity.globalCount,
+      selectedSourceRowsAtComplexity: selectedClass.rows.length,
+    };
+
     return {
       sourceId: selectedSourceEntry.source.id,
       sourceKey: selectedRow.sourceKey,
       wordCount: selectedRow.wordCount,
-      snapshot: {
-        sourceWeights: { ...settings.sourceWeights },
-        sourceId: selectedSourceEntry.source.id,
-        sourceRowCount: selectedSourceEntry.sourceRowCount,
-        sourceWeight: selectedSourceEntry.sourceWeight,
-        sourceMass: selectedSourceEntry.sourceMass,
-        totalSourceMass,
-        sourceProbability,
-        sourceKey: selectedRow.sourceKey,
-        wordCount: selectedRow.wordCount,
-        complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
-        complexityPercentileTarget: settings.complexityPercentileTarget,
-        complexityPercentileSpread: settings.complexityPercentileSpread,
-        derivedStandardDeviation: sigma,
-        globalPercentileStart: selectedClass.complexity.percentileStart,
-        globalPercentileEnd: selectedClass.complexity.percentileEnd,
-        globalIntervalMass: selectedClass.complexity.intervalMass,
-        globalRowsAtWordCount: selectedClass.complexity.globalCount,
-        globalPerRowComplexityMass: selectedClass.complexity.perRowMass,
-        selectedSourceRowsAtWordCount: selectedClass.rows.length,
-        selectedSourceNormalizationDenominator: denominator,
-        rowProbabilityWithinSource,
-        overallProbability,
-      },
+      complexityValue,
+      snapshot,
     };
   }
 }

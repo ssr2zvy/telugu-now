@@ -4,6 +4,11 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 SELF="$SCRIPT_DIR/$SCRIPT_NAME"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DATA_TRANSFORM_DIR="$REPO_DIR/data-transform"
+SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"
+RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"
+PREPARED_CORPUS_DIR="$SCRIPT_DIR/data/corpus"
 
 cd "$SCRIPT_DIR"
 
@@ -19,7 +24,76 @@ Usage:
   ./$SCRIPT_NAME test [--option start|abort|exit]
   ./$SCRIPT_NAME build [--option start|abort|exit]
   ./$SCRIPT_NAME dev [--option start|stop|exit]
+  ./$SCRIPT_NAME data [--option samples|prepare|all|exit]
 USAGE
+}
+
+prepared_corpus_ready() {
+  [[ -f "$PREPARED_CORPUS_DIR/manifest.json" &&
+     -f "$PREPARED_CORPUS_DIR/corpus.sqlite" ]]
+}
+
+run_data_samples() {
+  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/FLEURS.py" \
+    --input-root "$RAW_DATA_DIR/FLEURS" \
+    --output-root "$SAMPLE_DATA_DIR/FLEURS" \
+    --replace
+
+  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
+    --input-root "$RAW_DATA_DIR/Shrutilipi" \
+    --output-root "$SAMPLE_DATA_DIR/Shrutilipi"
+
+  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
+    --input-root "$RAW_DATA_DIR/IndicVoices" \
+    --output-root "$SAMPLE_DATA_DIR/IndicVoices"
+}
+
+run_data_prepare() {
+  python "$DATA_TRANSFORM_DIR/scripts/prepare-corpus/prepare.py" \
+    --input "$SAMPLE_DATA_DIR" \
+    --output "$PREPARED_CORPUS_DIR" \
+    --replace
+}
+
+run_data_domain() {
+  local option="${1:-}"
+
+  if [[ -z "$option" ]]; then
+    printf 'DATA OPTIONS\n'
+    printf '1) samples\n'
+    printf '2) prepare\n'
+    printf '3) all\n'
+    printf '4) exit\n'
+    printf '\nSelect option: '
+    read -r selection
+    case "$selection" in
+      1) option="samples" ;;
+      2) option="prepare" ;;
+      3) option="all" ;;
+      4) option="exit" ;;
+      *) printf 'ERROR: invalid selection.\n' >&2; return 2 ;;
+    esac
+  fi
+
+  case "$option" in
+    samples)
+      run_data_samples
+      ;;
+    prepare)
+      run_data_prepare
+      ;;
+    all)
+      run_data_samples
+      run_data_prepare
+      ;;
+    exit)
+      return 0
+      ;;
+    *)
+      printf 'ERROR: invalid data option "%s".\n' "$option" >&2
+      return 2
+      ;;
+  esac
 }
 
 domain_dir() {
@@ -625,6 +699,31 @@ if [[ "${1:-}" == "__runner" ]]; then
   runner "$2" "${3:-start}"
 fi
 
+if [[ "${1:-}" == "data" ]]; then
+  shift
+  DATA_OPTION=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --option)
+        [[ $# -ge 2 ]] || {
+          printf 'ERROR: --option requires a value.\n' >&2
+          exit 2
+        }
+        DATA_OPTION="$2"
+        shift 2
+        ;;
+      *)
+        printf 'ERROR: unknown argument "%s".\n' "$1" >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  run_data_domain "$DATA_OPTION"
+  exit $?
+fi
+
 if [[ $# -lt 1 ]]; then
   usage
   exit 2
@@ -634,7 +733,7 @@ DOMAIN="$1"
 shift
 
 case "$DOMAIN" in
-  deps|test|build|dev)
+ deps|test|build|dev|data)
     ;;
   *)
     usage
