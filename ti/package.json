@@ -1,0 +1,42 @@
+{
+  "name": "telugu-observation-app-iteration-2",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,web \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch server/src/index.ts",
+    "dev:client": "vite --config frontend/vite.config.ts",
+    "build": "npm run typecheck && npm run build:client && npm run build:server",
+    "build:client": "vite build --config frontend/vite.config.ts",
+    "build:server": "tsup server/src/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
+    "typecheck": "tsc --noEmit",
+    "start": "NODE_ENV=production node dist/server/index.js",
+    "test": "tsx --test tests/*.test.ts",
+    "fonts:sync": "node scripts/sync-fonts.mjs",
+    "predev:client": "npm run fonts:sync",
+    "prebuild:client": "npm run fonts:sync"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "better-sqlite3": "^12.4.1",
+    "hono": "^4.12.8",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4"
+  }
+}

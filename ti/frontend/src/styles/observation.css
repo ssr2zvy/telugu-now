@@ -1,0 +1,188 @@
+.observation-screen {
+  display: grid;
+  grid-template-columns:
+    minmax(
+      3.5rem,
+      16vw
+    )
+    1fr
+    minmax(
+      3.5rem,
+      16vw
+    );
+  cursor: default;
+}
+.observation-center {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 2rem 0.5rem;
+  text-align: center;
+}
+.observation-text {
+  width: 100%;
+  max-width:
+    min(
+      82vw,
+      70rem
+    );
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  user-select: none;
+  transition:
+    opacity
+    80ms
+    linear;
+}
+.observation-placeholder {
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.55
+    );
+  font-family:
+    system-ui,
+    sans-serif;
+  font-size:
+    clamp(
+      3rem,
+      9vw,
+      6rem
+    );
+  line-height: 1;
+  letter-spacing: 0.15em;
+  user-select: none;
+}
+.nav-zone,
+.settings-trigger {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity
+      140ms
+      ease,
+    color
+      140ms
+      ease,
+    background
+      140ms
+      ease;
+}
+.controls-visible
+.nav-zone,
+.controls-visible
+.settings-trigger {
+  opacity: 1;
+  pointer-events: auto;
+}
+.nav-zone {
+  z-index: 3;
+  border: 0;
+  background: transparent;
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.46
+    );
+  font-family:
+    system-ui,
+    sans-serif;
+  font-size:
+    clamp(
+      2.2rem,
+      6vw,
+      4rem
+    );
+  cursor: pointer;
+}
+.controls-visible
+.nav-zone:disabled {
+  opacity: 0.22;
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.38
+    );
+  cursor: default;
+}
+.nav-zone:not(
+  :disabled
+):active {
+  color:
+    rgba(
+      10,
+      10,
+      10,
+      0.75
+    );
+}
+.settings-trigger {
+  position: absolute;
+  z-index: 4;
+  right:
+    max(
+      1rem,
+      env(
+        safe-area-inset-right
+      )
+    );
+  bottom:
+    max(
+      1rem,
+      env(
+        safe-area-inset-bottom
+      )
+    );
+  display: grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background:
+    rgba(
+      35,
+      35,
+      35,
+      0.1
+    );
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.55
+    );
+  cursor: pointer;
+}
+.settings-trigger:active {
+  background:
+    rgba(
+      35,
+      35,
+      35,
+      0.18
+    );
+}
+@media (
+  max-width:
+    600px
+) {
+  .observation-screen {
+    grid-template-columns:
+      13vw
+      1fr
+      13vw;
+  }
+}
