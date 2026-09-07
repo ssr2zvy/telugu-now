@@ -1,14 +1,14 @@
 import type { ProfileSelectionSettings, SelectionSnapshot } from '../../../shared/contracts';
-import type { DataSource, SourceCatalogRow } from '../domain/source';
+import type { DataSource, SourceCatalogRow, SourceComplexityClass } from '../domain/source';
 import { sourceRegistry, SourceRegistry } from './source-registry';
 
-export const COMPLEXITY_REFERENCE_VERSION = 1;
+export const COMPLEXITY_REFERENCE_VERSION = 2;
 const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
 
 interface ComplexityClass {
-  wordCount: number;
+  complexityValue: number;
   globalCount: number;
   percentileStart: number;
   percentileEnd: number;
@@ -22,7 +22,7 @@ interface ClassMass extends ComplexityClass {
 export interface SelectionResult {
   sourceId: string;
   sourceKey: string;
-  wordCount: number;
+  complexityValue: number;
   snapshot: SelectionSnapshot;
 }
 
@@ -30,15 +30,13 @@ export interface ComplexityReferenceDescription {
   version: number;
   totalRows: number;
   classes: Array<{
-    wordCount: number;
+    complexityValue: number;
     globalCount: number;
     percentileStart: number;
     percentileEnd: number;
   }>;
 }
 
-// Numerical Recipes-style complementary error-function approximation. Unlike computing
-// 1 - erf(x), this remains useful deep enough into the tails for our percentile model.
 function erfcApprox(x: number): number {
   if (x < 0) return 2 - erfcApprox(-x);
   const t = 1 / (1 + 0.5 * x);
@@ -64,28 +62,19 @@ function standardNormalDensity(z: number): number {
   return INV_SQRT_TWO_PI * Math.exp(-0.5 * z * z);
 }
 
-// Stable Phi(upper) - Phi(lower). Tail subtraction is accurate for ordinary
-// intervals, while the midpoint form avoids catastrophic cancellation when a very
-// wide configured spread maps the entire [0,1] percentile domain into a tiny z range.
 function standardNormalInterval(lower: number, upper: number): number {
   if (!(upper > lower)) return 0;
-
   const width = upper - lower;
   if (Number.isFinite(width) && width <= 1e-5) {
     const midpoint = lower + width / 2;
     return Math.max(0, width * standardNormalDensity(midpoint));
   }
-
   if (lower >= 0) return Math.max(0, upperTail(lower) - upperTail(upper));
   if (upper <= 0) return Math.max(0, upperTail(-upper) - upperTail(-lower));
   return Math.max(0, 1 - upperTail(upper) - upperTail(-lower));
 }
 
-function weightedPick<T>(
-  items: readonly T[],
-  mass: (item: T) => number,
-  random: () => number,
-): T {
+function weightedPick<T>(items: readonly T[], mass: (item: T) => number, random: () => number): T {
   const positive = items
     .map((item) => ({ item, mass: mass(item) }))
     .filter((entry) => Number.isFinite(entry.mass) && entry.mass > 0);
@@ -100,12 +89,18 @@ function weightedPick<T>(
   return positive[positive.length - 1]!.item;
 }
 
-function sourceWordCountMap(source: DataSource): Map<number, SourceCatalogRow[]> {
+function rowComplexity(row: SourceCatalogRow): number {
+  return row.complexityValue ?? row.wordCount ?? 0;
+}
+
+function sourceComplexityRows(source: DataSource): Map<number, SourceCatalogRow[]> {
   const map = new Map<number, SourceCatalogRow[]>();
-  for (const row of source.catalog()) {
-    const rows = map.get(row.wordCount) ?? [];
-    rows.push(row);
-    map.set(row.wordCount, rows);
+  const rows = source.catalog?.() ?? [];
+  for (const row of rows) {
+    const value = rowComplexity(row);
+    const bucket = map.get(value) ?? [];
+    bucket.push(row);
+    map.set(value, bucket);
   }
   return map;
 }
@@ -120,8 +115,16 @@ export class SelectionEngine {
   ) {
     const counts = new Map<number, number>();
     for (const source of registry.selectableSources()) {
-      for (const row of source.catalog()) {
-        counts.set(row.wordCount, (counts.get(row.wordCount) ?? 0) + 1);
+      const complexityRows = source.catalog?.() ?? [];
+      if (complexityRows.length > 0) {
+        for (const row of complexityRows) {
+          const value = rowComplexity(row);
+          counts.set(value, (counts.get(value) ?? 0) + 1);
+        }
+      } else if (source.complexityClasses) {
+        for (const item of source.complexityClasses()) {
+          counts.set(item.complexityValue, (counts.get(item.complexityValue) ?? 0) + item.rowCount);
+        }
       }
     }
 
@@ -131,11 +134,11 @@ export class SelectionEngine {
     let cumulative = 0;
     this.classes = [...counts.entries()]
       .sort(([left], [right]) => left - right)
-      .map(([wordCount, globalCount]) => {
+      .map(([complexityValue, globalCount]) => {
         const percentileStart = cumulative / this.totalRows;
         cumulative += globalCount;
         return {
-          wordCount,
+          complexityValue,
           globalCount,
           percentileStart,
           percentileEnd: cumulative / this.totalRows,
@@ -162,8 +165,6 @@ export class SelectionEngine {
       const lowerZ = (item.percentileStart - target) / sigma;
       const upperZ = (item.percentileEnd - target) / sigma;
       const rawIntervalMass = standardNormalInterval(lowerZ, upperZ) / normalization;
-      // Normal mass is mathematically positive. Number.MIN_VALUE is only a numerical
-      // representation floor for extreme settings beyond IEEE-754 tail precision.
       const intervalMass = Math.max(rawIntervalMass, Number.MIN_VALUE);
       const perRowMass = Math.max(intervalMass / item.globalCount, Number.MIN_VALUE);
       return { ...item, intervalMass, perRowMass };
@@ -179,7 +180,7 @@ export class SelectionEngine {
     const sourceEntries = sources.map((source) => {
       const sourceWeight = settings.sourceWeights[source.id];
       if (sourceWeight === undefined) throw new Error(`Missing source weight for ${source.id}.`);
-      const sourceRowCount = source.catalog().length;
+      const sourceRowCount = source.rowCount?.() ?? source.catalog?.()?.length ?? 0;
       return {
         source,
         sourceWeight,
@@ -197,68 +198,74 @@ export class SelectionEngine {
       settings.complexityPercentileTarget,
       settings.complexityPercentileSpread,
     );
-    const classByWordCount = new Map(classMasses.map((item) => [item.wordCount, item]));
-    const rowsByWordCount = sourceWordCountMap(selectedSourceEntry.source);
+    const classByValue = new Map(classMasses.map((item) => [item.complexityValue, item]));
+    const rowsByValue = sourceComplexityRows(selectedSourceEntry.source);
 
-    const sourceClasses = [...rowsByWordCount.entries()].map(([wordCount, rows]) => {
-      const complexity = classByWordCount.get(wordCount);
-      if (!complexity) throw new Error(`Word count ${wordCount} is absent from the global reference.`);
+    const sourceClasses = [...rowsByValue.entries()].map(([complexityValue, rows]) => {
+      const complexity = classByValue.get(complexityValue);
+      if (!complexity) throw new Error(`Complexity ${complexityValue} is absent from the global reference.`);
       return {
-        wordCount,
-        rows,
+        complexityValue,
+        rowCount: rows.length,
         complexity,
         sourceClassMass: rows.length * complexity.perRowMass,
+        rows,
       };
     });
     const denominator = sourceClasses.reduce((sum, item) => sum + item.sourceClassMass, 0);
     if (!(denominator > 0)) throw new Error('Selected source has zero complexity mass.');
 
     const selectedClass = weightedPick(sourceClasses, (item) => item.sourceClassMass, this.random);
-    const selectedRow = selectedClass.rows[
-      Math.min(
-        Math.floor(Math.min(Math.max(this.random(), 0), 1 - Number.EPSILON) * selectedClass.rows.length),
-        selectedClass.rows.length - 1,
-      )
-    ];
+    const rowIndex = Math.floor(
+      Math.min(Math.max(this.random(), 0), 1 - Number.EPSILON) * selectedClass.rowCount,
+    );
+
+    const selectedRow = selectedSourceEntry.source.candidateAt
+      ? selectedSourceEntry.source.candidateAt(selectedClass.complexityValue, rowIndex)
+      : selectedClass.rows[rowIndex] ?? null;
+
     if (!selectedRow) throw new Error('Selected complexity class contains no row.');
 
     const rowProbabilityWithinSource = selectedClass.complexity.perRowMass / denominator;
     const overallProbability = sourceProbability * rowProbabilityWithinSource;
-    const sigma = Math.max(
-      settings.complexityPercentileSpread / CENTRAL_98_Z,
-      Number.MIN_VALUE,
-    );
+    const sigma = Math.max(settings.complexityPercentileSpread / CENTRAL_98_Z, Number.MIN_VALUE);
+
+    const sourceKey = selectedRow.sourceKey;
+    const complexityValue = selectedRow.complexityValue ?? selectedClass.complexityValue;
+    const snapshot: SelectionSnapshot = {
+      sourceWeights: { ...settings.sourceWeights },
+      sourceId: selectedSourceEntry.source.id,
+      sourceRowCount: selectedSourceEntry.sourceRowCount,
+      sourceWeight: selectedSourceEntry.sourceWeight,
+      sourceMass: selectedSourceEntry.sourceMass,
+      totalSourceMass,
+      sourceProbability,
+      sourceKey,
+      complexityMetric: 'grapheme-count',
+      intrinsicComplexityValue: complexityValue,
+      complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
+      complexityPercentileTarget: settings.complexityPercentileTarget,
+      complexityPercentileSpread: settings.complexityPercentileSpread,
+      derivedStandardDeviation: sigma,
+      globalPercentileStart: selectedClass.complexity.percentileStart,
+      globalPercentileEnd: selectedClass.complexity.percentileEnd,
+      globalIntervalMass: selectedClass.complexity.intervalMass,
+      globalRowsAtComplexityValue: selectedClass.complexity.globalCount,
+      globalPerRowComplexityMass: selectedClass.complexity.perRowMass,
+      selectedSourceRowsAtComplexityValue: selectedClass.rowCount,
+      selectedSourceNormalizationDenominator: denominator,
+      rowProbabilityWithinSource,
+      overallProbability,
+      wordCount: complexityValue,
+      globalRowsAtWordCount: selectedClass.complexity.globalCount,
+      selectedSourceRowsAtWordCount: selectedClass.rowCount,
+    };
 
     return {
       sourceId: selectedSourceEntry.source.id,
-      sourceKey: selectedRow.sourceKey,
-      wordCount: selectedRow.wordCount,
-      snapshot: {
-        sourceWeights: { ...settings.sourceWeights },
-        sourceId: selectedSourceEntry.source.id,
-        sourceRowCount: selectedSourceEntry.sourceRowCount,
-        sourceWeight: selectedSourceEntry.sourceWeight,
-        sourceMass: selectedSourceEntry.sourceMass,
-        totalSourceMass,
-        sourceProbability,
-        sourceKey: selectedRow.sourceKey,
-        wordCount: selectedRow.wordCount,
-        complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
-        complexityPercentileTarget: settings.complexityPercentileTarget,
-        complexityPercentileSpread: settings.complexityPercentileSpread,
-        derivedStandardDeviation: sigma,
-        globalPercentileStart: selectedClass.complexity.percentileStart,
-        globalPercentileEnd: selectedClass.complexity.percentileEnd,
-        globalIntervalMass: selectedClass.complexity.intervalMass,
-        globalRowsAtWordCount: selectedClass.complexity.globalCount,
-        globalPerRowComplexityMass: selectedClass.complexity.perRowMass,
-        selectedSourceRowsAtWordCount: selectedClass.rows.length,
-        selectedSourceNormalizationDenominator: denominator,
-        rowProbabilityWithinSource,
-        overallProbability,
-      },
+      sourceKey,
+      complexityValue,
+      snapshot,
     };
   }
 }
-
-export const selectionEngine = new SelectionEngine();

@@ -1,13 +1,16 @@
+import { config } from '../../config/config';
 import type {
   DataSource,
   PreparedSourceObservation,
   SourceCandidate,
   SourceCatalogRow,
 } from '../../domain/source';
-import { config } from '../../config/config';
 
-// Compatibility-only resolver for pending Iteration 1 rows that may exist in a user's
-// database during an upgrade. It is not part of the Iteration 2 selectable catalog.
+export interface DummyRow {
+  sourceKey: string;
+  text: string;
+}
+
 const TELUGU_GRAPHEMES = [
   'తె', 'లు', 'గు', 'నా', 'మ', 'వి', 'నీ', 'కు', 'చే', 'పు', 'అ', 'ది', 'ఇ', 'లా', 'వే', 'ళ్', 'ళి',
   'మా', 'ట', 'ప్ర', 'శ్', 'న', 'స', 'రి', 'కొ', 'త్', 'త', 'ప', 'దం', 'చూ', 'డు', 'వా', 'రు', 'ఏ', 'మీ',
@@ -32,6 +35,9 @@ export class LegacyIteration1MockDataSource implements DataSource {
   async prepare(_candidate: SourceCandidate): Promise<PreparedSourceObservation> {
     const delayMs = randomIntInclusive(config.mockDelayMinMs, config.mockDelayMaxMs);
     await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
-    return { text: `${randomGrapheme()}${randomGrapheme()}` };
+    return {
+      text: `${randomGrapheme()}${randomGrapheme()}`,
+      media: [{ kind: 'text', language: 'te', text: `${randomGrapheme()}${randomGrapheme()}` }],
+    };
   }
 }

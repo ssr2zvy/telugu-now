@@ -1,4 +1,5 @@
 import type {
+  DataSourcesResponse,
   ExportRequest,
   ExportResponse,
   LoadProfileRequest,
@@ -70,4 +71,8 @@ export async function generateExport(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
   }));
+}
+
+export async function getDataSources(): Promise<DataSourcesResponse> {
+  return parseJson<DataSourcesResponse>(await fetch('/api/data-sources'));
 }

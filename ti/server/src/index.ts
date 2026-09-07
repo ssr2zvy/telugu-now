@@ -3,6 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { config } from './config/config';
 import './db/database';
+import { sourceRegistry } from './services/source-registry';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
@@ -20,6 +21,7 @@ import {
 } from './services/selection-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
 import type {
+  DataSourcesResponse,
   ExportRequest,
   LoadProfileRequest,
   NavigationRequest,
@@ -30,6 +32,12 @@ import type {
 const app = new Hono();
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+app.get('/api/data-sources', (c) =>
+  c.json<DataSourcesResponse>({
+    sources: sourceRegistry.sourceInfo(),
+  }),
+);
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();
@@ -98,3 +106,5 @@ const port = process.env.NODE_ENV === 'production' ? config.port : config.devPor
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Server listening on http://127.0.0.1:${info.port}`);
 });
+
+sourceRegistry.assertPreparedSourcesPresent();

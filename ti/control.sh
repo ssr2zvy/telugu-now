@@ -19,6 +19,7 @@ Usage:
   ./$SCRIPT_NAME test [--option start|abort|exit]
   ./$SCRIPT_NAME build [--option start|abort|exit]
   ./$SCRIPT_NAME dev [--option start|stop|exit]
+  ./$SCRIPT_NAME data [--option samples|prepare|all|exit]
 USAGE
 }
 
@@ -103,6 +104,10 @@ clean_stale_dev_state() {
   rm -f "$(pid_file dev)"
   rm -f "$(pgid_file dev)"
   printf 'stopped' > "$(state_file dev)"
+}
+
+data_command_root() {
+  printf '%s' "$SCRIPT_DIR/../data-transform"
 }
 
 status_of() {
@@ -215,6 +220,16 @@ valid_options() {
       printf 'abort exit'
       ;;
     deps:stopping)
+      printf 'exit'
+      ;;
+
+    data:stopped)
+      printf 'samples prepare all exit'
+      ;;
+    data:running|data:starting)
+      printf 'abort exit'
+      ;;
+    data:stopping)
       printf 'exit'
       ;;
 
@@ -405,6 +420,75 @@ cleanup_dev_if_owned() {
   fi
 }
 
+run_data_samples() {
+  local data_root="$(data_command_root)"
+  local sample_root="$data_root/sample"
+  local raw_root="$data_root/raw"
+  local prepared_dir="$SCRIPT_DIR/data/corpus"
+
+  mkdir -p "$sample_root" "$prepared_dir"
+
+  python "$data_root/scripts/extract-sample-data/FLEURS.py" \
+    --input-root "$raw_root/FLEURS" \
+    --output-root "$sample_root/FLEURS" \
+    --splits dev test train --rows 100
+
+  python "$data_root/scripts/extract-sample-data/Shrutilipi.py" \
+    --input-root "$raw_root/Shrutilipi" \
+    --output-root "$sample_root/Shrutilipi" \
+    --rows 100
+
+  python "$data_root/scripts/extract-sample-data/IndicVoices.py" \
+    --input-root "$raw_root/IndicVoices" \
+    --output-root "$sample_root/IndicVoices" \
+    --rows 100
+
+  printf 'Prepared sample data under %s\n' "$sample_root"
+}
+
+run_data_prepare() {
+  local data_root="$(data_command_root)"
+  local sample_root="$data_root/sample"
+  local prepared_dir="$SCRIPT_DIR/data/corpus"
+
+  mkdir -p "$prepared_dir"
+
+  python "$data_root/scripts/prepare-corpus/prepare.py" \
+    --input "$sample_root" \
+    --output "$prepared_dir" \
+    --replace
+
+  printf 'Prepared corpus at %s\n' "$prepared_dir"
+}
+
+run_data_all() {
+  run_data_samples
+  run_data_prepare
+}
+
+run_data_domain() {
+  local option="${1:-samples}"
+
+  case "$option" in
+    samples)
+      run_data_samples
+      ;;
+    prepare)
+      run_data_prepare
+      ;;
+    all)
+      run_data_all
+      ;;
+    exit)
+      return 0
+      ;;
+    *)
+      printf 'ERROR: unsupported data option "%s".\n' "$option" >&2
+      return 2
+      ;;
+  esac
+}
+
 run_dev_foreground() {
   local status dev_pid dev_pgid lf rc=0
 
@@ -582,6 +666,9 @@ runner() {
     deps)
       bash "$SELF" __deps_exec "$action" &
       ;;
+    data)
+      run_data_domain "$action" &
+      ;;
     *)
       exit 2
       ;;
@@ -634,7 +721,7 @@ DOMAIN="$1"
 shift
 
 case "$DOMAIN" in
-  deps|test|build|dev)
+  deps|test|build|dev|data)
     ;;
   *)
     usage
@@ -707,6 +794,13 @@ case "$OPTION" in
     ;;
   reinstall)
     start_managed_domain "$DOMAIN" reinstall
+    ;;
+  samples|prepare|all)
+    if [[ "$DOMAIN" != "data" ]]; then
+      printf 'ERROR: option "%s" is only valid for the data command.\n' "$OPTION" >&2
+      exit 2
+    fi
+    run_data_domain "$OPTION"
     ;;
   abort)
     stop_managed_domain "$DOMAIN" abort

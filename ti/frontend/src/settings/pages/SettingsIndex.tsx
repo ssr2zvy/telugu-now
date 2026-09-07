@@ -31,7 +31,8 @@ export function SettingsIndex({
         | 'complexity'
         | 'sourceWeights'
         | 'diagnostic'
-        | 'export';
+        | 'export'
+        | 'dataSources';
     }> = [
       {
         page: 'complexity',
@@ -48,6 +49,10 @@ export function SettingsIndex({
       {
         page: 'export',
         label: 'export',
+      },
+      {
+        page: 'dataSources',
+        label: 'dataSources',
       },
     ];
   return (

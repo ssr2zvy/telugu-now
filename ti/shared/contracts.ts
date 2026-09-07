@@ -1,3 +1,5 @@
+export type ComplexityMetric = 'word-count' | 'grapheme-count';
+
 export type PreparationGroupKind = 'launch-fill' | 'rolling-replenishment';
 export type AcquisitionTriggerKind = 'initial-fill' | 'observation-consumed';
 export type ObservationStatus = 'pending' | 'preparing' | 'ready';
@@ -15,6 +17,22 @@ export interface UpdateSelectionSettingsRequest {
   complexityPercentileSpread: number;
 }
 
+export interface TextMedia {
+  kind: 'text';
+  language: 'te';
+  text: string;
+}
+
+export interface AudioMedia {
+  kind: 'audio';
+  objectKey: string;
+  mimeType: string;
+  durationSeconds: number;
+  sha256: string;
+}
+
+export type MediaItem = TextMedia | AudioMedia;
+
 export interface SelectionSnapshot {
   sourceWeights: Record<string, number>;
   sourceId: string;
@@ -24,7 +42,8 @@ export interface SelectionSnapshot {
   totalSourceMass: number;
   sourceProbability: number;
   sourceKey: string;
-  wordCount: number;
+  complexityMetric: ComplexityMetric;
+  intrinsicComplexityValue: number;
   complexityReferenceVersion: number;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
@@ -32,12 +51,17 @@ export interface SelectionSnapshot {
   globalPercentileStart: number;
   globalPercentileEnd: number;
   globalIntervalMass: number;
-  globalRowsAtWordCount: number;
+  globalRowsAtComplexityValue: number;
   globalPerRowComplexityMass: number;
-  selectedSourceRowsAtWordCount: number;
+  selectedSourceRowsAtComplexityValue: number;
   selectedSourceNormalizationDenominator: number;
   rowProbabilityWithinSource: number;
   overallProbability: number;
+
+  // Legacy iteration-2 compatibility fields.
+  wordCount?: number;
+  globalRowsAtWordCount?: number;
+  selectedSourceRowsAtWordCount?: number;
 }
 
 export interface ObservationDiagnostic {
@@ -127,6 +151,23 @@ export interface ExportEntry {
 export interface ExportResponse {
   settings: ProfileSelectionSettings;
   entries: ExportEntry[];
+}
+
+export interface DataSourceInfo {
+  sourceId: string;
+  displayName: string;
+  provider: string;
+  license: string;
+  upstreamUrl: string | null;
+  catalogVersion: number;
+  acceptedRows: number;
+  rejectedRows: number;
+  complexityMetric: ComplexityMetric;
+  status: 'ready' | 'fixture' | 'invalid';
+}
+
+export interface DataSourcesResponse {
+  sources: DataSourceInfo[];
 }
 
 export interface ApiErrorResponse {

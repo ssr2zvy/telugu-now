@@ -97,6 +97,7 @@ def sample_split(args: argparse.Namespace, split: str) -> None:
     archive_path = args.input_root / f"{split}.tar.gz"
     output_tsv_path = args.output_root / f"{split}.tsv"
     output_audio_dir = args.output_root / split
+    legacy_audio_dir = args.output_root / "audio"
 
     if not tsv_path.is_file():
         raise FileNotFoundError(tsv_path)
@@ -108,6 +109,8 @@ def sample_split(args: argparse.Namespace, split: str) -> None:
             output_tsv_path.unlink()
         if output_audio_dir.exists():
             shutil.rmtree(output_audio_dir)
+        if legacy_audio_dir.exists():
+            shutil.rmtree(legacy_audio_dir)
 
     if output_tsv_path.exists() or output_audio_dir.exists():
         raise RuntimeError(

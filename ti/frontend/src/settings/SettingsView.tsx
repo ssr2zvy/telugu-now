@@ -4,6 +4,7 @@ import { SettingsShell } from './SettingsShell';
 import type { SettingsController } from './useSettingsController';
 import { ComplexityPage } from './pages/ComplexityPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
+import { DataSourcesPage } from './pages/DataSourcesPage';
 import { ExportPage } from './pages/ExportPage';
 import { SettingsIndex } from './pages/SettingsIndex';
 import { SourceWeightsPage } from './pages/SourceWeightsPage';
@@ -99,6 +100,17 @@ export function SettingsView({
           state={state}
           language={language}
         />
+      </SettingsShell>
+    );
+  }
+  if (page === 'dataSources') {
+    return (
+      <SettingsShell
+        {...shellProps}
+        title={t(language, 'dataSources')}
+        onBack={controller.backToIndex}
+      >
+        <DataSourcesPage language={language} />
       </SettingsShell>
     );
   }
