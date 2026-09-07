@@ -1,1945 +1,294 @@
-frontend/src/export-epub.ts
+Implementation iteration 3
 
-import type { ExportResponse } from '../../shared/contracts';
-import type { PreparedExportArtifact } from './export-artifact';
-import {
-  OBSERVATION_FONT_ASSETS,
-  loadObservationFontBundle,
-  observationFontFaceCss,
-  type ObservationFontBundle,
-} from './font-assets';
-import {
-  buildStandaloneViewerCss,
-  buildStandaloneViewerMarkup,
-  buildStandaloneViewerScript,
-} from './export-viewer';
-import { createStoredZip, type StoredZipEntry } from './zip';
-export interface EpubBuildOptions {
-  identifier?: string;
-  modified?: string;
-}
-function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-function makeIdentifier(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return `urn:uuid:${crypto.randomUUID()}`;
-  }
-  return `urn:telugu-now:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-}
-function epubModifiedNow(): string {
-  return new Date()
-    .toISOString()
-    .replace(/\.\d{3}Z$/, 'Z');
-}
-function buildContainerXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>`;
-}
-function buildNavXhtml(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
-<head>
-  <meta charset="utf-8" />
-  <title>తెలుగు</title>
-</head>
-<body>
-  <nav epub:type="toc" id="toc">
-    <h1>తెలుగు</h1>
-    <ol>
-      <li><a href="viewer.xhtml">తెలుగు</a></li>
-    </ol>
-  </nav>
-  <nav epub:type="landmarks">
-    <h2>Landmarks</h2>
-    <ol>
-      <li><a epub:type="bodymatter" href="viewer.xhtml">తెలుగు</a></li>
-    </ol>
-  </nav>
-</body>
-</html>`;
-}
-function buildViewerXhtml(): string {
-  const markup =
-    buildStandaloneViewerMarkup();
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>తెలుగు</title>
-  <link rel="stylesheet" type="text/css" href="viewer.css" />
-</head>
-<body>
-${markup}
-<script type="text/javascript" src="viewer.js"></script>
-</body>
-</html>`;
-}
-function buildPackageOpf(
-  identifier: string,
-  modified: string,
-  fontBundle: ObservationFontBundle,
-): string {
-  const fontItems =
-    fontBundle.fonts
-      .map(
-        (font, index) =>
-          `    <item id="font-${index + 1}" href="fonts/${xmlEscape(font.fileName)}" media-type="font/woff2"/>`,
-      )
-      .join('\n');
-  const licenseItems =
-    fontBundle.fonts
-      .map(
-        (font, index) =>
-          `    <item id="font-license-${index + 1}" href="licenses/${xmlEscape(font.licenseFileName)}" media-type="text/plain"/>`,
-      )
-      .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="te" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="pub-id">${xmlEscape(identifier)}</dc:identifier>
-    <dc:title>తెలుగు</dc:title>
-    <dc:language>te</dc:language>
-    <meta property="dcterms:modified">${xmlEscape(modified)}</meta>
-    <meta property="ibooks:specified-fonts">true</meta>
-  </metadata>
-  <manifest>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="viewer" href="viewer.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
-    <item id="viewer-css" href="viewer.css" media-type="text/css"/>
-    <item id="viewer-js" href="viewer.js" media-type="application/javascript"/>
-    <item id="export-data" href="data.json" media-type="application/json"/>
-${fontItems}
-${licenseItems}
-  </manifest>
-  <spine>
-    <itemref idref="viewer"/>
-  </spine>
-</package>`;
-}
-function relativeFontCss(
-  fontBundle: ObservationFontBundle,
-): string {
-  return observationFontFaceCss(
-    fontBundle.fonts.map(
-      (font) => ({
-        family: font.family,
-        source: `fonts/${font.fileName}`,
-      }),
-    ),
-  );
-}
-export function buildEpubBytes(
-  result: ExportResponse,
-  fontBundle: ObservationFontBundle,
-  options: EpubBuildOptions = {},
-): Uint8Array {
-  if (
-    fontBundle.fonts.length !==
-    OBSERVATION_FONT_ASSETS.length
-  ) {
-    throw new Error(
-      'EPUB font bundle must contain the complete observation font collection.',
-    );
-  }
-  const identifier =
-    options.identifier ??
-    makeIdentifier();
-  const modified =
-    options.modified ??
-    epubModifiedNow();
-  const viewerCss =
-    buildStandaloneViewerCss(
-      relativeFontCss(
-        fontBundle,
-      ),
-    );
-  const viewerScript =
-    buildStandaloneViewerScript(
-      result,
-    );
-  const viewerXhtml =
-    buildViewerXhtml();
-  const navXhtml =
-    buildNavXhtml();
-  const packageOpf =
-    buildPackageOpf(
-      identifier,
-      modified,
-      fontBundle,
-    );
-  const entries:
-    StoredZipEntry[] = [
-      {
-        name: 'mimetype',
-        data:
-          'application/epub+zip',
-      },
-      {
-        name:
-          'META-INF/container.xml',
-        data:
-          buildContainerXml(),
-      },
-      {
-        name:
-          'EPUB/package.opf',
-        data:
-          packageOpf,
-      },
-      {
-        name:
-          'EPUB/nav.xhtml',
-        data:
-          navXhtml,
-      },
-      {
-        name:
-          'EPUB/viewer.xhtml',
-        data:
-          viewerXhtml,
-      },
-      {
-        name:
-          'EPUB/viewer.css',
-        data:
-          viewerCss,
-      },
-      {
-        name:
-          'EPUB/viewer.js',
-        data:
-          viewerScript,
-      },
-      {
-        name:
-          'EPUB/data.json',
-        data:
-          JSON.stringify(result),
-      },
-    ];
-  for (
-    const font
-    of fontBundle.fonts
-  ) {
-    entries.push(
-      {
-        name:
-          `EPUB/fonts/${font.fileName}`,
-        data:
-          font.bytes,
-      },
-      {
-        name:
-          `EPUB/licenses/${font.licenseFileName}`,
-        data:
-          font.licenseText,
-      },
-    );
-  }
-  return createStoredZip(
-    entries,
-  );
-}
-export async function prepareEpubExport(
-  result: ExportResponse,
-): Promise<PreparedExportArtifact> {
-  const fontBundle =
-    await loadObservationFontBundle();
-  const bytes =
-    buildEpubBytes(
-      result,
-      fontBundle,
-    );
-  return {
-    format: 'epub',
-    blob: new Blob(
-      [
-        bytes.buffer
-          as ArrayBuffer,
-      ],
-      {
-        type:
-          'application/epub+zip',
-      },
-    ),
-    fileName:
-      `telugu-export-${result.entries.length}.epub`,
-    entryCount:
-      result.entries.length,
-  };
-}
+	•	3.1 Iteration 3 scope and ordering Iteration 3 addresses the remaining original requirements in the dependency order: first real dataset metadata/catalog analysis
+	•	        ↓
+	•	generic Media model
+	•	        ↓
+	•	source-specific parsing/resolution for that dataset
+	•	        ↓
+	•	repeat the same onboarding process for additional sources
+	•	        ↓
+	•	Point 11 text + audio experience
+	•	        ↓
+	•	text + audio behavior carried into export viewers The repository/project folder is now named ti; new documentation, scripts, tests, and generated paths must not introduce the old telugu-iteration2 folder name. 
+	•	3.2 Begin with exactly one real dataset Do not attempt to integrate every real source simultaneously. Select one real dataset as the first source and use it to establish the metadata, catalog, media, acquisition, and audio-resolution contracts that later sources will follow.
+	•	3.3 First-source metadata inspection precedes runtime integration Before implementing a source adapter for the first real dataset, obtain and inspect only the lightweight metadata/schema information necessary to understand: total row count
+	•	row identifier/key
+	•	Unicode text column
+	•	nullable/missing-row behavior
+	•	audio/media-related columns
+	•	storage/reference representation
+	•	any metadata files required to enumerate/select rows Do not download the full audio corpus merely to build the selection catalog if the source exposes enough metadata separately. 
+	•	3.4 Persist a source metadata manifest The first real source gets an application-owned metadata manifest containing at least: source ID
+	•	source/dataset version or revision when available
+	•	total rows reported by the source
+	•	selectable rows
+	•	stable row-key field
+	•	Unicode text field name
+	•	media-related field names
+	•	complexity-measure identifier
+	•	metadata generation/version information Source-specific schema knowledge belongs to the source boundary rather than being hardcoded into the global selector. 
+	•	3.5 Distinguish total rows from selectable rows Metadata analysis must record both: total source rows
+	•	selectable source rows Rows may be excluded from the selection catalog if required fields are missing, malformed, unusable, or cannot identify a stable source record. Source probability uses the count of selectable rows, not an assumed raw-file count. 
+	•	3.6 Identify the canonical Unicode text field explicitly For the first source, determine the exact metadata column/property containing the Unicode text associated with the observation. Record its literal field name in the source metadata manifest. The selection engine must not guess among possible transcript/text columns.
+	•	3.7 Complexity no longer assumes word parsing The generic complexity architecture must not require tokenization or Telugu word segmentation. A source catalog exposes a numeric intrinsic-complexity value derived from its canonical Unicode text field.
+	•	3.8 Initial real-source complexity measure is Unicode grapheme length For the first real dataset, use Unicode extended grapheme-cluster count as the initial intrinsic complexity measurement rather than word count. The text is first normalized to Unicode NFC, then segmented into user-perceived grapheme clusters, and the number of grapheme clusters becomes the row’s intrinsic complexity scalar. raw Unicode text
+	•	        ↓
+	•	NFC normalization
+	•	        ↓
+	•	Unicode grapheme segmentation
+	•	        ↓
+	•	grapheme count
+	•	        ↓
+	•	intrinsic_complexity This avoids needing Telugu-specific word parsing while better representing visible text length than UTF-8 byte count or raw UTF-16 code-unit count. 
+	•	3.9 Complexity measurement is versioned The measurement used by the catalog is identified explicitly, for example: unicode_grapheme_count_v1 Changing normalization, segmentation, or the measurement definition requires a new measure/version rather than silently changing previously interpreted values. 
+	•	3.10 Selection catalog remains lightweight The first real source gets a selection catalog containing only information required before record acquisition, principally: source row key
+	•	intrinsic complexity scalar plus any minimal stable metadata required to locate the row. Full audio bytes and other large media must not be duplicated into the selection catalog. 
+	•	3.11 Catalog generation is deterministic Given the same source metadata revision and complexity-measure version, regenerating the catalog must produce the same: selectable row set
+	•	row keys
+	•	complexity values Catalog generation should be scriptable and testable rather than manually curated. 
+	•	3.12 Generate first-source complexity diagnostics before using it live Metadata analysis should produce summary information such as: total rows
+	•	selectable rows
+	•	missing text rows
+	•	minimum grapheme length
+	•	maximum grapheme length
+	•	mean/median where useful
+	•	percentile values
+	•	frequency/tie counts so the committee can inspect the real distribution before freezing its complexity-reference behavior. 
+	•	3.13 Global complexity engine becomes measurement-agnostic The existing percentile selection mathematics remains, but the selector must operate on a generic numeric intrinsicComplexity rather than a field semantically named wordCount. The engine should not know whether the source value came from:
+	•	3.14 Real-source percentile intervals preserve the existing tied-value model For intrinsic-complexity value k: n_k   = global selectable rows with value k
+	•	n_<k  = global selectable rows with lower value
+	•	N     = total global selectable rows
+	•	
+	•	a_k = n_<k / N
+	•	b_k = (n_<k + n_k) / N All rows sharing the same intrinsic-complexity value share the same global percentile interval exactly as tied word-count rows do today. 
+	•	3.15 Existing source-weight independence remains unchanged Replacing mock word count with a real Unicode-length measure must not change the source-weight formula: P(source i)
+	•	=
+	•	(N_i × w_i)
+	•	/
+	•	Σ(N_j × w_j) Complexity continues to affect conditional row selection only after the source is selected. 
+	•	3.16 Complexity snapshots become generic Acquisition/export diagnostics should replace word-count-specific terminology with generic complexity fields where appropriate: complexity measure ID
+	•	intrinsic complexity value
+	•	percentile interval
+	•	interval mass
+	•	global tied-row count
+	•	per-row complexity mass
+	•	source tied-row count
+	•	source normalization denominator
+	•	conditional row probability
+	•	overall probability A source-specific diagnostic may additionally display a friendly interpretation such as grapheme count. 
+	•	3.17 Formalize a generic Media model before implementing audio parsing A normalized observation/source record may contain zero or more media items. Media is represented as a discriminated model supporting: Unicode text
+	•	image
+	•	audio
+	•	video
+	•	reference rather than assuming that every observation is one text string. 
+	•	3.18 Media items have stable explicit kinds The normalized Media model should conceptually support: TextMedia
+	•	ImageMedia
+	•	AudioMedia
+	•	VideoMedia
+	•	MediaReference Global application code branches on the generic media kind, never on source-specific column names. 
+	•	3.19 Text media preserves Unicode exactly after source normalization The normalized text media object contains the Unicode string intended for presentation. Source-specific parsing decides which source field supplies it. Complexity metadata is associated with selection/catalog behavior and must not mutate the displayed Unicode text.
+	•	3.20 Binary media and references are distinct concepts The Media model distinguishes: already resolved media from: a reference that must be resolved A URL, object-storage key, dataset path, shard identifier, API identifier, archive member, or other locator is not silently treated as audio bytes. 
+	•	3.21 MediaReference records what it is expected to resolve into A generic media reference identifies at least: target media kind
+	•	source-specific locator/reference data so the source adapter knows whether it is resolving an audio, image, video, or other reference. 
+	•	3.22 Source-native data remains behind the source adapter boundary The global app must not know facts such as: "column 7 is audio"
+	•	"this URL needs another API call"
+	•	"this object key belongs to a shard"
+	•	"this blob field contains encoded WAV" Those rules belong entirely to the implementation of that particular source. 
+	•	3.23 First-source media-resolution analysis follows metadata analysis After the first source’s metadata/schema is obtained, inspect how its selected row actually identifies the corresponding audio. Determine which concrete case applies, including possibilities such as: direct audio bytes/blob
+	•	downloadable URL
+	•	authenticated URL
+	•	object-storage path/key
+	•	local archive member
+	•	Parquet binary field
+	•	dataset file path
+	•	secondary API identifier
+	•	manifest indirection
+	•	shard + offset
+	•	another source-specific mechanism Do not design the resolver around a hypothetical URL until the real dataset representation is known. 
+	•	3.24 Record the first source’s acquisition chain explicitly After analysis, document the exact source-specific path: selection row key
+	•	        ↓
+	•	obtain source-native row
+	•	        ↓
+	•	identify canonical text field
+	•	        ↓
+	•	identify audio field/reference
+	•	        ↓
+	•	perform any required secondary resolution
+	•	        ↓
+	•	normalize text + audio into Media[] Each network/file operation required by that chain should be explicit. 
+	•	3.25 Separate source fetch, parse, and reference resolution conceptually A real source adapter should expose clear responsibilities equivalent to: catalog
+	•	    → lightweight selectable rows
+	•	
+	•	acquire row
+	•	    → source-native record
+	•	
+	•	parse row
+	•	    → direct media + unresolved references
+	•	
+	•	resolve references
+	•	    → actual normalized media
+	•	
+	•	normalize
+	•	    → SourceRecord Media[] These may share implementation code internally, but the architectural stages must remain distinguishable. 
+	•	3.26 Preserve raw source information where useful Source acquisition should retain enough raw metadata/request information to diagnose parsing/resolution errors without forcing the normalized Media model to contain arbitrary source-native fields.
+	•	3.27 SourceRecord becomes the stable resolved-media cache unit The existing shared (source_id, source_row_key) cache remains the stable boundary. Once the first source’s selected row has been fully acquired and its required media resolved, the resulting normalized source record is persisted/reused so later selections of the same source row do not unnecessarily repeat source/API/media-resolution work.
+	•	3.28 Media persistence strategy is chosen from real source characteristics Do not prematurely require all audio bytes to live inside SQLite. After analyzing the first source, choose the concrete persistence representation based on: media size
+	•	source delivery mechanism
+	•	browser/server requirements
+	•	export requirements
+	•	cache behavior
+	•	deployment environment SQLite may store metadata/references while binary media may use an application-controlled file/blob/object representation if that is cleaner. 
+	•	3.29 Cached records must be self-consistent A SourceRecord is not considered ready merely because its transcript was parsed. For the Point 11 text+audio experience, readiness means every media item required for that observation’s presentation has been resolved or otherwise made available according to the normalized Media contract.
+	•	3.30 Live queue semantics remain unchanged during real-source integration Real source acquisition must preserve the existing: target future queue = 10
+	•	fixed queue order
+	•	sequential live preparation
+	•	one-for-one replenishment
+	•	Back/Forward history behavior
+	•	timing behavior Source latency or secondary audio resolution must never reorder selected observations. 
+	•	3.31 Export and live preparation continue sharing SourceRecord cache If Export resolves the first real source’s audio before live viewing needs it, the live observation should reuse that resolved SourceRecord. If live acquisition resolves it first, Export should reuse it. Media integration must not create separate live/export caches.
+	•	3.32 First-source implementation is completed before onboarding the next source The first real source is considered integrated only when the following work as one path:
+	•	3.33 Additional sources repeat the same onboarding pipeline Each later source follows: inspect metadata
+	•	    ↓
+	•	identify total/selectable rows
+	•	    ↓
+	•	identify row key
+	•	    ↓
+	•	identify Unicode text field
+	•	    ↓
+	•	compute compatible intrinsic complexity
+	•	    ↓
+	•	generate catalog
+	•	    ↓
+	•	analyze media representation
+	•	    ↓
+	•	implement source-specific parser/resolver
+	•	    ↓
+	•	normalize into the same Media model
+	•	    ↓
+	•	validate/cache/test New sources must not require changes to the global selection or observation architecture merely because their raw schemas differ. 
+	•	3.34 Cross-source complexity requires a compatible measurement domain Sources participating in one global percentile reference must expose complexity values with the same semantic measurement definition/version. For the initial text-based sources, prefer the shared unicode_grapheme_count_v1 measure when they all provide Unicode transcript text. A source requiring a fundamentally different complexity measure must not be silently pooled into the same reference.
+	•	3.35 Adding a source changes the complexity-reference version Once additional real sources are added to the globally pooled population, regenerate the global reference and increment its version. Existing acquisition/export snapshots retain the reference version under which they were selected.
+	•	3.36 Remove mock sources only deliberately Real-source onboarding must not accidentally change or remove the existing deterministic mock fixtures/tests. Mocks remain useful for fast deterministic testing until the committee explicitly retires them from runtime configuration.
+	•	3.37 Point 11 begins only after normalized text+audio exists The precision audio UI should not be built against fake source-specific structures. Begin Point 11 once at least the first real source reliably produces: TextMedia
+	•	+
+	•	AudioMedia through the generic Media and SourceRecord pipeline. 
+	•	3.38 Initial observation renderer supports text plus audio Although the Media model permits text, image, audio, video, and reference, Iteration 3’s user-facing observation renderer is required to display only: Unicode text
+	•	audio Other normalized media kinds may remain unsupported by the UI until later iterations. 
+	•	3.39 Existing randomized text presentation remains active with audio Adding audio must preserve the current text behavior: random font on observation activation
+	•	all curated Telugu fonts
+	•	continuous length-based preferred sizing
+	•	fit-to-container measurement
+	•	Back/Next reroll behavior
+	•	Settings return reroll behavior The audio player is added below the rendered text rather than replacing the existing presentation system. 
+	•	3.40 Audio player is a separate observation component Audio behavior should live behind a modular component/service boundary rather than being implemented directly inside the main observation component. Conceptually:
+	•	3.41 Use the browser audio engine behind application state Actual playback may use the browser’s native audio element/API internally, but native browser controls are not the product UI. The application owns:
+	•	3.42 Audio timeline supports direct seeking The timeline below the rendered text displays playback progress and lets the user directly seek by touching/clicking anywhere on the timeline or dragging its playhead.
+	•	3.43 Seek state uses millisecond-scale values Timeline calculations and bookmark positions should be represented at millisecond precision or equivalent fractional-second precision internally. The application must not round user-selected positions to whole seconds. Actual decoder playback may resolve to the nearest timestamp supported by the browser/media encoding.
+	•	3.44 Slow dragging activates precision-seek mode During an ordinary timeline drag, detect sufficiently slow/fine pointer movement and immediately enter a precision-seek mode. Precision mode is a product interaction state, not a different audio file or playback mode.
+	•	3.45 Precision mode displays a magnified timeline overlay When precision mode activates, display a magnifier overlay centered around the current seek region. The magnifier maps a much smaller time interval onto a much larger visual width, allowing small finger movements to correspond to much smaller time changes.
+	•	3.46 Precision magnifier has deterministic time mapping The magnifier must define explicitly: magnified time window
+	•	center timestamp
+	•	visual width
+	•	pointer-to-time mapping
+	•	clamping at start/end of audio so seeking behavior is testable rather than depending on ad hoc CSS movement. 
+	•	3.47 Precision seek exits predictably Releasing/canceling the pointer commits the selected target time and dismisses the magnifier. Ordinary UI rerenders must not unexpectedly reset an active drag.
+	•	3.48 Play/pause is available directly on the audio timeline UI The audio player provides an explicit play/pause control associated with the displayed observation’s audio.
+	•	3.49 Playback-speed control supports at least 0.3× The audio player provides a playback-rate control whose supported range reaches at least: 0.3× Slower playback must preserve timeline/bookmark timestamps in source-audio time rather than multiplying stored bookmark positions by playback rate. 
+	•	3.50 Playback-rate changes do not change observation timing semantics Changing audio speed affects only audio playback. It does not alter the existing application measurement of how long the observation itself has been visible.
+	•	3.51 Bookmark control is positioned at the right end of the timeline The dedicated bookmark control remains visually associated with the audio timeline and has two distinct interactions.
+	•	3.52 Double activation creates a bookmark A double click/double tap on the bookmark control stores a bookmark at the current audio timestamp. The stored timestamp uses the same millisecond-scale representation as seeking.
+	•	3.53 Single activation jumps to the most recent prior bookmark A single click/tap on the bookmark control seeks to the bookmark with the greatest timestamp strictly before the current audio position. bookmarks: 2.000s, 5.200s, 8.750s
+	•	current:   7.100s
+	•	
+	•	single tap
+	•	→ 5.200s If no prior bookmark exists, the control performs no seek. 
+	•	3.54 Single versus double bookmark activation must be disambiguated intentionally Implement a short double-activation recognition window so that the first tap of a double tap is not immediately executed as the single-tap “jump backward” action. Pointer/touch behavior must work on iOS as well as mouse-based desktop browsers.
+	•	3.55 Bookmark ownership is tied to the viewed acquisition/audio experience Bookmarks represent the user’s interaction with the displayed acquisition’s audio. They must not become global bookmarks shared across unrelated observations merely because two acquisitions happen to refer to the same cached SourceRecord.
+	•	3.56 Bookmark persistence is explicit Iteration 3 should persist bookmarks with the user’s observation/acquisition state so navigating away, returning through history, or reopening the profile restores the bookmarks associated with that viewed acquisition.
+	•	3.57 Back/Next stops or transitions audio safely Navigating away from an observation must stop playback from the old observation. Audio from an off-screen history entry must never continue playing underneath another observation unless that behavior is explicitly introduced later.
+	•	3.58 Returning through history restores audio state conservatively Returning to a prior acquisition restores its audio and persisted bookmarks. Playback itself resumes paused rather than unexpectedly auto-playing. Its last playback position may be restored if persisted by the Point 11 interaction state.
+	•	3.59 Settings pauses audio playback Opening full-page Settings stops/pauses the current observation’s audio. Closing Settings returns to the observation without automatically starting audio playback.
+	•	3.60 Point 11 controls must coexist with observation navigation reveal behavior The existing: tap ordinary observation surface
+	•	→ reveal Back / Next / Settings behavior remains. Interacting with audio controls, timeline, magnifier, speed control, or bookmark control must stop propagation so those interactions do not accidentally hide/reveal observation navigation controls. 
+	•	3.61 Audio UI follows the existing visual language The audio player uses the same grey-gradient page and restrained monochrome interface. Normal observation UI remains Telugu-only according to the established product rule. Development diagnostics may continue to expose English when selected through the Settings-language mode.
+	•	3.62 Point 11 media state is separate from selection probability state Playback position, bookmarks, speed, and play/pause state must never influence:
+	•	3.63 ExportResponse evolves to carry normalized media required by the viewer Export must carry the same normalized text/audio presentation information needed to reconstruct each exported observation without recontacting the original source after the export has completed.
+	•	3.64 Export generation resolves required audio before artifact readiness HTML/EPUB Download must not become available until every exported observation’s required text/audio media has been resolved and is available for packaging. An export cannot be marked ready while some audio still requires an external source request.
+	•	3.65 Standalone viewers incorporate Point 11 behavior HTML and EPUB viewers must eventually provide the same core exported text/audio experience: rendered randomized-font text
+	•	play / pause
+	•	normal timeline seeking
+	•	precision magnifier seeking
+	•	playback speed down to 0.3×
+	•	bookmark creation
+	•	previous-bookmark jump
+	•	Back / Next
+	•	Diagnostic Container-specific limitations may require separate acceptance testing, but the application should share viewer logic wherever practical. 
+	•	3.66 Exported audio is offline-capable The self-contained/offline export contract means the artifact must contain or package the audio required for its N observations rather than depending on the original dataset URL at viewing time. The exact packing representation is chosen after first-source audio-size and format analysis.
+	•	3.67 HTML audio packaging must account for artifact size If HTML remains a single-file artifact, audio may need to be embedded as binary-to-text/data content inside the HTML. Before freezing that representation, measure realistic first-source audio sizes and resulting export growth rather than assuming the existing font-only strategy will scale unchanged.
+	•	3.68 EPUB audio packaging uses package resources For EPUB, resolved audio should be included as local EPUB resources and referenced by the viewer rather than base64-duplicated into XHTML/JavaScript when normal EPUB resource packaging is sufficient.
+	•	3.69 Standalone viewer code remains shared where behavior is identical Audio interaction logic should follow the same modular principle already used for text presentation: canonical audio interaction model
+	•	            ↓
+	•	    shared standalone runtime
+	•	        ↙             ↘
+	•	     HTML            EPUB Do not independently implement different bookmark, magnifier, speed, or seek semantics for each export format. 
+	•	3.70 Exported bookmarks are viewer-local unless explicitly imported from live history A newly generated export begins with a defined bookmark state. If Iteration 3 chooses to include existing live acquisition bookmarks for exported history-derived material, that must be explicit; fresh Export selections should not fabricate user bookmarks.
+	•	3.71 First-source tests must cover the real metadata contract without requiring full corpus download Add tests or fixtures proving: metadata schema recognized
+	•	correct text column used
+	•	stable row key extracted
+	•	total/selectable row counts calculated
+	•	NFC + grapheme complexity calculated correctly
+	•	invalid/missing text excluded deterministically
+	•	catalog deterministic using a small representative fixture where practical. 
+	•	3.72 Unicode complexity tests include Telugu combining sequences Complexity tests must include Telugu strings where: UTF-16 length
+	•	Unicode code-point count
+	•	grapheme-cluster count differ, proving that unicode_grapheme_count_v1 measures the intended user-perceived text units rather than JavaScript string length. 
+	•	3.73 Source-resolution tests mirror the real first-source mechanism Once analysis determines whether first-source audio is a URL, blob, shard, API reference, archive entry, etc., tests should exercise that concrete chain with controlled fixtures/mocks and verify that the final normalized SourceRecord contains correct TextMedia and AudioMedia.
+	•	3.74 Media-model tests are source-independent Add contract tests proving that normalized text/audio objects produced by the first source satisfy the same generic Media model that every later source must use.
+	•	3.75 Audio-control tests are separated by concern Point 11 tests should independently validate: play/pause state
+	•	rate changes
+	•	normal seek mapping
+	•	slow-drag precision activation
+	•	magnifier time mapping
+	•	start/end clamping
+	•	bookmark double activation
+	•	previous-bookmark single activation
+	•	bookmark persistence
+	•	navigation stops playback
+	•	Settings pauses playback rather than relying only on one broad browser interaction test. 
+	•	3.76 Export tests expand to text+audio parity HTML/EPUB export tests should verify that packaged observations contain their audio resources, viewer code has no runtime dependency on source APIs, and Point 11 presentation/interaction semantics are represented in the artifact.
+	•	3.77 Iteration 3 completion gate for the first real source Before declaring the first-source portion complete, the committee must be able to answer concretely:
+	•	3.78 Iteration 3 completion gate for additional sources Each additional source must answer the same questions and produce the same normalized catalog/Media boundaries before being enabled in source weighting. A source is not “integrated” merely because its metadata can be listed.
+	•	3.79 Iteration 3 completion gate for Point 11 Point 11 is complete only when at least one real source can be selected through the normal weighted/complexity pipeline and displayed as actual Telugu text plus actual resolved audio with: play/pause
+	•	seek
+	•	precision magnifier
+	•	millisecond-scale target representation
+	•	bookmarks
+	•	0.3× playback
+	•	persistent history/bookmark behavior
+	•	navigation safety
+	•	Settings safety while preserving all frozen Iteration 1 and Iteration 2 selection, queue, timing, cache, diagnostics, typography, and export semantics. 
+	•	3.80 Iteration 3 staged acceptance Implementation should proceed and be reviewed in explicit stages: Stage A
+	•	first-source metadata + complexity analysis
+	•	
+	•	Stage B
+	•	generic Media model
+	•	
+	•	Stage C
+	•	first-source parsing/audio-resolution implementation
+	•	
+	•	Stage D
+	•	repeat source onboarding for remaining sources
+	•	
+	•	Stage E
+	•	live Point 11 text+audio experience
+	•	
+	•	Stage F
+	•	HTML/EPUB Point 11 export parity Do not begin later stages by guessing unresolved facts that an earlier dataset-analysis stage is intended to establish. 
 
-tests/export-epub.test.ts
-
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import {
-  buildEpubBytes,
-  prepareEpubExport,
-} from '../frontend/src/export-epub';
-import {
-  OBSERVATION_FONT_ASSETS,
-  type ObservationFontBundle,
-} from '../frontend/src/font-assets';
-import type {
-  ExportResponse,
-  SelectionSnapshot,
-} from '../shared/contracts';
-interface ParsedStoredZipEntry {
-  name: string;
-  method: number;
-  data: Uint8Array;
-}
-function readUint16(
-  view: DataView,
-  offset: number,
-): number {
-  return view.getUint16(
-    offset,
-    true,
-  );
-}
-function readUint32(
-  view: DataView,
-  offset: number,
-): number {
-  return view.getUint32(
-    offset,
-    true,
-  );
-}
-function parseStoredZip(
-  bytes: Uint8Array,
-): ParsedStoredZipEntry[] {
-  const entries:
-    ParsedStoredZipEntry[] = [];
-  const view =
-    new DataView(
-      bytes.buffer,
-      bytes.byteOffset,
-      bytes.byteLength,
-    );
-  const decoder =
-    new TextDecoder();
-  let offset = 0;
-  while (
-    offset + 4 <=
-    bytes.length
-  ) {
-    const signature =
-      readUint32(
-        view,
-        offset,
-      );
-    if (
-      signature ===
-        0x02014b50 ||
-      signature ===
-        0x06054b50
-    ) {
-      break;
-    }
-    assert.equal(
-      signature,
-      0x04034b50,
-      `invalid local ZIP header at ${offset}`,
-    );
-    const method =
-      readUint16(
-        view,
-        offset + 8,
-      );
-    const compressedSize =
-      readUint32(
-        view,
-        offset + 18,
-      );
-    const uncompressedSize =
-      readUint32(
-        view,
-        offset + 22,
-      );
-    const nameLength =
-      readUint16(
-        view,
-        offset + 26,
-      );
-    const extraLength =
-      readUint16(
-        view,
-        offset + 28,
-      );
-    assert.equal(
-      method,
-      0,
-    );
-    assert.equal(
-      compressedSize,
-      uncompressedSize,
-    );
-    const nameStart =
-      offset + 30;
-    const dataStart =
-      nameStart +
-      nameLength +
-      extraLength;
-    const dataEnd =
-      dataStart +
-      compressedSize;
-    const name =
-      decoder.decode(
-        bytes.subarray(
-          nameStart,
-          nameStart +
-            nameLength,
-        ),
-      );
-    entries.push({
-      name,
-      method,
-      data:
-        bytes.slice(
-          dataStart,
-          dataEnd,
-        ),
-    });
-    offset =
-      dataEnd;
-  }
-  return entries;
-}
-function selection(
-  sourceKey: string,
-): SelectionSnapshot {
-  return {
-    sourceWeights: {
-      source1: 1,
-      source2: 1,
-      source3: 1,
-    },
-    sourceId:
-      'source1',
-    sourceRowCount:
-      12,
-    sourceWeight:
-      1,
-    sourceMass:
-      12,
-    totalSourceMass:
-      72,
-    sourceProbability:
-      12 / 72,
-    sourceKey,
-    wordCount:
-      2,
-    complexityReferenceVersion:
-      1,
-    complexityPercentileTarget:
-      0.5,
-    complexityPercentileSpread:
-      0.25,
-    derivedStandardDeviation:
-      0.25 /
-      2.326347874,
-    globalPercentileStart:
-      6 / 72,
-    globalPercentileEnd:
-      14 / 72,
-    globalIntervalMass:
-      0.1,
-    globalRowsAtWordCount:
-      8,
-    globalPerRowComplexityMass:
-      0.0125,
-    selectedSourceRowsAtWordCount:
-      3,
-    selectedSourceNormalizationDenominator:
-      0.1,
-    rowProbabilityWithinSource:
-      0.125,
-    overallProbability:
-      (12 / 72) *
-      0.125,
-  };
-}
-function sampleExport():
-ExportResponse {
-  return {
-    settings: {
-      sourceWeights: {
-        source1: 1,
-        source2: 1,
-        source3: 1,
-      },
-      complexityPercentileTarget:
-        0.5,
-      complexityPercentileSpread:
-        0.25,
-      complexityReferenceVersion:
-        1,
-    },
-    entries: [
-      {
-        position: 1,
-        sourceId:
-          'source1',
-        sourceKey:
-          'source1-001',
-        text:
-          'మొదటి',
-        diagnostic: {
-          selection:
-            selection(
-              'source1-001',
-            ),
-          cacheHit:
-            false,
-          requestStartedAt:
-            1,
-          requestCompletedAt:
-            2,
-          requestDurationMs:
-            1,
-        },
-      },
-      {
-        position: 2,
-        sourceId:
-          'source1',
-        sourceKey:
-          'source1-002',
-        text:
-          'రెండవ పరిశీలన',
-        diagnostic: {
-          selection:
-            selection(
-              'source1-002',
-            ),
-          cacheHit:
-            true,
-          requestStartedAt:
-            null,
-          requestCompletedAt:
-            null,
-          requestDurationMs:
-            null,
-        },
-      },
-    ],
-  };
-}
-function sampleFontBundle():
-ObservationFontBundle {
-  return {
-    fonts:
-      OBSERVATION_FONT_ASSETS.map(
-        (
-          asset,
-          index,
-        ) => ({
-          family:
-            asset.family,
-          fileName:
-            asset.fileName,
-          licenseFileName:
-            asset.licenseFileName,
-          bytes:
-            new Uint8Array([
-              0x77,
-              0x4f,
-              0x46,
-              0x32,
-              index,
-            ]),
-          licenseText:
-            `OFL notice for ${asset.family}`,
-        }),
-      ),
-  };
-}
-function text(
-  entry:
-    ParsedStoredZipEntry,
-): string {
-  return new TextDecoder()
-    .decode(
-      entry.data,
-    );
-}
-test(
-  'EPUB is a real stored ZIP with mimetype first and uncompressed',
-  () => {
-    const bytes =
-      buildEpubBytes(
-        sampleExport(),
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const entries =
-      parseStoredZip(
-        bytes,
-      );
-    assert.equal(
-      entries[0]?.name,
-      'mimetype',
-    );
-    assert.equal(
-      entries[0]?.method,
-      0,
-    );
-    assert.equal(
-      text(entries[0]!),
-      'application/epub+zip',
-    );
-    assert.equal(
-      entries[1]?.name,
-      'META-INF/container.xml',
-    );
-  },
-);
-test(
-  'EPUB contains the complete scripted viewer, data, fonts, and licenses',
-  () => {
-    const result =
-      sampleExport();
-    const bytes =
-      buildEpubBytes(
-        result,
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const entries =
-      parseStoredZip(
-        bytes,
-      );
-    const byName =
-      new Map(
-        entries.map(
-          (entry) => [
-            entry.name,
-            entry,
-          ],
-        ),
-      );
-    for (
-      const required
-      of [
-        'mimetype',
-        'META-INF/container.xml',
-        'EPUB/package.opf',
-        'EPUB/nav.xhtml',
-        'EPUB/viewer.xhtml',
-        'EPUB/viewer.css',
-        'EPUB/viewer.js',
-        'EPUB/data.json',
-      ]
-    ) {
-      assert.ok(
-        byName.has(
-          required,
-        ),
-        `${required} should exist`,
-      );
-    }
-    const containerXml =
-      text(
-        byName.get(
-          'META-INF/container.xml',
-        )!,
-      );
-    assert.match(
-      containerXml,
-      /full-path="EPUB\/package\.opf"/,
-    );
-    const packageOpf =
-      text(
-        byName.get(
-          'EPUB/package.opf',
-        )!,
-      );
-    assert.match(
-      packageOpf,
-      /version="3\.0"/,
-    );
-    assert.match(
-      packageOpf,
-      /prefix="ibooks: http:\/\/vocabulary\.itunes\.apple\.com\/rdf\/ibooks\/vocabulary-extensions-1\.0\/"/,
-    );
-    assert.match(
-      packageOpf,
-      /<meta property="ibooks:specified-fonts">true<\/meta>/,
-    );
-    assert.match(
-      packageOpf,
-      /properties="nav"/,
-    );
-    assert.match(
-      packageOpf,
-      /properties="scripted"/,
-    );
-    assert.match(
-      packageOpf,
-      /<itemref idref="viewer"\/>/,
-    );
-    const viewerXhtml =
-      text(
-        byName.get(
-          'EPUB/viewer.xhtml',
-        )!,
-      );
-    assert.match(
-      viewerXhtml,
-      /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /href="viewer\.css"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /src="viewer\.js"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /id="diagnostic-body"/,
-    );
-    const viewerScript =
-      text(
-        byName.get(
-          'EPUB/viewer.js',
-        )!,
-      );
-    assert.match(
-      viewerScript,
-      /const PRESENTATION=/,
-    );
-    assert.match(
-      viewerScript,
-      /function chooseFont\(/,
-    );
-    assert.match(
-      viewerScript,
-      /function preferredSize\(/,
-    );
-    assert.match(
-      viewerScript,
-      /function fitActive\(/,
-    );
-    assert.match(
-      viewerScript,
-      /document\.fonts\.load/,
-    );
-    assert.match(
-      viewerScript,
-      /window\.addEventListener\('resize'/,
-    );
-    assert.equal(
-      /\bfetch\s*\(/.test(
-        viewerScript,
-      ),
-      false,
-    );
-    assert.equal(
-      /\bXMLHttpRequest\b/.test(
-        viewerScript,
-      ),
-      false,
-    );
-    assert.deepEqual(
-      JSON.parse(
-        text(
-          byName.get(
-            'EPUB/data.json',
-          )!,
-        ),
-      ),
-      result,
-    );
-    for (
-      const asset
-      of OBSERVATION_FONT_ASSETS
-    ) {
-      const fontName =
-        `EPUB/fonts/${asset.fileName}`;
-      const licenseName =
-        `EPUB/licenses/${asset.licenseFileName}`;
-      assert.ok(
-        byName.has(
-          fontName,
-        ),
-      );
-      assert.ok(
-        byName.has(
-          licenseName,
-        ),
-      );
-      assert.match(
-        packageOpf,
-        new RegExp(
-          asset.fileName
-            .replace(
-              '.',
-              '\\.',
-            ),
-        ),
-      );
-      assert.match(
-        packageOpf,
-        new RegExp(
-          asset
-            .licenseFileName
-            .replace(
-              '.',
-              '\\.',
-            ),
-        ),
-      );
-    }
-  },
-);
-test(
-  'EPUB viewer CSS uses packaged relative fonts rather than remote or data URLs',
-  () => {
-    const bytes =
-      buildEpubBytes(
-        sampleExport(),
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const byName =
-      new Map(
-        parseStoredZip(
-          bytes,
-        ).map(
-          (entry) => [
-            entry.name,
-            entry,
-          ],
-        ),
-      );
-    const css =
-      text(
-        byName.get(
-          'EPUB/viewer.css',
-        )!,
-      );
-    assert.equal(
-      (
-        css.match(
-          /@font-face/g,
-        ) ?? []
-      ).length,
-      10,
-    );
-    assert.equal(
-      css.includes(
-        'data:font/woff2',
-      ),
-      false,
-    );
-    assert.equal(
-      /https?:\/\//.test(
-        css,
-      ),
-      false,
-    );
-    for (
-      const asset
-      of OBSERVATION_FONT_ASSETS
-    ) {
-      assert.ok(
-        css.includes(
-          `fonts/${asset.fileName}`,
-        ),
-      );
-    }
-  },
-);
-test(
-  'prepared EPUB resolves only local font assets and exposes one downloadable epub blob',
-  async () => {
-    const originalFetch =
-      globalThis.fetch;
-    const requested:
-      string[] = [];
-    globalThis.fetch =
-      (async (
-        input:
-          RequestInfo |
-          URL,
-      ) => {
-        const url =
-          String(input);
-        requested.push(
-          url,
-        );
-        if (
-          url.includes(
-            '/licenses/',
-          )
-        ) {
-          return new Response(
-            'OFL TEST',
-            {
-              status: 200,
-            },
-          );
-        }
-        return new Response(
-          new Uint8Array([
-            0x77,
-            0x4f,
-            0x46,
-            0x32,
-            1,
-          ]),
-          {
-            status: 200,
-          },
-        );
-      }) as typeof fetch;
-    try {
-      const prepared =
-        await prepareEpubExport(
-          sampleExport(),
-        );
-      assert.equal(
-        prepared.format,
-        'epub',
-      );
-      assert.equal(
-        prepared.entryCount,
-        2,
-      );
-      assert.equal(
-        prepared.fileName,
-        'telugu-export-2.epub',
-      );
-      assert.equal(
-        prepared.blob.type,
-        'application/epub+zip',
-      );
-      assert.equal(
-        requested.length,
-        20,
-      );
-      assert.ok(
-        requested.every(
-          (url) =>
-            url.startsWith(
-              '/fonts/',
-            ),
-        ),
-      );
-      const bytes =
-        new Uint8Array(
-          await prepared
-            .blob
-            .arrayBuffer(),
-        );
-      const entries =
-        parseStoredZip(
-          bytes,
-        );
-      assert.equal(
-        entries[0]?.name,
-        'mimetype',
-      );
-    } finally {
-      globalThis.fetch =
-        originalFetch;
-    }
-  },
-);
-
-tests/repository-contract.test.ts
-
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import {
-  spawnSync,
-} from 'node:child_process';
-import test from 'node:test';
-import {
-  fileURLToPath,
-} from 'node:url';
-const root =
-  path.resolve(
-    path.dirname(
-      fileURLToPath(
-        import.meta.url,
-      ),
-    ),
-    '..',
-  );
-function read(
-  relativePath: string,
-): string {
-  return fs.readFileSync(
-    path.join(
-      root,
-      relativePath,
-    ),
-    'utf8',
-  );
-}
-test(
-  'Iteration 2 controller is control.sh with no stale control-project.sh surface',
-  () => {
-    const control =
-      path.join(
-        root,
-        'control.sh',
-      );
-    assert.equal(
-      fs.existsSync(
-        control,
-      ),
-      true,
-    );
-    assert.equal(
-      fs.existsSync(
-        path.join(
-          root,
-          'control-project.sh',
-        ),
-      ),
-      false,
-    );
-    assert.ok(
-      (
-        fs.statSync(
-          control,
-        ).mode &
-        0o111
-      ) !== 0,
-    );
-    const syntax =
-      spawnSync(
-        'bash',
-        [
-          '-n',
-          control,
-        ],
-        {
-          encoding:
-            'utf8',
-        },
-      );
-    assert.equal(
-      syntax.status,
-      0,
-      syntax.stderr,
-    );
-    const readme =
-      read(
-        'README.md',
-      );
-    assert.equal(
-      readme.includes(
-        'control-project.sh',
-      ),
-      false,
-    );
-    assert.ok(
-      readme.includes(
-        './control.sh',
-      ),
-    );
-    assert.equal(
-      fs.existsSync(
-        path.join(
-          root,
-          'VALIDATION.md',
-        ),
-      ),
-      false,
-    );
-    assert.equal(
-      readme.includes(
-        'VALIDATION.md',
-      ),
-      false,
-    );
-  },
-);
-test(
-  'Iteration 2 frontend remains modular across profile, observation, settings, and export packaging',
-  () => {
-    const requiredFiles = [
-      'frontend/src/components/icons.tsx',
-      'frontend/src/profile/ProfileEntry.tsx',
-      'frontend/src/profile/useProfileSession.ts',
-      'frontend/src/observation/ObservationView.tsx',
-      'frontend/src/observation/useObservationTypography.ts',
-      'frontend/src/settings/types.ts',
-      'frontend/src/settings/language.ts',
-      'frontend/src/settings/settings-utils.ts',
-      'frontend/src/settings/diagnostic.ts',
-      'frontend/src/settings/SettingsShell.tsx',
-      'frontend/src/settings/SettingsView.tsx',
-      'frontend/src/settings/useSettingsController.ts',
-      'frontend/src/settings/pages/SettingsIndex.tsx',
-      'frontend/src/settings/pages/ComplexityPage.tsx',
-      'frontend/src/settings/pages/SourceWeightsPage.tsx',
-      'frontend/src/settings/pages/DiagnosticPage.tsx',
-      'frontend/src/settings/pages/ExportPage.tsx',
-      'frontend/src/export-artifact.ts',
-      'frontend/src/export-viewer.ts',
-      'frontend/src/export-html.ts',
-      'frontend/src/export-epub.ts',
-      'frontend/src/zip.ts',
-      'frontend/src/font-assets.ts',
-      'frontend/font-assets.json',
-      'scripts/sync-fonts.mjs',
-      'frontend/src/styles/base.css',
-      'frontend/src/styles/profile.css',
-      'frontend/src/styles/observation.css',
-      'frontend/src/styles/settings.css',
-    ];
-    for (
-      const relativePath
-      of requiredFiles
-    ) {
-      assert.equal(
-        fs.existsSync(
-          path.join(
-            root,
-            relativePath,
-          ),
-        ),
-        true,
-        `${relativePath} should exist`,
-      );
-    }
-    const app =
-      read(
-        'frontend/src/App.tsx',
-      );
-    assert.ok(
-      app.includes(
-        "from './profile/ProfileEntry'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './profile/useProfileSession'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './observation/ObservationView'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './settings/SettingsView'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './settings/useSettingsController'",
-      ),
-    );
-    assert.equal(
-      app.includes(
-        'settings-modal',
-      ),
-      false,
-    );
-    assert.equal(
-      app.includes(
-        'chooseRandomObservationFont',
-      ),
-      false,
-    );
-    assert.ok(
-      app.split(
-        '\n',
-      ).length <
-        100,
-    );
-  },
-);
-test(
-  'Settings export uses a transient format chooser and keeps format out of selection',
-  () => {
-    const settingsView =
-      read(
-        'frontend/src/settings/SettingsView.tsx',
-      );
-    const exportPage =
-      read(
-        'frontend/src/settings/pages/ExportPage.tsx',
-      );
-    const controller =
-      read(
-        'frontend/src/settings/useSettingsController.ts',
-      );
-    const language =
-      read(
-        'frontend/src/settings/language.ts',
-      );
-    const styles =
-      read(
-        'frontend/src/styles/settings.css',
-      );
-    assert.ok(
-      settingsView.includes(
-        'formatChooserOpen={formatChooserOpen}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'onRequestExport={controller.requestExport}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'controller.chooseExportFormat(format)',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'className="export-format-modal"',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('epub')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('html')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'downloadPreparedExportArtifact(preparedArtifact)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [generatedExport, setGeneratedExport]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [preparedArtifact, setPreparedArtifact]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'setFormatChooserOpen(true)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'result = await generateExport(profileCode, { count })',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        "format === 'epub'",
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareEpubExport(result)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareHtmlExport(result)',
-      ),
-    );
-    assert.equal(
-      controller.includes(
-        'generateExport(profileCode, { count, format',
-      ),
-      false,
-    );
-    assert.ok(
-      language.includes(
-        "chooseExportFormat: 'Choose export format'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "epubDescription: 'iPhone / iPad · Apple Books · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "htmlDescription: 'Browser / Desktop · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.export-format-backdrop',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.export-format-modal',
-      ),
-    );
-  },
-);
-test(
-  'export packaging has one shared viewer runtime and separate HTML/EPUB wrappers',
-  () => {
-    const viewer =
-      read(
-        'frontend/src/export-viewer.ts',
-      );
-    const html =
-      read(
-        'frontend/src/export-html.ts',
-      );
-    const epub =
-      read(
-        'frontend/src/export-epub.ts',
-      );
-    const artifact =
-      read(
-        'frontend/src/export-artifact.ts',
-      );
-    for (
-      const functionName
-      of [
-        'buildStandaloneViewerCss',
-        'buildStandaloneViewerMarkup',
-        'buildStandaloneViewerScript',
-      ]
-    ) {
-      assert.ok(
-        viewer.includes(
-          `export function ${functionName}`,
-        ),
-      );
-      assert.ok(
-        html.includes(
-          `${functionName}(`,
-        ),
-      );
-      assert.ok(
-        epub.includes(
-          `${functionName}(`,
-        ),
-      );
-    }
-    assert.ok(
-      viewer.includes(
-        'const PRESENTATION=',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function chooseFont()',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function preferredSize(',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function fitActive()',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'document.fonts.load',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        "window.addEventListener('resize'",
-      ),
-    );
-    assert.ok(
-      artifact.includes(
-        "export type ExportFormat = 'html' | 'epub'",
-      ),
-    );
-    assert.ok(
-      artifact.includes(
-        'downloadPreparedExportArtifact',
-      ),
-    );
-  },
-);
-test(
-  'EPUB wrapper declares a scripted EPUB 3 package with all local fonts and no ZIP dependency',
-  () => {
-    const epub =
-      read(
-        'frontend/src/export-epub.ts',
-      );
-    const zip =
-      read(
-        'frontend/src/zip.ts',
-      );
-    const packageJson =
-      JSON.parse(
-        read(
-          'package.json',
-        ),
-      ) as {
-        dependencies?:
-          Record<
-            string,
-            string
-          >;
-      };
-    assert.ok(
-      epub.includes(
-        "data: 'application/epub+zip'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'META-INF/container.xml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/package.opf'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/nav.xhtml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.xhtml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.css'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.js'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/data.json'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'properties="scripted"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'properties="nav"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        '<meta property="ibooks:specified-fonts">true</meta>',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'font/woff2',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'loadObservationFontBundle()',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'createStoredZip(entries)',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        'const STORE_METHOD = 0',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x04034b50',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x02014b50',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x06054b50',
-      ),
-    );
-    assert.equal(
-      packageJson
-        .dependencies
-        ?.jszip,
-      undefined,
-    );
-    assert.equal(
-      packageJson
-        .dependencies
-        ?.fflate,
-      undefined,
-    );
-  },
-);
-test(
-  'live presentation remains local-font, monochrome, keyboard-stable, and activation-randomized',
-  () => {
-    const icons =
-      read(
-        'frontend/src/components/icons.tsx',
-      );
-    const profileEntry =
-      read(
-        'frontend/src/profile/ProfileEntry.tsx',
-      );
-    const observationView =
-      read(
-        'frontend/src/observation/ObservationView.tsx',
-      );
-    const typography =
-      read(
-        'frontend/src/observation/useObservationTypography.ts',
-      );
-    const presentation =
-      read(
-        'frontend/src/presentation.ts',
-      );
-    const fontAssets =
-      read(
-        'frontend/src/font-assets.ts',
-      );
-    const main =
-      read(
-        'frontend/src/main.tsx',
-      );
-    const baseStyles =
-      read(
-        'frontend/src/styles/base.css',
-      );
-    const profileStyles =
-      read(
-        'frontend/src/styles/profile.css',
-      );
-    const observationStyles =
-      read(
-        'frontend/src/styles/observation.css',
-      );
-    const indexHtml =
-      read(
-        'frontend/index.html',
-      );
-    assert.ok(
-      icons.includes(
-        'export function SettingsIcon',
-      ),
-    );
-    assert.ok(
-      icons.includes(
-        'export function LanguageIcon',
-      ),
-    );
-    assert.equal(
-      icons.includes(
-        '⚙',
-      ),
-      false,
-    );
-    assert.equal(
-      icons.includes(
-        '🌐',
-      ),
-      false,
-    );
-    assert.ok(
-      baseStyles.includes(
-        'stroke: currentColor',
-      ),
-    );
-    assert.ok(
-      profileEntry.includes(
-        "'--entry-layout-height'",
-      ),
-    );
-    assert.ok(
-      /height:\s*var\(\s*--entry-layout-height/
-        .test(
-          profileStyles,
-        ),
-    );
-    assert.ok(
-      observationView.includes(
-        '<SettingsIcon />',
-      ),
-    );
-    assert.ok(
-      observationView.includes(
-        'useObservationTypography(',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'chooseRandomObservationFont()',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'OBSERVATION_PRESENTATION.fitIterations',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'document.fonts.load(',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        '.nav-zone:disabled',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        '.settings-trigger',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        'bottom:',
-      ),
-    );
-    assert.ok(
-      main.includes(
-        'installLiveObservationFontFaces()',
-      ),
-    );
-    assert.ok(
-      fontAssets.includes(
-        'loadObservationFontBundle',
-      ),
-    );
-    assert.doesNotMatch(
-      indexHtml,
-      /https?:\/\/fonts\.googleapis\.com/,
-    );
-    for (
-      const family
-      of [
-        'Noto Sans Telugu',
-        'Noto Serif Telugu',
-        'Mandali',
-        'Ramabhadra',
-        'NTR',
-        'Peddana',
-        'Ramaraja',
-        'Sree Krushnadevaraya',
-        'Suranna',
-        'Tenali Ramakrishna',
-      ]
-    ) {
-      assert.ok(
-        presentation.includes(
-          `'${family}'`,
-        ),
-      );
-    }
-  },
-);
-
-README.md
-
-# Implementation Iteration 2
-This repository contains Implementation Iteration 2 of the Telugu observation app. Iteration 1's persistent history/timing model, ten-item future queue, continuous one-for-one replenishment, sequential live preparation, and SQLite persistence remain the foundation.
-Iteration 2 adds source/complexity selection, persistent profile settings, repeatable source-record caching, tap-revealed controls, full-page Settings navigation, bilingual Settings labels, structured diagnostics, activation-time randomized Telugu typography, and portable offline export as either standalone HTML or interactive EPUB 3.
-## Stack
-- TypeScript
-- React + Vite
-- Hono + Node.js
-- SQLite (`better-sqlite3`)
-## Project controller
-The root `control.sh` is the normal development entry point.
-Install dependencies on a new checkout:
-```bash
-./control.sh deps --option install
-```
-Start development:
-```bash
-./control.sh dev
-```
-The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.1:8787`. Vite binds to `0.0.0.0` so development-container/Codespaces forwarding can expose the UI.
-The configured prototype profile code is `001`.
-## Build and tests
-```bash
-./control.sh build --option start
-./control.sh test --option start
-```
-The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants and cover the Iteration 2 source selector, global complexity reference, probability snapshots, repeats, settings isolation, shared source-record cache, export isolation, migration, numerical edge cases, randomized presentation, local font assets, standalone HTML, and EPUB container generation.
-Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
-## Deterministic dummy sources
-Iteration 2 has exactly three selectable dummy sources:
-- `source1`: 12 rows
-- `source2`: 24 rows
-- `source3`: 36 rows
-Their literal Telugu rows live under `server/src/sources/dummy/data/`. Each row has a stable source key. The fixture lengths were sampled once from fixed-seed right-skewed distributions and then committed literally. `source1` is shorter on average, `source2` is moderate, and `source3` is longer and broader. Across all 72 rows the current fixture spans 1 through 40 words.
-An uncached dummy source retrieval waits 1–15 seconds by default. The delay can be overridden in the environment for tests.
-## Source selection
-Each profile stores one source weight per selectable source. Every weight is in `[0,1]`, and at least one weight must be exactly `1`. Configurations with every weight below `1` are rejected rather than normalized.
-For source `i`, with `N_i` selectable rows and profile weight `w_i`:
-```text
-source mass = N_i * w_i
-P(source i) = (N_i * w_i) / sum_j(N_j * w_j)
-```
-With all source weights at `1`, source probability is proportional to source row count.
-## Global complexity reference
-Iteration 2 uses word count only as the intrinsic measurement for one global complexity reference built from all 72 selectable dummy rows. The user does not configure a target word count.
-For each word count `k`, tied rows occupy their empirical global percentile interval `[a_k,b_k]`.
-The reference is versioned as:
-```text
-complexity_reference_version = 1
-```
-Each profile configures:
-- global complexity percentile target `T` in `[0,1]`;
-- global complexity percentile spread `R > 0`.
-The desired complexity curve is a normal distribution centered at `T`. `R` is the half-width corresponding to the central 98% reference interval:
-```text
-sigma = R / 2.326347874
-```
-The normal is truncated and renormalized to `[0,1]`. Probability mass over each tied word-count percentile interval is divided by the global number of rows with that word count to produce per-row global complexity mass. Once a source has been selected, those masses are normalized over rows available in that source.
-Source probability, conditional row probability, and overall source+row probability remain distinct and are stored in every normal acquisition's immutable selection snapshot.
-## Repeats and shared source-record cache
-Selections are independent and with replacement. The same `(source_id, source_key)` may appear in multiple acquisitions.
-A stable source record and an acquisition are separate concepts:
-- a source record is the underlying source row and normalized retrieved content;
-- an acquisition is one particular probabilistic selection event.
-`source_records` is the shared persistent cache, keyed by `(source_id, source_key)`. Once either the live queue or Export retrieves a source record, later live/export selections reuse it without another source request.
-## Queue behavior
-The live profile maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the future-queue tail.
-Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
-Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
-## Observation controls
-Back, Next, and the bottom-right Settings icon are hidden by default. A single tap on the ordinary observation surface reveals all three; another background tap hides them. Successful Back/Next navigation hides them again.
-Whenever controls are revealed, both Back and Next remain in fixed positions. An unavailable direction is greyed and disabled rather than removed.
-The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
-When a valid profile has no current observation yet, the observation area displays:
-```text
-...
-```
-The placeholder does not create history, an acquisition, source data, or timing state.
-## Stable profile-code entry
-The initial three-digit profile-code input is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move the bar upward as the mobile visual viewport changes.
-## Observation typography
-Each time an observation becomes actively displayed, the client randomly chooses one font from this fixed collection:
-- Noto Sans Telugu
-- Noto Serif Telugu
-- Mandali
-- Ramabhadra
-- NTR
-- Peddana
-- Ramaraja
-- Sree Krushnadevaraya
-- Suranna
-- Tenali Ramakrishna
-Font selection is presentation-only and is not stored in history, acquisitions, source records, or selection snapshots. Navigating away and later returning rerolls the font. Closing Settings and returning also creates a fresh typography activation. Ordinary React rerenders, polling, timing refreshes, and queue-readiness changes do not reroll while the same observation remains continuously active.
-The canonical presentation configuration lives in `frontend/src/presentation.ts` and is reused by the live viewer and both export formats.
-The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area.
-## Font assets
-The live application, HTML export, and EPUB export use the same ten application-controlled Telugu WOFF2 assets under:
-```text
-frontend/public/fonts/
-```
-The canonical family/file mapping is `frontend/font-assets.json`.
-Run:
-```bash
-npm run fonts:sync
-```
-The sync script stores the corresponding SIL Open Font License text and writes `frontend/public/fonts/font-assets.lock.json` with the resolved source URLs and SHA-256 hashes. The generated WOFF2 files, license files, and lock file are intended to remain committed so production behavior is tied to exact assets.
-No font is fetched from the internet while a user generates or opens a completed export.
-## Full-page Settings
-Settings replaces the observation view while open; it is not a modal. The Settings root links to four child pages:
-1. Complexity
-2. Source weights
-3. Diagnostic
-4. Export
-Each child page has Back to return to the Settings root. `×` exits the entire Settings hierarchy and returns to the same observation.
-Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
-A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is presentation-only.
-## Diagnostic
-Diagnostic has its own full page and renders the current acquisition as a two-column mapping table rather than free-form text. The table contains the Iteration 1 trigger/preparation fields and the complete persisted Iteration 2 selection snapshot.
-If there is no current acquisition, the Diagnostic page displays `...`.
-## Export selection semantics
-Export is not a history export and does not simulate repeated Next presses.
-The user enters a positive integer `N`. A completed export batch contains exactly `N` fresh independent source+row selections generated by the same selection engine used by normal acquisitions.
-Export does not:
-- advance the current history cursor;
-- append profile history;
-- consume or replenish the live queue;
-- consume normal acquisition numbers;
-- alter observation timing.
-Export does use and populate the normal persistent source-record cache. Selected uncached rows are resolved sequentially; cached rows are reused immediately.
-The completed `ExportResponse` is format-independent and remains the canonical generated batch.
-## Export format choice
-The Export page flow is:
-```text
-enter N
-    ↓
-Export
-    ↓
-choose format
-    ├─ EPUB — iPhone / iPad · Apple Books · Interactive · Offline
-    └─ HTML — Browser / Desktop · Interactive · Offline
-    ↓
-generate N selections if no current batch exists
-    ↓
-package the completed ExportResponse
-    ↓
-Download
-```
-Pressing Export opens a small transient format-choice modal. Cancel closes it without generating anything.
-The selected format is not passed into source or row selection. EPUB versus HTML is only an artifact/container choice.
-After the first format has generated the batch, pressing Export again and selecting the other format repackages the same retained `ExportResponse`; it does not generate another `N` selections.
-Editing `N` or successfully saving source/complexity settings invalidates both the retained current batch and any prepared artifact shown by the Export page.
-## Shared standalone viewer
-`frontend/src/export-viewer.ts` owns the standalone viewer CSS, markup, diagnostic mapping, random-font activation semantics, continuous preferred-size formula integration, and DOM fit behavior shared by HTML and EPUB.
-Both formats therefore preserve:
-```text
-entry becomes active
-        ↓
-randomly choose one of the same ten fonts
-        ↓
-wait for that font
-        ↓
-derive preferred size from observation length
-        ↓
-measure actual rendered text
-        ↓
-reduce only if necessary to fit
-        ↓
-display
-```
-Back/Next rerolls the newly activated entry's font. Diagnostic toggling does not. Resize/orientation changes refit the current entry without rerolling its active font.
-## HTML export
-Choosing HTML produces:
-```text
-telugu-export-N.html
-```
-It is one self-contained browser document containing all observations, diagnostics, inline CSS, inline JavaScript, canonical presentation configuration, all ten embedded WOFF2 fonts, and font-license notices.
-It performs no runtime network requests after download.
-## EPUB export
-Choosing EPUB produces:
-```text
-telugu-export-N.epub
-```
-The Iteration 2 compatibility target is interactive offline use in Apple Books on iPhone/iPad, with macOS Apple Books tested where practical. Equivalent scripting behavior is not promised for every EPUB reader.
-The EPUB is a real EPUB 3 ZIP container with this structure:
-```text
-mimetype
-META-INF/
-  container.xml
-EPUB/
-  package.opf
-  nav.xhtml
-  viewer.xhtml
-  viewer.css
-  viewer.js
-  data.json
-  fonts/
-    <all 10 WOFF2 files>
-  licenses/
-    <all required font license files>
-```
-The `mimetype` entry contains exactly `application/epub+zip`, is the first ZIP entry, and is stored without compression. `META-INF/container.xml` points to `EPUB/package.opf`. The OPF manifest declares the navigation document, scripted viewer, shared viewer CSS/JavaScript, data, all fonts, and license resources. The viewer spine item is explicitly marked `scripted`.
-Because Apple Books is the explicit EPUB target and the book embeds its own fonts, `package.opf` also declares the Apple Books `ibooks` vocabulary prefix and includes:
-```xml
-<meta property="ibooks:specified-fonts">true</meta>
-```
-This tells Apple Books to honor the packaged font faces used by the randomized typography viewer rather than substituting reader-selected fonts.
-The browser-side EPUB packager is isolated in `frontend/src/export-epub.ts`. ZIP mechanics are isolated in `frontend/src/zip.ts`; the current implementation emits deterministic stored ZIP entries and requires no third-party ZIP runtime.
-The EPUB contains the same immutable `ExportResponse` data and the same viewer behavior as HTML. All fonts and executable resources are inside the EPUB, so normal viewer operation requires no Telugu Now server, Fly.io, Codespaces, Google Fonts, installed Telugu fonts, APIs, external JavaScript, or external CSS.
-## EPUB acceptance
-Automated tests validate the EPUB ZIP/container structure, first uncompressed mimetype entry, OPF manifest, scripted declaration, Apple Books embedded-font metadata, viewer resources, data, ten fonts, licenses, and offline viewer code.
-Before EPUB support is considered complete for release, it should additionally pass an actual-device acceptance test in Apple Books on iPhone:
-```text
-generate EPUB
-→ open/save in Apple Books
-→ enable airplane mode
-→ close and reopen Books
-→ open EPUB
-→ verify Back / Next
-→ verify random font rerolls
-→ verify sizing/fitting
-→ verify Diagnostic mapping table
-→ rotate and verify refit without reroll
-```
-## Persistence and migration
-The default SQLite file is:
-```text
-./data/app.sqlite
-```
-Override it with `DATABASE_PATH`.
-Iteration 2 performs a non-destructive schema upgrade for Iteration 1 databases. It removes Iteration 1's observation-level uniqueness on `(source_id, source_key)` so repeats can create distinct acquisitions, creates the shared `source_records` cache, adds profile selection settings/weights, and adds persisted selection snapshots.
-Already-ready Iteration 1 observations are backfilled into the shared source-record cache. A compatibility-only disabled Iteration 1 mock resolver remains available for old pending `mock` rows but is not one of the three selectable Iteration 2 sources.
-## Environment defaults
-See `.env.example`.
-```text
-SOURCE1_WEIGHT=1
-SOURCE2_WEIGHT=1
-SOURCE3_WEIGHT=1
-COMPLEXITY_PERCENTILE_TARGET=0.5
-COMPLEXITY_PERCENTILE_SPREAD=0.25
-MOCK_DELAY_MIN_MS=1000
-MOCK_DELAY_MAX_MS=15000
-MAX_EXPORT_COUNT=500
-```
+ALTERATIONS
+we need sliders in settings for overall font size standards
+We need option in settings to disable certain fonts like a checkbox where we can uncheck the specific font 
+The epub versions should not have the (i) information or settings on it
+Add option change the gradient colors and font color and also a option randomize (a separate random button for each of them)
+As the user goes next or back the gradient direction between the two colors changes in a non linear way
