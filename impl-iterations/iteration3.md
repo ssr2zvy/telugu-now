@@ -1,2 +1,2 @@
-1. First we will download 100 rows from each data source and analyze which column has the unicode representation, how can we resolve the audio references, and how we can calculate rows/compleity. We will be pivoting to downloading the entire data source and keeping it in our fly.io storage
-2. 
+1. First we will add 100 rows of sample data from each data source and analyze which column has the unicode representation, how can we resolve the audio references, and how we can calculate rows/compleity. We will be pivoting to downloading the entire data source and keeping it in our fly.io storage
+2. Then, we will add the data sources (with the sample data) as three data sources in our exisiting architecture
