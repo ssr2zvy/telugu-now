@@ -1,1945 +1,2021 @@
-frontend/src/export-epub.ts
+.gitignore
 
-import type { ExportResponse } from '../../shared/contracts';
-import type { PreparedExportArtifact } from './export-artifact';
-import {
-  OBSERVATION_FONT_ASSETS,
-  loadObservationFontBundle,
-  observationFontFaceCss,
-  type ObservationFontBundle,
-} from './font-assets';
-import {
-  buildStandaloneViewerCss,
-  buildStandaloneViewerMarkup,
-  buildStandaloneViewerScript,
-} from './export-viewer';
-import { createStoredZip, type StoredZipEntry } from './zip';
-export interface EpubBuildOptions {
-  identifier?: string;
-  modified?: string;
-}
-function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-function makeIdentifier(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return `urn:uuid:${crypto.randomUUID()}`;
-  }
-  return `urn:telugu-now:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-}
-function epubModifiedNow(): string {
-  return new Date()
-    .toISOString()
-    .replace(/\.\d{3}Z$/, 'Z');
-}
-function buildContainerXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>`;
-}
-function buildNavXhtml(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
-<head>
-  <meta charset="utf-8" />
-  <title>తెలుగు</title>
-</head>
-<body>
-  <nav epub:type="toc" id="toc">
-    <h1>తెలుగు</h1>
-    <ol>
-      <li><a href="viewer.xhtml">తెలుగు</a></li>
-    </ol>
-  </nav>
-  <nav epub:type="landmarks">
-    <h2>Landmarks</h2>
-    <ol>
-      <li><a epub:type="bodymatter" href="viewer.xhtml">తెలుగు</a></li>
-    </ol>
-  </nav>
-</body>
-</html>`;
-}
-function buildViewerXhtml(): string {
-  const markup =
-    buildStandaloneViewerMarkup();
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>తెలుగు</title>
-  <link rel="stylesheet" type="text/css" href="viewer.css" />
-</head>
-<body>
-${markup}
-<script type="text/javascript" src="viewer.js"></script>
-</body>
-</html>`;
-}
-function buildPackageOpf(
-  identifier: string,
-  modified: string,
-  fontBundle: ObservationFontBundle,
-): string {
-  const fontItems =
-    fontBundle.fonts
-      .map(
-        (font, index) =>
-          `    <item id="font-${index + 1}" href="fonts/${xmlEscape(font.fileName)}" media-type="font/woff2"/>`,
-      )
-      .join('\n');
-  const licenseItems =
-    fontBundle.fonts
-      .map(
-        (font, index) =>
-          `    <item id="font-license-${index + 1}" href="licenses/${xmlEscape(font.licenseFileName)}" media-type="text/plain"/>`,
-      )
-      .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="te" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="pub-id">${xmlEscape(identifier)}</dc:identifier>
-    <dc:title>తెలుగు</dc:title>
-    <dc:language>te</dc:language>
-    <meta property="dcterms:modified">${xmlEscape(modified)}</meta>
-    <meta property="ibooks:specified-fonts">true</meta>
-  </metadata>
-  <manifest>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="viewer" href="viewer.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
-    <item id="viewer-css" href="viewer.css" media-type="text/css"/>
-    <item id="viewer-js" href="viewer.js" media-type="application/javascript"/>
-    <item id="export-data" href="data.json" media-type="application/json"/>
-${fontItems}
-${licenseItems}
-  </manifest>
-  <spine>
-    <itemref idref="viewer"/>
-  </spine>
-</package>`;
-}
-function relativeFontCss(
-  fontBundle: ObservationFontBundle,
-): string {
-  return observationFontFaceCss(
-    fontBundle.fonts.map(
-      (font) => ({
-        family: font.family,
-        source: `fonts/${font.fileName}`,
-      }),
-    ),
-  );
-}
-export function buildEpubBytes(
-  result: ExportResponse,
-  fontBundle: ObservationFontBundle,
-  options: EpubBuildOptions = {},
-): Uint8Array {
-  if (
-    fontBundle.fonts.length !==
-    OBSERVATION_FONT_ASSETS.length
-  ) {
-    throw new Error(
-      'EPUB font bundle must contain the complete observation font collection.',
-    );
-  }
-  const identifier =
-    options.identifier ??
-    makeIdentifier();
-  const modified =
-    options.modified ??
-    epubModifiedNow();
-  const viewerCss =
-    buildStandaloneViewerCss(
-      relativeFontCss(
-        fontBundle,
-      ),
-    );
-  const viewerScript =
-    buildStandaloneViewerScript(
-      result,
-    );
-  const viewerXhtml =
-    buildViewerXhtml();
-  const navXhtml =
-    buildNavXhtml();
-  const packageOpf =
-    buildPackageOpf(
-      identifier,
-      modified,
-      fontBundle,
-    );
-  const entries:
-    StoredZipEntry[] = [
-      {
-        name: 'mimetype',
-        data:
-          'application/epub+zip',
-      },
-      {
-        name:
-          'META-INF/container.xml',
-        data:
-          buildContainerXml(),
-      },
-      {
-        name:
-          'EPUB/package.opf',
-        data:
-          packageOpf,
-      },
-      {
-        name:
-          'EPUB/nav.xhtml',
-        data:
-          navXhtml,
-      },
-      {
-        name:
-          'EPUB/viewer.xhtml',
-        data:
-          viewerXhtml,
-      },
-      {
-        name:
-          'EPUB/viewer.css',
-        data:
-          viewerCss,
-      },
-      {
-        name:
-          'EPUB/viewer.js',
-        data:
-          viewerScript,
-      },
-      {
-        name:
-          'EPUB/data.json',
-        data:
-          JSON.stringify(result),
-      },
-    ];
-  for (
-    const font
-    of fontBundle.fonts
-  ) {
-    entries.push(
-      {
-        name:
-          `EPUB/fonts/${font.fileName}`,
-        data:
-          font.bytes,
-      },
-      {
-        name:
-          `EPUB/licenses/${font.licenseFileName}`,
-        data:
-          font.licenseText,
-      },
-    );
-  }
-  return createStoredZip(
-    entries,
-  );
-}
-export async function prepareEpubExport(
-  result: ExportResponse,
-): Promise<PreparedExportArtifact> {
-  const fontBundle =
-    await loadObservationFontBundle();
-  const bytes =
-    buildEpubBytes(
-      result,
-      fontBundle,
-    );
-  return {
-    format: 'epub',
-    blob: new Blob(
-      [
-        bytes.buffer
-          as ArrayBuffer,
-      ],
-      {
-        type:
-          'application/epub+zip',
-      },
-    ),
-    fileName:
-      `telugu-export-${result.entries.length}.epub`,
-    entryCount:
-      result.entries.length,
-  };
-}
+@@ existing ignore rules @@
+ data-transform/raw/
++ti/data/corpus/
 
-tests/export-epub.test.ts
+data-transform/requirements.txt
 
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import {
-  buildEpubBytes,
-  prepareEpubExport,
-} from '../frontend/src/export-epub';
-import {
-  OBSERVATION_FONT_ASSETS,
-  type ObservationFontBundle,
-} from '../frontend/src/font-assets';
-import type {
-  ExportResponse,
-  SelectionSnapshot,
-} from '../shared/contracts';
-interface ParsedStoredZipEntry {
-  name: string;
-  method: number;
-  data: Uint8Array;
-}
-function readUint16(
-  view: DataView,
-  offset: number,
-): number {
-  return view.getUint16(
-    offset,
-    true,
-  );
-}
-function readUint32(
-  view: DataView,
-  offset: number,
-): number {
-  return view.getUint32(
-    offset,
-    true,
-  );
-}
-function parseStoredZip(
-  bytes: Uint8Array,
-): ParsedStoredZipEntry[] {
-  const entries:
-    ParsedStoredZipEntry[] = [];
-  const view =
-    new DataView(
-      bytes.buffer,
-      bytes.byteOffset,
-      bytes.byteLength,
-    );
-  const decoder =
-    new TextDecoder();
-  let offset = 0;
-  while (
-    offset + 4 <=
-    bytes.length
-  ) {
-    const signature =
-      readUint32(
-        view,
-        offset,
-      );
-    if (
-      signature ===
-        0x02014b50 ||
-      signature ===
-        0x06054b50
-    ) {
-      break;
-    }
-    assert.equal(
-      signature,
-      0x04034b50,
-      `invalid local ZIP header at ${offset}`,
-    );
-    const method =
-      readUint16(
-        view,
-        offset + 8,
-      );
-    const compressedSize =
-      readUint32(
-        view,
-        offset + 18,
-      );
-    const uncompressedSize =
-      readUint32(
-        view,
-        offset + 22,
-      );
-    const nameLength =
-      readUint16(
-        view,
-        offset + 26,
-      );
-    const extraLength =
-      readUint16(
-        view,
-        offset + 28,
-      );
-    assert.equal(
-      method,
-      0,
-    );
-    assert.equal(
-      compressedSize,
-      uncompressedSize,
-    );
-    const nameStart =
-      offset + 30;
-    const dataStart =
-      nameStart +
-      nameLength +
-      extraLength;
-    const dataEnd =
-      dataStart +
-      compressedSize;
-    const name =
-      decoder.decode(
-        bytes.subarray(
-          nameStart,
-          nameStart +
-            nameLength,
-        ),
-      );
-    entries.push({
-      name,
-      method,
-      data:
-        bytes.slice(
-          dataStart,
-          dataEnd,
-        ),
-    });
-    offset =
-      dataEnd;
-  }
-  return entries;
-}
-function selection(
-  sourceKey: string,
-): SelectionSnapshot {
-  return {
-    sourceWeights: {
-      source1: 1,
-      source2: 1,
-      source3: 1,
-    },
-    sourceId:
-      'source1',
-    sourceRowCount:
-      12,
-    sourceWeight:
-      1,
-    sourceMass:
-      12,
-    totalSourceMass:
-      72,
-    sourceProbability:
-      12 / 72,
-    sourceKey,
-    wordCount:
-      2,
-    complexityReferenceVersion:
-      1,
-    complexityPercentileTarget:
-      0.5,
-    complexityPercentileSpread:
-      0.25,
-    derivedStandardDeviation:
-      0.25 /
-      2.326347874,
-    globalPercentileStart:
-      6 / 72,
-    globalPercentileEnd:
-      14 / 72,
-    globalIntervalMass:
-      0.1,
-    globalRowsAtWordCount:
-      8,
-    globalPerRowComplexityMass:
-      0.0125,
-    selectedSourceRowsAtWordCount:
-      3,
-    selectedSourceNormalizationDenominator:
-      0.1,
-    rowProbabilityWithinSource:
-      0.125,
-    overallProbability:
-      (12 / 72) *
-      0.125,
-  };
-}
-function sampleExport():
-ExportResponse {
-  return {
-    settings: {
-      sourceWeights: {
-        source1: 1,
-        source2: 1,
-        source3: 1,
-      },
-      complexityPercentileTarget:
-        0.5,
-      complexityPercentileSpread:
-        0.25,
-      complexityReferenceVersion:
-        1,
-    },
-    entries: [
-      {
-        position: 1,
-        sourceId:
-          'source1',
-        sourceKey:
-          'source1-001',
-        text:
-          'మొదటి',
-        diagnostic: {
-          selection:
-            selection(
-              'source1-001',
-            ),
-          cacheHit:
-            false,
-          requestStartedAt:
-            1,
-          requestCompletedAt:
-            2,
-          requestDurationMs:
-            1,
-        },
-      },
-      {
-        position: 2,
-        sourceId:
-          'source1',
-        sourceKey:
-          'source1-002',
-        text:
-          'రెండవ పరిశీలన',
-        diagnostic: {
-          selection:
-            selection(
-              'source1-002',
-            ),
-          cacheHit:
-            true,
-          requestStartedAt:
-            null,
-          requestCompletedAt:
-            null,
-          requestDurationMs:
-            null,
-        },
-      },
-    ],
-  };
-}
-function sampleFontBundle():
-ObservationFontBundle {
-  return {
-    fonts:
-      OBSERVATION_FONT_ASSETS.map(
-        (
-          asset,
-          index,
-        ) => ({
-          family:
-            asset.family,
-          fileName:
-            asset.fileName,
-          licenseFileName:
-            asset.licenseFileName,
-          bytes:
-            new Uint8Array([
-              0x77,
-              0x4f,
-              0x46,
-              0x32,
-              index,
-            ]),
-          licenseText:
-            `OFL notice for ${asset.family}`,
-        }),
-      ),
-  };
-}
-function text(
-  entry:
-    ParsedStoredZipEntry,
-): string {
-  return new TextDecoder()
-    .decode(
-      entry.data,
-    );
-}
-test(
-  'EPUB is a real stored ZIP with mimetype first and uncompressed',
-  () => {
-    const bytes =
-      buildEpubBytes(
-        sampleExport(),
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const entries =
-      parseStoredZip(
-        bytes,
-      );
-    assert.equal(
-      entries[0]?.name,
-      'mimetype',
-    );
-    assert.equal(
-      entries[0]?.method,
-      0,
-    );
-    assert.equal(
-      text(entries[0]!),
-      'application/epub+zip',
-    );
-    assert.equal(
-      entries[1]?.name,
-      'META-INF/container.xml',
-    );
-  },
-);
-test(
-  'EPUB contains the complete scripted viewer, data, fonts, and licenses',
-  () => {
-    const result =
-      sampleExport();
-    const bytes =
-      buildEpubBytes(
-        result,
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const entries =
-      parseStoredZip(
-        bytes,
-      );
-    const byName =
-      new Map(
-        entries.map(
-          (entry) => [
-            entry.name,
-            entry,
-          ],
-        ),
-      );
-    for (
-      const required
-      of [
-        'mimetype',
-        'META-INF/container.xml',
-        'EPUB/package.opf',
-        'EPUB/nav.xhtml',
-        'EPUB/viewer.xhtml',
-        'EPUB/viewer.css',
-        'EPUB/viewer.js',
-        'EPUB/data.json',
-      ]
-    ) {
-      assert.ok(
-        byName.has(
-          required,
-        ),
-        `${required} should exist`,
-      );
-    }
-    const containerXml =
-      text(
-        byName.get(
-          'META-INF/container.xml',
-        )!,
-      );
-    assert.match(
-      containerXml,
-      /full-path="EPUB\/package\.opf"/,
-    );
-    const packageOpf =
-      text(
-        byName.get(
-          'EPUB/package.opf',
-        )!,
-      );
-    assert.match(
-      packageOpf,
-      /version="3\.0"/,
-    );
-    assert.match(
-      packageOpf,
-      /prefix="ibooks: http:\/\/vocabulary\.itunes\.apple\.com\/rdf\/ibooks\/vocabulary-extensions-1\.0\/"/,
-    );
-    assert.match(
-      packageOpf,
-      /<meta property="ibooks:specified-fonts">true<\/meta>/,
-    );
-    assert.match(
-      packageOpf,
-      /properties="nav"/,
-    );
-    assert.match(
-      packageOpf,
-      /properties="scripted"/,
-    );
-    assert.match(
-      packageOpf,
-      /<itemref idref="viewer"\/>/,
-    );
-    const viewerXhtml =
-      text(
-        byName.get(
-          'EPUB/viewer.xhtml',
-        )!,
-      );
-    assert.match(
-      viewerXhtml,
-      /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /href="viewer\.css"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /src="viewer\.js"/,
-    );
-    assert.match(
-      viewerXhtml,
-      /id="diagnostic-body"/,
-    );
-    const viewerScript =
-      text(
-        byName.get(
-          'EPUB/viewer.js',
-        )!,
-      );
-    assert.match(
-      viewerScript,
-      /const PRESENTATION=/,
-    );
-    assert.match(
-      viewerScript,
-      /function chooseFont\(/,
-    );
-    assert.match(
-      viewerScript,
-      /function preferredSize\(/,
-    );
-    assert.match(
-      viewerScript,
-      /function fitActive\(/,
-    );
-    assert.match(
-      viewerScript,
-      /document\.fonts\.load/,
-    );
-    assert.match(
-      viewerScript,
-      /window\.addEventListener\('resize'/,
-    );
-    assert.equal(
-      /\bfetch\s*\(/.test(
-        viewerScript,
-      ),
-      false,
-    );
-    assert.equal(
-      /\bXMLHttpRequest\b/.test(
-        viewerScript,
-      ),
-      false,
-    );
-    assert.deepEqual(
-      JSON.parse(
-        text(
-          byName.get(
-            'EPUB/data.json',
-          )!,
-        ),
-      ),
-      result,
-    );
-    for (
-      const asset
-      of OBSERVATION_FONT_ASSETS
-    ) {
-      const fontName =
-        `EPUB/fonts/${asset.fileName}`;
-      const licenseName =
-        `EPUB/licenses/${asset.licenseFileName}`;
-      assert.ok(
-        byName.has(
-          fontName,
-        ),
-      );
-      assert.ok(
-        byName.has(
-          licenseName,
-        ),
-      );
-      assert.match(
-        packageOpf,
-        new RegExp(
-          asset.fileName
-            .replace(
-              '.',
-              '\\.',
-            ),
-        ),
-      );
-      assert.match(
-        packageOpf,
-        new RegExp(
-          asset
-            .licenseFileName
-            .replace(
-              '.',
-              '\\.',
-            ),
-        ),
-      );
-    }
-  },
-);
-test(
-  'EPUB viewer CSS uses packaged relative fonts rather than remote or data URLs',
-  () => {
-    const bytes =
-      buildEpubBytes(
-        sampleExport(),
-        sampleFontBundle(),
-        {
-          identifier:
-            'urn:test:telugu-now',
-          modified:
-            '2026-09-06T00:00:00Z',
-        },
-      );
-    const byName =
-      new Map(
-        parseStoredZip(
-          bytes,
-        ).map(
-          (entry) => [
-            entry.name,
-            entry,
-          ],
-        ),
-      );
-    const css =
-      text(
-        byName.get(
-          'EPUB/viewer.css',
-        )!,
-      );
-    assert.equal(
-      (
-        css.match(
-          /@font-face/g,
-        ) ?? []
-      ).length,
-      10,
-    );
-    assert.equal(
-      css.includes(
-        'data:font/woff2',
-      ),
-      false,
-    );
-    assert.equal(
-      /https?:\/\//.test(
-        css,
-      ),
-      false,
-    );
-    for (
-      const asset
-      of OBSERVATION_FONT_ASSETS
-    ) {
-      assert.ok(
-        css.includes(
-          `fonts/${asset.fileName}`,
-        ),
-      );
-    }
-  },
-);
-test(
-  'prepared EPUB resolves only local font assets and exposes one downloadable epub blob',
-  async () => {
-    const originalFetch =
-      globalThis.fetch;
-    const requested:
-      string[] = [];
-    globalThis.fetch =
-      (async (
-        input:
-          RequestInfo |
-          URL,
-      ) => {
-        const url =
-          String(input);
-        requested.push(
-          url,
-        );
-        if (
-          url.includes(
-            '/licenses/',
-          )
-        ) {
-          return new Response(
-            'OFL TEST',
-            {
-              status: 200,
-            },
-          );
-        }
-        return new Response(
-          new Uint8Array([
-            0x77,
-            0x4f,
-            0x46,
-            0x32,
-            1,
-          ]),
-          {
-            status: 200,
-          },
-        );
-      }) as typeof fetch;
-    try {
-      const prepared =
-        await prepareEpubExport(
-          sampleExport(),
-        );
-      assert.equal(
-        prepared.format,
-        'epub',
-      );
-      assert.equal(
-        prepared.entryCount,
-        2,
-      );
-      assert.equal(
-        prepared.fileName,
-        'telugu-export-2.epub',
-      );
-      assert.equal(
-        prepared.blob.type,
-        'application/epub+zip',
-      );
-      assert.equal(
-        requested.length,
-        20,
-      );
-      assert.ok(
-        requested.every(
-          (url) =>
-            url.startsWith(
-              '/fonts/',
-            ),
-        ),
-      );
-      const bytes =
-        new Uint8Array(
-          await prepared
-            .blob
-            .arrayBuffer(),
-        );
-      const entries =
-        parseStoredZip(
-          bytes,
-        );
-      assert.equal(
-        entries[0]?.name,
-        'mimetype',
-      );
-    } finally {
-      globalThis.fetch =
-        originalFetch;
-    }
-  },
-);
+@@ new file @@
++pyarrow>=17,<22
++regex>=2024.11.6
 
-tests/repository-contract.test.ts
+data-transform/scripts/extract-sample-data/FLEURS.py
 
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import {
-  spawnSync,
-} from 'node:child_process';
-import test from 'node:test';
-import {
-  fileURLToPath,
-} from 'node:url';
-const root =
-  path.resolve(
-    path.dirname(
-      fileURLToPath(
-        import.meta.url,
-      ),
-    ),
-    '..',
-  );
-function read(
-  relativePath: string,
-): string {
-  return fs.readFileSync(
-    path.join(
-      root,
-      relativePath,
-    ),
-    'utf8',
-  );
-}
-test(
-  'Iteration 2 controller is control.sh with no stale control-project.sh surface',
-  () => {
-    const control =
-      path.join(
-        root,
-        'control.sh',
-      );
-    assert.equal(
-      fs.existsSync(
-        control,
-      ),
-      true,
-    );
-    assert.equal(
-      fs.existsSync(
-        path.join(
-          root,
-          'control-project.sh',
-        ),
-      ),
-      false,
-    );
-    assert.ok(
-      (
-        fs.statSync(
-          control,
-        ).mode &
-        0o111
-      ) !== 0,
-    );
-    const syntax =
-      spawnSync(
-        'bash',
-        [
-          '-n',
-          control,
-        ],
-        {
-          encoding:
-            'utf8',
-        },
-      );
-    assert.equal(
-      syntax.status,
-      0,
-      syntax.stderr,
-    );
-    const readme =
-      read(
-        'README.md',
-      );
-    assert.equal(
-      readme.includes(
-        'control-project.sh',
-      ),
-      false,
-    );
-    assert.ok(
-      readme.includes(
-        './control.sh',
-      ),
-    );
-    assert.equal(
-      fs.existsSync(
-        path.join(
-          root,
-          'VALIDATION.md',
-        ),
-      ),
-      false,
-    );
-    assert.equal(
-      readme.includes(
-        'VALIDATION.md',
-      ),
-      false,
-    );
-  },
-);
-test(
-  'Iteration 2 frontend remains modular across profile, observation, settings, and export packaging',
-  () => {
-    const requiredFiles = [
-      'frontend/src/components/icons.tsx',
-      'frontend/src/profile/ProfileEntry.tsx',
-      'frontend/src/profile/useProfileSession.ts',
-      'frontend/src/observation/ObservationView.tsx',
-      'frontend/src/observation/useObservationTypography.ts',
-      'frontend/src/settings/types.ts',
-      'frontend/src/settings/language.ts',
-      'frontend/src/settings/settings-utils.ts',
-      'frontend/src/settings/diagnostic.ts',
-      'frontend/src/settings/SettingsShell.tsx',
-      'frontend/src/settings/SettingsView.tsx',
-      'frontend/src/settings/useSettingsController.ts',
-      'frontend/src/settings/pages/SettingsIndex.tsx',
-      'frontend/src/settings/pages/ComplexityPage.tsx',
-      'frontend/src/settings/pages/SourceWeightsPage.tsx',
-      'frontend/src/settings/pages/DiagnosticPage.tsx',
-      'frontend/src/settings/pages/ExportPage.tsx',
-      'frontend/src/export-artifact.ts',
-      'frontend/src/export-viewer.ts',
-      'frontend/src/export-html.ts',
-      'frontend/src/export-epub.ts',
-      'frontend/src/zip.ts',
-      'frontend/src/font-assets.ts',
-      'frontend/font-assets.json',
-      'scripts/sync-fonts.mjs',
-      'frontend/src/styles/base.css',
-      'frontend/src/styles/profile.css',
-      'frontend/src/styles/observation.css',
-      'frontend/src/styles/settings.css',
-    ];
-    for (
-      const relativePath
-      of requiredFiles
-    ) {
-      assert.equal(
-        fs.existsSync(
-          path.join(
-            root,
-            relativePath,
-          ),
-        ),
-        true,
-        `${relativePath} should exist`,
-      );
-    }
-    const app =
-      read(
-        'frontend/src/App.tsx',
-      );
-    assert.ok(
-      app.includes(
-        "from './profile/ProfileEntry'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './profile/useProfileSession'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './observation/ObservationView'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './settings/SettingsView'",
-      ),
-    );
-    assert.ok(
-      app.includes(
-        "from './settings/useSettingsController'",
-      ),
-    );
-    assert.equal(
-      app.includes(
-        'settings-modal',
-      ),
-      false,
-    );
-    assert.equal(
-      app.includes(
-        'chooseRandomObservationFont',
-      ),
-      false,
-    );
-    assert.ok(
-      app.split(
-        '\n',
-      ).length <
-        100,
-    );
-  },
-);
-test(
-  'Settings export uses a transient format chooser and keeps format out of selection',
-  () => {
-    const settingsView =
-      read(
-        'frontend/src/settings/SettingsView.tsx',
-      );
-    const exportPage =
-      read(
-        'frontend/src/settings/pages/ExportPage.tsx',
-      );
-    const controller =
-      read(
-        'frontend/src/settings/useSettingsController.ts',
-      );
-    const language =
-      read(
-        'frontend/src/settings/language.ts',
-      );
-    const styles =
-      read(
-        'frontend/src/styles/settings.css',
-      );
-    assert.ok(
-      settingsView.includes(
-        'formatChooserOpen={formatChooserOpen}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'onRequestExport={controller.requestExport}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'controller.chooseExportFormat(format)',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'className="export-format-modal"',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('epub')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('html')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'downloadPreparedExportArtifact(preparedArtifact)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [generatedExport, setGeneratedExport]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [preparedArtifact, setPreparedArtifact]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'setFormatChooserOpen(true)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'result = await generateExport(profileCode, { count })',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        "format === 'epub'",
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareEpubExport(result)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareHtmlExport(result)',
-      ),
-    );
-    assert.equal(
-      controller.includes(
-        'generateExport(profileCode, { count, format',
-      ),
-      false,
-    );
-    assert.ok(
-      language.includes(
-        "chooseExportFormat: 'Choose export format'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "epubDescription: 'iPhone / iPad · Apple Books · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "htmlDescription: 'Browser / Desktop · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.export-format-backdrop',
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.export-format-modal',
-      ),
-    );
-  },
-);
-test(
-  'export packaging has one shared viewer runtime and separate HTML/EPUB wrappers',
-  () => {
-    const viewer =
-      read(
-        'frontend/src/export-viewer.ts',
-      );
-    const html =
-      read(
-        'frontend/src/export-html.ts',
-      );
-    const epub =
-      read(
-        'frontend/src/export-epub.ts',
-      );
-    const artifact =
-      read(
-        'frontend/src/export-artifact.ts',
-      );
-    for (
-      const functionName
-      of [
-        'buildStandaloneViewerCss',
-        'buildStandaloneViewerMarkup',
-        'buildStandaloneViewerScript',
-      ]
-    ) {
-      assert.ok(
-        viewer.includes(
-          `export function ${functionName}`,
-        ),
-      );
-      assert.ok(
-        html.includes(
-          `${functionName}(`,
-        ),
-      );
-      assert.ok(
-        epub.includes(
-          `${functionName}(`,
-        ),
-      );
-    }
-    assert.ok(
-      viewer.includes(
-        'const PRESENTATION=',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function chooseFont()',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function preferredSize(',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'function fitActive()',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        'document.fonts.load',
-      ),
-    );
-    assert.ok(
-      viewer.includes(
-        "window.addEventListener('resize'",
-      ),
-    );
-    assert.ok(
-      artifact.includes(
-        "export type ExportFormat = 'html' | 'epub'",
-      ),
-    );
-    assert.ok(
-      artifact.includes(
-        'downloadPreparedExportArtifact',
-      ),
-    );
-  },
-);
-test(
-  'EPUB wrapper declares a scripted EPUB 3 package with all local fonts and no ZIP dependency',
-  () => {
-    const epub =
-      read(
-        'frontend/src/export-epub.ts',
-      );
-    const zip =
-      read(
-        'frontend/src/zip.ts',
-      );
-    const packageJson =
-      JSON.parse(
-        read(
-          'package.json',
-        ),
-      ) as {
-        dependencies?:
-          Record<
-            string,
-            string
-          >;
-      };
-    assert.ok(
-      epub.includes(
-        "data: 'application/epub+zip'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'META-INF/container.xml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/package.opf'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/nav.xhtml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.xhtml'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.css'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/viewer.js'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        "name: 'EPUB/data.json'",
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'properties="scripted"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'properties="nav"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/"',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        '<meta property="ibooks:specified-fonts">true</meta>',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'font/woff2',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'loadObservationFontBundle()',
-      ),
-    );
-    assert.ok(
-      epub.includes(
-        'createStoredZip(entries)',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        'const STORE_METHOD = 0',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x04034b50',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x02014b50',
-      ),
-    );
-    assert.ok(
-      zip.includes(
-        '0x06054b50',
-      ),
-    );
-    assert.equal(
-      packageJson
-        .dependencies
-        ?.jszip,
-      undefined,
-    );
-    assert.equal(
-      packageJson
-        .dependencies
-        ?.fflate,
-      undefined,
-    );
-  },
-);
-test(
-  'live presentation remains local-font, monochrome, keyboard-stable, and activation-randomized',
-  () => {
-    const icons =
-      read(
-        'frontend/src/components/icons.tsx',
-      );
-    const profileEntry =
-      read(
-        'frontend/src/profile/ProfileEntry.tsx',
-      );
-    const observationView =
-      read(
-        'frontend/src/observation/ObservationView.tsx',
-      );
-    const typography =
-      read(
-        'frontend/src/observation/useObservationTypography.ts',
-      );
-    const presentation =
-      read(
-        'frontend/src/presentation.ts',
-      );
-    const fontAssets =
-      read(
-        'frontend/src/font-assets.ts',
-      );
-    const main =
-      read(
-        'frontend/src/main.tsx',
-      );
-    const baseStyles =
-      read(
-        'frontend/src/styles/base.css',
-      );
-    const profileStyles =
-      read(
-        'frontend/src/styles/profile.css',
-      );
-    const observationStyles =
-      read(
-        'frontend/src/styles/observation.css',
-      );
-    const indexHtml =
-      read(
-        'frontend/index.html',
-      );
-    assert.ok(
-      icons.includes(
-        'export function SettingsIcon',
-      ),
-    );
-    assert.ok(
-      icons.includes(
-        'export function LanguageIcon',
-      ),
-    );
-    assert.equal(
-      icons.includes(
-        '⚙',
-      ),
-      false,
-    );
-    assert.equal(
-      icons.includes(
-        '🌐',
-      ),
-      false,
-    );
-    assert.ok(
-      baseStyles.includes(
-        'stroke: currentColor',
-      ),
-    );
-    assert.ok(
-      profileEntry.includes(
-        "'--entry-layout-height'",
-      ),
-    );
-    assert.ok(
-      /height:\s*var\(\s*--entry-layout-height/
-        .test(
-          profileStyles,
-        ),
-    );
-    assert.ok(
-      observationView.includes(
-        '<SettingsIcon />',
-      ),
-    );
-    assert.ok(
-      observationView.includes(
-        'useObservationTypography(',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'chooseRandomObservationFont()',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'OBSERVATION_PRESENTATION.fitIterations',
-      ),
-    );
-    assert.ok(
-      typography.includes(
-        'document.fonts.load(',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        '.nav-zone:disabled',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        '.settings-trigger',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        'bottom:',
-      ),
-    );
-    assert.ok(
-      main.includes(
-        'installLiveObservationFontFaces()',
-      ),
-    );
-    assert.ok(
-      fontAssets.includes(
-        'loadObservationFontBundle',
-      ),
-    );
-    assert.doesNotMatch(
-      indexHtml,
-      /https?:\/\/fonts\.googleapis\.com/,
-    );
-    for (
-      const family
-      of [
-        'Noto Sans Telugu',
-        'Noto Serif Telugu',
-        'Mandali',
-        'Ramabhadra',
-        'NTR',
-        'Peddana',
-        'Ramaraja',
-        'Sree Krushnadevaraya',
-        'Suranna',
-        'Tenali Ramakrishna',
-      ]
-    ) {
-      assert.ok(
-        presentation.includes(
-          `'${family}'`,
-        ),
-      );
-    }
-  },
-);
+@@ sample_split(), immediately after output_audio_dir is calculated @@
+     output_tsv_path = args.output_root / f"{split}.tsv"
+     output_audio_dir = args.output_root / split
++    legacy_audio_dir = args.output_root / "audio"
+@@ inside `if args.replace:` @@
+     if args.replace:
+         if output_tsv_path.exists():
+             output_tsv_path.unlink()
+         if output_audio_dir.exists():
+             shutil.rmtree(output_audio_dir)
++        # Older sample preparation produced a redundant flat audio/ copy.
++        # FLEURS preparation now resolves media from the actual split directory.
++        if legacy_audio_dir.exists():
++            shutil.rmtree(legacy_audio_dir)
 
-README.md
+data-transform/scripts/prepare-corpus/common.py
 
-# Implementation Iteration 2
-This repository contains Implementation Iteration 2 of the Telugu observation app. Iteration 1's persistent history/timing model, ten-item future queue, continuous one-for-one replenishment, sequential live preparation, and SQLite persistence remain the foundation.
-Iteration 2 adds source/complexity selection, persistent profile settings, repeatable source-record caching, tap-revealed controls, full-page Settings navigation, bilingual Settings labels, structured diagnostics, activation-time randomized Telugu typography, and portable offline export as either standalone HTML or interactive EPUB 3.
-## Stack
-- TypeScript
-- React + Vite
-- Hono + Node.js
-- SQLite (`better-sqlite3`)
-## Project controller
-The root `control.sh` is the normal development entry point.
-Install dependencies on a new checkout:
-```bash
-./control.sh deps --option install
-```
-Start development:
-```bash
-./control.sh dev
-```
-The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.1:8787`. Vite binds to `0.0.0.0` so development-container/Codespaces forwarding can expose the UI.
-The configured prototype profile code is `001`.
-## Build and tests
-```bash
-./control.sh build --option start
-./control.sh test --option start
-```
-The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants and cover the Iteration 2 source selector, global complexity reference, probability snapshots, repeats, settings isolation, shared source-record cache, export isolation, migration, numerical edge cases, randomized presentation, local font assets, standalone HTML, and EPUB container generation.
-Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
-## Deterministic dummy sources
-Iteration 2 has exactly three selectable dummy sources:
-- `source1`: 12 rows
-- `source2`: 24 rows
-- `source3`: 36 rows
-Their literal Telugu rows live under `server/src/sources/dummy/data/`. Each row has a stable source key. The fixture lengths were sampled once from fixed-seed right-skewed distributions and then committed literally. `source1` is shorter on average, `source2` is moderate, and `source3` is longer and broader. Across all 72 rows the current fixture spans 1 through 40 words.
-An uncached dummy source retrieval waits 1–15 seconds by default. The delay can be overridden in the environment for tests.
-## Source selection
-Each profile stores one source weight per selectable source. Every weight is in `[0,1]`, and at least one weight must be exactly `1`. Configurations with every weight below `1` are rejected rather than normalized.
-For source `i`, with `N_i` selectable rows and profile weight `w_i`:
-```text
-source mass = N_i * w_i
-P(source i) = (N_i * w_i) / sum_j(N_j * w_j)
-```
-With all source weights at `1`, source probability is proportional to source row count.
-## Global complexity reference
-Iteration 2 uses word count only as the intrinsic measurement for one global complexity reference built from all 72 selectable dummy rows. The user does not configure a target word count.
-For each word count `k`, tied rows occupy their empirical global percentile interval `[a_k,b_k]`.
-The reference is versioned as:
-```text
-complexity_reference_version = 1
-```
-Each profile configures:
-- global complexity percentile target `T` in `[0,1]`;
-- global complexity percentile spread `R > 0`.
-The desired complexity curve is a normal distribution centered at `T`. `R` is the half-width corresponding to the central 98% reference interval:
-```text
-sigma = R / 2.326347874
-```
-The normal is truncated and renormalized to `[0,1]`. Probability mass over each tied word-count percentile interval is divided by the global number of rows with that word count to produce per-row global complexity mass. Once a source has been selected, those masses are normalized over rows available in that source.
-Source probability, conditional row probability, and overall source+row probability remain distinct and are stored in every normal acquisition's immutable selection snapshot.
-## Repeats and shared source-record cache
-Selections are independent and with replacement. The same `(source_id, source_key)` may appear in multiple acquisitions.
-A stable source record and an acquisition are separate concepts:
-- a source record is the underlying source row and normalized retrieved content;
-- an acquisition is one particular probabilistic selection event.
-`source_records` is the shared persistent cache, keyed by `(source_id, source_key)`. Once either the live queue or Export retrieves a source record, later live/export selections reuse it without another source request.
-## Queue behavior
-The live profile maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the future-queue tail.
-Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
-Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
-## Observation controls
-Back, Next, and the bottom-right Settings icon are hidden by default. A single tap on the ordinary observation surface reveals all three; another background tap hides them. Successful Back/Next navigation hides them again.
-Whenever controls are revealed, both Back and Next remain in fixed positions. An unavailable direction is greyed and disabled rather than removed.
-The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
-When a valid profile has no current observation yet, the observation area displays:
-```text
-...
-```
-The placeholder does not create history, an acquisition, source data, or timing state.
-## Stable profile-code entry
-The initial three-digit profile-code input is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move the bar upward as the mobile visual viewport changes.
-## Observation typography
-Each time an observation becomes actively displayed, the client randomly chooses one font from this fixed collection:
-- Noto Sans Telugu
-- Noto Serif Telugu
-- Mandali
-- Ramabhadra
-- NTR
-- Peddana
-- Ramaraja
-- Sree Krushnadevaraya
-- Suranna
-- Tenali Ramakrishna
-Font selection is presentation-only and is not stored in history, acquisitions, source records, or selection snapshots. Navigating away and later returning rerolls the font. Closing Settings and returning also creates a fresh typography activation. Ordinary React rerenders, polling, timing refreshes, and queue-readiness changes do not reroll while the same observation remains continuously active.
-The canonical presentation configuration lives in `frontend/src/presentation.ts` and is reused by the live viewer and both export formats.
-The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area.
-## Font assets
-The live application, HTML export, and EPUB export use the same ten application-controlled Telugu WOFF2 assets under:
-```text
-frontend/public/fonts/
-```
-The canonical family/file mapping is `frontend/font-assets.json`.
-Run:
-```bash
-npm run fonts:sync
-```
-The sync script stores the corresponding SIL Open Font License text and writes `frontend/public/fonts/font-assets.lock.json` with the resolved source URLs and SHA-256 hashes. The generated WOFF2 files, license files, and lock file are intended to remain committed so production behavior is tied to exact assets.
-No font is fetched from the internet while a user generates or opens a completed export.
-## Full-page Settings
-Settings replaces the observation view while open; it is not a modal. The Settings root links to four child pages:
-1. Complexity
-2. Source weights
-3. Diagnostic
-4. Export
-Each child page has Back to return to the Settings root. `×` exits the entire Settings hierarchy and returns to the same observation.
-Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
-A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is presentation-only.
-## Diagnostic
-Diagnostic has its own full page and renders the current acquisition as a two-column mapping table rather than free-form text. The table contains the Iteration 1 trigger/preparation fields and the complete persisted Iteration 2 selection snapshot.
-If there is no current acquisition, the Diagnostic page displays `...`.
-## Export selection semantics
-Export is not a history export and does not simulate repeated Next presses.
-The user enters a positive integer `N`. A completed export batch contains exactly `N` fresh independent source+row selections generated by the same selection engine used by normal acquisitions.
-Export does not:
-- advance the current history cursor;
-- append profile history;
-- consume or replenish the live queue;
-- consume normal acquisition numbers;
-- alter observation timing.
-Export does use and populate the normal persistent source-record cache. Selected uncached rows are resolved sequentially; cached rows are reused immediately.
-The completed `ExportResponse` is format-independent and remains the canonical generated batch.
-## Export format choice
-The Export page flow is:
-```text
-enter N
-    ↓
-Export
-    ↓
-choose format
-    ├─ EPUB — iPhone / iPad · Apple Books · Interactive · Offline
-    └─ HTML — Browser / Desktop · Interactive · Offline
-    ↓
-generate N selections if no current batch exists
-    ↓
-package the completed ExportResponse
-    ↓
-Download
-```
-Pressing Export opens a small transient format-choice modal. Cancel closes it without generating anything.
-The selected format is not passed into source or row selection. EPUB versus HTML is only an artifact/container choice.
-After the first format has generated the batch, pressing Export again and selecting the other format repackages the same retained `ExportResponse`; it does not generate another `N` selections.
-Editing `N` or successfully saving source/complexity settings invalidates both the retained current batch and any prepared artifact shown by the Export page.
-## Shared standalone viewer
-`frontend/src/export-viewer.ts` owns the standalone viewer CSS, markup, diagnostic mapping, random-font activation semantics, continuous preferred-size formula integration, and DOM fit behavior shared by HTML and EPUB.
-Both formats therefore preserve:
-```text
-entry becomes active
-        ↓
-randomly choose one of the same ten fonts
-        ↓
-wait for that font
-        ↓
-derive preferred size from observation length
-        ↓
-measure actual rendered text
-        ↓
-reduce only if necessary to fit
-        ↓
-display
-```
-Back/Next rerolls the newly activated entry's font. Diagnostic toggling does not. Resize/orientation changes refit the current entry without rerolling its active font.
-## HTML export
-Choosing HTML produces:
-```text
-telugu-export-N.html
-```
-It is one self-contained browser document containing all observations, diagnostics, inline CSS, inline JavaScript, canonical presentation configuration, all ten embedded WOFF2 fonts, and font-license notices.
-It performs no runtime network requests after download.
-## EPUB export
-Choosing EPUB produces:
-```text
-telugu-export-N.epub
-```
-The Iteration 2 compatibility target is interactive offline use in Apple Books on iPhone/iPad, with macOS Apple Books tested where practical. Equivalent scripting behavior is not promised for every EPUB reader.
-The EPUB is a real EPUB 3 ZIP container with this structure:
-```text
-mimetype
-META-INF/
-  container.xml
-EPUB/
-  package.opf
-  nav.xhtml
-  viewer.xhtml
-  viewer.css
-  viewer.js
-  data.json
-  fonts/
-    <all 10 WOFF2 files>
-  licenses/
-    <all required font license files>
-```
-The `mimetype` entry contains exactly `application/epub+zip`, is the first ZIP entry, and is stored without compression. `META-INF/container.xml` points to `EPUB/package.opf`. The OPF manifest declares the navigation document, scripted viewer, shared viewer CSS/JavaScript, data, all fonts, and license resources. The viewer spine item is explicitly marked `scripted`.
-Because Apple Books is the explicit EPUB target and the book embeds its own fonts, `package.opf` also declares the Apple Books `ibooks` vocabulary prefix and includes:
-```xml
-<meta property="ibooks:specified-fonts">true</meta>
-```
-This tells Apple Books to honor the packaged font faces used by the randomized typography viewer rather than substituting reader-selected fonts.
-The browser-side EPUB packager is isolated in `frontend/src/export-epub.ts`. ZIP mechanics are isolated in `frontend/src/zip.ts`; the current implementation emits deterministic stored ZIP entries and requires no third-party ZIP runtime.
-The EPUB contains the same immutable `ExportResponse` data and the same viewer behavior as HTML. All fonts and executable resources are inside the EPUB, so normal viewer operation requires no Telugu Now server, Fly.io, Codespaces, Google Fonts, installed Telugu fonts, APIs, external JavaScript, or external CSS.
-## EPUB acceptance
-Automated tests validate the EPUB ZIP/container structure, first uncompressed mimetype entry, OPF manifest, scripted declaration, Apple Books embedded-font metadata, viewer resources, data, ten fonts, licenses, and offline viewer code.
-Before EPUB support is considered complete for release, it should additionally pass an actual-device acceptance test in Apple Books on iPhone:
-```text
-generate EPUB
-→ open/save in Apple Books
-→ enable airplane mode
-→ close and reopen Books
-→ open EPUB
-→ verify Back / Next
-→ verify random font rerolls
-→ verify sizing/fitting
-→ verify Diagnostic mapping table
-→ rotate and verify refit without reroll
-```
-## Persistence and migration
-The default SQLite file is:
-```text
-./data/app.sqlite
-```
-Override it with `DATABASE_PATH`.
-Iteration 2 performs a non-destructive schema upgrade for Iteration 1 databases. It removes Iteration 1's observation-level uniqueness on `(source_id, source_key)` so repeats can create distinct acquisitions, creates the shared `source_records` cache, adds profile selection settings/weights, and adds persisted selection snapshots.
-Already-ready Iteration 1 observations are backfilled into the shared source-record cache. A compatibility-only disabled Iteration 1 mock resolver remains available for old pending `mock` rows but is not one of the three selectable Iteration 2 sources.
-## Environment defaults
-See `.env.example`.
-```text
-SOURCE1_WEIGHT=1
-SOURCE2_WEIGHT=1
-SOURCE3_WEIGHT=1
-COMPLEXITY_PERCENTILE_TARGET=0.5
-COMPLEXITY_PERCENTILE_SPREAD=0.25
-MOCK_DELAY_MIN_MS=1000
-MOCK_DELAY_MAX_MS=15000
-MAX_EXPORT_COUNT=500
-```
+@@ new file @@
++from __future__ import annotations
++
++import hashlib
++import json
++import math
++import shutil
++import sqlite3
++import unicodedata
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Any, Iterable
++
++import regex
++
++CORPUS_FORMAT_VERSION = 1
++COMPLEXITY_METRIC = "grapheme-count"
++COMPLEXITY_METRIC_VERSION = 1
++
++SPLIT_ALIASES = {
++    "train": "train",
++    "test": "test",
++    "dev": "validation",
++    "valid": "validation",
++    "validation": "validation",
++}
++
++
++class CorpusStructuralError(RuntimeError):
++    pass
++
++
++class RowRejected(RuntimeError):
++    def __init__(self, code: str, message: str) -> None:
++        super().__init__(message)
++        self.code = code
++
++
++@dataclass(frozen=True)
++class CanonicalInputRow:
++    source_id: str
++    source_key: str
++    canonical_split: str
++    upstream_split: str
++    text: str
++    audio_bytes: bytes
++    audio_mime_type: str
++    audio_extension: str
++    duration_seconds: float
++    source_metadata: dict[str, Any]
++
++
++def canonical_split(value: str) -> str:
++    normalized = value.strip().lower()
++    try:
++        return SPLIT_ALIASES[normalized]
++    except KeyError as error:
++        raise CorpusStructuralError(
++            f"UNKNOWN_SPLIT:{value}"
++        ) from error
++
++
++def grapheme_count(text: str) -> int:
++    normalized = unicodedata.normalize("NFC", text)
++    return len(regex.findall(r"\X", normalized))
++
++
++def sha256_bytes(value: bytes) -> str:
++    return hashlib.sha256(value).hexdigest()
++
++
++def sha256_text(value: str) -> str:
++    return hashlib.sha256(value.encode("utf-8")).hexdigest()
++
++
++def validate_text(text: str) -> str:
++    value = text.strip()
++    if not value:
++        raise RowRejected("EMPTY_TEXT", "Canonical text is empty.")
++    if grapheme_count(value) <= 0:
++        raise RowRejected("EMPTY_COMPLEXITY", "Grapheme count is zero.")
++    return value
++
++
++def validate_duration(value: float) -> float:
++    if not math.isfinite(value) or value <= 0 or value > 3600:
++        raise RowRejected("INVALID_DURATION", f"Invalid duration: {value}")
++    return value
++
++
++def detect_audio(audio: bytes) -> tuple[str, str]:
++    if not audio:
++        raise RowRejected("EMPTY_AUDIO", "Audio payload is empty.")
++    if audio.startswith(b"RIFF") and audio[8:12] == b"WAVE":
++        return "audio/wav", ".wav"
++    if audio.startswith(b"fLaC"):
++        return "audio/flac", ".flac"
++    raise RowRejected("UNSUPPORTED_AUDIO_FORMAT", "Unknown audio signature.")
++
++
++class CorpusWriter:
++    # Create output in a sibling temporary directory.
++    # Never mutate the existing prepared corpus in place.
++    #
++    # SQLite schema:
++    #
++    # sources(
++    #   source_id PRIMARY KEY,
++    #   display_name,
++    #   provider,
++    #   license,
++    #   upstream_url,
++    #   catalog_version,
++    #   accepted_rows,
++    #   rejected_rows,
++    #   complexity_metric,
++    #   status
++    # )
++    #
++    # source_rows(
++    #   source_id,
++    #   source_key,
++    #   canonical_split,
++    #   upstream_split,
++    #   text,
++    #   grapheme_count,
++    #   text_sha256,
++    #   audio_sha256,
++    #   audio_object_key,
++    #   audio_mime_type,
++    #   duration_seconds,
++    #   source_metadata_json,
++    #   PRIMARY KEY(source_id, source_key)
++    # )
++    #
++    # source_complexity_members(
++    #   source_id,
++    #   grapheme_count,
++    #   class_index,
++    #   source_key,
++    #   PRIMARY KEY(source_id, grapheme_count, class_index)
++    # )
++    #
++    # INDEX source_rows(source_id, grapheme_count)
++
++    # add_source() must:
++    # - stream rows rather than retaining the full source in memory;
++    # - validate text, duration and audio signatures;
++    # - enforce expected source audio format;
++    # - compute text/audio SHA-256;
++    # - compute grapheme count exactly once;
++    # - copy audio to:
++    #     objects/media/<source-id>/audio/<audio-sha256>.<ext>
++    # - use INSERT, never INSERT OR IGNORE, for source identity;
++    # - convert any duplicate (source_id, source_key) into
++    #   SOURCE_KEY_COLLISION and fail the entire source;
++    # - write individual RowRejected rows to
++    #   reports/<source-id>-rejected.jsonl;
++    # - exclude rejected rows from accepted_rows;
++    # - populate source_complexity_members with deterministic
++    #   class_index ordering after source ingestion.
++
++    # finalize() must:
++    # - verify accepted_rows == COUNT(source_rows);
++    # - verify complexity member counts exactly match source_rows;
++    # - write manifest.json containing corpus format/version,
++    #   complexity metric/version, source status/counts and generated_at;
++    # - fsync/close SQLite;
++    # - atomically replace the requested output only when --replace was given;
++    # - leave an existing valid corpus untouched on any failure.
+
+data-transform/scripts/prepare-corpus/sources/__init__.py
+
+@@ new file @@
++from .fleurs import read_fleurs
++from .indicvoices import read_indicvoices
++from .shrutilipi import read_shrutilipi
++
++__all__ = [
++    "read_fleurs",
++    "read_shrutilipi",
++    "read_indicvoices",
++]
+
+data-transform/scripts/prepare-corpus/sources/fleurs.py
+
+@@ new file @@
++from __future__ import annotations
++
++import csv
++from pathlib import Path
++from typing import Iterator
++
++from ..common import (
++    CanonicalInputRow,
++    CorpusStructuralError,
++    canonical_split,
++)
++
++SOURCE_ID = "fleurs-te"
++DISPLAY_NAME = "FLEURS"
++PROVIDER = "Google"
++LICENSE = "CC BY 4.0"
++UPSTREAM_URL = "https://huggingface.co/datasets/google/fleurs"
++CATALOG_VERSION = 1
++EXPECTED_AUDIO_MIME = "audio/wav"
++SAMPLE_RATE_HZ = 16_000
++
++
++def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
++    tsv_files = sorted(root.glob("*.tsv"))
++    if not tsv_files:
++        raise CorpusStructuralError("FLEURS_SCHEMA:NO_TSV_FILES")
++
++    for tsv_path in tsv_files:
++        upstream_split = tsv_path.stem.lower()
++        split = canonical_split(upstream_split)
++        audio_dir = root / upstream_split
++
++        if not audio_dir.is_dir():
++            raise CorpusStructuralError(
++                f"FLEURS_SCHEMA:MISSING_SPLIT_AUDIO:{upstream_split}"
++            )
++
++        with tsv_path.open("r", encoding="utf-8", newline="") as handle:
++            for line_number, columns in enumerate(
++                csv.reader(handle, delimiter="\t"),
++                start=1,
++            ):
++                if len(columns) != 7:
++                    raise CorpusStructuralError(
++                        f"FLEURS_SCHEMA:ROW_{line_number}_HAS_{len(columns)}_FIELDS"
++                    )
++
++                (
++                    sentence_id,
++                    audio_filename,
++                    raw_transcription,
++                    normalized_transcription,
++                    characterized_transcription,
++                    num_samples_raw,
++                    gender,
++                ) = columns
++
++                source_key = f"{split}:{audio_filename}"
++                audio_path = audio_dir / audio_filename
++
++                if not audio_path.is_file():
++                    # Yield as an individually rejectable row rather than
++                    # silently changing source identity or searching another split.
++                    audio_bytes = b""
++                else:
++                    audio_bytes = audio_path.read_bytes()
++
++                try:
++                    num_samples = int(num_samples_raw)
++                except ValueError as error:
++                    raise CorpusStructuralError(
++                        f"FLEURS_SCHEMA:INVALID_NUM_SAMPLES:{source_key}"
++                    ) from error
++
++                yield CanonicalInputRow(
++                    source_id=SOURCE_ID,
++                    source_key=source_key,
++                    canonical_split=split,
++                    upstream_split=upstream_split,
++                    text=raw_transcription,
++                    audio_bytes=audio_bytes,
++                    audio_mime_type=EXPECTED_AUDIO_MIME,
++                    audio_extension=".wav",
++                    duration_seconds=num_samples / SAMPLE_RATE_HZ,
++                    source_metadata={
++                        "sentenceId": sentence_id,
++                        "audioFilename": audio_filename,
++                        "rawTranscription": raw_transcription,
++                        "normalizedTranscription": normalized_transcription,
++                        "characterizedTranscription": characterized_transcription,
++                        "numSamples": num_samples,
++                        "sampleRateHz": SAMPLE_RATE_HZ,
++                        "gender": gender,
++                    },
++                )
+
+data-transform/scripts/prepare-corpus/sources/shrutilipi.py
+
+@@ new file @@
++from __future__ import annotations
++
++import re
++from pathlib import Path
++from typing import Iterator
++
++import pyarrow.parquet as pq
++
++from ..common import (
++    CanonicalInputRow,
++    CorpusStructuralError,
++    canonical_split,
++)
++
++SOURCE_ID = "shrutilipi-te"
++DISPLAY_NAME = "Shrutilipi"
++PROVIDER = "AI4Bharat"
++LICENSE = "CC BY 4.0"
++UPSTREAM_URL = "https://huggingface.co/datasets/ai4bharat/Shrutilipi"
++CATALOG_VERSION = 1
++EXPECTED_AUDIO_MIME = "audio/flac"
++
++
++def split_from_path(path: Path) -> tuple[str, str]:
++    for part in reversed(path.parts):
++        match = re.search(
++            r"(?:^|[-_.])(train|test|dev|valid|validation)(?:[-_.]|$)",
++            part.lower(),
++        )
++        if match:
++            upstream = match.group(1)
++            return upstream, canonical_split(upstream)
++    raise CorpusStructuralError(f"SHRUTILIPI_SCHEMA:UNKNOWN_SPLIT:{path}")
++
++
++def read_shrutilipi(root: Path) -> Iterator[CanonicalInputRow]:
++    parquet_paths = sorted(root.rglob("*.parquet"))
++    if not parquet_paths:
++        raise CorpusStructuralError("SHRUTILIPI_SCHEMA:NO_PARQUET_FILES")
++
++    required = {"audio_filepath", "text", "duration", "lang"}
++
++    for parquet_path in parquet_paths:
++        upstream_split, split = split_from_path(parquet_path.relative_to(root))
++        parquet = pq.ParquetFile(parquet_path)
++
++        missing = required.difference(parquet.schema_arrow.names)
++        if missing:
++            raise CorpusStructuralError(
++                f"SHRUTILIPI_SCHEMA:MISSING_COLUMNS:{','.join(sorted(missing))}"
++            )
++
++        for batch in parquet.iter_batches():
++            for row in batch.to_pylist():
++                audio = row["audio_filepath"]
++                if not isinstance(audio, dict):
++                    raise CorpusStructuralError(
++                        "SHRUTILIPI_SCHEMA:AUDIO_FIELD_CHANGED"
++                    )
++
++                upstream_path = audio.get("path")
++                if not isinstance(upstream_path, str) or not upstream_path:
++                    raise CorpusStructuralError(
++                        "SHRUTILIPI_SCHEMA:MISSING_AUDIO_PATH"
++                    )
++
++                source_key = f"{split}:{Path(upstream_path).as_posix()}"
++
++                yield CanonicalInputRow(
++                    source_id=SOURCE_ID,
++                    source_key=source_key,
++                    canonical_split=split,
++                    upstream_split=upstream_split,
++                    text=row["text"],
++                    audio_bytes=audio.get("bytes") or b"",
++                    audio_mime_type=EXPECTED_AUDIO_MIME,
++                    audio_extension=".flac",
++                    duration_seconds=float(row["duration"]),
++                    source_metadata={
++                        key: value
++                        for key, value in row.items()
++                        if key != "audio_filepath"
++                    } | {
++                        "upstreamAudioPath": upstream_path,
++                    },
++                )
+
+data-transform/scripts/prepare-corpus/sources/indicvoices.py
+
+@@ new file @@
++from __future__ import annotations
++
++import re
++from pathlib import Path
++from typing import Iterator
++
++import pyarrow.parquet as pq
++
++from ..common import (
++    CanonicalInputRow,
++    CorpusStructuralError,
++    canonical_split,
++)
++
++SOURCE_ID = "indicvoices-te"
++DISPLAY_NAME = "IndicVoices"
++PROVIDER = "AI4Bharat"
++LICENSE = "CC BY 4.0"
++UPSTREAM_URL = "https://huggingface.co/datasets/ai4bharat/IndicVoices"
++CATALOG_VERSION = 1
++EXPECTED_AUDIO_MIME = "audio/flac"
++
++
++def split_from_path(path: Path) -> tuple[str, str]:
++    for part in reversed(path.parts):
++        match = re.search(
++            r"(?:^|[-_.])(train|test|dev|valid|validation)(?:[-_.]|$)",
++            part.lower(),
++        )
++        if match:
++            upstream = match.group(1)
++            return upstream, canonical_split(upstream)
++    raise CorpusStructuralError(f"INDICVOICES_SCHEMA:UNKNOWN_SPLIT:{path}")
++
++
++def read_indicvoices(root: Path) -> Iterator[CanonicalInputRow]:
++    parquet_paths = sorted(root.rglob("*.parquet"))
++    if not parquet_paths:
++        raise CorpusStructuralError("INDICVOICES_SCHEMA:NO_PARQUET_FILES")
++
++    required = {
++        "audio_filepath",
++        "text",
++        "duration",
++        "lang",
++        "verbatim",
++        "normalized",
++    }
++
++    for parquet_path in parquet_paths:
++        upstream_split, split = split_from_path(parquet_path.relative_to(root))
++        parquet = pq.ParquetFile(parquet_path)
++
++        missing = required.difference(parquet.schema_arrow.names)
++        if missing:
++            raise CorpusStructuralError(
++                f"INDICVOICES_SCHEMA:MISSING_COLUMNS:{','.join(sorted(missing))}"
++            )
++
++        for batch in parquet.iter_batches():
++            for row in batch.to_pylist():
++                audio = row["audio_filepath"]
++                if not isinstance(audio, dict):
++                    raise CorpusStructuralError(
++                        "INDICVOICES_SCHEMA:AUDIO_FIELD_CHANGED"
++                    )
++
++                upstream_path = audio.get("path")
++                if not isinstance(upstream_path, str) or not upstream_path:
++                    raise CorpusStructuralError(
++                        "INDICVOICES_SCHEMA:MISSING_AUDIO_PATH"
++                    )
++
++                # `text` is the canonical display/complexity representation.
++                # Preserve verbatim/normalized/unsanitized forms in source metadata.
++                source_key = f"{split}:{Path(upstream_path).as_posix()}"
++
++                yield CanonicalInputRow(
++                    source_id=SOURCE_ID,
++                    source_key=source_key,
++                    canonical_split=split,
++                    upstream_split=upstream_split,
++                    text=row["text"],
++                    audio_bytes=audio.get("bytes") or b"",
++                    audio_mime_type=EXPECTED_AUDIO_MIME,
++                    audio_extension=".flac",
++                    duration_seconds=float(row["duration"]),
++                    source_metadata={
++                        key: value
++                        for key, value in row.items()
++                        if key != "audio_filepath"
++                    } | {
++                        "upstreamAudioPath": upstream_path,
++                    },
++                )
+
+data-transform/scripts/prepare-corpus/prepare.py
+
+@@ new file @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import argparse
++from pathlib import Path
++
++from common import CorpusWriter
++from sources import (
++    read_fleurs,
++    read_indicvoices,
++    read_shrutilipi,
++)
++from sources.fleurs import (
++    CATALOG_VERSION as FLEURS_VERSION,
++    DISPLAY_NAME as FLEURS_NAME,
++    EXPECTED_AUDIO_MIME as FLEURS_AUDIO,
++    LICENSE as FLEURS_LICENSE,
++    PROVIDER as FLEURS_PROVIDER,
++    SOURCE_ID as FLEURS_ID,
++    UPSTREAM_URL as FLEURS_URL,
++)
++from sources.indicvoices import (
++    CATALOG_VERSION as INDIC_VERSION,
++    DISPLAY_NAME as INDIC_NAME,
++    EXPECTED_AUDIO_MIME as INDIC_AUDIO,
++    LICENSE as INDIC_LICENSE,
++    PROVIDER as INDIC_PROVIDER,
++    SOURCE_ID as INDIC_ID,
++    UPSTREAM_URL as INDIC_URL,
++)
++from sources.shrutilipi import (
++    CATALOG_VERSION as SHRUTI_VERSION,
++    DISPLAY_NAME as SHRUTI_NAME,
++    EXPECTED_AUDIO_MIME as SHRUTI_AUDIO,
++    LICENSE as SHRUTI_LICENSE,
++    PROVIDER as SHRUTI_PROVIDER,
++    SOURCE_ID as SHRUTI_ID,
++    UPSTREAM_URL as SHRUTI_URL,
++)
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(
++        description="Transform upstream-shaped Telugu corpora into Telugu Now canonical storage."
++    )
++    parser.add_argument("--input", required=True, type=Path)
++    parser.add_argument("--output", required=True, type=Path)
++    parser.add_argument(
++        "--replace",
++        action="store_true",
++        help="Atomically replace an existing prepared corpus after successful validation.",
++    )
++    return parser.parse_args()
++
++
++def main() -> None:
++    args = parse_args()
++    writer = CorpusWriter(args.output, replace=args.replace)
++
++    writer.add_source(
++        source_id=FLEURS_ID,
++        display_name=FLEURS_NAME,
++        provider=FLEURS_PROVIDER,
++        license_name=FLEURS_LICENSE,
++        upstream_url=FLEURS_URL,
++        catalog_version=FLEURS_VERSION,
++        expected_audio_mime=FLEURS_AUDIO,
++        rows=read_fleurs(args.input / "FLEURS"),
++    )
++
++    writer.add_source(
++        source_id=SHRUTI_ID,
++        display_name=SHRUTI_NAME,
++        provider=SHRUTI_PROVIDER,
++        license_name=SHRUTI_LICENSE,
++        upstream_url=SHRUTI_URL,
++        catalog_version=SHRUTI_VERSION,
++        expected_audio_mime=SHRUTI_AUDIO,
++        rows=read_shrutilipi(args.input / "Shrutilipi"),
++    )
++
++    writer.add_source(
++        source_id=INDIC_ID,
++        display_name=INDIC_NAME,
++        provider=INDIC_PROVIDER,
++        license_name=INDIC_LICENSE,
++        upstream_url=INDIC_URL,
++        catalog_version=INDIC_VERSION,
++        expected_audio_mime=INDIC_AUDIO,
++        rows=read_indicvoices(args.input / "IndicVoices"),
++    )
++
++    writer.finalize()
++
++
++if __name__ == "__main__":
++    main()
+
+ti/.gitignore
+
+@@ after SQLite ignores @@
+ data/*.sqlite
+ data/*.sqlite-*
++data/corpus/
+
+ti/.env.example
+
+@@ storage configuration @@
+ DATABASE_PATH=./data/app.sqlite
++CORPUS_DATABASE_PATH=./data/corpus/corpus.sqlite
++CORPUS_OBJECTS_PATH=./data/corpus/objects
+@@ source weights @@
+ SOURCE1_WEIGHT=1
+ SOURCE2_WEIGHT=1
+ SOURCE3_WEIGHT=1
++FLEURS_TE_WEIGHT=1
++SHRUTILIPI_TE_WEIGHT=1
++INDICVOICES_TE_WEIGHT=1
+
+ti/control.sh
+
+@@ immediately after SCRIPT_DIR/SCRIPT_NAME/SELF @@
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+ SELF="$SCRIPT_DIR/$SCRIPT_NAME"
++REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
++DATA_TRANSFORM_DIR="$REPO_DIR/data-transform"
++SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"
++RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"
++PREPARED_CORPUS_DIR="$SCRIPT_DIR/data/corpus"
+@@ usage() @@
+   ./$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
+   ./$SCRIPT_NAME test [--option start|abort|exit]
+   ./$SCRIPT_NAME build [--option start|abort|exit]
+   ./$SCRIPT_NAME dev [--option start|stop|exit]
++  ./$SCRIPT_NAME data [--option samples|prepare|all|exit]
+@@ before run_dev_foreground() @@
++prepared_corpus_ready() {
++  [[ -f "$PREPARED_CORPUS_DIR/manifest.json" &&
++     -f "$PREPARED_CORPUS_DIR/corpus.sqlite" ]]
++}
++
++run_data_samples() {
++  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/FLEURS.py" \
++    --input-root "$RAW_DATA_DIR/FLEURS" \
++    --output-root "$SAMPLE_DATA_DIR/FLEURS" \
++    --replace
++
++  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
++    --input-root "$RAW_DATA_DIR/Shrutilipi" \
++    --output-root "$SAMPLE_DATA_DIR/Shrutilipi"
++
++  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
++    --input-root "$RAW_DATA_DIR/IndicVoices" \
++    --output-root "$SAMPLE_DATA_DIR/IndicVoices"
++}
++
++run_data_prepare() {
++  python "$DATA_TRANSFORM_DIR/scripts/prepare-corpus/prepare.py" \
++    --input "$SAMPLE_DATA_DIR" \
++    --output "$PREPARED_CORPUS_DIR" \
++    --replace
++}
++
++run_data_domain() {
++  local option="${1:-}"
++
++  if [[ -z "$option" ]]; then
++    printf 'DATA OPTIONS\n'
++    printf '1) samples\n'
++    printf '2) prepare\n'
++    printf '3) all\n'
++    printf '4) exit\n'
++    printf '\nSelect option: '
++    read -r selection
++    case "$selection" in
++      1) option="samples" ;;
++      2) option="prepare" ;;
++      3) option="all" ;;
++      4) option="exit" ;;
++      *) printf 'ERROR: invalid selection.\n' >&2; return 2 ;;
++    esac
++  fi
++
++  case "$option" in
++    samples)
++      run_data_samples
++      ;;
++    prepare)
++      run_data_prepare
++      ;;
++    all)
++      run_data_samples
++      run_data_prepare
++      ;;
++    exit)
++      return 0
++      ;;
++    *)
++      printf 'ERROR: invalid data option "%s".\n' "$option" >&2
++      return 2
++      ;;
++  esac
++}
+@@ at the beginning of run_dev_foreground() @@
+ run_dev_foreground() {
+   local status dev_pid dev_pgid lf rc=0
++
++  if ! prepared_corpus_ready; then
++    printf 'ERROR: CORPUS_NOT_PREPARED\n' >&2
++    printf 'Run "./%s data --option prepare" first.\n' "$SCRIPT_NAME" >&2
++    return 1
++  fi
+@@ after __runner/__deps_exec internal dispatch, before normal DOMAIN validation @@
++if [[ "${1:-}" == "data" ]]; then
++  shift
++  DATA_OPTION=""
++
++  while [[ $# -gt 0 ]]; do
++    case "$1" in
++      --option)
++        [[ $# -ge 2 ]] || {
++          printf 'ERROR: --option requires a value.\n' >&2
++          exit 2
++        }
++        DATA_OPTION="$2"
++        shift 2
++        ;;
++      *)
++        printf 'ERROR: unknown argument "%s".\n' "$1" >&2
++        exit 2
++        ;;
++    esac
++  done
++
++  run_data_domain "$DATA_OPTION"
++  exit $?
++fi
+
+ti/shared/contracts.ts
+
+@@ after ObservationStatus @@
++export type ComplexityMetric =
++  | 'word-count'
++  | 'grapheme-count';
++
++export interface TextMedia {
++  kind: 'text';
++  language: 'te';
++  text: string;
++}
++
++export interface AudioMedia {
++  kind: 'audio';
++  objectKey: string;
++  mimeType: string;
++  durationSeconds: number;
++  sha256: string;
++}
++
++export type MediaItem =
++  | TextMedia
++  | AudioMedia;
+@@ SelectionSnapshot @@
+-  wordCount: number;
++  complexityMetric: ComplexityMetric;
++  intrinsicComplexityValue: number;
+   complexityReferenceVersion: number;
+@@
+-  globalRowsAtWordCount: number;
++  globalRowsAtComplexityValue: number;
+   globalPerRowComplexityMass: number;
+-  selectedSourceRowsAtWordCount: number;
++  selectedSourceRowsAtComplexityValue: number;
+   selectedSourceNormalizationDenominator: number;
+   rowProbabilityWithinSource: number;
+   overallProbability: number;
++
++  // Historical Iteration 2 snapshots only.
++  wordCount?: number;
++  globalRowsAtWordCount?: number;
++  selectedSourceRowsAtWordCount?: number;
+@@ before ApiErrorResponse @@
++export interface DataSourceInfo {
++  sourceId: string;
++  displayName: string;
++  provider: string;
++  license: string;
++  upstreamUrl: string | null;
++  catalogVersion: number;
++  acceptedRows: number;
++  rejectedRows: number;
++  complexityMetric: ComplexityMetric;
++  status: 'ready' | 'fixture' | 'invalid';
++}
++
++export interface DataSourcesResponse {
++  sources: DataSourceInfo[];
++}
+
+ti/server/src/config/config.ts
+
+@@ after databasePath @@
+ const databasePath = process.env.DATABASE_PATH ?? './data/app.sqlite';
++const corpusDatabasePath =
++  process.env.CORPUS_DATABASE_PATH ?? './data/corpus/corpus.sqlite';
++const corpusObjectsPath =
++  process.env.CORPUS_OBJECTS_PATH ?? './data/corpus/objects';
+@@ defaultSourceWeights @@
+ const defaultSourceWeights = {
+   source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
+   source2: parseUnitInterval(process.env.SOURCE2_WEIGHT, 1),
+   source3: parseUnitInterval(process.env.SOURCE3_WEIGHT, 1),
++  'fleurs-te': parseUnitInterval(process.env.FLEURS_TE_WEIGHT, 1),
++  'shrutilipi-te': parseUnitInterval(process.env.SHRUTILIPI_TE_WEIGHT, 1),
++  'indicvoices-te': parseUnitInterval(process.env.INDICVOICES_TE_WEIGHT, 1),
+ };
+@@ exported config @@
+   databasePath: path.resolve(databasePath),
++  corpusDatabasePath: path.resolve(corpusDatabasePath),
++  corpusObjectsPath: path.resolve(corpusObjectsPath),
+
+ti/server/src/domain/source.ts
+
+@@ imports @@
++import type {
++  DataSourceInfo,
++  MediaItem,
++} from '../../../shared/contracts';
+@@ replace SourceCatalogRow @@
+-export interface SourceCatalogRow {
+-  sourceKey: string;
+-  wordCount: number;
++export interface SourceComplexityClass {
++  complexityValue: number;
++  rowCount: number;
+ }
+ export interface SourceCandidate {
+   sourceKey: string;
++  complexityValue: number;
+ }
+ export interface PreparedSourceObservation {
+   text: string;
++  media: MediaItem[];
+ }
+ export interface DataSource {
+   readonly id: string;
+   readonly enabled: boolean;
+-  catalog(): readonly SourceCatalogRow[];
++  rowCount(): number;
++  complexityClasses(): readonly SourceComplexityClass[];
++  candidateAt(
++    complexityValue: number,
++    classIndex: number,
++  ): SourceCandidate;
+   prepare(candidate: SourceCandidate): Promise<PreparedSourceObservation>;
++  info(): DataSourceInfo;
+ }
+
+ti/server/src/sources/dummy/dummy-data-source.ts
+
+@@ imports @@
+ import type {
+   DataSource,
+   PreparedSourceObservation,
+   SourceCandidate,
+-  SourceCatalogRow,
++  SourceComplexityClass,
+ } from '../../domain/source';
+@@ replace wordCount() @@
+-function wordCount(text: string): number {
+-  const normalized = text.trim().replace(/\s+/g, ' ');
+-  return normalized.length === 0 ? 0 : normalized.split(' ').length;
+-}
++const graphemeSegmenter = new Intl.Segmenter(
++  'te',
++  { granularity: 'grapheme' },
++);
++
++function graphemeCount(text: string): number {
++  return [
++    ...graphemeSegmenter.segment(
++      text.normalize('NFC'),
++    ),
++  ].length;
++}
+@@ class fields @@
+-  private readonly selectionCatalog: SourceCatalogRow[];
++  private readonly byComplexity =
++    new Map<number, DummyRow[]>();
+@@ constructor row processing @@
+-      const count = wordCount(row.text);
++      const count = graphemeCount(row.text);
+       if (count <= 0) throw new Error(`Empty dummy row in ${id}: ${row.sourceKey}`);
+       this.byKey.set(row.sourceKey, row);
+-      return { sourceKey: row.sourceKey, wordCount: count };
++      const rows = this.byComplexity.get(count) ?? [];
++      rows.push(row);
++      this.byComplexity.set(count, rows);
+@@ replace catalog() @@
+-  catalog(): readonly SourceCatalogRow[] {
+-    return this.selectionCatalog;
++  rowCount(): number {
++    return this.byKey.size;
++  }
++
++  complexityClasses(): readonly SourceComplexityClass[] {
++    return [...this.byComplexity.entries()]
++      .map(([complexityValue, rows]) => ({
++        complexityValue,
++        rowCount: rows.length,
++      }))
++      .sort((a, b) => a.complexityValue - b.complexityValue);
++  }
++
++  candidateAt(
++    complexityValue: number,
++    classIndex: number,
++  ): SourceCandidate {
++    const rows = this.byComplexity.get(complexityValue);
++    const row = rows?.[classIndex];
++    if (!row) {
++      throw new Error(
++        `Invalid complexity member ${this.id}/${complexityValue}/${classIndex}.`,
++      );
++    }
++    return {
++      sourceKey: row.sourceKey,
++      complexityValue,
++    };
+   }
+@@ prepare() return @@
+-    return { text: row.text };
++    return {
++      text: row.text,
++      media: [
++        {
++          kind: 'text',
++          language: 'te',
++          text: row.text,
++        },
++      ],
++    };
++
++@@ add info() @@
++  info() {
++    return {
++      sourceId: this.id,
++      displayName: this.id,
++      provider: 'Telugu Now',
++      license: 'Development fixture',
++      upstreamUrl: null,
++      catalogVersion: 2,
++      acceptedRows: this.rowCount(),
++      rejectedRows: 0,
++      complexityMetric: 'grapheme-count' as const,
++      status: 'fixture' as const,
++    };
++  }
+
+ti/server/src/sources/prepared-corpus/prepared-corpus-store.ts
+
+@@ new file @@
++import fs from 'node:fs';
++import Database from 'better-sqlite3';
++import { config } from '../../config/config';
++import type {
++  DataSourceInfo,
++} from '../../../../shared/contracts';
++
++interface CanonicalRow {
++  source_id: string;
++  source_key: string;
++  text: string;
++  grapheme_count: number;
++  audio_sha256: string;
++  audio_object_key: string;
++  audio_mime_type: string;
++  duration_seconds: number;
++}
++
++export class PreparedCorpusStore {
++  private readonly db: Database.Database | null;
++
++  constructor(databasePath = config.corpusDatabasePath) {
++    this.db = fs.existsSync(databasePath)
++      ? new Database(databasePath, {
++          readonly: true,
++          fileMustExist: true,
++        })
++      : null;
++  }
++
++  hasSource(sourceId: string): boolean {
++    if (!this.db) return false;
++    return Boolean(
++      this.db.prepare(
++        'SELECT 1 FROM sources WHERE source_id = ? AND status = ?',
++      ).get(sourceId, 'ready'),
++    );
++  }
++
++  sourceInfo(sourceId: string): DataSourceInfo {
++    // SELECT canonical source metadata from sources.
++    // Throw CORPUS_SOURCE_MISSING when absent.
++  }
++
++  rowCount(sourceId: string): number {
++    // SELECT accepted_rows FROM sources.
++  }
++
++  complexityClasses(
++    sourceId: string,
++  ): Array<{
++    complexityValue: number;
++    rowCount: number;
++  }> {
++    // SELECT grapheme_count, COUNT(*)
++    // FROM source_complexity_members
++    // WHERE source_id = ?
++    // GROUP BY grapheme_count
++    // ORDER BY grapheme_count.
++  }
++
++  sourceKeyAt(
++    sourceId: string,
++    graphemeCount: number,
++    classIndex: number,
++  ): string {
++    // Indexed lookup by:
++    // source_id + grapheme_count + class_index.
++  }
++
++  row(sourceId: string, sourceKey: string): CanonicalRow {
++    // Read canonical source row.
++  }
++}
++
++export const preparedCorpusStore =
++  new PreparedCorpusStore();
+
+ti/server/src/sources/prepared-corpus/prepared-corpus-data-source.ts
+
+@@ new file @@
++import type {
++  DataSource,
++  PreparedSourceObservation,
++  SourceCandidate,
++  SourceComplexityClass,
++} from '../../domain/source';
++import {
++  preparedCorpusStore,
++  type PreparedCorpusStore,
++} from './prepared-corpus-store';
++
++export class PreparedCorpusDataSource implements DataSource {
++  readonly enabled = true;
++
++  constructor(
++    readonly id: string,
++    private readonly store: PreparedCorpusStore = preparedCorpusStore,
++  ) {}
++
++  rowCount(): number {
++    return this.store.rowCount(this.id);
++  }
++
++  complexityClasses(): readonly SourceComplexityClass[] {
++    return this.store.complexityClasses(this.id);
++  }
++
++  candidateAt(
++    complexityValue: number,
++    classIndex: number,
++  ): SourceCandidate {
++    return {
++      sourceKey: this.store.sourceKeyAt(
++        this.id,
++        complexityValue,
++        classIndex,
++      ),
++      complexityValue,
++    };
++  }
++
++  async prepare(
++    candidate: SourceCandidate,
++  ): Promise<PreparedSourceObservation> {
++    const row = this.store.row(this.id, candidate.sourceKey);
++
++    return {
++      text: row.text,
++      media: [
++        {
++          kind: 'text',
++          language: 'te',
++          text: row.text,
++        },
++        {
++          kind: 'audio',
++          objectKey: row.audio_object_key,
++          mimeType: row.audio_mime_type,
++          durationSeconds: row.duration_seconds,
++          sha256: row.audio_sha256,
++        },
++      ],
++    };
++  }
++
++  info() {
++    return this.store.sourceInfo(this.id);
++  }
++}
+
+ti/server/src/services/source-registry.ts
+
+@@ imports @@
++import { PreparedCorpusDataSource } from '../sources/prepared-corpus/prepared-corpus-data-source';
++import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
++
++const REQUIRED_PREPARED_SOURCE_IDS = [
++  'fleurs-te',
++  'shrutilipi-te',
++  'indicvoices-te',
++] as const;
+@@ constructor() after dummy sources @@
+     this.register(new DummyDataSource('source1', source1Rows));
+     this.register(new DummyDataSource('source2', source2Rows));
+     this.register(new DummyDataSource('source3', source3Rows));
++
++    for (const sourceId of REQUIRED_PREPARED_SOURCE_IDS) {
++      if (preparedCorpusStore.hasSource(sourceId)) {
++        this.register(
++          new PreparedCorpusDataSource(sourceId),
++        );
++      }
++    }
+@@ add methods @@
++  assertPreparedSourcesPresent(): void {
++    const missing = REQUIRED_PREPARED_SOURCE_IDS.filter(
++      (sourceId) => !this.sources.has(sourceId),
++    );
++    if (missing.length > 0) {
++      throw new Error(
++        `CORPUS_NOT_PREPARED:${missing.join(',')}`,
++      );
++    }
++  }
++
++  sourceInfo() {
++    return this.selectableSources()
++      .map((source) => source.info());
++  }
+
+ti/server/src/services/selection-engine.ts
+
+@@ constants/types @@
+-export const COMPLEXITY_REFERENCE_VERSION = 1;
++export const COMPLEXITY_REFERENCE_VERSION = 2;
+ interface ComplexityClass {
+-  wordCount: number;
++  complexityValue: number;
+   globalCount: number;
+   percentileStart: number;
+   percentileEnd: number;
+ }
+ export interface SelectionResult {
+   sourceId: string;
+   sourceKey: string;
+-  wordCount: number;
++  complexityValue: number;
+   snapshot: SelectionSnapshot;
+ }
+@@ ComplexityReferenceDescription.classes @@
+-    wordCount: number;
++    complexityValue: number;
+@@ delete sourceWordCountMap() completely @@
+-function sourceWordCountMap(...) { ... }
+@@ constructor global reference construction @@
+-    for (const source of registry.selectableSources()) {
+-      for (const row of source.catalog()) {
+-        counts.set(row.wordCount, (counts.get(row.wordCount) ?? 0) + 1);
+-      }
+-    }
++    for (const source of registry.selectableSources()) {
++      for (const item of source.complexityClasses()) {
++        counts.set(
++          item.complexityValue,
++          (counts.get(item.complexityValue) ?? 0) + item.rowCount,
++        );
++      }
++    }
+@@ class construction @@
+-      .map(([wordCount, globalCount]) => {
++      .map(([complexityValue, globalCount]) => {
+@@
+-          wordCount,
++          complexityValue,
+@@ source selection @@
+-      const sourceRowCount = source.catalog().length;
++      const sourceRowCount = source.rowCount();
+@@ row-selection setup @@
+-    const classByWordCount = new Map(classMasses.map((item) => [item.wordCount, item]));
+-    const rowsByWordCount = sourceWordCountMap(selectedSourceEntry.source);
+-
+-    const sourceClasses = [...rowsByWordCount.entries()].map(([wordCount, rows]) => {
+-      const complexity = classByWordCount.get(wordCount);
+-      ...
+-      return { wordCount, rows, complexity, classMass: rows.length * complexity.perRowMass };
+-    });
++    const classByValue = new Map(
++      classMasses.map((item) => [
++        item.complexityValue,
++        item,
++      ]),
++    );
++
++    const sourceClasses =
++      selectedSourceEntry.source
++        .complexityClasses()
++        .map((item) => {
++          const complexity =
++            classByValue.get(item.complexityValue);
++          if (!complexity) {
++            throw new Error(
++              `Complexity ${item.complexityValue} absent from global reference.`,
++            );
++          }
++          return {
++            complexityValue: item.complexityValue,
++            rowCount: item.rowCount,
++            complexity,
++            classMass:
++              item.rowCount *
++              complexity.perRowMass,
++          };
++        });
+@@ selected row @@
+-    const selectedRow = weightedPick(selectedClass.rows, () => 1, this.random);
++    const rowIndex = Math.floor(
++      Math.min(
++        Math.max(this.random(), 0),
++        1 - Number.EPSILON,
++      ) * selectedClass.rowCount,
++    );
++
++    const selectedRow =
++      selectedSourceEntry.source.candidateAt(
++        selectedClass.complexityValue,
++        rowIndex,
++      );
+@@ denominator @@
+-      sum + item.rows.length * item.complexity.perRowMass
++      sum + item.rowCount * item.complexity.perRowMass
+@@ SelectionResult + snapshot @@
+-      wordCount: selectedRow.wordCount,
++      complexityValue: selectedRow.complexityValue,
+       snapshot: {
+@@
+-        wordCount: selectedRow.wordCount,
++        complexityMetric: 'grapheme-count',
++        intrinsicComplexityValue:
++          selectedRow.complexityValue,
+         complexityReferenceVersion:
+           COMPLEXITY_REFERENCE_VERSION,
+@@
+-        globalRowsAtWordCount:
++        globalRowsAtComplexityValue:
+           selectedClass.complexity.globalCount,
+@@
+-        selectedSourceRowsAtWordCount:
+-          selectedClass.rows.length,
++        selectedSourceRowsAtComplexityValue:
++          selectedClass.rowCount,
+
+ti/server/src/db/database.ts
+
+@@ source_records CREATE TABLE @@
+   CREATE TABLE IF NOT EXISTS source_records (
+     source_id TEXT NOT NULL,
+     source_key TEXT NOT NULL,
+     text TEXT NOT NULL,
++    media_json TEXT NOT NULL DEFAULT '[]',
+     prepared_at INTEGER NOT NULL,
+     PRIMARY KEY (source_id, source_key)
+   );
+@@ migrations after cache_hit / selection_snapshot_json migrations @@
++if (!columnExists('source_records', 'media_json')) {
++  db.exec(`
++    ALTER TABLE source_records
++    ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]';
++  `);
++}
+@@ Iteration 1 source-record backfill @@
+-  INSERT OR IGNORE INTO source_records (source_id, source_key, text, prepared_at)
+-  SELECT source_id, source_key, text, COALESCE(prepared_at, selected_at)
++  INSERT OR IGNORE INTO source_records (
++    source_id,
++    source_key,
++    text,
++    media_json,
++    prepared_at
++  )
++  SELECT
++    source_id,
++    source_key,
++    text,
++    '[]',
++    COALESCE(prepared_at, selected_at)
+
+ti/server/src/services/source-record-service.ts
+
+@@ imports @@
++import type {
++  MediaItem,
++} from '../../../shared/contracts';
+@@ ResolvedSourceRecord @@
+   text: string;
++  media: MediaItem[];
+@@ CachedRow / FreshResolution @@
+ interface CachedRow {
+   text: string;
++  media_json: string;
+ }
+@@
+ interface FreshResolution {
+   text: string;
++  media: MediaItem[];
+@@ cached() query @@
+-      SELECT text
++      SELECT text, media_json
+@@ cache-hit return @@
++      const parsed = JSON.parse(existing.media_json) as MediaItem[];
++      const media =
++        parsed.length > 0
++          ? parsed
++          : [{
++              kind: 'text' as const,
++              language: 'te' as const,
++              text: existing.text,
++            }];
+       return {
+@@
+         text: existing.text,
++        media,
+@@ fresh return @@
+       text: fresh.text,
++      media: fresh.media,
+@@ fetchAndCache() INSERT @@
+-      INSERT INTO source_records (source_id, source_key, text, prepared_at)
+-      VALUES (?, ?, ?, ?)
++      INSERT INTO source_records (
++        source_id,
++        source_key,
++        text,
++        media_json,
++        prepared_at
++      )
++      VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(source_id, source_key) DO UPDATE SET
+         text = excluded.text,
++        media_json = excluded.media_json,
+         prepared_at = excluded.prepared_at
+-    `).run(sourceId, sourceKey, prepared.text, requestCompletedAt);
++    `).run(
++      sourceId,
++      sourceKey,
++      prepared.text,
++      JSON.stringify(prepared.media),
++      requestCompletedAt,
++    );
+@@ returned FreshResolution @@
+       text: prepared.text,
++      media: prepared.media,
+
+ti/server/src/services/profile-service.ts
+
+@@ parseSelectionSnapshot() @@
+ function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
+   try {
+     const value = JSON.parse(raw) as Partial<SelectionSnapshot>;
+-    return typeof value.sourceId === 'string' && typeof value.sourceKey === 'string'
+-      ? value as SelectionSnapshot
+-      : null;
++    if (
++      typeof value.sourceId !== 'string' ||
++      typeof value.sourceKey !== 'string'
++    ) {
++      return null;
++    }
++
++    if (
++      value.complexityMetric === undefined &&
++      typeof value.wordCount === 'number'
++    ) {
++      return {
++        ...value,
++        complexityMetric: 'word-count',
++        intrinsicComplexityValue: value.wordCount,
++        globalRowsAtComplexityValue:
++          value.globalRowsAtWordCount ?? 0,
++        selectedSourceRowsAtComplexityValue:
++          value.selectedSourceRowsAtWordCount ?? 0,
++      } as SelectionSnapshot;
++    }
++
++    return value as SelectionSnapshot;
+   } catch {
+     return null;
+   }
+ }
+
+ti/server/src/index.ts
+
+@@ imports @@
++import { sourceRegistry } from './services/source-registry';
++import type {
++  DataSourcesResponse,
++  ...
++} from '../../shared/contracts';
+@@ before route setup / server startup @@
++sourceRegistry.assertPreparedSourcesPresent();
+@@ after health endpoint @@
++app.get('/api/data-sources', (c) =>
++  c.json<DataSourcesResponse>({
++    sources: sourceRegistry.sourceInfo(),
++  }),
++);
+
+ti/frontend/src/api.ts
+
+@@ contract imports @@
++  DataSourcesResponse,
+@@ after parseJson() @@
++export async function getDataSources(): Promise<DataSourcesResponse> {
++  return parseJson<DataSourcesResponse>(
++    await fetch('/api/data-sources'),
++  );
++}
+
+ti/frontend/src/settings/types.ts
+
+@@ SettingsPage @@
+   | 'diagnostic'
+-  | 'export';
++  | 'export'
++  | 'dataSources';
+
+ti/frontend/src/settings/settings-utils.ts
+
+@@ sourceDisplayName() @@
+ export function sourceDisplayName(
+   sourceId: string,
+ ): string {
++  const preparedNames: Record<string, string> = {
++    'fleurs-te': 'FLEURS',
++    'shrutilipi-te': 'Shrutilipi',
++    'indicvoices-te': 'IndicVoices',
++  };
++
++  if (preparedNames[sourceId]) {
++    return preparedNames[sourceId];
++  }
++
+   const match =
+     /^source(\d+)$/.exec(
+       sourceId,
+     );
+
+ti/frontend/src/settings/language.ts
+
+@@ English COPY @@
+     export: 'Export',
++    dataSources: 'Data sources',
++    provider: 'Provider',
++    license: 'License',
++    sourceRepository: 'Source repository',
++    catalogVersion: 'Catalog version',
++    acceptedRows: 'Accepted rows',
++    rejectedRows: 'Rejected rows',
++    sourceStatus: 'Status',
++    complexityMetric: 'Complexity metric',
++    sourceReady: 'Ready',
++    sourceFixture: 'Development fixture',
+@@ Telugu COPY @@
+     export: 'ఎగుమతి',
++    dataSources: 'డేటా మూలాలు',
++    provider: 'ప్రదాత',
++    license: 'లైసెన్స్',
++    sourceRepository: 'మూల రిపోజిటరీ',
++    catalogVersion: 'క్యాటలాగ్ సంచిక',
++    acceptedRows: 'ఆమోదించిన వరుసలు',
++    rejectedRows: 'తిరస్కరించిన వరుసలు',
++    sourceStatus: 'స్థితి',
++    complexityMetric: 'సంక్లిష్టత ప్రమాణం',
++    sourceReady: 'సిద్ధం',
++    sourceFixture: 'అభివృద్ధి నమూనా',
+
+ti/frontend/src/settings/pages/SettingsIndex.tsx
+
+@@ entries label union @@
+       label:
+         | 'complexity'
+         | 'sourceWeights'
+         | 'diagnostic'
+-        | 'export';
++        | 'export'
++        | 'dataSources';
+@@ entries array after Export @@
++      {
++        page: 'dataSources',
++        label: 'dataSources',
++      },
+
+ti/frontend/src/settings/pages/DataSourcesPage.tsx
+
+@@ new file @@
++import {
++  useEffect,
++  useState,
++} from 'react';
++import type {
++  DataSourceInfo,
++} from '../../../../shared/contracts';
++import {
++  getDataSources,
++} from '../../api';
++import {
++  t,
++} from '../language';
++import type {
++  UiLanguage,
++} from '../types';
++
++export function DataSourcesPage({
++  language,
++}: {
++  language: UiLanguage;
++}) {
++  const [sources, setSources] =
++    useState<DataSourceInfo[] | null>(null);
++
++  useEffect(() => {
++    let active = true;
++    void getDataSources().then((response) => {
++      if (active) setSources(response.sources);
++    });
++    return () => {
++      active = false;
++    };
++  }, []);
++
++  if (!sources) {
++    return <div className="diagnostic-empty">...</div>;
++  }
++
++  return (
++    <div className="data-source-list">
++      {sources.map((source) => (
++        <section
++          className="data-source-card"
++          key={source.sourceId}
++        >
++          <h2>{source.displayName}</h2>
++          <dl>
++            <dt>{t(language, 'provider')}</dt>
++            <dd>{source.provider}</dd>
++            <dt>{t(language, 'license')}</dt>
++            <dd>{source.license}</dd>
++            <dt>{t(language, 'catalogVersion')}</dt>
++            <dd>{source.catalogVersion}</dd>
++            <dt>{t(language, 'acceptedRows')}</dt>
++            <dd>{source.acceptedRows}</dd>
++            <dt>{t(language, 'rejectedRows')}</dt>
++            <dd>{source.rejectedRows}</dd>
++            <dt>{t(language, 'complexityMetric')}</dt>
++            <dd>{source.complexityMetric}</dd>
++          </dl>
++
++          {source.upstreamUrl ? (
++            <a
++              href={source.upstreamUrl}
++              target="_blank"
++              rel="noreferrer"
++            >
++              {t(language, 'sourceRepository')}
++            </a>
++          ) : null}
++        </section>
++      ))}
++    </div>
++  );
++}
+
+ti/frontend/src/settings/SettingsView.tsx
+
+@@ imports @@
++import { DataSourcesPage } from './pages/DataSourcesPage';
+@@ before final Export return @@
++  if (page === 'dataSources') {
++    return (
++      <SettingsShell
++        {...shellProps}
++        title={t(language, 'dataSources')}
++        onBack={controller.backToIndex}
++      >
++        <DataSourcesPage
++          language={language}
++        />
++      </SettingsShell>
++    );
++  }
++  // Existing final return remains Export.
+
+ti/frontend/src/settings/diagnostic.ts
+
+@@ DIAGNOSTIC_LABELS @@
+-  wordCount: {
+-    en: 'Word count',
+-    te: 'పదాల సంఖ్య',
++  complexityMetric: {
++    en: 'Complexity metric',
++    te: 'సంక్లిష్టత ప్రమాణం',
++  },
++  intrinsicComplexityValue: {
++    en: 'Grapheme count',
++    te: 'గ్రాఫీమ్ సంఖ్య',
+@@
+-  globalRowsAtWordCount: {
+-    en: 'Global rows at word count',
+-    te: 'ఆ పదాల సంఖ్యలో ప్రపంచ వరుసలు',
++  globalRowsAtComplexityValue: {
++    en: 'Global rows at complexity value',
++    te: 'ఆ సంక్లిష్టత విలువలో ప్రపంచ వరుసలు',
+@@
+-  selectedSourceRowsAtWordCount: {
+-    en: 'Source rows at word count',
+-    te: 'ఆ పదాల సంఖ్యలో మూల వరుసలు',
++  selectedSourceRowsAtComplexityValue: {
++    en: 'Source rows at complexity value',
++    te: 'ఆ సంక్లిష్టత విలువలో మూల వరుసలు',
+@@ selectionRows() @@
+-    {
+-      key: 'wordCount',
+-      value: String(selection.wordCount),
+-    },
++    {
++      key: 'complexityMetric',
++      value: selection.complexityMetric,
++    },
++    {
++      key: 'intrinsicComplexityValue',
++      value: String(selection.intrinsicComplexityValue),
++    },
+@@
+-      key: 'globalRowsAtWordCount',
++      key: 'globalRowsAtComplexityValue',
+       value: String(
+-        selection.globalRowsAtWordCount,
++        selection.globalRowsAtComplexityValue,
+       ),
+@@
+-      key: 'selectedSourceRowsAtWordCount',
++      key: 'selectedSourceRowsAtComplexityValue',
+       value: String(
+-        selection.selectedSourceRowsAtWordCount,
++        selection.selectedSourceRowsAtComplexityValue,
+       ),
+
+ti/frontend/src/export-viewer.ts
+
+@@ rowsFor(entry) diagnostic mapping @@
+-    ['Word count',selection.wordCount],
++    ['Complexity metric',selection.complexityMetric],
++    ['Grapheme count',selection.intrinsicComplexityValue],
+@@
+-    ['Global rows at word count',selection.globalRowsAtWordCount],
++    ['Global rows at complexity value',selection.globalRowsAtComplexityValue],
+@@
+-    ['Source rows at word count',selection.selectedSourceRowsAtWordCount],
++    ['Source rows at complexity value',selection.selectedSourceRowsAtComplexityValue],
+
+ti/frontend/src/styles/settings.css
+
+@@ after diagnostic-table styles, before media query @@
++.data-source-list {
++  display: grid;
++  gap: 1rem;
++}
++
++.data-source-card {
++  padding: 1rem;
++  border: 1px solid rgba(30, 30, 30, 0.11);
++  border-radius: 0.9rem;
++  background: rgba(255, 255, 255, 0.13);
++}
++
++.data-source-card h2 {
++  margin: 0 0 0.8rem;
++  color: rgba(20, 20, 20, 0.86);
++}
++
++.data-source-card dl {
++  display: grid;
++  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
++  gap: 0.45rem 1rem;
++  margin: 0 0 0.8rem;
++}
++
++.data-source-card dt {
++  color: rgba(20, 20, 20, 0.58);
++}
++
++.data-source-card dd {
++  margin: 0;
++  overflow-wrap: anywhere;
++}
++
++.data-source-card a {
++  color: rgba(20, 20, 20, 0.7);
++}
+
+ti/tests/selection-math.test.ts
+
+@@ test helper source rows @@
+-    wordCount: index + 1,
++    complexityValue: index + 1,
+@@ reference assertions @@
+-    reference.classes.map(({ wordCount, globalCount }) => [wordCount, globalCount]),
++    reference.classes.map(
++      ({ complexityValue, globalCount }) => [
++        complexityValue,
++        globalCount,
++      ],
++    ),
+@@ snapshot assertions @@
+-      snapshot.globalPerRowComplexityMass *
+-      snapshot.globalRowsAtWordCount,
++      snapshot.globalPerRowComplexityMass *
++      snapshot.globalRowsAtComplexityValue,
+@@ expected reference version @@
+-  1
++  2
+@@ all remaining test names/variables that say wordCount @@
+-wordCount
++complexityValue
+
+ti/tests/selection-oracle.test.ts
+
+@@ independent fixture complexity @@
+-function independentWordCount(...)
++function independentGraphemeCount(text: string): number {
++  return [
++    ...new Intl.Segmenter(
++      'te',
++      { granularity: 'grapheme' },
++    ).segment(text.normalize('NFC')),
++  ].length;
++}
+@@ oracle row representation @@
+-  wordCount: number;
++  complexityValue: number;
+@@ all global/source complexity maps @@
+-globalCountByWordCount
+-sourceCountsByWordCount
++globalCountByComplexity
++sourceCountsByComplexity
+@@ expected snapshot fields @@
+-  wordCount
+-  globalRowsAtWordCount
+-  selectedSourceRowsAtWordCount
++  complexityMetric: 'grapheme-count'
++  intrinsicComplexityValue
++  globalRowsAtComplexityValue
++  selectedSourceRowsAtComplexityValue
+@@ reference version @@
+-1
++2
+
+ti/tests/core-implementation.test.ts
+
+@@ temporary environment setup before server imports @@
++process.env.CORPUS_DATABASE_PATH =
++  path.join(temporaryDirectory, 'corpus.sqlite');
+@@ before importing source-registry/selection modules @@
++// Create a minimal prepared-corpus SQLite fixture containing:
++// fleurs-te, shrutilipi-te and indicvoices-te.
++// Each source gets at least one canonical row and one complexity-member row.
++// This keeps the singleton registry at six sources during Iteration 3 tests.
+@@ source catalog assertions @@
+-      assert.ok(source.catalog().every((row) => row.wordCount > 0));
++      assert.ok(source.rowCount() > 0);
++      assert.ok(
++        source
++          .complexityClasses()
++          .every(
++            (item) =>
++              item.complexityValue > 0 &&
++              item.rowCount > 0,
++          ),
++      );
+@@ selectable-source count expectation @@
+-3
++6
+@@ new assertions @@
++assert.deepEqual(
++  sourceRegistryModule.sourceRegistry
++    .selectableSourceIds()
++    .sort(),
++  [
++    'fleurs-te',
++    'indicvoices-te',
++    'shrutilipi-te',
++    'source1',
++    'source2',
++    'source3',
++  ].sort(),
++);
+
+ti/tests/prepared-corpus.test.ts
+
+@@ new file @@
++// Add tests that construct a temporary corpus.sqlite and verify:
++//
++// - PreparedCorpusStore discovers all three real sources.
++// - rowCount() matches `sources.accepted_rows`.
++// - complexityClasses() matches source_complexity_members.
++// - candidateAt(value,index) deterministically resolves the correct source key.
++// - prepare() emits exactly one TextMedia and one AudioMedia.
++// - audio object metadata survives without loading/rendering the audio.
++// - duplicate/missing source identifiers fail.
++// - source info exposes:
++//     display name
++//     provider
++//     CC BY 4.0
++//     upstream Hugging Face URL
++//     catalog version
++//     accepted/rejected rows.
+
+ti/tests/repository-contract.test.ts
+
+@@ controller test @@
++    assert.ok(
++      read('control.sh').includes(
++        './$SCRIPT_NAME data',
++      ) ||
++      read('control.sh').includes(
++        'run_data_domain',
++      ),
++    );
+@@ required frontend/backend files @@
++      'frontend/src/settings/pages/DataSourcesPage.tsx',
++      'server/src/sources/prepared-corpus/prepared-corpus-store.ts',
++      'server/src/sources/prepared-corpus/prepared-corpus-data-source.ts',
+@@ add data-transform assertions using repo root = path.resolve(root, '..') @@
++    assert.equal(
++      fs.existsSync(
++        path.join(
++          root,
++          '..',
++          'data-transform',
++          'scripts',
++          'prepare-corpus',
++          'prepare.py',
++        ),
++      ),
++      true,
++    );
++
++    assert.equal(
++      fs.existsSync(
++        path.join(
++          root,
++          '..',
++          'data-transform',
++          'requirements.txt',
++        ),
++      ),
++      true,
++    );
+@@ source contract assertions @@
++    assert.ok(
++      read('server/src/services/source-registry.ts')
++        .includes("'fleurs-te'"),
++    );
++    assert.ok(
++      read('server/src/services/source-registry.ts')
++        .includes("'shrutilipi-te'"),
++    );
++    assert.ok(
++      read('server/src/services/source-registry.ts')
++        .includes("'indicvoices-te'"),
++    );
+
+ti/README.md
+
+@@ Stack / setup section @@
++## Prepared corpus prerequisite
++
++Telugu Now does not parse upstream FLEURS, Shrutilipi or IndicVoices
++files at application runtime.
++
++The `data-transform/` workspace owns acquisition preprocessing and
++canonical corpus generation.
++
++For the committed sample corpus:
++
++```bash
++python -m pip install -r ../data-transform/requirements.txt
++./control.sh data --option prepare
++```
++
++This transforms:
++
++```text
++../data-transform/sample/
++```
++
++into:
++
++```text
++data/corpus/
++├── manifest.json
++├── corpus.sqlite
++├── objects/
++└── reports/
++```
++
++`./control.sh dev` never performs this transformation. It requires
++the prepared corpus to already exist and fails with
++`CORPUS_NOT_PREPARED` otherwise.
++
++`./control.sh data --option samples` rebuilds source-shaped samples
++from `data-transform/raw/`.
++
++`./control.sh data --option prepare` transforms the current sample
++directory into the canonical local corpus.
++
++`./control.sh data --option all` performs both stages sequentially.
++
++The preparation scripts accept explicit input/output paths and are
++the same scripts intended for the eventual complete datasets.
++
++Production will publish the equivalent canonical media objects to
++Tigris while keeping the indexed corpus catalog local to the Fly
++application for selection queries.
+@@ source-selection documentation @@
+-Iteration 2 has exactly three selectable dummy sources:
++Iteration 3 has six selectable sources:
+ 
+ - `source1`
+ - `source2`
+ - `source3`
++- `fleurs-te`
++- `shrutilipi-te`
++- `indicvoices-te`
+@@ complexity documentation @@
+-Iteration 2 uses word count
++Iteration 3 uses Unicode extended grapheme-cluster count for all six
++selectable sources. Grapheme counts for prepared real sources are
++computed once during corpus preparation and persisted in
++`corpus.sqlite`. The dummy sources use the same metric at runtime.
+@@ add data-source attribution section @@
++## Data sources
++
++- FLEURS — Google — CC BY 4.0 —
++  `https://huggingface.co/datasets/google/fleurs`
++- Shrutilipi — AI4Bharat — CC BY 4.0 —
++  `https://huggingface.co/datasets/ai4bharat/Shrutilipi`
++- IndicVoices — AI4Bharat — CC BY 4.0 —
++  `https://huggingface.co/datasets/ai4bharat/IndicVoices`
++
++The Settings → Data sources page exposes these attributions together
++with catalog version, accepted/rejected row counts, complexity metric
++and deployed source status.
+
+impl-iterations/iteration3.md
+
+@@ replace the existing two-point draft with the finalized scope @@
+-1. First we will add 100 rows of sample data from each data source ...
+-2. Then, we will add the data sources ...
++1. `data-transform/` is the exclusive corpus-transformation boundary.
++   Telugu Now build/start does not transform upstream data.
++2. `control.sh data` exposes `samples`, `prepare`, and `all` only as
++   explicit convenience dispatchers to `data-transform/scripts/`.
++3. Source-shaped input is transformed into a canonical corpus with
++   SQLite metadata/indexes plus content-addressed media objects.
++4. The same transformation accepts the committed 100-row samples or
++   the eventual complete source directories through input/output
++   arguments.
++5. FLEURS canonical text is `raw_transcription`; Shrutilipi and
++   IndicVoices canonical text is `text`.
++6. Stable source identity is split + source-native audio path/name;
++   train/dev/valid/validation/test are normalized to a canonical split
++   while retaining the upstream split.
++7. Every row gets one persisted NFC extended-grapheme count,
++   text SHA-256, audio SHA-256, duration and canonical audio object key.
++8. Missing individual rows are rejected and reported; schema changes,
++   unknown splits and source-key collisions fail preparation.
++9. FLEURS expects WAV; Shrutilipi and IndicVoices expect FLAC.
++   Signatures are verified and audio is not transcoded.
++10. Iteration 3 adds `fleurs-te`, `shrutilipi-te`, and
++    `indicvoices-te` beside the three mock sources for six independently
++    weighted sources.
++11. Complexity reference version 2 uses grapheme counts across all six
++    selectable sources.
++12. Runtime selection reads indexed canonical metadata and does not call
++    Hugging Face or parse upstream Parquet/TSV.
++13. The formal Media model stores both TextMedia and AudioMedia, but
++    the Iteration 3 observation UI renders only TextMedia.
++14. Development resolves canonical media object keys against the local
++    prepared corpus. Production will resolve equivalent keys against
++    Tigris.
++15. Settings gains a Data sources page containing attribution, license,
++    upstream repository, catalog counts/version and source health.
