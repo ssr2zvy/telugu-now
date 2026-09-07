@@ -1,0 +1,2 @@
+1. First we will download 100 rows from each data source and analyze which column has the unicode representation, how can we resolve the audio references, and how we can calculate rows/compleity. We will be pivoting to downloading the entire data source and keeping it in our fly.io storage
+2. 

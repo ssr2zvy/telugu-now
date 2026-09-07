@@ -1,5 +1,3 @@
-mkdir -p scripts
-cat > scripts/download-source-samples.py <<'PY'
 from datasets import load_dataset, Audio
 from pathlib import Path
 import base64
@@ -18,20 +16,6 @@ SOURCES = [
         "config": "te_in",
         "split": "train",
         "audio_column": "audio",
-    },
-    {
-        "name": "shrutilipi-te",
-        "repo": "ai4bharat/Shrutilipi",
-        "config": "telugu",
-        "split": "train",
-        "audio_column": "audio_filepath",
-    },
-    {
-        "name": "indicvoices-te",
-        "repo": "ai4bharat/IndicVoices",
-        "config": "telugu",
-        "split": "train",
-        "audio_column": "audio_filepath",
     },
 ]
 
@@ -242,4 +226,3 @@ for source in SOURCES:
 print()
 print("Done.")
 print(f"Samples written to {ROOT}")
-PY
