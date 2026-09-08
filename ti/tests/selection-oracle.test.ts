@@ -200,7 +200,10 @@ function assertSnapshotMatchesIndependentOracle(
 ): void {
   assert.equal(snapshot.sourceId, expected.sourceId);
   assert.equal(snapshot.sourceKey, expected.sourceKey);
-  assert.equal(snapshot.complexityValue, expected.complexityValue);
+  assert.equal(
+    snapshot.intrinsicComplexityValue,
+    expected.complexityValue,
+  );
   assert.equal(snapshot.complexityMetric, 'grapheme-count');
   assert.equal(snapshot.sourceRowCount, expected.sourceRowCount);
   assert.equal(snapshot.sourceWeight, expected.sourceWeight);

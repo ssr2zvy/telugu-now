@@ -46,11 +46,23 @@ class SourceRecordService {
   async resolve(sourceId: string, sourceKey: string): Promise<ResolvedSourceRecord> {
     const existing = this.cached(sourceId, sourceKey);
     if (existing) {
+      const parsed = JSON.parse(
+        existing.media_json,
+      ) as MediaItem[];
+      const media = parsed.length > 0
+        ? parsed
+        : [
+            {
+              kind: 'text' as const,
+              language: 'te' as const,
+              text: existing.text,
+            },
+          ];
       return {
         sourceId,
         sourceKey,
         text: existing.text,
-        media: JSON.parse(existing.media_json) as MediaItem[],
+        media,
         cacheHit: true,
         requestStartedAt: null,
         requestCompletedAt: null,
