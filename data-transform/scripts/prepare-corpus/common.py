@@ -98,12 +98,23 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def validate_text(text: str) -> str:
+def validate_text(text: Any) -> str:
+    if not isinstance(text, str):
+        raise RowRejected(
+            "EMPTY_TEXT",
+            "Canonical text is missing or is not a string.",
+        )
     value = text.strip()
     if not value:
-        raise RowRejected("EMPTY_TEXT", "Canonical text is empty.")
+        raise RowRejected(
+            "EMPTY_TEXT",
+            "Canonical text is empty.",
+        )
     if grapheme_count(value) <= 0:
-        raise RowRejected("EMPTY_COMPLEXITY", "Grapheme count is zero.")
+        raise RowRejected(
+            "EMPTY_COMPLEXITY",
+            "Grapheme count is zero.",
+        )
     return value
 
 
