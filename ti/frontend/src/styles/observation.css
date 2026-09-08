@@ -38,9 +38,200 @@
     80ms
     linear;
 }
+.audio-player-bar {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: max(4.5rem, calc(env(safe-area-inset-bottom) + 4rem));
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: min(26rem, 84vw);
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #9a9a9a 0%, #707070 48%, #515151 100%);
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%);
+  cursor: default;
+}
+.audio-transport-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+.audio-transport-button .control-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.audio-transport-button:active {
+  color: #fff;
+}
+.audio-scrubber-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.audio-scrubber {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 1.3rem;
+  touch-action: none;
+  cursor: pointer;
+}
+.audio-scrubber::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-50%);
+}
+.audio-scrubber-progress {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  transform: translateY(-50%);
+}
+.audio-scrubber-bookmark {
+  position: absolute;
+  z-index: 2;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 2px;
+  background: #fff;
+  transform: translateX(-1px);
+}
+.audio-scrubber-thumb {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+.audio-magnifier {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.6rem);
+  left: 50%;
+  width: 16.5rem;
+  max-width: 80vw;
+  padding: 0.55rem 0.65rem;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, #9a9a9a 0%, #707070 48%, #515151 100%);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.32);
+  transform: translateX(-50%);
+}
+.audio-magnifier::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0.7rem;
+  height: 0.7rem;
+  background: #707070;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.audio-magnifier-time {
+  margin-bottom: 0.4rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.audio-magnifier-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 2.6rem;
+  touch-action: none;
+  cursor: pointer;
+}
+.audio-magnifier-bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+.audio-magnifier-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  transform: translateX(-1px);
+}
+.audio-speed-popover {
+  position: absolute;
+  z-index: 6;
+  left: calc(100% + 0.5rem);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, #9a9a9a 0%, #707070 48%, #515151 100%);
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.32);
+}
+.audio-speed-track {
+  position: relative;
+  width: 0.3rem;
+  height: 8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  touch-action: none;
+  cursor: pointer;
+}
+.audio-speed-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+}
+.audio-speed-thumb {
+  position: absolute;
+  left: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, 50%);
+}
+.audio-speed-readout {
+  color: rgba(255, 255, 255, 0.92);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
 .observation-placeholder {
   color:
     rgba(
+      20,
       20,
       20,
       20,

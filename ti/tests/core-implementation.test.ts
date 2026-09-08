@@ -28,6 +28,7 @@ let profileService: typeof import('../server/src/services/profile-service');
 let queueService: typeof import('../server/src/services/queue-service');
 let preparationService: typeof import('../server/src/services/preparation-service')['preparationService'];
 let settingsService: typeof import('../server/src/services/selection-settings-service');
+let audioSettingsService: typeof import('../server/src/services/audio-settings-service');
 let exportService: typeof import('../server/src/services/export-service');
 let sourceRecordService: typeof import('../server/src/services/source-record-service')['sourceRecordService'];
 let selectionModule: typeof import('../server/src/services/selection-engine');
@@ -54,6 +55,7 @@ before(async () => {
   queueService = await import('../server/src/services/queue-service');
   ({ preparationService } = await import('../server/src/services/preparation-service'));
   settingsService = await import('../server/src/services/selection-settings-service');
+  audioSettingsService = await import('../server/src/services/audio-settings-service');
   exportService = await import('../server/src/services/export-service');
   ({ sourceRecordService } = await import('../server/src/services/source-record-service'));
   selectionModule = await import('../server/src/services/selection-engine');
@@ -74,6 +76,7 @@ function resetDatabase(): void {
     DELETE FROM source_records;
     DELETE FROM profile_source_weights;
     DELETE FROM profile_selection_settings;
+    DELETE FROM profile_audio_settings;
     DELETE FROM profiles;
   `);
   now = 1_000;
@@ -466,6 +469,34 @@ test(
     },
   );
 
+  await suite.test('persists the configured default playback rate for a new profile and exposes it in profile state', () => {
+    resetDatabase();
+    ensureProfile();
+    const settings = audioSettingsService.getProfileAudioSettings('001');
+    assert.equal(settings.playbackRate, appConfig.defaultAudioPlaybackRate);
+
+    const state = profileService.getProfileState('001', false);
+    assert.equal(state.audioSettings.playbackRate, appConfig.defaultAudioPlaybackRate);
+  });
+
+  await suite.test('updateProfileAudioSettings persists a valid playback rate and rejects out-of-range or non-finite values', () => {
+    resetDatabase();
+    ensureProfile();
+
+    const saved = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.75 });
+    assert.equal(saved.playbackRate, 1.75);
+    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.75);
+
+    for (const invalid of [0.1, 3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(
+        () => audioSettingsService.updateProfileAudioSettings('001', { playbackRate: invalid }),
+        audioSettingsService.InvalidAudioSettingsError,
+      );
+    }
+    // A rejected update leaves the previously persisted rate untouched.
+    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.75);
+  });
+
   await suite.test('rejects every invalid settings family, including non-finite values and incomplete source maps', () => {
     resetDatabase();
     ensureProfile();
@@ -637,6 +668,53 @@ test(
       const remaining = db.prepare(`SELECT COUNT(*) AS count FROM observations WHERE id = ?`).get(id) as { count: number };
       assert.equal(remaining.count, 0);
     }
+  });
+
+  await suite.test('currentObservation exposes no audio when no source record cache entry exists yet', () => {
+    resetDatabase();
+    Math.random = () => 0;
+    ensureProfile();
+    queueService.ensureLaunchQueue('001');
+    const first = db.prepare(`
+      SELECT observation_id FROM queue_items WHERE profile_code = '001'
+      ORDER BY queue_position LIMIT 1
+    `).get() as { observation_id: string };
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
+    profileService.navigateNext('001', false);
+
+    const state = profileService.getProfileState('001', false);
+    assert.equal(state.currentObservation?.id, first.observation_id);
+    assert.equal(state.currentObservation?.audio, null);
+  });
+
+  await suite.test('currentObservation exposes a streamable audio URL when the resolved source record includes audio media', async () => {
+    resetDatabase();
+    ensureProfile();
+    const resolved = await sourceRecordService.resolve('fleurs-te', 'train:fixture');
+    assert.ok(resolved.media.some((item) => item.kind === 'audio'));
+
+    db.prepare(`
+      INSERT INTO observations (
+        id, source_id, source_key, status, text, selected_at, prepared_at,
+        group_id, group_kind, group_size, group_position
+      ) VALUES ('audio-observation', 'fleurs-te', 'train:fixture', 'ready', ?, ?, ?, 'audio-test', 'launch-fill', 1, 1)
+    `).run(resolved.text, now, now);
+    db.prepare(`
+      INSERT INTO observation_acquisitions (
+        observation_id, profile_code, acquisition_number, trigger_kind,
+        triggered_at, waiting_ahead_at_trigger, preparation_in_flight_at_trigger
+      ) VALUES ('audio-observation', '001', 1, 'initial-fill', ?, 0, 0)
+    `).run(now);
+    db.prepare(`
+      INSERT INTO history_entries (profile_code, history_position, observation_id, absolute_started_at)
+      VALUES ('001', 0, 'audio-observation', ?)
+    `).run(now);
+    db.prepare(`UPDATE profiles SET current_position = 0 WHERE code = '001'`).run();
+
+    const state = profileService.getProfileState('001', false);
+    assert.equal(state.currentObservation?.audio?.mimeType, 'audio/wav');
+    assert.equal(state.currentObservation?.audio?.url, '/api/audio/media/fleurs-te/fixture.wav');
+    assert.ok((state.currentObservation?.audio?.durationSeconds ?? 0) > 0);
   });
 
   await suite.test('updating settings resets the queue with the new settings while keeping the currently displayed observation', () => {

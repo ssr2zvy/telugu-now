@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -39,14 +38,20 @@ export function useObservationTypography(
     OBSERVATION_PRESENTATION.emptyFontSizePx,
   );
   const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const observationId = observation?.id ?? null;
-    if (observationId === presentation.observationId) return;
+  // Choosing the next observation's font here (during render, per React's
+  // documented "adjust state during render" pattern) rather than in a regular
+  // effect ensures the layout effect below never runs a real, paintable fit
+  // pass against the previous observation's stale font family. That earlier
+  // two-pass sequence (fit with old font, then again with the new font once a
+  // later effect fired) was a real user-visible flash of mismatched text.
+  const nextObservationId = observation?.id ?? null;
+  if (nextObservationId !== presentation.observationId) {
     setPresentation({
-      observationId,
+      observationId: nextObservationId,
       fontFamily: chooseRandomObservationFont(),
     });
-  }, [observation?.id, presentation.observationId]);
+    setReady(false);
+  }
   useLayoutEffect(() => {
     const container = containerRef.current;
     const element = textRef.current;

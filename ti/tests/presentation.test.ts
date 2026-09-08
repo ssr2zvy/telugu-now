@@ -4,6 +4,7 @@ import {
   OBSERVATION_FONTS,
   OBSERVATION_PRESENTATION,
   chooseRandomObservationFont,
+  fontVerticalCorrectionPx,
   preferredObservationFontSizePx,
 } from '../frontend/src/presentation';
 test('observation font collection is the fixed curated Telugu set', () => {

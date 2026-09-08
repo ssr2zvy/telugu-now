@@ -22,3 +22,48 @@ export function LanguageIcon() {
     </svg>
   );
 }
+export function PlayIcon() {
+  return (
+    <svg
+      className="control-icon control-icon-fill"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M7 4.5v15l14-7.5z" />
+    </svg>
+  );
+}
+export function PauseIcon() {
+  return (
+    <svg
+      className="control-icon control-icon-fill"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z" />
+    </svg>
+  );
+}
+export function SpeedIcon() {
+  return (
+    <svg
+      className="control-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M4 16a8 8 0 0 1 16 0" />
+      <path d="M12 16 16 9" />
+    </svg>
+  );
+}
+export function BookmarkIcon() {
+  return (
+    <svg
+      className="control-icon control-icon-fill"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M6 3h12v18l-6-4.2L6 21z" />
+    </svg>
+  );
+}

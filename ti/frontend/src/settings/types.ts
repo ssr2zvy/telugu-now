@@ -2,6 +2,7 @@ export type SettingsPage =
   | 'index'
   | 'complexity'
   | 'sources'
+  | 'playback'
   | 'diagnostic'
   | 'dataSources'
   | 'export';

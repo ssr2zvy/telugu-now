@@ -3,6 +3,8 @@ import { config } from '../config/config';
 import type {
   AcquisitionTriggerKind,
   DisplayObservation,
+  MediaItem,
+  ObservationAudio,
   ObservationStatus,
   ProfileSelectionSettings,
   ProfileStateResponse,
@@ -14,6 +16,7 @@ import type {
 import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue } from './queue-service';
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
+import { getProfileAudioSettings } from './audio-settings-service';
 
 interface ProfileRow {
   code: string;
@@ -48,6 +51,7 @@ interface ObservationRow {
   request_duration_ms: number | null;
   cache_hit: number | null;
   selection_snapshot_json: string;
+  media_json: string | null;
 }
 
 interface CountRow { count: number }
@@ -72,6 +76,7 @@ export function ensureProfileRow(code: string): void {
   `).run(code, now, now);
   // Selection defaults are lazily persisted for both new and upgraded profiles.
   getProfileSelectionSettings(code);
+  getProfileAudioSettings(code);
 }
 
 function profileRow(code: string): ProfileRow {
@@ -210,6 +215,24 @@ function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
   } catch { return null; }
 }
 
+function audioObjectUrl(objectKey: string): string {
+  return `/api/audio/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function parseObservationAudio(raw: string | null): ObservationAudio | null {
+  if (!raw) return null;
+  try {
+    const items = JSON.parse(raw) as MediaItem[];
+    const audio = items.find((item): item is Extract<MediaItem, { kind: 'audio' }> => item.kind === 'audio');
+    if (!audio) return null;
+    return {
+      url: audioObjectUrl(audio.objectKey),
+      mimeType: audio.mimeType,
+      durationSeconds: audio.durationSeconds,
+    };
+  } catch { return null; }
+}
+
 function currentObservation(code: string, currentPosition: number | null): DisplayObservation | null {
   if (currentPosition === null) return null;
   const row = db.prepare(`
@@ -220,11 +243,12 @@ function currentObservation(code: string, currentPosition: number | null): Displ
            a.preparation_in_flight_at_trigger,
            a.selection_snapshot_json,
            o.request_started_at, o.request_completed_at, o.request_duration_ms,
-           o.cache_hit
+           o.cache_hit, sr.media_json
     FROM history_entries h
     JOIN observations o ON o.id = h.observation_id
     JOIN observation_acquisitions a ON a.observation_id = o.id
     LEFT JOIN observation_acquisitions ta ON ta.observation_id = a.trigger_observation_id
+    LEFT JOIN source_records sr ON sr.source_id = o.source_id AND sr.source_key = o.source_key
     WHERE h.profile_code = ? AND h.history_position = ?
   `).get(code, currentPosition) as ObservationRow | undefined;
 
@@ -234,6 +258,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
     sourceId: row.source_id,
     sourceKey: row.source_key,
     text: row.text,
+    audio: parseObservationAudio(row.media_json),
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
@@ -337,6 +362,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     queue: queueSummary(code),
     timing: timingSummary(code, now),
     selectionSettings: getProfileSelectionSettings(code),
+    audioSettings: getProfileAudioSettings(code),
   };
 }
 

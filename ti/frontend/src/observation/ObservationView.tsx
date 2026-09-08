@@ -9,6 +9,9 @@ import {
   SettingsIcon,
 } from '../components/icons';
 import {
+  AudioPlayerBar,
+} from './audio/AudioPlayerBar';
+import {
   useObservationTypography,
 } from './useObservationTypography';
 interface ObservationViewProps {
@@ -99,6 +102,14 @@ export function ObservationView({
             ...
           </div>
         )}
+        {observation?.audio ? (
+          <AudioPlayerBar
+            audio={observation.audio}
+            sourceId={observation.sourceId}
+            sourceKey={observation.sourceKey}
+            defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
+          />
+        ) : null}
       </section>
       <button
         className="nav-zone nav-zone-right"

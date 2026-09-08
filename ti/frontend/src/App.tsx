@@ -12,6 +12,7 @@ export function App() {
     profileCode: session.profileCode,
     state: session.state,
     onSettingsSaved: session.applySelectionSettings,
+    onAudioSettingsSaved: session.applyAudioSettings,
     onQueueReset: session.applyProfileState,
   });
   if (!session.profileCode) {

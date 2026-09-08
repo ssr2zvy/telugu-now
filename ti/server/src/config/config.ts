@@ -33,8 +33,8 @@ function parseProfileCodes(value: string | undefined): Set<string> {
 }
 
 const databasePath = process.env.DATABASE_PATH ?? './data/app.sqlite';
-const corpusDatabasePath = process.env.CORPUS_DATABASE_PATH ?? './data/corpus/corpus.sqlite';
-const corpusObjectsPath = process.env.CORPUS_OBJECTS_PATH ?? './data/corpus/objects';
+const corpusDatabasePath = process.env.CORPUS_DATABASE_PATH ?? '../data/corpus/corpus.sqlite';
+const corpusObjectsPath = process.env.CORPUS_OBJECTS_PATH ?? '../data/corpus/objects';
 const defaultSourceWeights = {
   source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
   source2: parseUnitInterval(process.env.SOURCE2_WEIGHT, 1),
@@ -66,6 +66,10 @@ export const config = {
     process.env.COMPLEXITY_PERCENTILE_SPREAD,
     0.25,
   ),
+  defaultAudioPlaybackRate: (() => {
+    const parsed = parseFiniteNumber(process.env.AUDIO_PLAYBACK_RATE_DEFAULT, 1);
+    return parsed >= 0.3 && parsed <= 2.5 ? parsed : 1;
+  })(),
   maxExportCount: Math.max(1, parseNonNegativeInt(process.env.MAX_EXPORT_COUNT, 500)),
 };
 

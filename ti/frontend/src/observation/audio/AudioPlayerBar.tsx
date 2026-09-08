@@ -1,0 +1,76 @@
+import { useState } from 'react';
+import type { ObservationAudio } from '../../../../shared/contracts';
+import {
+  BookmarkIcon,
+  PauseIcon,
+  PlayIcon,
+  SpeedIcon,
+} from '../../components/icons';
+import { AudioScrubber } from './AudioScrubber';
+import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
+import { useAudioPlayer } from './useAudioPlayer';
+
+interface AudioPlayerBarProps {
+  audio: ObservationAudio;
+  sourceId: string;
+  sourceKey: string;
+  defaultPlaybackRate: number;
+}
+
+export function AudioPlayerBar({
+  audio,
+  sourceId,
+  sourceKey,
+  defaultPlaybackRate,
+}: AudioPlayerBarProps) {
+  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
+  const [speedPopoverOpen, setSpeedPopoverOpen] = useState(false);
+
+  return (
+    <div
+      className="audio-player-bar"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <audio ref={player.audioRef} src={audio.url} preload="metadata" />
+      <button
+        className="audio-transport-button"
+        type="button"
+        aria-label={player.playing ? 'పాజ్' : 'ప్లే'}
+        onClick={player.togglePlay}
+      >
+        {player.playing ? <PauseIcon /> : <PlayIcon />}
+      </button>
+      <AudioScrubber
+        currentTime={player.currentTime}
+        duration={player.duration}
+        waveformPeaks={player.waveformPeaks}
+        bookmarks={player.bookmarks}
+        disabled={player.duration <= 0}
+        onSeek={player.seek}
+      />
+      <button
+        className="audio-transport-button"
+        type="button"
+        aria-label="ప్లేబ్యాక్ వేగం"
+        onClick={() => setSpeedPopoverOpen(true)}
+      >
+        <SpeedIcon />
+      </button>
+      <button
+        className="audio-transport-button"
+        type="button"
+        aria-label="బుక్‌మార్క్‌లు"
+        onClick={player.clickBookmarkButton}
+      >
+        <BookmarkIcon />
+      </button>
+      {speedPopoverOpen ? (
+        <PlaybackSpeedPopover
+          playbackRate={player.playbackRate}
+          onChange={player.setPlaybackRate}
+          onClose={() => setSpeedPopoverOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}

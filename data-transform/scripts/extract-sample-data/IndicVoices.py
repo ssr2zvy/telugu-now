@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
         help="One or more Parquet shard filenames or paths to sample in order.",
     )
     parser.add_argument(
+        "--all-parquets",
+        action="store_true",
+        help="Sample from every *.parquet file found under --input-root instead of an explicit --parquets list.",
+    )
+    parser.add_argument(
         "--rows",
         type=int,
         default=100,
@@ -73,9 +78,13 @@ def output_base(args: argparse.Namespace) -> str:
         return Path(args.output_name).stem
 
     row_part = "allrows" if args.all_rows else f"rows{args.rows}"
-    parquet_part = "+".join(
-        filename_token(Path(parquet).stem)
-        for parquet in args.parquets
+    parquet_part = (
+        "allparquets"
+        if args.all_parquets
+        else "+".join(
+            filename_token(Path(parquet).stem)
+            for parquet in args.parquets
+        )
     )
     return f"train-{row_part}-parquets-{parquet_part}"
 
@@ -144,7 +153,13 @@ def main() -> None:
     if args.rows < 1 and not args.all_rows:
         raise ValueError("--rows must be greater than 0")
 
-    parquet_paths = [resolve_parquet(args.input_root, item) for item in args.parquets]
+    if args.all_parquets:
+        parquet_paths = sorted(args.input_root.rglob("*.parquet"))
+        if not parquet_paths:
+            raise FileNotFoundError(f"No .parquet files found under {args.input_root}")
+    else:
+        parquet_paths = [resolve_parquet(args.input_root, item) for item in args.parquets]
+
     if args.all_rows:
         copy_all_rows(args, parquet_paths)
         return

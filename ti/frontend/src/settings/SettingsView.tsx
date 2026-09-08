@@ -6,6 +6,7 @@ import type { SettingsController } from './useSettingsController';
 import { ComplexityPage } from './pages/ComplexityPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
 import { ExportPage } from './pages/ExportPage';
+import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';
 import { SettingsIndex } from './pages/SettingsIndex';
 import { SourceWeightsPage } from './pages/SourceWeightsPage';
 interface SettingsViewProps {
@@ -26,6 +27,9 @@ export function SettingsView({
     settingsError,
     queueResetting,
     queueResetError,
+    playbackRateDraft,
+    playbackSaving,
+    playbackError,
     exportCount,
     exporting,
     exportError,
@@ -57,6 +61,25 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={t(language, 'dataSources')} onBack={controller.backToIndex}>
         <DataSourcesPage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'playback') {
+    return (
+      <SettingsShell
+        {...shellProps}
+        title={t(language, 'playbackSpeed')}
+        onBack={controller.backToIndex}
+      >
+        <PlaybackSpeedPage
+          language={language}
+          rate={playbackRateDraft}
+          saving={playbackSaving}
+          error={playbackError}
+          onRateChange={controller.setPlaybackRateDraft}
+          onClearError={controller.clearPlaybackError}
+          onSave={() => void controller.savePlaybackSettings()}
+        />
       </SettingsShell>
     );
   }

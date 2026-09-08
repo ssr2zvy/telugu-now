@@ -14,6 +14,9 @@ export const COPY = {
     resettingQueue: 'Resetting…',
     resetQueueError: 'Could not reset the queue',
 
+    playbackSpeed: 'Playback speed',
+    defaultPlaybackRate: 'Default speed (x)',
+
     target: 'Target (%)',
     spread: 'Spread (%)',
     save: 'Save',
@@ -51,6 +54,9 @@ export const COPY = {
     resetQueueDescription: 'వరుసలో ఉన్న పరిశీలనలను తొలగించి, ప్రస్తుత అమరికలతో మళ్లీ మొదలుపెట్టండి.',
     resettingQueue: 'రీసెట్ అవుతోంది…',
     resetQueueError: 'క్యూను రీసెట్ చేయలేకపోయాము',
+
+    playbackSpeed: 'ప్లేబ్యాక్ వేగం',
+    defaultPlaybackRate: 'దినెల వేగం (x)',
 
     target: 'లక్ష్యం (%)',
     spread: 'వ్యాప్తి (%)',

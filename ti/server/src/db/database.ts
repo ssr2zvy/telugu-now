@@ -107,6 +107,13 @@ db.exec(`
     PRIMARY KEY (profile_code, source_id),
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS profile_audio_settings (
+    profile_code TEXT PRIMARY KEY,
+    playback_rate REAL NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
+  );
 `);
 
 function tableSql(table: string): string | null {

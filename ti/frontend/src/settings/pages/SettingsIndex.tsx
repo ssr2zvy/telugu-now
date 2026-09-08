@@ -36,6 +36,7 @@ export function SettingsIndex({
       label:
         | 'complexity'
         | 'sourceWeights'
+        | 'playbackSpeed'
         | 'diagnostic'
         | 'export'
         | 'dataSources';
@@ -47,6 +48,10 @@ export function SettingsIndex({
       {
         page: 'sources',
         label: 'sourceWeights',
+      },
+      {
+        page: 'playback',
+        label: 'playbackSpeed',
       },
       {
         page: 'dataSources',

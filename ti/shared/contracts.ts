@@ -16,6 +16,14 @@ export interface UpdateSelectionSettingsRequest {
   complexityPercentileSpread: number;
 }
 
+export interface ProfileAudioSettings {
+  playbackRate: number;
+}
+
+export interface UpdateAudioSettingsRequest {
+  playbackRate: number;
+}
+
 export interface SelectionSnapshot {
   sourceWeights: Record<string, number>;
   sourceId: string;
@@ -96,11 +104,18 @@ export interface ObservationDiagnostic {
   selection: SelectionSnapshot | null;
 }
 
+export interface ObservationAudio {
+  url: string;
+  mimeType: string;
+  durationSeconds: number;
+}
+
 export interface DisplayObservation {
   id: string;
   sourceId: string;
   sourceKey: string;
   text: string;
+  audio: ObservationAudio | null;
   diagnostic: ObservationDiagnostic;
 }
 
@@ -129,6 +144,7 @@ export interface ProfileStateResponse {
   queue: QueueSummary;
   timing: TimingSummary | null;
   selectionSettings: ProfileSelectionSettings;
+  audioSettings: ProfileAudioSettings;
 }
 
 export interface LoadProfileRequest {

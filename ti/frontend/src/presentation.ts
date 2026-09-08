@@ -29,9 +29,34 @@ export const OBSERVATION_PRESENTATION = {
   contentCharacterDivisor: 12,
   contentExponent: 0.33,
   lineHeight: 1.3,
+  // A fixed, font-agnostic sample covering vowels, consonants, matras, and a
+  // conjunct, used to measure each font's own ascent/descent asymmetry.
+  verticalMetricsSampleText:
+    'అఆఇఈఉఊఋఎఏఐఒఓఔ కగతపమయరవశసహ క్ష్ ఱ్ఱ గ్రా ొౌ',
+  verticalMetricsReferenceFontSizePx: 200,
 } as const;
 function clamp(minimum: number, maximum: number, value: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+export interface FontVerticalMetricsSample {
+  actualAscent: number;
+  actualDescent: number;
+  fontAscent: number;
+  fontDescent: number;
+}
+// Flexbox centers a text line's box, which is derived from a font's own
+// ascent/descent metrics. Fonts differ in how their ink sits within that box,
+// so this computes a size-scaled pixel correction (from measured metrics)
+// that recenters the visible glyphs rather than the font's declared box.
+export function fontVerticalCorrectionPx(
+  sample: FontVerticalMetricsSample,
+  referenceFontSizePx: number,
+  targetFontSizePx: number,
+): number {
+  if (!(referenceFontSizePx > 0)) return 0;
+  const inkCenter = (sample.actualAscent - sample.actualDescent) / 2;
+  const boxCenter = (sample.fontAscent - sample.fontDescent) / 2;
+  return ((inkCenter - boxCenter) / referenceFontSizePx) * targetFontSizePx;
 }
 export function chooseRandomObservationFont(
   random: () => number = Math.random,

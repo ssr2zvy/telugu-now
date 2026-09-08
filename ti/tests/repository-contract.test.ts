@@ -32,8 +32,9 @@ test(
   'Iteration 2 controller is control.sh with no stale control-project.sh surface',
   () => {
     const control =
-      path.join(
+      path.resolve(
         root,
+        '..',
         'control.sh',
       );
     assert.equal(
@@ -44,8 +45,9 @@ test(
     );
     assert.equal(
       fs.existsSync(
-        path.join(
+        path.resolve(
           root,
+          '..',
           'control-project.sh',
         ),
       ),
@@ -87,9 +89,9 @@ test(
       false,
     );
     assert.ok(readme.includes('./control.sh'));
-    assert.ok(read('control.sh').includes('run_data_domain'));
-    assert.ok(read('control.sh').includes('CORPUS_NOT_PREPARED'));
-    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'scripts', 'prepare-corpus', 'prepare.py')), true);
+    assert.ok(fs.readFileSync(control, 'utf8').includes('run_data_domain'));
+    assert.ok(fs.readFileSync(control, 'utf8').includes('CORPUS_NOT_PREPARED'));
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);
     assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'requirements.txt')), true);
     const registry = read('server/src/services/source-registry.ts');
     assert.ok(registry.includes("'fleurs-te'"));

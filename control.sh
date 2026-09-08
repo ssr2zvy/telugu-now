@@ -4,15 +4,16 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 SELF="$SCRIPT_DIR/$SCRIPT_NAME"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$SCRIPT_DIR"
+APP_DIR="$REPO_DIR/ti"
 DATA_TRANSFORM_DIR="$REPO_DIR/data-transform"
 SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"
 RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"
-PREPARED_CORPUS_DIR="$SCRIPT_DIR/data/corpus"
+PREPARED_CORPUS_DIR="$REPO_DIR/data/corpus"
 
-cd "$SCRIPT_DIR"
+cd "$APP_DIR"
 
-RUNTIME_DIR="$SCRIPT_DIR/.control"
+RUNTIME_DIR="$APP_DIR/.control"
 mkdir -p "$RUNTIME_DIR"
 
 CURRENT_LOCK=""
@@ -51,7 +52,7 @@ run_data_samples() {
 }
 
 run_data_prepare() {
-  python "$DATA_TRANSFORM_DIR/scripts/prepare-corpus/prepare.py" \
+  python "$DATA_TRANSFORM_DIR/scripts/create-tigris-schema/prepare.py" \
     --input "$SAMPLE_DATA_DIR" \
     --output "$PREPARED_CORPUS_DIR" \
     --replace
@@ -171,7 +172,7 @@ dev_process_is_ours() {
 }
 
 dependencies_installed() {
-  [[ -d "$SCRIPT_DIR/node_modules" ]] || return 1
+  [[ -d "$APP_DIR/node_modules" ]] || return 1
   npm ls --depth=0 --silent >/dev/null 2>&1
 }
 
@@ -617,12 +618,12 @@ deps_exec() {
   local action="$1"
 
   if [[ "$action" == "reinstall" &&
-        ! -f "$SCRIPT_DIR/package-lock.json" ]]
+        ! -f "$APP_DIR/package-lock.json" ]]
   then
-    rm -rf "$SCRIPT_DIR/node_modules"
+    rm -rf "$APP_DIR/node_modules"
   fi
 
-  if [[ -f "$SCRIPT_DIR/package-lock.json" ]]; then
+  if [[ -f "$APP_DIR/package-lock.json" ]]; then
     exec npm ci
   fi
 
@@ -660,7 +661,7 @@ runner() {
 
   case "$domain" in
     test|build)
-      node "$SCRIPT_DIR/scripts/run-managed.mjs" "$domain" &
+      node "$APP_DIR/scripts/run-managed.mjs" "$domain" &
       ;;
     deps)
       bash "$SELF" __deps_exec "$action" &

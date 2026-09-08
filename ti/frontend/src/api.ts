@@ -4,8 +4,10 @@ import type {
   ExportResponse,
   LoadProfileRequest,
   NavigationRequest,
+  ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
+  UpdateAudioSettingsRequest,
   UpdateSelectionSettingsRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
@@ -71,6 +73,17 @@ export async function updateSelectionSettings(
   request: UpdateSelectionSettingsRequest,
 ): Promise<ProfileSelectionSettings> {
   return parseJson<ProfileSelectionSettings>(await fetch(`/api/profiles/${code}/settings`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(request),
+  }));
+}
+
+export async function updateAudioSettings(
+  code: string,
+  request: UpdateAudioSettingsRequest,
+): Promise<ProfileAudioSettings> {
+  return parseJson<ProfileAudioSettings>(await fetch(`/api/profiles/${code}/audio-settings`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),

@@ -61,3 +61,7 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.control-icon-fill {
+  fill: currentColor;
+  stroke: none;
+}

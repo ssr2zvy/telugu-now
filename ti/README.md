@@ -9,7 +9,7 @@ Iteration 3 adds the offline corpus-transformation boundary, three prepared real
 ## Project controller
 
 ## Prepared corpus prerequisite
-Corpus acquisition and transformation are offline data-engineering operations under `../data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
+Corpus acquisition and transformation are offline data-engineering operations under `data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
 The explicit data-controller operations are:
 ```bash
 ./control.sh data --option samples
@@ -18,11 +18,11 @@ The explicit data-controller operations are:
 ```
 `samples` transforms source downloads under:
 ```text
-../data-transform/raw/
+data-transform/raw/
 ```
 into source-shaped development input under:
 ```text
-../data-transform/sample/
+data-transform/sample/
 ```
 `prepare` transforms the current source-shaped input into the canonical local corpus:
 ```text

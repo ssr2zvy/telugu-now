@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type {
   ExportResponse,
+  ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
 } from '../../../shared/contracts';
-import { generateExport, resetQueue as requestQueueReset, updateSelectionSettings } from '../api';
+import { generateExport, resetQueue as requestQueueReset, updateAudioSettings, updateSelectionSettings } from '../api';
 import type {
   ExportFormat,
   PreparedExportArtifact,
@@ -25,6 +26,7 @@ interface UseSettingsControllerOptions {
   profileCode: string | null;
   state: ProfileStateResponse | null;
   onSettingsSaved: (settings: ProfileSelectionSettings) => void;
+  onAudioSettingsSaved: (settings: ProfileAudioSettings) => void;
   onQueueReset: (state: ProfileStateResponse) => void;
 }
 export interface SettingsController {
@@ -35,6 +37,9 @@ export interface SettingsController {
   settingsError: boolean;
   queueResetting: boolean;
   queueResetError: boolean;
+  playbackRateDraft: string;
+  playbackSaving: boolean;
+  playbackError: boolean;
   exportCount: string;
   exporting: boolean;
   exportError: boolean;
@@ -50,6 +55,9 @@ export interface SettingsController {
   saveComplexitySettings: () => Promise<void>;
   saveSourceSettings: () => Promise<void>;
   resetQueue: () => Promise<void>;
+  setPlaybackRateDraft: (rate: string) => void;
+  clearPlaybackError: () => void;
+  savePlaybackSettings: () => Promise<void>;
   setExportCount: (count: string) => void;
   requestExport: () => void;
   cancelFormatChoice: () => void;
@@ -59,6 +67,7 @@ export function useSettingsController({
   profileCode,
   state,
   onSettingsSaved,
+  onAudioSettingsSaved,
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
@@ -70,6 +79,9 @@ export function useSettingsController({
   const [settingsError, setSettingsError] = useState(false);
   const [queueResetting, setQueueResetting] = useState(false);
   const [queueResetError, setQueueResetError] = useState(false);
+  const [playbackRateDraft, setPlaybackRateDraftState] = useState('1');
+  const [playbackSaving, setPlaybackSaving] = useState(false);
+  const [playbackError, setPlaybackError] = useState(false);
   const [exportCount, setExportCountState] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -86,9 +98,11 @@ export function useSettingsController({
   const prepareOpen = () => {
     if (!state) return;
     setDraftState(draftFromSettings(state.selectionSettings));
+    setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
     setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
+    setPlaybackError(false);
     setFormatChooserOpen(false);
     setPage('index');
   };
@@ -101,9 +115,13 @@ export function useSettingsController({
     ) {
       setDraftState(draftFromSettings(state.selectionSettings));
     }
+    if (state && nextPage === 'playback') {
+      setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
+    }
     setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
+    setPlaybackError(false);
     setFormatChooserOpen(false);
     setPage(nextPage);
   };
@@ -111,6 +129,7 @@ export function useSettingsController({
     setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
+    setPlaybackError(false);
     setFormatChooserOpen(false);
     setPage('index');
   };
@@ -206,6 +225,29 @@ export function useSettingsController({
       setQueueResetting(false);
     }
   };
+  const setPlaybackRateDraft = (rate: string) => {
+    setPlaybackRateDraftState(rate);
+  };
+  const clearPlaybackError = () => setPlaybackError(false);
+  const savePlaybackSettings = async () => {
+    if (!profileCode) return;
+    const rate = Number(playbackRateDraft);
+    if (!Number.isFinite(rate) || rate < 0.3 || rate > 2.5) {
+      setPlaybackError(true);
+      return;
+    }
+    setPlaybackSaving(true);
+    setPlaybackError(false);
+    try {
+      const saved = await updateAudioSettings(profileCode, { playbackRate: rate });
+      onAudioSettingsSaved(saved);
+      setPlaybackRateDraftState(String(saved.playbackRate));
+    } catch {
+      setPlaybackError(true);
+    } finally {
+      setPlaybackSaving(false);
+    }
+  };
   const setExportCount = (count: string) => {
     setExportCountState(count);
     invalidateExport();
@@ -258,6 +300,9 @@ export function useSettingsController({
     settingsError,
     queueResetting,
     queueResetError,
+    playbackRateDraft,
+    playbackSaving,
+    playbackError,
     exportCount,
     exporting,
     exportError,
@@ -273,6 +318,9 @@ export function useSettingsController({
     saveComplexitySettings,
     saveSourceSettings,
     resetQueue,
+    setPlaybackRateDraft,
+    clearPlaybackError,
+    savePlaybackSettings,
     setExportCount,
     requestExport,
     cancelFormatChoice: () => setFormatChooserOpen(false),

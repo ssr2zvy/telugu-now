@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type {
+  ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -19,6 +20,7 @@ export interface ProfileSession {
   move: (direction: 'back' | 'next') => Promise<boolean>;
   setObservationVisible: (visible: boolean) => void;
   applySelectionSettings: (settings: ProfileSelectionSettings) => void;
+  applyAudioSettings: (settings: ProfileAudioSettings) => void;
   applyProfileState: (state: ProfileStateResponse) => void;
 }
 export function useProfileSession(settingsOpen: boolean): ProfileSession {
@@ -172,6 +174,18 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
         : current,
     );
   };
+  const applyAudioSettings = (
+    settings: ProfileAudioSettings,
+  ) => {
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            audioSettings: settings,
+          }
+        : current,
+    );
+  };
   const applyProfileState = (
     next: ProfileStateResponse,
   ) => {
@@ -188,6 +202,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     move,
     setObservationVisible,
     applySelectionSettings,
+    applyAudioSettings,
     applyProfileState,
   };
 }
