@@ -15,10 +15,12 @@ const REQUIRED_PREPARED_SOURCE_IDS = [
 export class SourceRegistry {
   private readonly sources = new Map<string, DataSource>();
 
-  constructor() {
+  constructor(options: { includePreparedSources?: boolean } = {}) {
     this.register(new DummyDataSource('source1', source1Rows));
     this.register(new DummyDataSource('source2', source2Rows));
     this.register(new DummyDataSource('source3', source3Rows));
+
+    if (options.includePreparedSources === false) return;
 
     for (const sourceId of REQUIRED_PREPARED_SOURCE_IDS) {
       if (preparedCorpusStore.hasSource(sourceId)) {

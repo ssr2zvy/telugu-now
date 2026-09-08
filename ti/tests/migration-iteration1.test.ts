@@ -118,6 +118,8 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
 
   const { db } = await import('../server/src/db/database');
   const settingsService = await import('../server/src/services/selection-settings-service');
+  const { config } = await import('../server/src/config/config');
+  const { sourceRegistry } = await import('../server/src/services/source-registry');
 
   try {
     const observationColumns = db.prepare('PRAGMA table_info(observations)').all() as Array<{ name: string }>;
@@ -189,7 +191,13 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     assert.deepEqual(db.pragma('foreign_key_check'), []);
 
     const settings = settingsService.getProfileSelectionSettings('001');
-    assert.deepEqual(settings.sourceWeights, { source1: 1, source2: 1, source3: 1 });
+    assert.deepEqual(
+      Object.keys(settings.sourceWeights).sort(),
+      sourceRegistry.selectableSourceIds().sort(),
+    );
+    for (const sourceId of sourceRegistry.selectableSourceIds()) {
+      assert.equal(settings.sourceWeights[sourceId], config.defaultSourceWeights[sourceId as keyof typeof config.defaultSourceWeights]);
+    }
     assert.equal(settings.complexityPercentileTarget, 0.5);
     assert.equal(settings.complexityPercentileSpread, 0.25);
   } finally {

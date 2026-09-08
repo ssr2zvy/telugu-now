@@ -271,7 +271,7 @@ test('100-selection black-box audit agrees with an independently calculated orac
     complexityReferenceVersion: 2,
   };
   const oracle = buildOracle(settings);
-  const engine = new SelectionEngine(new SourceRegistry(), mulberry32(0xA11CE100));
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), mulberry32(0xA11CE100));
   const sourceCounts = new Map<string, number>();
   const quartileCounts = [0, 0, 0, 0];
   const quartileExpected = [0, 0, 0, 0];
@@ -315,7 +315,7 @@ test('seeded 50,000-selection Monte Carlo converges to the independent full sour
     complexityReferenceVersion: 2,
   };
   const oracle = buildOracle(settings);
-  const engine = new SelectionEngine(new SourceRegistry(), mulberry32(0x5E1EC710));
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), mulberry32(0x5E1EC710));
   const draws = 50_000;
   const pairCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
