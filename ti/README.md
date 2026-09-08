@@ -1,5 +1,5 @@
-# Implementation Iteration 2
-This repository contains Implementation Iteration 2 of the Telugu observation app. Iteration 1's persistent history/timing model, ten-item future queue, continuous one-for-one replenishment, sequential live preparation, and SQLite persistence remain the foundation.
+# Implementation Iteration 3
+This repository contains Implementation Iteration 3 of the Telugu observation app. Iteration 1's persistent history/timing model, ten-item future queue, continuous one-for-one replenishment, sequential live preparation, and SQLite persistence remain the foundation.
 Iteration 2 adds source/complexity selection, persistent profile settings, repeatable source-record caching, tap-revealed controls, full-page Settings navigation, bilingual Settings labels, structured diagnostics, activation-time randomized Telugu typography, and portable offline export as either standalone HTML or interactive EPUB 3.
 ## Stack
 - TypeScript
@@ -7,6 +7,11 @@ Iteration 2 adds source/complexity selection, persistent profile settings, repea
 - Hono + Node.js
 - SQLite (`better-sqlite3`)
 ## Project controller
+
+## Prepared corpus prerequisite
+
+Corpus acquisition and transformation are offline data-engineering operations under `../data-transform/`. Telugu Now does not parse upstream files at runtime. Run `./control.sh data --option samples`, `./control.sh data --option prepare`, or `./control.sh data --option all`; `./control.sh dev` requires a prepared corpus and returns `CORPUS_NOT_PREPARED` otherwise.
+
 The root `control.sh` is the normal development entry point.
 Install dependencies on a new checkout:
 ```bash
@@ -25,7 +30,7 @@ The configured prototype profile code is `001`.
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants and cover the Iteration 2 source selector, global complexity reference, probability snapshots, repeats, settings isolation, shared source-record cache, export isolation, migration, numerical edge cases, randomized presentation, local font assets, standalone HTML, and EPUB container generation.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
-## Deterministic dummy sources
+## Selectable sources
 Iteration 2 has exactly three selectable dummy sources:
 - `source1`: 12 rows
 - `source2`: 24 rows
@@ -41,7 +46,7 @@ P(source i) = (N_i * w_i) / sum_j(N_j * w_j)
 ```
 With all source weights at `1`, source probability is proportional to source row count.
 ## Global complexity reference
-Iteration 2 uses word count only as the intrinsic measurement for one global complexity reference built from all 72 selectable dummy rows. The user does not configure a target word count.
+Iteration 3 uses NFC Unicode extended grapheme-cluster count only as the intrinsic measurement for one global complexity reference built from all 72 selectable dummy rows. The user does not configure a target word count.
 For each word count `k`, tied rows occupy their empirical global percentile interval `[a_k,b_k]`.
 The reference is versioned as:
 ```text

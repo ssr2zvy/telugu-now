@@ -87,6 +87,7 @@ db.exec(`
     source_id TEXT NOT NULL,
     source_key TEXT NOT NULL,
     text TEXT NOT NULL,
+    media_json TEXT NOT NULL DEFAULT '[]',
     prepared_at INTEGER NOT NULL,
     PRIMARY KEY (source_id, source_key)
   );
@@ -183,6 +184,13 @@ if (!columnExists('observation_acquisitions', 'selection_snapshot_json')) {
   `);
 }
 
+if (!columnExists('source_records', 'media_json')) {
+  db.exec(`
+    ALTER TABLE source_records
+    ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]';
+  `);
+}
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_queue_profile_position
     ON queue_items(profile_code, queue_position);
@@ -206,8 +214,8 @@ db.exec(`
 // Any already-prepared Iteration 1 row is immediately useful as a shared source-record
 // cache entry after upgrade.
 db.exec(`
-  INSERT OR IGNORE INTO source_records (source_id, source_key, text, prepared_at)
-  SELECT source_id, source_key, text, COALESCE(prepared_at, selected_at)
+  INSERT OR IGNORE INTO source_records (source_id, source_key, text, media_json, prepared_at)
+  SELECT source_id, source_key, text, '[]', COALESCE(prepared_at, selected_at)
   FROM observations
   WHERE status = 'ready' AND text IS NOT NULL;
 `);

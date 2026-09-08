@@ -25,10 +25,8 @@ export interface SelectionSnapshot {
   totalSourceMass: number;
   sourceProbability: number;
   sourceKey: string;
-  wordCount: number;
-  complexityMetric?: ComplexityMetric;
-  complexityValue?: number;
-  intrinsicComplexityValue?: number;
+  complexityMetric: ComplexityMetric;
+  intrinsicComplexityValue: number;
   complexityReferenceVersion: number;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
@@ -36,17 +34,17 @@ export interface SelectionSnapshot {
   globalPercentileStart: number;
   globalPercentileEnd: number;
   globalIntervalMass: number;
-  globalRowsAtWordCount: number;
-  globalRowsAtComplexityValue?: number;
+  globalRowsAtComplexityValue: number;
   globalPerRowComplexityMass: number;
-  selectedSourceRowsAtWordCount: number;
-  selectedSourceRowsAtComplexityValue?: number;
+  selectedSourceRowsAtComplexityValue: number;
   selectedSourceNormalizationDenominator: number;
   rowProbabilityWithinSource: number;
   overallProbability: number;
-  // Historical Iteration 2 compatibility aliases.
-  globalRowsAtComplexity?: number;
-  selectedSourceRowsAtComplexity?: number;
+
+  // Persisted Iteration 2 snapshots may still contain these fields.
+  wordCount?: number;
+  globalRowsAtWordCount?: number;
+  selectedSourceRowsAtWordCount?: number;
 }
 
 export interface TextMedia {

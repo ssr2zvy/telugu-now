@@ -97,10 +97,8 @@ const DIAGNOSTIC_LABELS = {
     en: 'Row',
     te: 'వరుస',
   },
-  wordCount: {
-    en: 'Word count',
-    te: 'పదాల సంఖ్య',
-  },
+  complexityMetric: { en: 'Complexity metric', te: 'సంక్లిష్టత ప్రమాణం' },
+  intrinsicComplexityValue: { en: 'Complexity value', te: 'సంక్లిష్టత విలువ' },
   complexityReferenceVersion: {
     en: 'Complexity reference',
     te: 'సంక్లిష్టత సూచిక',
@@ -125,18 +123,12 @@ const DIAGNOSTIC_LABELS = {
     en: 'Global interval mass',
     te: 'ప్రపంచ పరిధి మాస్',
   },
-  globalRowsAtWordCount: {
-    en: 'Global rows at word count',
-    te: 'ఆ పదాల సంఖ్యలో ప్రపంచ వరుసలు',
-  },
+  globalRowsAtComplexityValue: { en: 'Global rows at complexity value', te: 'ఆ సంక్లిష్టత విలువలో ప్రపంచ వరుసలు' },
   globalPerRowComplexityMass: {
     en: 'Global per-row complexity mass',
     te: 'వరుసకు ప్రపంచ సంక్లిష్టత మాస్',
   },
-  selectedSourceRowsAtWordCount: {
-    en: 'Source rows at word count',
-    te: 'ఆ పదాల సంఖ్యలో మూల వరుసలు',
-  },
+  selectedSourceRowsAtComplexityValue: { en: 'Source rows at complexity value', te: 'ఆ సంక్లిష్టత విలువలో మూల వరుసలు' },
   selectedSourceNormalizationDenominator: {
     en: 'Source complexity denominator',
     te: 'మూల సంక్లిష్టత హారం',
@@ -287,11 +279,12 @@ function selectionRows(
         selection.sourceKey,
     },
     {
-      key: 'wordCount',
-      value:
-        String(
-          selection.wordCount,
-        ),
+      key: 'complexityMetric',
+      value: selection.complexityMetric,
+    },
+    {
+      key: 'intrinsicComplexityValue',
+      value: String(selection.intrinsicComplexityValue),
     },
     {
       key:
@@ -353,11 +346,11 @@ function selectionRows(
     },
     {
       key:
-        'globalRowsAtWordCount',
+        'globalRowsAtComplexityValue',
       value:
         String(
           selection
-            .globalRowsAtWordCount,
+            .globalRowsAtComplexityValue,
         ),
     },
     {
@@ -371,11 +364,11 @@ function selectionRows(
     },
     {
       key:
-        'selectedSourceRowsAtWordCount',
+        'selectedSourceRowsAtComplexityValue',
       value:
         String(
           selection
-            .selectedSourceRowsAtWordCount,
+            .selectedSourceRowsAtComplexityValue,
         ),
     },
     {

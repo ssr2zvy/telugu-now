@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DataSource, SourceCatalogRow } from '../server/src/domain/source';
+import type { DataSource, SourceComplexityClass } from '../server/src/domain/source';
 import { SelectionEngine } from '../server/src/services/selection-engine';
 import { SourceRegistry } from '../server/src/services/source-registry';
 import { source1Rows } from '../server/src/sources/dummy/data/source1';
@@ -18,7 +18,7 @@ interface RawRow {
 interface OracleRow {
   sourceId: string;
   sourceKey: string;
-  wordCount: number;
+  complexityValue: number;
   sourceRowCount: number;
   sourceWeight: number;
   sourceMass: number;
@@ -27,9 +27,9 @@ interface OracleRow {
   globalPercentileStart: number;
   globalPercentileEnd: number;
   globalIntervalMass: number;
-  globalRowsAtWordCount: number;
+  globalRowsAtComplexityValue: number;
   globalPerRowComplexityMass: number;
-  selectedSourceRowsAtWordCount: number;
+  selectedSourceRowsAtComplexityValue: number;
   selectedSourceNormalizationDenominator: number;
   rowProbabilityWithinSource: number;
   overallProbability: number;
@@ -41,9 +41,8 @@ const rawFixtures: Record<string, readonly RawRow[]> = {
   source3: source3Rows,
 };
 
-function independentWordCount(text: string): number {
-  const tokens = text.trim().split(/\s+/u).filter(Boolean);
-  return tokens.length;
+function independentGraphemeCount(text: string): number {
+  return [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(text.normalize('NFC'))].length;
 }
 
 // Independent numerical oracle: production uses a complementary-error-function CDF
@@ -73,14 +72,14 @@ function buildOracle(
   const rows = sourceIds.flatMap((sourceId) => fixtures[sourceId]!.map((row) => ({
     sourceId,
     sourceKey: row.sourceKey,
-    wordCount: independentWordCount(row.text),
+    complexityValue: independentGraphemeCount(row.text),
   })));
 
-  const globalCountByWordCount = new Map<number, number>();
+  const globalCountByComplexity = new Map<number, number>();
   for (const row of rows) {
-    globalCountByWordCount.set(
-      row.wordCount,
-      (globalCountByWordCount.get(row.wordCount) ?? 0) + 1,
+    globalCountByComplexity.set(
+      row.complexityValue,
+      (globalCountByComplexity.get(row.complexityValue) ?? 0) + 1,
     );
   }
 
@@ -102,12 +101,12 @@ function buildOracle(
   const domainMass = simpsonIntegral(gaussian, 0, 1);
   assert.ok(domainMass > 0 && Number.isFinite(domainMass));
 
-  for (const [wordCount, globalCount] of [...globalCountByWordCount.entries()].sort((a, b) => a[0] - b[0])) {
+  for (const [complexityValue, globalCount] of [...globalCountByComplexity.entries()].sort((a, b) => a[0] - b[0])) {
     const start = cumulative / totalRows;
     cumulative += globalCount;
     const end = cumulative / totalRows;
     const intervalMass = simpsonIntegral(gaussian, start, end) / domainMass;
-    intervals.set(wordCount, {
+    intervals.set(complexityValue, {
       start,
       end,
       globalCount,
@@ -129,24 +128,24 @@ function buildOracle(
     totalSourceMass += sourceMass;
   }
 
-  const sourceCountsByWordCount = new Map<string, Map<number, number>>();
+  const sourceCountsByComplexity = new Map<string, Map<number, number>>();
   const sourceDenominators = new Map<string, number>();
   for (const sourceId of sourceIds) {
     const counts = new Map<number, number>();
     for (const row of rows.filter((candidate) => candidate.sourceId === sourceId)) {
-      counts.set(row.wordCount, (counts.get(row.wordCount) ?? 0) + 1);
+      counts.set(row.complexityValue, (counts.get(row.complexityValue) ?? 0) + 1);
     }
-    sourceCountsByWordCount.set(sourceId, counts);
+    sourceCountsByComplexity.set(sourceId, counts);
     let denominator = 0;
-    for (const [wordCount, count] of counts) {
-      denominator += count * intervals.get(wordCount)!.perRowMass;
+    for (const [complexityValue, count] of counts) {
+      denominator += count * intervals.get(complexityValue)!.perRowMass;
     }
     sourceDenominators.set(sourceId, denominator);
   }
 
   const oracle = new Map<string, OracleRow>();
   for (const row of rows) {
-    const interval = intervals.get(row.wordCount)!;
+    const interval = intervals.get(row.complexityValue)!;
     const sourceRowCount = sourceRowCounts.get(row.sourceId)!;
     const sourceWeight = settings.sourceWeights[row.sourceId]!;
     const sourceMass = sourceMasses.get(row.sourceId)!;
@@ -163,9 +162,9 @@ function buildOracle(
       globalPercentileStart: interval.start,
       globalPercentileEnd: interval.end,
       globalIntervalMass: interval.intervalMass,
-      globalRowsAtWordCount: interval.globalCount,
+      globalRowsAtComplexityValue: interval.globalCount,
       globalPerRowComplexityMass: interval.perRowMass,
-      selectedSourceRowsAtWordCount: sourceCountsByWordCount.get(row.sourceId)!.get(row.wordCount)!,
+      selectedSourceRowsAtComplexityValue: sourceCountsByComplexity.get(row.sourceId)!.get(row.complexityValue)!,
       selectedSourceNormalizationDenominator: denominator,
       rowProbabilityWithinSource,
       overallProbability: sourceProbability * rowProbabilityWithinSource,
@@ -201,21 +200,22 @@ function assertSnapshotMatchesIndependentOracle(
 ): void {
   assert.equal(snapshot.sourceId, expected.sourceId);
   assert.equal(snapshot.sourceKey, expected.sourceKey);
-  assert.equal(snapshot.wordCount, expected.wordCount);
+  assert.equal(snapshot.complexityValue, expected.complexityValue);
+  assert.equal(snapshot.complexityMetric, 'grapheme-count');
   assert.equal(snapshot.sourceRowCount, expected.sourceRowCount);
   assert.equal(snapshot.sourceWeight, expected.sourceWeight);
   assert.equal(snapshot.sourceMass, expected.sourceMass);
   assert.equal(snapshot.totalSourceMass, expected.totalSourceMass);
   assertClose(snapshot.sourceProbability, expected.sourceProbability);
-  assert.equal(snapshot.complexityReferenceVersion, 1);
+  assert.equal(snapshot.complexityReferenceVersion, 2);
   assert.equal(snapshot.complexityPercentileTarget, settings.complexityPercentileTarget);
   assert.equal(snapshot.complexityPercentileSpread, settings.complexityPercentileSpread);
   assertClose(snapshot.globalPercentileStart, expected.globalPercentileStart, 1e-12);
   assertClose(snapshot.globalPercentileEnd, expected.globalPercentileEnd, 1e-12);
   assertClose(snapshot.globalIntervalMass, expected.globalIntervalMass);
-  assert.equal(snapshot.globalRowsAtWordCount, expected.globalRowsAtWordCount);
+  assert.equal(snapshot.globalRowsAtComplexityValue, expected.globalRowsAtComplexityValue);
   assertClose(snapshot.globalPerRowComplexityMass, expected.globalPerRowComplexityMass);
-  assert.equal(snapshot.selectedSourceRowsAtWordCount, expected.selectedSourceRowsAtWordCount);
+  assert.equal(snapshot.selectedSourceRowsAtComplexityValue, expected.selectedSourceRowsAtComplexityValue);
   assertClose(
     snapshot.selectedSourceNormalizationDenominator,
     expected.selectedSourceNormalizationDenominator,
@@ -244,7 +244,7 @@ function assertSamplingCount(
 }
 
 function fixtureLengths(rows: readonly RawRow[]): number[] {
-  return rows.map((row) => independentWordCount(row.text));
+  return rows.map((row) => independentGraphemeCount(row.text));
 }
 
 test('dummy fixtures are fixed seeded right-skewed populations rather than a 1-6 ladder', () => {
@@ -265,7 +265,7 @@ test('100-selection black-box audit agrees with an independently calculated orac
     sourceWeights: { source1: 1, source2: 0.6, source3: 0.3 },
     complexityPercentileTarget: 0.64,
     complexityPercentileSpread: 0.22,
-    complexityReferenceVersion: 1,
+    complexityReferenceVersion: 2,
   };
   const oracle = buildOracle(settings);
   const engine = new SelectionEngine(new SourceRegistry(), mulberry32(0xA11CE100));
@@ -309,7 +309,7 @@ test('seeded 50,000-selection Monte Carlo converges to the independent full sour
     sourceWeights: { source1: 1, source2: 0.55, source3: 0.25 },
     complexityPercentileTarget: 0.58,
     complexityPercentileSpread: 0.28,
-    complexityReferenceVersion: 1,
+    complexityReferenceVersion: 2,
   };
   const oracle = buildOracle(settings);
   const engine = new SelectionEngine(new SourceRegistry(), mulberry32(0x5E1EC710));
@@ -343,10 +343,10 @@ test('seeded 50,000-selection Monte Carlo converges to the independent full sour
 });
 
 test('injected random needles cross row-complexity probability boundaries at the oracle boundaries', () => {
-  const rows: SourceCatalogRow[] = [
-    { sourceKey: 'one', wordCount: 1 },
-    { sourceKey: 'two', wordCount: 2 },
-    { sourceKey: 'three', wordCount: 3 },
+  const rows: DataSource[] = [
+    { sourceKey: 'one', complexityValue: 1 },
+    { sourceKey: 'two', complexityValue: 2 },
+    { sourceKey: 'three', complexityValue: 3 },
   ];
   const source: DataSource = {
     id: 'only',
@@ -366,7 +366,7 @@ test('injected random needles cross row-complexity probability boundaries at the
     sourceWeights: { only: 1 },
     complexityPercentileTarget: 0.5,
     complexityPercentileSpread: 0.4,
-    complexityReferenceVersion: 1,
+    complexityReferenceVersion: 2,
   };
   const oracle = buildOracle(settings, fixture);
   const ordered = ['one', 'two', 'three'].map((key) => oracle.get(`only\u0000${key}`)!);

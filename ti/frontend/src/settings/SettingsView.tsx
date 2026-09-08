@@ -1,5 +1,6 @@
 import type { ProfileStateResponse } from '../../../shared/contracts';
 import { t } from './language';
+import { DataSourcesPage } from './pages/DataSourcesPage';
 import { SettingsShell } from './SettingsShell';
 import type { SettingsController } from './useSettingsController';
 import { ComplexityPage } from './pages/ComplexityPage';
@@ -47,6 +48,14 @@ export function SettingsView({
       </SettingsShell>
     );
   }
+  if (page === 'dataSources') {
+    return (
+      <SettingsShell {...shellProps} title={t(language, 'dataSources')} onBack={controller.backToIndex}>
+        <DataSourcesPage language={language} />
+      </SettingsShell>
+    );
+  }
+
   if (!draft) {
     return null;
   }

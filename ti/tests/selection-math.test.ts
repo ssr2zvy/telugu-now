@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DataSource, SourceCatalogRow } from '../server/src/domain/source';
+import type { DataSource, SourceComplexityClass } from '../server/src/domain/source';
 import { SelectionEngine } from '../server/src/services/selection-engine';
 import { SourceRegistry } from '../server/src/services/source-registry';
 import type { ProfileSelectionSettings, SelectionSnapshot } from '../shared/contracts';
@@ -19,7 +19,7 @@ function actualSettings(
     sourceWeights,
     complexityPercentileTarget: target,
     complexityPercentileSpread: spread,
-    complexityReferenceVersion: 1,
+    complexityReferenceVersion: 2,
   };
 }
 
@@ -29,19 +29,14 @@ function probabilityForSource(random: number, weights: Record<string, number>): 
 }
 
 function oneRowPerComplexityRegistry(): SourceRegistry {
-  const rows: SourceCatalogRow[] = Array.from({ length: 6 }, (_, index) => ({
-    sourceKey: `row-${index + 1}`,
-    wordCount: index + 1,
-  }));
+  const classes: SourceComplexityClass[] = Array.from({ length: 6 }, (_, index) => ({ complexityValue: index + 1, rowCount: 1 }));
   const source: DataSource = {
-    id: 'only',
-    enabled: true,
-    catalog: () => rows,
-    prepare: async ({ sourceKey }) => ({ text: sourceKey }),
+    id: 'only', enabled: true, rowCount: () => 6, complexityClasses: () => classes,
+    candidateAt: (complexityValue) => ({ sourceKey: `row-${complexityValue}`, complexityValue }),
+    prepare: async (sourceKey) => ({ text: sourceKey, media: [{ kind: 'text', language: 'te', text: sourceKey }] }),
+    info: () => ({ sourceId: 'only', displayName: 'only', provider: 'test', license: 'test', upstreamUrl: null, catalogVersion: 2, acceptedRows: 6, rejectedRows: 0, complexityMetric: 'grapheme-count', status: 'fixture' }),
   };
-  return {
-    selectableSources: () => [source],
-  } as unknown as SourceRegistry;
+  return { selectableSources: () => [source] } as unknown as SourceRegistry;
 }
 
 function collectSingleSourceRowProbabilities(target: number, spread: number): Map<number, SelectionSnapshot> {
@@ -54,19 +49,19 @@ function collectSingleSourceRowProbabilities(target: number, spread: number): Ma
     const needle = (step + 0.5) / 10_000;
     const engine = new SelectionEngine(registry, randomSequence([0, needle, 0]));
     const selected = engine.select(actualSettings({ only: 1 }, target, spread));
-    found.set(selected.wordCount, selected.snapshot);
+    found.set(selected.complexityValue, selected.snapshot);
   }
 
   assert.equal(found.size, 6, 'every complexity interval should be selectable');
   return found;
 }
 
-test('global complexity reference v1 is pinned to the intended 72-row dummy distribution', () => {
+test('global complexity reference v2 is pinned to the intended 72-row dummy distribution', () => {
   const reference = new SelectionEngine(new SourceRegistry(), () => 0).describeReference();
-  assert.equal(reference.version, 1);
+  assert.equal(reference.version, 2);
   assert.equal(reference.totalRows, 72);
   assert.deepEqual(
-    reference.classes.map(({ wordCount, globalCount }) => [wordCount, globalCount]),
+    reference.classes.map(({ complexityValue, globalCount }) => [complexityValue, globalCount]),
     [
       [1, 1], [2, 3], [3, 1], [4, 4], [5, 1], [6, 3], [7, 3], [8, 6], [9, 5],
       [10, 4], [11, 3], [12, 6], [13, 4], [14, 4], [15, 2], [16, 3], [17, 4],
@@ -91,7 +86,7 @@ test('selection rejects a mismatched complexity-reference version', () => {
     sourceWeights: { source1: 1, source2: 1, source3: 1 },
     complexityPercentileTarget: 0.5,
     complexityPercentileSpread: 0.25,
-    complexityReferenceVersion: 2,
+    complexityReferenceVersion: 1,
   }), /Unsupported complexity reference version/);
 });
 
@@ -178,7 +173,7 @@ test('normal complexity masses normalize to one and preserve symmetry around per
   for (const snapshot of snapshots.values()) {
     assert.ok(snapshot.globalIntervalMass > 0);
     assert.equal(
-      snapshot.globalPerRowComplexityMass * snapshot.globalRowsAtWordCount,
+      snapshot.globalPerRowComplexityMass * snapshot.globalRowsAtComplexityValue,
       snapshot.globalIntervalMass,
     );
     assert.equal(snapshot.sourceProbability, 1);

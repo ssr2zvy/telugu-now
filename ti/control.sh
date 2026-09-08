@@ -37,15 +37,17 @@ run_data_samples() {
   python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/FLEURS.py" \
     --input-root "$RAW_DATA_DIR/FLEURS" \
     --output-root "$SAMPLE_DATA_DIR/FLEURS" \
-    --replace
+    --replace || return $?
 
   python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
     --input-root "$RAW_DATA_DIR/Shrutilipi" \
     --output-root "$SAMPLE_DATA_DIR/Shrutilipi"
+    || return $?
 
   python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
     --input-root "$RAW_DATA_DIR/IndicVoices" \
     --output-root "$SAMPLE_DATA_DIR/IndicVoices"
+    || return $?
 }
 
 run_data_prepare() {
@@ -83,8 +85,8 @@ run_data_domain() {
       run_data_prepare
       ;;
     all)
-      run_data_samples
-      run_data_prepare
+      run_data_samples || return $?
+      run_data_prepare || return $?
       ;;
     exit)
       return 0
@@ -481,6 +483,13 @@ cleanup_dev_if_owned() {
 
 run_dev_foreground() {
   local status dev_pid dev_pgid lf rc=0
+
+  if ! prepared_corpus_ready; then
+    printf 'ERROR: CORPUS_NOT_PREPARED\n' >&2
+    printf 'Run "./%s data --option prepare" first.\n' \
+      "$SCRIPT_NAME" >&2
+    return 1
+  fi
 
   if ! command -v setsid >/dev/null 2>&1; then
     printf 'ERROR: "setsid" is required to manage the development process group.\n' >&2

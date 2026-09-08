@@ -157,7 +157,7 @@ function selection(
     sourceProbability:
       12 / 72,
     sourceKey,
-    wordCount:
+    intrinsicComplexityValue:
       2,
     complexityReferenceVersion:
       1,
@@ -174,11 +174,11 @@ function selection(
       14 / 72,
     globalIntervalMass:
       0.1,
-    globalRowsAtWordCount:
+    globalRowsAtComplexityValue:
       8,
     globalPerRowComplexityMass:
       0.0125,
-    selectedSourceRowsAtWordCount:
+    selectedSourceRowsAtComplexityValue:
       3,
     selectedSourceNormalizationDenominator:
       0.1,

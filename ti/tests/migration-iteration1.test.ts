@@ -140,11 +140,12 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     `).run('repeat-observation');
 
     const cached = db.prepare(`
-      SELECT text, prepared_at FROM source_records
+      SELECT text, media_json, prepared_at FROM source_records
       WHERE source_id = 'mock' AND source_key = 'ready-key'
-    `).get() as { text: string; prepared_at: number } | undefined;
+    `).get() as { text: string; media_json: string; prepared_at: number } | undefined;
     assert.equal(cached?.text, 'తెలుగు');
     assert.equal(cached?.prepared_at, 1100);
+    assert.equal(cached?.media_json, '[]');
 
     const restarted = db.prepare(`
       SELECT status, request_started_at, request_completed_at, request_duration_ms, cache_hit

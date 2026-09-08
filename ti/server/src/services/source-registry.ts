@@ -54,19 +54,9 @@ export class SourceRegistry {
   }
 
   sourceInfo() {
-    return this.selectableSources().map((source) => source.info?.() ?? {
-      sourceId: source.id,
-      displayName: source.id,
-      provider: 'Telugu Now',
-      license: 'unknown',
-      upstreamUrl: null,
-      catalogVersion: 1,
-      acceptedRows: source.rowCount?.() ?? 0,
-      rejectedRows: 0,
-      complexityMetric: 'grapheme-count',
-      status: 'fixture',
-    });
+    return this.selectableSources().map((source) => source.info());
   }
+
 }
 
 export const sourceRegistry = new SourceRegistry();

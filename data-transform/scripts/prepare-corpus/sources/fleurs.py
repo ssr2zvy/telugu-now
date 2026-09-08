@@ -4,10 +4,11 @@ import csv
 from pathlib import Path
 from typing import Iterator
 
-from ..common import (
+from common import (
     CanonicalInputRow,
     CorpusStructuralError,
     canonical_split,
+    normalize_source_locator,
 )
 
 SOURCE_ID = "fleurs-te"
@@ -55,8 +56,19 @@ def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
                     gender,
                 ) = columns
 
-                source_key = f"{split}:{audio_filename}"
-                audio_path = audio_dir / audio_filename
+                normalized_audio_filename = (
+                    normalize_source_locator(
+                        audio_filename
+                    )
+                )
+                source_key = (
+                    f"{split}:"
+                    f"{normalized_audio_filename}"
+                )
+                audio_path = (
+                    audio_dir
+                    / normalized_audio_filename
+                )
 
                 if not audio_path.is_file():
                     audio_bytes = b""
@@ -65,10 +77,8 @@ def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
 
                 try:
                     num_samples = int(num_samples_raw)
-                except ValueError as error:
-                    raise CorpusStructuralError(
-                        f"FLEURS_SCHEMA:INVALID_NUM_SAMPLES:{source_key}"
-                    ) from error
+                except (TypeError, ValueError):
+                    num_samples = 0
 
                 yield CanonicalInputRow(
                     source_id=SOURCE_ID,
@@ -82,7 +92,7 @@ def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
                     duration_seconds=num_samples / SAMPLE_RATE_HZ,
                     source_metadata={
                         "sentenceId": sentence_id,
-                        "audioFilename": audio_filename,
+                        "audioFilename": normalized_audio_filename,
                         "rawTranscription": raw_transcription,
                         "normalizedTranscription": normalized_transcription,
                         "characterizedTranscription": characterized_transcription,

@@ -1,4 +1,5 @@
 import type {
+  DataSourcesResponse,
   ExportRequest,
   ExportResponse,
   LoadProfileRequest,
@@ -12,6 +13,10 @@ import type {
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) throw new Error(String(response.status));
   return response.json() as Promise<T>;
+}
+
+export async function getDataSources(): Promise<DataSourcesResponse> {
+  return parseJson<DataSourcesResponse>(await fetch('/api/data-sources'));
 }
 
 export async function loadProfile(request: LoadProfileRequest): Promise<ProfileStateResponse> {

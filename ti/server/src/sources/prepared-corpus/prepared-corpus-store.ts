@@ -30,8 +30,16 @@ export class PreparedCorpusStore {
     if (!this.db) return false;
     return Boolean(
       this.db.prepare(
-        `SELECT 1 FROM sources WHERE source_id = ? AND status = ? LIMIT 1`,
-      ).get(sourceId, 'ready'),
+        `
+        SELECT 1
+        FROM sources
+        WHERE source_id = ?
+          AND status = 'ready'
+          AND complexity_metric = 'grapheme-count'
+          AND accepted_rows > 0
+        LIMIT 1
+      `,
+      ).get(sourceId),
     );
   }
 
@@ -79,16 +87,17 @@ export class PreparedCorpusStore {
     `).all(sourceId) as Array<{ complexityValue: number; rowCount: number }>;
   }
 
-  sourceKeyAt(sourceId: string, graphemeCount: number, classIndex: number): string {
+  sourceKeyAt(
+    sourceId: string,
+    graphemeCount: number,
+    classIndex: number,
+  ): string {
     if (!this.db) throw new Error(`CORPUS_SOURCE_MISSING:${sourceId}`);
     const row = this.db.prepare(`
-      SELECT source_key
-      FROM source_complexity_members
-      WHERE source_id = ? AND grapheme_count = ?
-      ORDER BY class_index ASC
-      LIMIT 1 OFFSET ?
+      SELECT source_key FROM source_complexity_members
+      WHERE source_id = ? AND grapheme_count = ? AND class_index = ?
     `).get(sourceId, graphemeCount, classIndex) as { source_key?: string } | undefined;
-    if (!row?.source_key) throw new Error(`CORPUS_SOURCE_KEY_MISSING:${sourceId}/${graphemeCount}/${classIndex}`);
+    if (!row?.source_key) throw new Error('CORPUS_SOURCE_KEY_MISSING:' + `${sourceId}/${graphemeCount}/${classIndex}`);
     return row.source_key;
   }
 
