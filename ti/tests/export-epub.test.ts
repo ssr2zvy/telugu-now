@@ -157,10 +157,12 @@ function selection(
     sourceProbability:
       12 / 72,
     sourceKey,
+    complexityMetric:
+      'grapheme-count',
     intrinsicComplexityValue:
       2,
     complexityReferenceVersion:
-      1,
+      2,
     complexityPercentileTarget:
       0.5,
     complexityPercentileSpread:
@@ -203,7 +205,7 @@ ExportResponse {
       complexityPercentileSpread:
         0.25,
       complexityReferenceVersion:
-        1,
+        2,
     },
     entries: [
       {
@@ -693,4 +695,3 @@ test(
     }
   },
 );
-

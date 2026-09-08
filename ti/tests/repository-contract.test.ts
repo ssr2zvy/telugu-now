@@ -224,9 +224,6 @@ test(
     const exportPage =
       read(
         'frontend/src/settings/pages/ExportPage.tsx',
-      'frontend/src/settings/pages/DataSourcesPage.tsx',
-      'server/src/sources/prepared-corpus/prepared-corpus-store.ts',
-      'server/src/sources/prepared-corpus/prepared-corpus-data-source.ts',
       );
     const controller =
       read(

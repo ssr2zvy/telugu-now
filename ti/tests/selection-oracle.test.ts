@@ -346,43 +346,192 @@ test('seeded 50,000-selection Monte Carlo converges to the independent full sour
 });
 
 test('injected random needles cross row-complexity probability boundaries at the oracle boundaries', () => {
-  const rows: DataSource[] = [
-    { sourceKey: 'one', complexityValue: 1 },
-    { sourceKey: 'two', complexityValue: 2 },
-    { sourceKey: 'three', complexityValue: 3 },
-  ];
+  const fixture = {
+    only: [
+      {
+        sourceKey: 'one',
+        text: 'ఒకటి',
+      },
+      {
+        sourceKey: 'two',
+        text: 'రెండు పదాలు',
+      },
+      {
+        sourceKey: 'three',
+        text: 'మూడు చిన్న పదాలు',
+      },
+    ],
+  };
+  const rows = fixture.only.map(
+    (row) => ({
+      sourceKey: row.sourceKey,
+      complexityValue:
+        independentGraphemeCount(
+          row.text,
+        ),
+    }),
+  );
+  const complexityClasses:
+    SourceComplexityClass[] =
+      rows.map((row) => ({
+        complexityValue:
+          row.complexityValue,
+        rowCount: 1,
+      }));
   const source: DataSource = {
     id: 'only',
     enabled: true,
-    catalog: () => rows,
-    prepare: async ({ sourceKey }) => ({ text: sourceKey }),
+    rowCount: () =>
+      rows.length,
+    complexityClasses: () =>
+      complexityClasses,
+    candidateAt: (
+      complexityValue,
+      classIndex,
+    ) => {
+      const matching =
+        rows.filter(
+          (row) =>
+            row.complexityValue ===
+            complexityValue,
+        );
+      const row =
+        matching[classIndex];
+      if (!row) {
+        throw new Error(
+          `Missing test row ${complexityValue}/${classIndex}.`,
+        );
+      }
+      return row;
+    },
+    prepare: async (
+      sourceKey,
+    ) => {
+      const row =
+        fixture.only.find(
+          (item) =>
+            item.sourceKey ===
+            sourceKey,
+        );
+      if (!row) {
+        throw new Error(
+          `Missing test source row ${sourceKey}.`,
+        );
+      }
+      return {
+        text: row.text,
+        media: [
+          {
+            kind: 'text',
+            language: 'te',
+            text: row.text,
+          },
+        ],
+      };
+    },
+    info: () => ({
+      sourceId: 'only',
+      displayName: 'Only',
+      provider: 'Test',
+      license: 'Test fixture',
+      upstreamUrl: null,
+      catalogVersion: 2,
+      acceptedRows: rows.length,
+      rejectedRows: 0,
+      complexityMetric:
+        'grapheme-count',
+      status: 'fixture',
+    }),
   };
-  const registry = { selectableSources: () => [source] } as unknown as SourceRegistry;
-  const fixture = {
-    only: [
-      { sourceKey: 'one', text: 'ఒకటి' },
-      { sourceKey: 'two', text: 'రెండు పదాలు' },
-      { sourceKey: 'three', text: 'మూడు చిన్న పదాలు' },
+  const registry = {
+    selectableSources: () => [
+      source,
     ],
+  } as unknown as SourceRegistry;
+  const settings:
+    ProfileSelectionSettings = {
+    sourceWeights: {
+      only: 1,
+    },
+    complexityPercentileTarget:
+      0.5,
+    complexityPercentileSpread:
+      0.4,
+    complexityReferenceVersion:
+      2,
   };
-  const settings: ProfileSelectionSettings = {
-    sourceWeights: { only: 1 },
-    complexityPercentileTarget: 0.5,
-    complexityPercentileSpread: 0.4,
-    complexityReferenceVersion: 2,
+  const oracle =
+    buildOracle(
+      settings,
+      fixture,
+    );
+  const ordered = [
+    'one',
+    'two',
+    'three',
+  ].map(
+    (key) =>
+      oracle.get(
+        `only\u0000${key}`,
+      )!,
+  );
+  const firstBoundary =
+    ordered[0]!
+      .rowProbabilityWithinSource;
+  const secondBoundary =
+    firstBoundary +
+    ordered[1]!
+      .rowProbabilityWithinSource;
+  const choose = (
+    classNeedle: number,
+  ): string => {
+    const randoms = [
+      0,
+      classNeedle,
+      0,
+    ];
+    return new SelectionEngine(
+      registry,
+      () =>
+        randoms.shift() ?? 0,
+    )
+      .select(settings)
+      .sourceKey;
   };
-  const oracle = buildOracle(settings, fixture);
-  const ordered = ['one', 'two', 'three'].map((key) => oracle.get(`only\u0000${key}`)!);
-  const firstBoundary = ordered[0]!.rowProbabilityWithinSource;
-  const secondBoundary = firstBoundary + ordered[1]!.rowProbabilityWithinSource;
-
-  const choose = (classNeedle: number): string => {
-    const randoms = [0, classNeedle, 0];
-    return new SelectionEngine(registry, () => randoms.shift() ?? 0).select(settings).sourceKey;
-  };
-
-  assert.equal(choose(Math.max(0, firstBoundary - 1e-5)), 'one');
-  assert.equal(choose(Math.min(1 - Number.EPSILON, firstBoundary + 1e-5)), 'two');
-  assert.equal(choose(Math.max(0, secondBoundary - 1e-5)), 'two');
-  assert.equal(choose(Math.min(1 - Number.EPSILON, secondBoundary + 1e-5)), 'three');
+  assert.equal(
+    choose(
+      Math.max(
+        0,
+        firstBoundary - 1e-5,
+      ),
+    ),
+    'one',
+  );
+  assert.equal(
+    choose(
+      Math.min(
+        1 - Number.EPSILON,
+        firstBoundary + 1e-5,
+      ),
+    ),
+    'two',
+  );
+  assert.equal(
+    choose(
+      Math.max(
+        0,
+        secondBoundary - 1e-5,
+      ),
+    ),
+    'two',
+  );
+  assert.equal(
+    choose(
+      Math.min(
+        1 - Number.EPSILON,
+        secondBoundary + 1e-5,
+      ),
+    ),
+    'three',
+  );
 });
