@@ -41,12 +41,12 @@ run_data_samples() {
 
   python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
     --input-root "$RAW_DATA_DIR/Shrutilipi" \
-    --output-root "$SAMPLE_DATA_DIR/Shrutilipi"
+    --output-root "$SAMPLE_DATA_DIR/Shrutilipi" \
     || return $?
 
   python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
     --input-root "$RAW_DATA_DIR/IndicVoices" \
-    --output-root "$SAMPLE_DATA_DIR/IndicVoices"
+    --output-root "$SAMPLE_DATA_DIR/IndicVoices" \
     || return $?
 }
 
