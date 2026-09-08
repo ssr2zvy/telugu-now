@@ -6,18 +6,16 @@ import './db/database';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
-  ensureProfileRow,
   getProfileState,
   loadProfile,
   navigateBack,
   navigateNext,
+  resetQueue,
   setProfileVisibility,
+  updateSelectionSettingsAndResetQueue,
 } from './services/profile-service';
 import { preparationService } from './services/preparation-service';
-import {
-  InvalidSelectionSettingsError,
-  updateProfileSelectionSettings,
-} from './services/selection-settings-service';
+import { InvalidSelectionSettingsError } from './services/selection-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
 import { sourceRegistry } from './services/source-registry';
 import type {
@@ -65,11 +63,15 @@ app.post('/api/profiles/:code/next', async (c) => {
   return c.json(navigateNext(c.req.param('code'), Boolean(body.visible)));
 });
 
+app.post('/api/profiles/:code/queue/reset', async (c) => {
+  const body = await c.req.json<NavigationRequest>();
+  return c.json(resetQueue(c.req.param('code'), Boolean(body.visible)));
+});
+
 app.put('/api/profiles/:code/settings', async (c) => {
   const code = c.req.param('code');
-  ensureProfileRow(code);
   const body = await c.req.json<UpdateSelectionSettingsRequest>();
-  return c.json(updateProfileSelectionSettings(code, body));
+  return c.json(updateSelectionSettingsAndResetQueue(code, body));
 });
 
 app.post('/api/profiles/:code/export', async (c) => {

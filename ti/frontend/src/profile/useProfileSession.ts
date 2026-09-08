@@ -19,6 +19,7 @@ export interface ProfileSession {
   move: (direction: 'back' | 'next') => Promise<boolean>;
   setObservationVisible: (visible: boolean) => void;
   applySelectionSettings: (settings: ProfileSelectionSettings) => void;
+  applyProfileState: (state: ProfileStateResponse) => void;
 }
 export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const [profileCode, setProfileCode] = useState<string | null>(null);
@@ -171,6 +172,11 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
         : current,
     );
   };
+  const applyProfileState = (
+    next: ProfileStateResponse,
+  ) => {
+    setState(next);
+  };
   return {
     profileCode,
     state,
@@ -182,5 +188,6 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     move,
     setObservationVisible,
     applySelectionSettings,
+    applyProfileState,
   };
 }

@@ -4,14 +4,16 @@ import type {
   AcquisitionTriggerKind,
   DisplayObservation,
   ObservationStatus,
+  ProfileSelectionSettings,
   ProfileStateResponse,
   QueueSummary,
   SelectionSnapshot,
   TimingSummary,
+  UpdateSelectionSettingsRequest,
 } from '../../../shared/contracts';
-import { appendConsumptionReplacement, ensureLaunchQueue } from './queue-service';
+import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue } from './queue-service';
 import { preparationService } from './preparation-service';
-import { getProfileSelectionSettings } from './selection-settings-service';
+import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 
 interface ProfileRow {
   code: string;
@@ -342,6 +344,30 @@ export function setProfileVisibility(code: string, visible: boolean): void {
   assertValidProfileCode(code);
   ensureProfileRow(code);
   setTailVisibility(code, visible, Date.now());
+}
+
+// Discards every queued (not-yet-displayed) observation and refills the queue from
+// scratch. The currently displayed observation, if any, is untouched.
+export function resetQueue(code: string, visible: boolean): ProfileStateResponse {
+  assertValidProfileCode(code);
+  ensureProfileRow(code);
+  clearQueue(code);
+  ensureLaunchQueue(code);
+  preparationService.kick();
+  return getProfileState(code, visible);
+}
+
+export function updateSelectionSettingsAndResetQueue(
+  code: string,
+  request: UpdateSelectionSettingsRequest,
+): ProfileSelectionSettings {
+  assertValidProfileCode(code);
+  ensureProfileRow(code);
+  const settings = updateProfileSelectionSettings(code, request);
+  clearQueue(code);
+  ensureLaunchQueue(code);
+  preparationService.kick();
+  return settings;
 }
 
 export function navigateBack(code: string, visible: boolean): ProfileStateResponse {

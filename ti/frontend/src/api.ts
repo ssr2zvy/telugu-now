@@ -55,6 +55,17 @@ export async function setVisibility(code: string, request: VisibilityRequest): P
   if (!response.ok) throw new Error(String(response.status));
 }
 
+export async function resetQueue(
+  code: string,
+  request: NavigationRequest,
+): Promise<ProfileStateResponse> {
+  return parseJson<ProfileStateResponse>(await fetch(`/api/profiles/${code}/queue/reset`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(request),
+  }));
+}
+
 export async function updateSelectionSettings(
   code: string,
   request: UpdateSelectionSettingsRequest,

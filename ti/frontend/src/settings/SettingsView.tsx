@@ -24,6 +24,8 @@ export function SettingsView({
     draft,
     settingsSaving,
     settingsError,
+    queueResetting,
+    queueResetError,
     exportCount,
     exporting,
     exportError,
@@ -43,7 +45,10 @@ export function SettingsView({
       >
         <SettingsIndex
           language={language}
+          resetting={queueResetting}
+          resetError={queueResetError}
           onNavigate={controller.enterPage}
+          onResetQueue={() => void controller.resetQueue()}
         />
       </SettingsShell>
     );

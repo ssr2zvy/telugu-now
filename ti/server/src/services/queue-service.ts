@@ -170,3 +170,23 @@ export function appendConsumptionReplacement(
 export function getQueueCount(profileCode: string): number {
   return queueCount(profileCode);
 }
+
+const selectQueuedObservationIds = db.prepare(`
+  SELECT observation_id FROM queue_items WHERE profile_code = ?
+`);
+const deleteQueueItemsForProfile = db.prepare(`
+  DELETE FROM queue_items WHERE profile_code = ?
+`);
+const deleteObservationById = db.prepare(`
+  DELETE FROM observations WHERE id = ?
+`);
+
+// Removes every not-yet-displayed queued observation (and its acquisition record via
+// cascade), leaving history and the currently displayed observation untouched.
+export function clearQueue(profileCode: string): void {
+  const queued = selectQueuedObservationIds.all(profileCode) as Array<{ observation_id: string }>;
+  db.transaction(() => {
+    deleteQueueItemsForProfile.run(profileCode);
+    for (const row of queued) deleteObservationById.run(row.observation_id);
+  })();
+}

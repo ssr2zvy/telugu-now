@@ -149,7 +149,7 @@ test('HTML export embeds all ten fonts, licenses, and no runtime network depende
     html.includes('\\u003c/script>\\u003cscript>globalThis.PWNED=true\\u003c/script>'),
   );
 });
-test('HTML export uses shared viewer presentation and mapping-table diagnostics', () => {
+test('HTML export uses shared viewer presentation and sectioned diagnostics', () => {
   const html = buildStandaloneExportHtml(sampleExport(), sampleFontBundle());
   assert.match(html, /const PRESENTATION=/);
   assert.match(html, /function preferredSize\(/);
@@ -157,7 +157,10 @@ test('HTML export uses shared viewer presentation and mapping-table diagnostics'
   assert.match(html, /function fitActive\(/);
   assert.match(html, /document\.fonts\.load/);
   assert.match(html, /window\.addEventListener\('resize'/);
-  assert.match(html, /<table><tbody id="diagnostic-body"><\/tbody><\/table>/);
+  assert.match(html, /<div id="diagnostic-body" class="diagnostic-sections"><\/div>/);
+  assert.match(html, /function sourceInfoRows\(/);
+  assert.match(html, /function complexityInfoRows\(/);
+  assert.match(html, /function globalInfoRows\(/);
   assert.equal(html.includes('<pre id="diagnostic"'), false);
 });
 test('shared standalone viewer rerolls on activation but not diagnostic toggles or resize', async () => {

@@ -147,6 +147,46 @@
       )
     );
 }
+.settings-index-page {
+  display: grid;
+  gap: 1rem;
+}
+.settings-reset-queue {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem;
+  border:
+    1px
+    solid
+    rgba(
+      30,
+      30,
+      30,
+      0.11
+    );
+  border-radius: 1rem;
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.12
+    );
+}
+.settings-reset-queue-description {
+  margin: 0;
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.62
+    );
+  font-family:
+    system-ui,
+    sans-serif;
+  font-size: 0.85rem;
+}
 .settings-index {
   display: grid;
   overflow: hidden;
@@ -423,6 +463,28 @@ input:disabled {
     system-ui,
     sans-serif;
   font-size: 2rem;
+}
+.diagnostic-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.diagnostic-section-title {
+  margin: 0 0 0.5rem;
+  color:
+    rgba(
+      20,
+      20,
+      20,
+      0.62
+    );
+  font-family:
+    system-ui,
+    sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .diagnostic-table-wrap {
   overflow-x: auto;

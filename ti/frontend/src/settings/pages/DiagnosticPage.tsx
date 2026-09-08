@@ -2,8 +2,9 @@ import type {
   ProfileStateResponse,
 } from '../../../../shared/contracts';
 import {
-  buildDiagnosticRows,
+  buildDiagnosticSections,
   diagnosticLabel,
+  diagnosticSectionLabel,
 } from '../diagnostic';
 import type {
   UiLanguage,
@@ -16,12 +17,12 @@ export function DiagnosticPage({
   state,
   language,
 }: DiagnosticPageProps) {
-  const rows =
-    buildDiagnosticRows(
+  const sections =
+    buildDiagnosticSections(
       state,
       language,
     );
-  if (!rows) {
+  if (!sections) {
     return (
       <div className="diagnostic-empty">
         ...
@@ -29,26 +30,43 @@ export function DiagnosticPage({
     );
   }
   return (
-    <div className="diagnostic-table-wrap">
-      <table className="diagnostic-table">
-        <tbody>
-          {rows.map(
-            (row) => (
-              <tr key={row.key}>
-                <th scope="row">
-                  {diagnosticLabel(
-                    language,
-                    row.key,
+    <div className="diagnostic-sections">
+      {sections.map(
+        (section) => (
+          <div
+            key={section.key}
+            className="diagnostic-section"
+          >
+            <h3 className="diagnostic-section-title">
+              {diagnosticSectionLabel(
+                language,
+                section.key,
+              )}
+            </h3>
+            <div className="diagnostic-table-wrap">
+              <table className="diagnostic-table">
+                <tbody>
+                  {section.rows.map(
+                    (row) => (
+                      <tr key={row.key}>
+                        <th scope="row">
+                          {diagnosticLabel(
+                            language,
+                            row.key,
+                          )}
+                        </th>
+                        <td>
+                          {row.value}
+                        </td>
+                      </tr>
+                    ),
                   )}
-                </th>
-                <td>
-                  {row.value}
-                </td>
-              </tr>
-            ),
-          )}
-        </tbody>
-      </table>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import type {
   ProfileSelectionSettings,
   ProfileStateResponse,
 } from '../../../shared/contracts';
-import { generateExport, updateSelectionSettings } from '../api';
+import { generateExport, resetQueue as requestQueueReset, updateSelectionSettings } from '../api';
 import type {
   ExportFormat,
   PreparedExportArtifact,
@@ -25,6 +25,7 @@ interface UseSettingsControllerOptions {
   profileCode: string | null;
   state: ProfileStateResponse | null;
   onSettingsSaved: (settings: ProfileSelectionSettings) => void;
+  onQueueReset: (state: ProfileStateResponse) => void;
 }
 export interface SettingsController {
   page: SettingsPage;
@@ -32,6 +33,8 @@ export interface SettingsController {
   draft: SettingsDraft | null;
   settingsSaving: boolean;
   settingsError: boolean;
+  queueResetting: boolean;
+  queueResetError: boolean;
   exportCount: string;
   exporting: boolean;
   exportError: boolean;
@@ -46,6 +49,7 @@ export interface SettingsController {
   clearSettingsError: () => void;
   saveComplexitySettings: () => Promise<void>;
   saveSourceSettings: () => Promise<void>;
+  resetQueue: () => Promise<void>;
   setExportCount: (count: string) => void;
   requestExport: () => void;
   cancelFormatChoice: () => void;
@@ -55,6 +59,7 @@ export function useSettingsController({
   profileCode,
   state,
   onSettingsSaved,
+  onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
   const [language, setLanguage] = useState<UiLanguage>(() =>
@@ -63,6 +68,8 @@ export function useSettingsController({
   const [draft, setDraftState] = useState<SettingsDraft | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState(false);
+  const [queueResetting, setQueueResetting] = useState(false);
+  const [queueResetError, setQueueResetError] = useState(false);
   const [exportCount, setExportCountState] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -81,6 +88,7 @@ export function useSettingsController({
     setDraftState(draftFromSettings(state.selectionSettings));
     setSettingsError(false);
     setExportError(false);
+    setQueueResetError(false);
     setFormatChooserOpen(false);
     setPage('index');
   };
@@ -95,12 +103,14 @@ export function useSettingsController({
     }
     setSettingsError(false);
     setExportError(false);
+    setQueueResetError(false);
     setFormatChooserOpen(false);
     setPage(nextPage);
   };
   const backToIndex = () => {
     setSettingsError(false);
     setExportError(false);
+    setQueueResetError(false);
     setFormatChooserOpen(false);
     setPage('index');
   };
@@ -183,6 +193,19 @@ export function useSettingsController({
       setSettingsSaving(false);
     }
   };
+  const resetQueue = async () => {
+    if (!profileCode) return;
+    setQueueResetting(true);
+    setQueueResetError(false);
+    try {
+      const next = await requestQueueReset(profileCode, { visible: false });
+      onQueueReset(next);
+    } catch {
+      setQueueResetError(true);
+    } finally {
+      setQueueResetting(false);
+    }
+  };
   const setExportCount = (count: string) => {
     setExportCountState(count);
     invalidateExport();
@@ -233,6 +256,8 @@ export function useSettingsController({
     draft,
     settingsSaving,
     settingsError,
+    queueResetting,
+    queueResetError,
     exportCount,
     exporting,
     exportError,
@@ -247,6 +272,7 @@ export function useSettingsController({
     clearSettingsError: () => setSettingsError(false),
     saveComplexitySettings,
     saveSourceSettings,
+    resetQueue,
     setExportCount,
     requestExport,
     cancelFormatChoice: () => setFormatChooserOpen(false),

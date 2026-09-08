@@ -584,6 +584,95 @@ test(
     );
   });
 
+  await suite.test('clearQueue removes queued observations, their acquisitions, and queue items only', () => {
+    resetDatabase();
+    Math.random = () => 0;
+    ensureProfile();
+    queueService.ensureLaunchQueue('001');
+    assert.equal(queueService.getQueueCount('001'), 10);
+    assert.equal(acquisitionCount(), 10);
+
+    queueService.clearQueue('001');
+
+    assert.equal(queueService.getQueueCount('001'), 0);
+    assert.equal(acquisitionCount(), 0);
+    assert.equal(
+      (db.prepare(`SELECT COUNT(*) AS count FROM observations`).get() as { count: number }).count,
+      0,
+    );
+
+    // Clearing an already-empty queue is a no-op, not an error.
+    queueService.clearQueue('001');
+    assert.equal(queueService.getQueueCount('001'), 0);
+  });
+
+  await suite.test('resetting the queue clears queued observations but keeps the currently displayed one', () => {
+    resetDatabase();
+    Math.random = () => 0;
+    ensureProfile();
+    queueService.ensureLaunchQueue('001');
+
+    const first = db.prepare(`
+      SELECT observation_id FROM queue_items WHERE profile_code = '001'
+      ORDER BY queue_position LIMIT 1
+    `).get() as { observation_id: string };
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
+    profileService.navigateNext('001', false);
+
+    const beforeQueueIds = (db.prepare(`
+      SELECT observation_id FROM queue_items WHERE profile_code = '001'
+    `).all() as Array<{ observation_id: string }>).map((row) => row.observation_id);
+
+    const state = profileService.resetQueue('001', false);
+
+    assert.equal(state.currentObservation?.id, first.observation_id);
+    assert.equal(queueService.getQueueCount('001'), 10);
+
+    const afterQueueIds = new Set((db.prepare(`
+      SELECT observation_id FROM queue_items WHERE profile_code = '001'
+    `).all() as Array<{ observation_id: string }>).map((row) => row.observation_id));
+    assert.ok(beforeQueueIds.every((id) => !afterQueueIds.has(id)));
+
+    for (const id of beforeQueueIds) {
+      const remaining = db.prepare(`SELECT COUNT(*) AS count FROM observations WHERE id = ?`).get(id) as { count: number };
+      assert.equal(remaining.count, 0);
+    }
+  });
+
+  await suite.test('updating settings resets the queue with the new settings while keeping the currently displayed observation', () => {
+    resetDatabase();
+    Math.random = () => 0;
+    ensureProfile();
+    queueService.ensureLaunchQueue('001');
+
+    const first = db.prepare(`
+      SELECT observation_id FROM queue_items WHERE profile_code = '001'
+      ORDER BY queue_position LIMIT 1
+    `).get() as { observation_id: string };
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
+    profileService.navigateNext('001', false);
+
+    const settings = profileService.updateSelectionSettingsAndResetQueue('001', {
+      sourceWeights: {
+        ...SOURCE1_ONLY_WEIGHTS,
+      },
+      complexityPercentileTarget: 0.9,
+      complexityPercentileSpread: 0.1,
+    });
+    assert.equal(settings.complexityPercentileTarget, 0.9);
+    assert.deepEqual(settings.sourceWeights, SOURCE1_ONLY_WEIGHTS);
+
+    const state = profileService.getProfileState('001', false);
+    assert.equal(state.currentObservation?.id, first.observation_id);
+    assert.equal(queueService.getQueueCount('001'), 10);
+
+    const afterSnapshots = acquisitionSnapshots();
+    assert.equal(afterSnapshots.length, 11);
+    assert.equal(afterSnapshots[0]?.complexityPercentileTarget, 0.5);
+    assert.ok(afterSnapshots.slice(1).every((snapshot) => snapshot.complexityPercentileTarget === 0.9));
+    assert.deepEqual(afterSnapshots[1]?.sourceWeights, SOURCE1_ONLY_WEIGHTS);
+  });
+
   await suite.test('shared SourceRecord cache turns a repeated resolution into a cache hit', async () => {
     resetDatabase();
     const first = await sourceRecordService.resolve('source1', 'source1-001');

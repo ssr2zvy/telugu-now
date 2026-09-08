@@ -15,13 +15,16 @@ button{border:0;background:transparent;color:rgba(20,20,20,.48);font:inherit;cur
 button:disabled{opacity:.24;cursor:default}
 #info{position:absolute;top:max(1rem,env(safe-area-inset-top));right:max(1rem,env(safe-area-inset-right));z-index:3;width:2.6rem;height:2.6rem;border-radius:50%;font-family:system-ui,sans-serif;font-weight:700}
 #position{position:absolute;left:50%;bottom:max(1rem,env(safe-area-inset-bottom));transform:translateX(-50%);font:600 .8rem system-ui,sans-serif;color:rgba(20,20,20,.55)}
-#diagnostic{position:absolute;inset:4.5rem 1rem 4rem 1rem;z-index:5;display:none;overflow:auto;padding:1rem;border-radius:1rem;background:rgba(220,220,220,.96);box-shadow:0 .5rem 2rem rgba(0,0,0,.2)}
+#diagnostic{position:absolute;inset:4.5rem 1rem 4rem 1rem;z-index:5;display:none;overflow:auto;padding:1rem;border-radius:1rem;background:linear-gradient(145deg,#9a9a9a 0%,#707070 48%,#515151 100%);box-shadow:0 .5rem 2rem rgba(0,0,0,.35)}
 #diagnostic.visible{display:block}
-#diagnostic table{width:100%;border-collapse:collapse;table-layout:fixed;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:rgba(20,20,20,.78)}
-#diagnostic th,#diagnostic td{padding:.65rem .7rem;border-bottom:1px solid rgba(30,30,30,.1);vertical-align:top;overflow-wrap:anywhere}
-#diagnostic tr:last-child th,#diagnostic tr:last-child td{border-bottom:0}
-#diagnostic th{width:46%;text-align:left;color:rgba(20,20,20,.6);font-weight:600}
-#diagnostic td{width:54%;font-variant-numeric:tabular-nums}
+.diagnostic-sections{display:flex;flex-direction:column;gap:1.1rem}
+.diagnostic-section-title{margin:0 0 .5rem;color:rgba(20,20,20,.62);font-family:system-ui,sans-serif;font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.diagnostic-table-wrap{overflow-x:auto;border:1px solid rgba(30,30,30,.11);border-radius:.9rem;background:rgba(255,255,255,.13)}
+.diagnostic-table{width:100%;border-collapse:collapse;table-layout:fixed;color:rgba(20,20,20,.78);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.45}
+.diagnostic-table th,.diagnostic-table td{padding:.7rem .75rem;border-bottom:1px solid rgba(30,30,30,.08);vertical-align:top;overflow-wrap:anywhere}
+.diagnostic-table tr:last-child th,.diagnostic-table tr:last-child td{border-bottom:0}
+.diagnostic-table th{width:46%;color:rgba(20,20,20,.6);text-align:left;font-weight:600}
+.diagnostic-table td{width:54%;font-variant-numeric:tabular-nums}
 `;
 }
 export function buildStandaloneViewerMarkup(): string {
@@ -31,7 +34,7 @@ export function buildStandaloneViewerMarkup(): string {
 <button id="next" class="nav" type="button" aria-label="తర్వాత">›</button>
 <button id="info" type="button" aria-label="సమాచారం">i</button>
 <div id="position"></div>
-<section id="diagnostic" aria-label="Diagnostic"><table><tbody id="diagnostic-body"></tbody></table></section>
+<section id="diagnostic" aria-label="Diagnostic"><div id="diagnostic-body" class="diagnostic-sections"></div></section>
 </main>`;
 }
 export function buildStandaloneViewerScript(result: ExportResponse): string {
@@ -58,14 +61,16 @@ function sourceName(sourceId){const match=/^source(\\d+)$/.exec(sourceId);return
 function sourceWeights(weights){return Object.entries(weights).sort(function(a,b){return a[0].localeCompare(b[0])}).map(function(pair){return sourceName(pair[0])+': '+number(pair[1])}).join(' · ')}
 function escapeHtml(value){return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function rowsFor(entry){
-  const diagnosticValue=entry.diagnostic;
-  const selection=diagnosticValue.selection;
   return [
     ['Export position',entry.position],
-    ['Cache hit',diagnosticValue.cacheHit?'Yes':'No'],
-    ['Request start',time(diagnosticValue.requestStartedAt)],
-    ['Request end',time(diagnosticValue.requestCompletedAt)],
-    ['Request duration',diagnosticValue.requestDurationMs===null?'—':diagnosticValue.requestDurationMs+' ms'],
+    ['Cache hit',entry.diagnostic.cacheHit?'Yes':'No'],
+    ['Request start',time(entry.diagnostic.requestStartedAt)],
+    ['Request end',time(entry.diagnostic.requestCompletedAt)],
+    ['Request duration',entry.diagnostic.requestDurationMs===null?'—':entry.diagnostic.requestDurationMs+' ms']
+  ];
+}
+function sourceInfoRows(selection){
+  return [
     ['Source weights',sourceWeights(selection.sourceWeights)],
     ['Source',selection.sourceId],
     ['Source rows',selection.sourceRowCount],
@@ -73,7 +78,11 @@ function rowsFor(entry){
     ['Source mass',number(selection.sourceMass)],
     ['Total source mass',number(selection.totalSourceMass)],
     ['Source probability',percent(selection.sourceProbability)],
-    ['Row',selection.sourceKey],
+    ['Row',selection.sourceKey]
+  ];
+}
+function complexityInfoRows(selection){
+  return [
     ['Complexity metric',selection.complexityMetric],
     ['Complexity value',selection.intrinsicComplexityValue],
     ['Complexity reference','v'+selection.complexityReferenceVersion],
@@ -86,11 +95,29 @@ function rowsFor(entry){
     ['Global per-row complexity mass',number(selection.globalPerRowComplexityMass)],
     ['Source rows at complexity value',selection.selectedSourceRowsAtComplexityValue],
     ['Source complexity denominator',number(selection.selectedSourceNormalizationDenominator)],
-    ['Row probability within source',percent(selection.rowProbabilityWithinSource)],
-    ['Overall probability',percent(selection.overallProbability)]
+    ['Row probability within source',percent(selection.rowProbabilityWithinSource)]
   ];
 }
-function renderDiagnostic(entry){diagnosticBody.innerHTML=rowsFor(entry).map(function(row){return '<tr><th scope="row">'+escapeHtml(row[0])+'</th><td>'+escapeHtml(row[1])+'</td></tr>'}).join('')}
+function globalInfoRows(entry){
+  return [
+    ['Export position',entry.position],
+    ['Overall probability',percent(entry.diagnostic.selection.overallProbability)]
+  ];
+}
+function tableHtml(rows){
+  return '<table class="diagnostic-table"><tbody>'+rows.map(function(row){return '<tr><th scope="row">'+escapeHtml(row[0])+'</th><td>'+escapeHtml(row[1])+'</td></tr>'}).join('')+'</tbody></table>';
+}
+function sectionHtml(title,rows){
+  return '<div class="diagnostic-section"><h3 class="diagnostic-section-title">'+escapeHtml(title)+'</h3><div class="diagnostic-table-wrap">'+tableHtml(rows)+'</div></div>';
+}
+function renderDiagnostic(entry){
+  const selection=entry.diagnostic.selection;
+  diagnosticBody.innerHTML=
+    sectionHtml('Request',rowsFor(entry))+
+    sectionHtml('Source',sourceInfoRows(selection))+
+    sectionHtml('Complexity',complexityInfoRows(selection))+
+    sectionHtml('Summary',globalInfoRows(entry));
+}
 function preferredSize(value,width,height){
   const normalized=value.trim().replace(/\\s+/g,' ');
   if(!normalized)return PRESENTATION.emptyFontSizePx;

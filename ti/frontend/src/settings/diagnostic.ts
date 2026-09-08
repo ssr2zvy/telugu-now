@@ -12,7 +12,46 @@ export interface DiagnosticRow {
   key: DiagnosticLabelKey;
   value: string;
 }
+export interface DiagnosticSection {
+  key: DiagnosticSectionKey;
+  rows: DiagnosticRow[];
+}
+export type DiagnosticSectionKey =
+  | 'trigger'
+  | 'source'
+  | 'complexity'
+  | 'global';
+const DIAGNOSTIC_SECTION_LABELS = {
+  trigger: {
+    en: 'Trigger & acquisition',
+    te: 'ట్రిగర్ & సేకరణ',
+  },
+  source: {
+    en: 'Source',
+    te: 'మూల సమాచారం',
+  },
+  complexity: {
+    en: 'Complexity',
+    te: 'సంక్లిష్టత',
+  },
+  global: {
+    en: 'Summary',
+    te: 'సారాంశం',
+  },
+} as const;
+export function diagnosticSectionLabel(
+  language: UiLanguage,
+  key: DiagnosticSectionKey,
+): string {
+  return DIAGNOSTIC_SECTION_LABELS[
+    key
+  ][language];
+}
 const DIAGNOSTIC_LABELS = {
+  observationId: {
+    en: 'Observation ID',
+    te: 'పరిశీలన ఐడీ',
+  },
   acquisitionNumber: {
     en: 'Acquisition',
     te: 'సేకరణ',
@@ -221,7 +260,7 @@ function formatSourceWeights(
     )
     .join(' · ');
 }
-function selectionRows(
+function sourceInfoRows(
   selection:
     SelectionSnapshot,
 ): DiagnosticRow[] {
@@ -278,6 +317,13 @@ function selectionRows(
       value:
         selection.sourceKey,
     },
+  ];
+}
+function complexityInfoRows(
+  selection:
+    SelectionSnapshot,
+): DiagnosticRow[] {
+  return [
     {
       key: 'complexityMetric',
       value: selection.complexityMetric,
@@ -389,29 +435,22 @@ function selectionRows(
             .rowProbabilityWithinSource,
         ),
     },
-    {
-      key:
-        'overallProbability',
-      value:
-        formatPercent(
-          selection
-            .overallProbability,
-        ),
-    },
   ];
 }
-export function buildDiagnosticRows(
+export function buildDiagnosticSections(
   state: ProfileStateResponse,
   language: UiLanguage,
-): DiagnosticRow[] | null {
-  const diagnostic =
+): DiagnosticSection[] | null {
+  const observation =
     state
-      .currentObservation
+      .currentObservation;
+  const diagnostic =
+    observation
       ?.diagnostic;
-  if (!diagnostic) {
+  if (!observation || !diagnostic) {
     return null;
   }
-  const rows:
+  const triggerRows:
     DiagnosticRow[] = [
     {
       key:
@@ -545,22 +584,45 @@ export function buildDiagnosticRows(
             } ms`,
     },
   ];
-  if (diagnostic.selection) {
-    rows.push(
-      ...selectionRows(
-        diagnostic.selection,
-      ),
-    );
-  } else {
-    rows.push({
-      key:
-        'selectionSnapshot',
-      value:
-        t(
-          language,
-          'unavailable',
-        ),
-    });
-  }
-  return rows;
+  const sections:
+    DiagnosticSection[] = [
+    { key: 'trigger', rows: triggerRows },
+  ];
+  const selection =
+    diagnostic.selection;
+  sections.push({
+    key: 'source',
+    rows: selection
+      ? sourceInfoRows(selection)
+      : [{
+          key: 'selectionSnapshot',
+          value: t(language, 'unavailable'),
+        }],
+  });
+  sections.push({
+    key: 'complexity',
+    rows: selection
+      ? complexityInfoRows(selection)
+      : [{
+          key: 'selectionSnapshot',
+          value: t(language, 'unavailable'),
+        }],
+  });
+  sections.push({
+    key: 'global',
+    rows: [
+      {
+        key: 'observationId',
+        value: observation.id,
+      },
+      {
+        key: 'overallProbability',
+        value:
+          selection
+            ? formatPercent(selection.overallProbability)
+            : t(language, 'unavailable'),
+      },
+    ],
+  });
+  return sections;
 }
