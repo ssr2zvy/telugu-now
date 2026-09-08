@@ -31,7 +31,7 @@ export class DummyDataSource implements DataSource {
 
   rowCount(): number { return this.byKey.size; }
   complexityClasses(): readonly SourceComplexityClass[] {
-    return [...this.byComplexity.entries()].map(([complexityValue, rows]) => ({ complexityValue, rowCount: rows.length })).sort((a, b) => a.complexityValue - b.complexityValue);
+    return [...this.byComplexity.entries()].map(([complexityValue, rows]) => ({ complexityValue, rowCount: rows.length }));
   }
   candidateAt(complexityValue: number, classIndex: number): SourceCandidate {
     const row = (this.byComplexity.get(complexityValue) ?? [])[classIndex];
