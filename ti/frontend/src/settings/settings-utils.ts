@@ -34,12 +34,9 @@ export function draftFromSettings(
       ),
   };
 }
-export function sourceDisplayName(
-  sourceId: string,
-): string {
-  const match =
-    /^source(\d+)$/.exec(
-      sourceId,
-    );
+export function sourceDisplayName(sourceId: string): string {
+  const preparedNames: Record<string, string> = { 'fleurs-te': 'FLEURS', 'shrutilipi-te': 'Shrutilipi', 'indicvoices-te': 'IndicVoices' };
+  if (preparedNames[sourceId]) return preparedNames[sourceId];
+  const match = /^source(\d+)$/.exec(sourceId);
   return match?.[1] ?? sourceId;
 }

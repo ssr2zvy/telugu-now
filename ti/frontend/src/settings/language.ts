@@ -7,6 +7,8 @@ export const COPY = {
     sourceWeights: 'Source weights',
     diagnostic: 'Diagnostic',
     export: 'Export',
+    dataSources: 'Data sources', provider: 'Provider', license: 'License', sourceRepository: 'Source repository', catalogVersion: 'Catalog version', acceptedRows: 'Accepted rows', rejectedRows: 'Rejected rows', sourceStatus: 'Status', complexityMetric: 'Complexity metric', sourceReady: 'Ready', sourceFixture: 'Development fixture', sourceInvalid: 'Invalid',
+
     target: 'Target (%)',
     spread: 'Spread (%)',
     save: 'Save',
@@ -38,6 +40,8 @@ export const COPY = {
     sourceWeights: 'మూల బరువులు',
     diagnostic: 'నిర్ధారణ సమాచారం',
     export: 'ఎగుమతి',
+    dataSources: 'డేటా మూలాలు', provider: 'ప్రదాత', license: 'లైసెన్స్', sourceRepository: 'మూల రిపోజిటరీ', catalogVersion: 'క్యాటలాగ్ సంచిక', acceptedRows: 'ఆమోదించిన వరుసలు', rejectedRows: 'తిరస్కరించిన వరుసలు', sourceStatus: 'స్థితి', complexityMetric: 'సంక్లిష్టత ప్రమాణం', sourceReady: 'సిద్ధం', sourceFixture: 'అభివృద్ధి నమూనా', sourceInvalid: 'చెల్లదు',
+
     target: 'లక్ష్యం (%)',
     spread: 'వ్యాప్తి (%)',
     save: 'భద్రపరచు',

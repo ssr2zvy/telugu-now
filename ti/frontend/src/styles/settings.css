@@ -595,3 +595,11 @@ td {
 .export-format-cancel:active {
   background: rgba(35, 35, 35, 0.08);
 }
+
+.data-source-list { display: grid; gap: 1rem; }
+.data-source-card { padding: 1rem; border: 1px solid rgba(30, 30, 30, 0.11); border-radius: 0.9rem; background: rgba(255, 255, 255, 0.13); }
+.data-source-card h2 { margin: 0 0 0.8rem; color: rgba(20, 20, 20, 0.86); }
+.data-source-card dl { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: 0.45rem 1rem; margin: 0 0 0.8rem; }
+.data-source-card dt { color: rgba(20, 20, 20, 0.58); }
+.data-source-card dd { margin: 0; overflow-wrap: anywhere; }
+.data-source-card a { color: rgba(20, 20, 20, 0.7); }

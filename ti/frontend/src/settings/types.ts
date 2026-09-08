@@ -3,6 +3,7 @@ export type SettingsPage =
   | 'complexity'
   | 'sources'
   | 'diagnostic'
+  | 'dataSources'
   | 'export';
 export type UiLanguage =
   | 'en'

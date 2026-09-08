@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test, { after, before } from 'node:test';
+import Database from 'better-sqlite3';
 import type { SelectionSnapshot } from '../shared/contracts';
 import { buildStandaloneExportHtml } from '../frontend/src/export-html';
 
@@ -11,6 +12,16 @@ process.env.DATABASE_PATH = path.join(temporaryDirectory, 'core.sqlite');
 process.env.PROFILE_CODES = '001';
 process.env.MOCK_DELAY_MIN_MS = '0';
 process.env.MOCK_DELAY_MAX_MS = '0';
+const corpusDatabasePath = path.join(temporaryDirectory, 'corpus.sqlite');
+const corpusFixture = new Database(corpusDatabasePath);
+corpusFixture.exec(`CREATE TABLE sources (source_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, provider TEXT NOT NULL, license TEXT NOT NULL, upstream_url TEXT, catalog_version INTEGER NOT NULL, accepted_rows INTEGER NOT NULL, rejected_rows INTEGER NOT NULL, complexity_metric TEXT NOT NULL, status TEXT NOT NULL); CREATE TABLE source_rows (source_id TEXT NOT NULL, source_key TEXT NOT NULL, canonical_split TEXT NOT NULL DEFAULT 'train', upstream_split TEXT NOT NULL DEFAULT 'train', text TEXT NOT NULL, grapheme_count INTEGER NOT NULL, text_sha256 TEXT NOT NULL DEFAULT '', audio_sha256 TEXT NOT NULL, audio_object_key TEXT NOT NULL, audio_mime_type TEXT NOT NULL, duration_seconds REAL NOT NULL, source_metadata_json TEXT NOT NULL DEFAULT '{}', PRIMARY KEY(source_id, source_key)); CREATE TABLE source_complexity_members (source_id TEXT NOT NULL, grapheme_count INTEGER NOT NULL, class_index INTEGER NOT NULL, source_key TEXT NOT NULL, PRIMARY KEY(source_id, grapheme_count, class_index));`);
+for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
+  corpusFixture.prepare('INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(sourceId, sourceId, 'test', 'CC BY 4.0', null, 1, 1, 0, 'grapheme-count', 'ready');
+  corpusFixture.prepare('INSERT INTO source_rows (source_id, source_key, text, grapheme_count, audio_sha256, audio_object_key, audio_mime_type, duration_seconds) VALUES (?, ?, ?, 1, ?, ?, ?, 1)').run(sourceId, 'train:fixture', 'తె', 'sha', `media/${sourceId}/fixture.wav`, 'audio/wav');
+  corpusFixture.prepare('INSERT INTO source_complexity_members VALUES (?, 1, 0, ?)').run(sourceId, 'train:fixture');
+}
+corpusFixture.close();
+process.env.CORPUS_DATABASE_PATH = corpusDatabasePath;
 
 let db: typeof import('../server/src/db/database')['db'];
 let profileService: typeof import('../server/src/services/profile-service');
@@ -284,10 +295,10 @@ test('Iteration 2 selection, settings, repeats, cache and export', { concurrency
     resetDatabase();
     const sources = sourceRegistryModule.sourceRegistry.selectableSources();
     assert.deepEqual(sources.map((source) => source.id), ['source1', 'source2', 'source3']);
-    assert.deepEqual(sources.map((source) => source.catalog().length), [12, 24, 36]);
+    assert.deepEqual(sources.map((source) => source.rowCount()), [12, 24, 36]);
     for (const source of sources) {
-      assert.ok(source.catalog().every((row) => row.wordCount > 0));
-      assert.equal(new Set(source.catalog().map((row) => row.sourceKey)).size, source.catalog().length);
+      assert.ok(source.complexityClasses().every((item) => item.complexityValue > 0 && item.rowCount > 0));
+      assert.equal(source.rowCount());
     }
   });
 
@@ -377,7 +388,7 @@ test('Iteration 2 selection, settings, repeats, cache and export', { concurrency
       sourceWeights: { source1: 1, source2: 1, source3: 1 },
       complexityPercentileTarget: 0.5,
       complexityPercentileSpread: 0.25,
-      complexityReferenceVersion: 1,
+      complexityReferenceVersion: 2,
     });
 
     assert.equal(selected.sourceId, 'source2');
@@ -458,10 +469,10 @@ test('Iteration 2 selection, settings, repeats, cache and export', { concurrency
     const source = sourceRegistryModule.sourceRegistry.get('source1');
     const originalPrepare = source.prepare.bind(source);
     let calls = 0;
-    source.prepare = async (candidate) => {
+    source.prepare = async (sourceKey) => {
       calls += 1;
       if (calls === 1) throw new Error('intentional first failure');
-      return originalPrepare(candidate);
+      return originalPrepare(sourceKey);
     };
 
     try {
@@ -486,11 +497,11 @@ test('Iteration 2 selection, settings, repeats, cache and export', { concurrency
     const started = new Promise<void>((resolve) => { markStarted = resolve; });
     const gate = new Promise<void>((resolve) => { release = resolve; });
 
-    source.prepare = async (candidate) => {
+    source.prepare = async (sourceKey) => {
       calls += 1;
       markStarted();
       await gate;
-      return originalPrepare(candidate);
+      return originalPrepare(sourceKey);
     };
 
     try {
@@ -549,13 +560,13 @@ test('Iteration 2 selection, settings, repeats, cache and export', { concurrency
     const gate = new Promise<void>((resolve) => { release = resolve; });
     let first = true;
 
-    source.prepare = async (candidate) => {
+    source.prepare = async (sourceKey) => {
       if (first) {
         first = false;
         markStarted();
         await gate;
       }
-      return originalPrepare(candidate);
+      return originalPrepare(sourceKey);
     };
 
     try {

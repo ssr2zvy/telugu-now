@@ -32,8 +32,8 @@ export class PreparedCorpusDataSource implements DataSource {
     };
   }
 
-  async prepare(candidate: SourceCandidate): Promise<PreparedSourceObservation> {
-    const row = this.store.row(this.id, candidate.sourceKey);
+  async prepare(sourceKey: string): Promise<PreparedSourceObservation> {
+    const row = this.store.row(this.id, sourceKey);
 
     return {
       text: row.text,

@@ -6,10 +6,11 @@ from typing import Iterator
 
 import pyarrow.parquet as pq
 
-from ..common import (
+from common import (
     CanonicalInputRow,
     CorpusStructuralError,
     canonical_split,
+    normalize_source_locator,
 )
 
 SOURCE_ID = "shrutilipi-te"
@@ -64,7 +65,22 @@ def read_shrutilipi(root: Path) -> Iterator[CanonicalInputRow]:
                         "SHRUTILIPI_SCHEMA:MISSING_AUDIO_PATH"
                     )
 
-                source_key = f"{split}:{Path(upstream_path).as_posix()}"
+                normalized_audio_path = (
+                    normalize_source_locator(
+                        upstream_path
+                    )
+                )
+                source_key = (
+                    f"{split}:"
+                    f"{normalized_audio_path}"
+                )
+
+                try:
+                    duration_seconds = float(
+                        row["duration"]
+                    )
+                except (TypeError, ValueError):
+                    duration_seconds = float("nan")
 
                 yield CanonicalInputRow(
                     source_id=SOURCE_ID,
@@ -75,12 +91,12 @@ def read_shrutilipi(root: Path) -> Iterator[CanonicalInputRow]:
                     audio_bytes=audio.get("bytes") or b"",
                     audio_mime_type=EXPECTED_AUDIO_MIME,
                     audio_extension=".flac",
-                    duration_seconds=float(row["duration"]),
+                    duration_seconds=duration_seconds,
                     source_metadata={
                         key: value
                         for key, value in row.items()
                         if key != "audio_filepath"
                     } | {
-                        "upstreamAudioPath": upstream_path,
+                        "upstreamAudioPath": normalized_audio_path,
                     },
                 )

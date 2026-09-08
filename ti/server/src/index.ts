@@ -19,7 +19,9 @@ import {
   updateProfileSelectionSettings,
 } from './services/selection-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
+import { sourceRegistry } from './services/source-registry';
 import type {
+  DataSourcesResponse,
   ExportRequest,
   LoadProfileRequest,
   NavigationRequest,
@@ -29,7 +31,13 @@ import type {
 
 const app = new Hono();
 
+sourceRegistry.assertPreparedSourcesPresent();
+
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+app.get('/api/data-sources', (c) =>
+  c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
+);
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

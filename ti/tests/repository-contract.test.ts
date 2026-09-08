@@ -86,11 +86,16 @@ test(
       ),
       false,
     );
-    assert.ok(
-      readme.includes(
-        './control.sh',
-      ),
-    );
+    assert.ok(readme.includes('./control.sh'));
+    assert.ok(read('control.sh').includes('run_data_domain'));
+    assert.ok(read('control.sh').includes('CORPUS_NOT_PREPARED'));
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'scripts', 'prepare-corpus', 'prepare.py')), true);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'requirements.txt')), true);
+    const registry = read('server/src/services/source-registry.ts');
+    assert.ok(registry.includes("'fleurs-te'"));
+    assert.ok(registry.includes("'shrutilipi-te'"));
+    assert.ok(registry.includes("'indicvoices-te'"));
+
     assert.equal(
       fs.existsSync(
         path.join(
@@ -129,6 +134,9 @@ test(
       'frontend/src/settings/pages/SourceWeightsPage.tsx',
       'frontend/src/settings/pages/DiagnosticPage.tsx',
       'frontend/src/settings/pages/ExportPage.tsx',
+      'frontend/src/settings/pages/DataSourcesPage.tsx',
+      'server/src/sources/prepared-corpus/prepared-corpus-store.ts',
+      'server/src/sources/prepared-corpus/prepared-corpus-data-source.ts',
       'frontend/src/export-artifact.ts',
       'frontend/src/export-viewer.ts',
       'frontend/src/export-html.ts',
@@ -216,6 +224,9 @@ test(
     const exportPage =
       read(
         'frontend/src/settings/pages/ExportPage.tsx',
+      'frontend/src/settings/pages/DataSourcesPage.tsx',
+      'server/src/sources/prepared-corpus/prepared-corpus-store.ts',
+      'server/src/sources/prepared-corpus/prepared-corpus-data-source.ts',
       );
     const controller =
       read(
@@ -711,4 +722,3 @@ test(
     }
   },
 );
-

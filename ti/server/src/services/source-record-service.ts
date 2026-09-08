@@ -1,3 +1,4 @@
+import type { MediaItem } from '../../../shared/contracts';
 import { db } from '../db/database';
 import { sourceRegistry } from './source-registry';
 import { LegacyIteration1MockDataSource } from '../sources/mock/mock-data-source';
@@ -6,6 +7,7 @@ export interface ResolvedSourceRecord {
   sourceId: string;
   sourceKey: string;
   text: string;
+  media: MediaItem[];
   cacheHit: boolean;
   requestStartedAt: number | null;
   requestCompletedAt: number | null;
@@ -14,10 +16,12 @@ export interface ResolvedSourceRecord {
 
 interface CachedRow {
   text: string;
+  media_json: string;
 }
 
 interface FreshResolution {
   text: string;
+  media: MediaItem[];
   requestStartedAt: number;
   requestCompletedAt: number;
   requestDurationMs: number;
@@ -33,7 +37,7 @@ class SourceRecordService {
 
   private cached(sourceId: string, sourceKey: string): CachedRow | undefined {
     return db.prepare(`
-      SELECT text
+      SELECT text, media_json
       FROM source_records
       WHERE source_id = ? AND source_key = ?
     `).get(sourceId, sourceKey) as CachedRow | undefined;
@@ -46,6 +50,7 @@ class SourceRecordService {
         sourceId,
         sourceKey,
         text: existing.text,
+        media: JSON.parse(existing.media_json) as MediaItem[],
         cacheHit: true,
         requestStartedAt: null,
         requestCompletedAt: null,
@@ -69,6 +74,7 @@ class SourceRecordService {
       sourceId,
       sourceKey,
       text: fresh.text,
+      media: fresh.media,
       cacheHit: false,
       requestStartedAt: fresh.requestStartedAt,
       requestCompletedAt: fresh.requestCompletedAt,
@@ -81,19 +87,19 @@ class SourceRecordService {
     const source = sourceId === this.legacyIteration1Resolver.id
       ? this.legacyIteration1Resolver
       : sourceRegistry.get(sourceId);
-    const prepared = await source.prepare({ sourceKey });
+    const prepared = await source.prepare(sourceKey);
     const requestCompletedAt = Date.now();
 
     db.prepare(`
-      INSERT INTO source_records (source_id, source_key, text, prepared_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO source_records (source_id, source_key, text, media_json, prepared_at)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(source_id, source_key) DO UPDATE SET
-        text = excluded.text,
-        prepared_at = excluded.prepared_at
-    `).run(sourceId, sourceKey, prepared.text, requestCompletedAt);
+        text = excluded.text, media_json = excluded.media_json, prepared_at = excluded.prepared_at
+    `).run(sourceId, sourceKey, prepared.text, JSON.stringify(prepared.media), requestCompletedAt);
 
     return {
       text: prepared.text,
+      media: prepared.media,
       requestStartedAt,
       requestCompletedAt,
       requestDurationMs: requestCompletedAt - requestStartedAt,

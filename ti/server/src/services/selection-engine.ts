@@ -1,16 +1,15 @@
 import type { ProfileSelectionSettings, SelectionSnapshot } from '../../../shared/contracts';
-import type { DataSource, SourceCatalogRow } from '../domain/source';
+import type { DataSource } from '../domain/source';
 import { sourceRegistry, SourceRegistry } from './source-registry';
 
-export const COMPLEXITY_REFERENCE_VERSION = 1;
-const SUPPORTED_REFERENCE_VERSIONS = new Set([1]);
+export const COMPLEXITY_REFERENCE_VERSION = 2;
+const SUPPORTED_REFERENCE_VERSIONS = new Set([2]);
 const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
 
 interface ComplexityClass {
-  wordCount: number;
-  complexityValue?: number;
+  complexityValue: number;
   globalCount: number;
   percentileStart: number;
   percentileEnd: number;
@@ -24,8 +23,7 @@ interface ClassMass extends ComplexityClass {
 export interface SelectionResult {
   sourceId: string;
   sourceKey: string;
-  wordCount: number;
-  complexityValue?: number;
+  complexityValue: number;
   snapshot: SelectionSnapshot;
 }
 
@@ -33,8 +31,7 @@ export interface ComplexityReferenceDescription {
   version: number;
   totalRows: number;
   classes: Array<{
-    wordCount: number;
-    complexityValue?: number;
+    complexityValue: number;
     globalCount: number;
     percentileStart: number;
     percentileEnd: number;
@@ -99,44 +96,6 @@ function weightedPick<T>(
   return positive[positive.length - 1]!.item;
 }
 
-function sourceCatalogRows(source: DataSource): SourceCatalogRow[] {
-  if (source.catalog) {
-    return source.catalog().map((row) => ({
-      sourceKey: row.sourceKey,
-      wordCount: row.wordCount,
-      complexityValue: row.complexityValue ?? row.wordCount,
-    }));
-  }
-
-  if (source.complexityClasses && typeof source.candidateAt === 'function') {
-    const rows: SourceCatalogRow[] = [];
-    for (const klass of source.complexityClasses()) {
-      for (let index = 0; index < klass.rowCount; index += 1) {
-        const candidate = source.candidateAt(klass.complexityValue, index);
-        rows.push({
-          sourceKey: candidate.sourceKey,
-          wordCount: klass.complexityValue,
-          complexityValue: klass.complexityValue,
-        });
-      }
-    }
-    return rows;
-  }
-
-  return [];
-}
-
-function sourceWordCountMap(source: DataSource): Map<number, SourceCatalogRow[]> {
-  const map = new Map<number, SourceCatalogRow[]>();
-  for (const row of sourceCatalogRows(source)) {
-    const key = row.wordCount;
-    const rows = map.get(key) ?? [];
-    rows.push(row);
-    map.set(key, rows);
-  }
-  return map;
-}
-
 export class SelectionEngine {
   private readonly classes: ComplexityClass[];
   private readonly totalRows: number;
@@ -146,11 +105,20 @@ export class SelectionEngine {
     private readonly random: () => number = () => Math.random(),
   ) {
     const counts = new Map<number, number>();
+
     for (const source of registry.selectableSources()) {
-      for (const row of sourceCatalogRows(source)) {
-        const key = row.wordCount;
-        counts.set(key, (counts.get(key) ?? 0) + 1);
+      const sourceClasses = source.complexityClasses();
+      const seenValues = new Set<number>();
+      let classRowCount = 0;
+
+      for (const item of sourceClasses) {
+        if (!Number.isInteger(item.complexityValue) || item.complexityValue <= 0 || !Number.isInteger(item.rowCount) || item.rowCount <= 0) throw new Error(`SOURCE_COMPLEXITY_INVALID:${source.id}`);
+        if (seenValues.has(item.complexityValue)) throw new Error(`SOURCE_COMPLEXITY_DUPLICATE:${source.id}:${item.complexityValue}`);
+        seenValues.add(item.complexityValue);
+        classRowCount += item.rowCount;
+        counts.set(item.complexityValue, (counts.get(item.complexityValue) ?? 0) + item.rowCount);
       }
+      if (classRowCount !== source.rowCount()) throw new Error(`SOURCE_COMPLEXITY_COUNT_MISMATCH:${source.id}:${source.rowCount()}:${classRowCount}`);
     }
 
     this.totalRows = [...counts.values()].reduce((sum, count) => sum + count, 0);
@@ -159,12 +127,11 @@ export class SelectionEngine {
     let cumulative = 0;
     this.classes = [...counts.entries()]
       .sort(([left], [right]) => left - right)
-      .map(([wordCount, globalCount]) => {
+      .map(([complexityValue, globalCount]) => {
         const percentileStart = cumulative / this.totalRows;
         cumulative += globalCount;
         return {
-          wordCount,
-          complexityValue: wordCount,
+          complexityValue,
           globalCount,
           percentileStart,
           percentileEnd: cumulative / this.totalRows,
@@ -206,8 +173,7 @@ export class SelectionEngine {
     const sourceEntries = sources.map((source) => {
       const sourceWeight = settings.sourceWeights[source.id];
       if (sourceWeight === undefined) throw new Error(`Missing source weight for ${source.id}.`);
-      const rows = sourceCatalogRows(source);
-      const sourceRowCount = rows.length;
+      const sourceRowCount = source.rowCount();
       return {
         source,
         sourceWeight,
@@ -225,30 +191,17 @@ export class SelectionEngine {
       settings.complexityPercentileTarget,
       settings.complexityPercentileSpread,
     );
-    const classByWordCount = new Map(classMasses.map((item) => [item.wordCount, item]));
-    const rowsByWordCount = sourceWordCountMap(selectedSourceEntry.source);
-
-    const sourceClasses = [...rowsByWordCount.entries()].map(([wordCount, rows]) => {
-      const complexity = classByWordCount.get(wordCount);
-      if (!complexity) throw new Error(`Word count ${wordCount} is absent from the global reference.`);
-      return {
-        wordCount,
-        rows,
-        complexity,
-        sourceClassMass: rows.length * complexity.perRowMass,
-      };
+    const classByValue = new Map(classMasses.map((item) => [item.complexityValue, item]));
+    const sourceClasses = selectedSourceEntry.source.complexityClasses().map((item) => {
+      const complexity = classByValue.get(item.complexityValue);
+      if (!complexity) throw new Error('Complexity value ' + `${item.complexityValue} ` + 'is absent from the global reference.');
+      return { complexityValue: item.complexityValue, rowCount: item.rowCount, complexity, sourceClassMass: item.rowCount * complexity.perRowMass };
     });
     const denominator = sourceClasses.reduce((sum, item) => sum + item.sourceClassMass, 0);
     if (!(denominator > 0)) throw new Error('Selected source has zero complexity mass.');
-
     const selectedClass = weightedPick(sourceClasses, (item) => item.sourceClassMass, this.random);
-    const selectedRow = selectedClass.rows[
-      Math.min(
-        Math.floor(Math.min(Math.max(this.random(), 0), 1 - Number.EPSILON) * selectedClass.rows.length),
-        selectedClass.rows.length - 1,
-      )
-    ];
-    if (!selectedRow) throw new Error('Selected complexity class contains no row.');
+    const rowIndex = Math.floor(Math.min(Math.max(this.random(), 0), 1 - Number.EPSILON) * selectedClass.rowCount);
+    const selectedRow = selectedSourceEntry.source.candidateAt(selectedClass.complexityValue, rowIndex);
 
     const rowProbabilityWithinSource = selectedClass.complexity.perRowMass / denominator;
     const overallProbability = sourceProbability * rowProbabilityWithinSource;
@@ -257,7 +210,7 @@ export class SelectionEngine {
       Number.MIN_VALUE,
     );
 
-    const complexityValue = selectedRow.complexityValue ?? selectedRow.wordCount;
+    const complexityValue = selectedRow.complexityValue;
     const snapshot: SelectionSnapshot = {
       sourceWeights: { ...settings.sourceWeights },
       sourceId: selectedSourceEntry.source.id,
@@ -267,9 +220,7 @@ export class SelectionEngine {
       totalSourceMass,
       sourceProbability,
       sourceKey: selectedRow.sourceKey,
-      wordCount: selectedRow.wordCount,
       complexityMetric: 'grapheme-count',
-      complexityValue,
       intrinsicComplexityValue: complexityValue,
       complexityReferenceVersion: settings.complexityReferenceVersion,
       complexityPercentileTarget: settings.complexityPercentileTarget,
@@ -278,22 +229,17 @@ export class SelectionEngine {
       globalPercentileStart: selectedClass.complexity.percentileStart,
       globalPercentileEnd: selectedClass.complexity.percentileEnd,
       globalIntervalMass: selectedClass.complexity.intervalMass,
-      globalRowsAtWordCount: selectedClass.complexity.globalCount,
       globalRowsAtComplexityValue: selectedClass.complexity.globalCount,
       globalPerRowComplexityMass: selectedClass.complexity.perRowMass,
-      selectedSourceRowsAtWordCount: selectedClass.rows.length,
-      selectedSourceRowsAtComplexityValue: selectedClass.rows.length,
+      selectedSourceRowsAtComplexityValue: selectedClass.rowCount,
       selectedSourceNormalizationDenominator: denominator,
       rowProbabilityWithinSource,
       overallProbability,
-      globalRowsAtComplexity: selectedClass.complexity.globalCount,
-      selectedSourceRowsAtComplexity: selectedClass.rows.length,
     };
 
     return {
       sourceId: selectedSourceEntry.source.id,
       sourceKey: selectedRow.sourceKey,
-      wordCount: selectedRow.wordCount,
       complexityValue,
       snapshot,
     };

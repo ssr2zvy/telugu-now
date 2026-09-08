@@ -28,13 +28,13 @@ test('live preparation is sequential, respects queue order, and reuses the share
   let active = 0;
   let maxActive = 0;
   const sourceCallOrder: string[] = [];
-  source.prepare = async (candidate) => {
+  source.prepare = async (sourceKey) => {
     active += 1;
     maxActive = Math.max(maxActive, active);
-    sourceCallOrder.push(candidate.sourceKey);
+    sourceCallOrder.push(sourceKey);
     try {
       await new Promise<void>((resolve) => setTimeout(resolve, 4));
-      return await originalPrepare(candidate);
+      return await originalPrepare(sourceKey);
     } finally {
       active -= 1;
     }

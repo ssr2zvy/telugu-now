@@ -199,13 +199,13 @@ function nextQueueItem(code: string): NextQueueRow | undefined {
 
 function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
   try {
-    const value = JSON.parse(raw) as Partial<SelectionSnapshot>;
-    return typeof value.sourceId === 'string' && typeof value.sourceKey === 'string'
-      ? value as SelectionSnapshot
-      : null;
-  } catch {
-    return null;
-  }
+    const value = JSON.parse(raw) as Partial<SelectionSnapshot> & { wordCount?: number; globalRowsAtWordCount?: number; selectedSourceRowsAtWordCount?: number };
+    if (typeof value.sourceId !== 'string' || typeof value.sourceKey !== 'string') return null;
+    if (value.complexityMetric === undefined && typeof value.wordCount === 'number') {
+      return { ...value, complexityMetric: 'word-count', intrinsicComplexityValue: value.wordCount, globalRowsAtComplexityValue: value.globalRowsAtWordCount ?? 0, selectedSourceRowsAtComplexityValue: value.selectedSourceRowsAtWordCount ?? 0 } as SelectionSnapshot;
+    }
+    return value as SelectionSnapshot;
+  } catch { return null; }
 }
 
 function currentObservation(code: string, currentPosition: number | null): DisplayObservation | null {
