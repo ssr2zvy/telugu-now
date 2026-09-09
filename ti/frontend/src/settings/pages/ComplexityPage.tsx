@@ -46,6 +46,8 @@ export function ComplexityPage({
           <input
           type="number"
           min="0"
+          aria-label={t(language, 'target')}
+          aria-description={language === 'en' ? 'Percent' : 'శాతం'}
           max="100"
           step="0.1"
           value={
@@ -77,6 +79,8 @@ export function ComplexityPage({
           <input
           type="number"
           min="0.000001"
+          aria-label={t(language, 'spread')}
+          aria-description={language === 'en' ? 'Percent' : 'శాతం'}
           step="0.1"
           value={
             draft.spreadPercent

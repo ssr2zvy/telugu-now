@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
 
 const baseUrl = process.env.UI_TEST_URL ?? 'http://127.0.0.1:5173';
+const darkAppearance = { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#f3f5ee', fontScale: 50, fonts: ['Noto Sans Telugu'] };
 const sampleText = '\u0c26\u0c40\u0c28\u0c3f\u0c32\u0c4b \u0c2c\u0c1f\u0c4d\u0c1f\u0c32\u0c41 \u0c15\u0c4a\u0c28\u0c21\u0c02 \u0c35\u0c32\u0c28 \u0c28\u0c3e\u0c15\u0c41 \u0c38\u0c2e\u0c2f\u0c02 \u0c35\u0c43\u0c25\u0c3e \u0c15\u0c3e\u0c32\u0c47\u0c26\u0c41';
 
 function audioFixture(): Buffer {
@@ -123,6 +124,51 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
+test.describe('touch navigation', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('double taps navigate but a popover dismissal does not', async ({ page }) => {
+    const fixture = await loadFixture(page);
+    const next = page.locator('.nav-zone-right');
+    await next.tap();
+    expect(fixture.navigationCount()).toBe(0);
+    await next.tap();
+    await expect.poll(fixture.navigationCount).toBe(1);
+    await expect(next).toBeEnabled();
+    await page.getByTitle('Playback speed', { exact: true }).tap();
+    await next.tap();
+    await next.tap();
+    await expect(page.getByRole('slider', { name: 'Playback speed', exact: true })).toHaveCount(0);
+    expect(fixture.navigationCount()).toBe(1);
+    expect(fixture.errors).toEqual([]);
+  });
+});
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test.describe(`dark settings ${viewport.width}`, () => {
+    test.use({ viewport });
+    test('inline fields retain one focus indicator', async ({ page }, testInfo) => {
+      await page.addInitScript((appearance) => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), darkAppearance);
+      const fixture = await loadFixture(page);
+      await page.screenshot({ path: testInfo.outputPath('dark-reader.png') });
+      await openSettings(page);
+      await page.screenshot({ path: testInfo.outputPath('dark-settings.png') });
+      await page.getByRole('button', { name: 'Sampling', exact: true }).click();
+      await page.getByRole('button', { name: 'Complexity', exact: true }).click();
+      const target = page.getByLabel('Target', { exact: true });
+      await target.click();
+      await expect(target).toHaveCSS('outline-style', 'none');
+      await target.press('Tab');
+      const spread = page.getByLabel('Spread', { exact: true });
+      await expect(spread).toBeFocused();
+      await expect(spread).toHaveCSS('outline-style', 'none');
+      await expect(spread).toHaveCSS('border-bottom-style', 'solid');
+      await withinViewport(spread, page);
+      await page.screenshot({ path: testInfo.outputPath('dark-complexity.png') });
+      expect(fixture.errors).toEqual([]);
+    });
+  });
 }
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
