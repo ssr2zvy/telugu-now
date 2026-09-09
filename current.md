@@ -1,9 +1,140 @@
-# Current Handoff: Prepare the Raw Dataset Folder
+# Build the Final Data Directory
+
+Produce the final `data/` directory from these downloaded Parquet files:
+
+```text
+./tigris-download/indicVoice_telugu/indicVoices/*.parquet
+./tigris-download/indicVoice_telugu/Shrutilipi(done)/*.parquet
+```
+
+Run everything on the system containing the downloads. These instructions process all downloaded IndicVoices and Shrutilipi shards and do not require FLEURS. The task ends with the final `data/` directory; deployment is not included.
+
+Stop if any command fails. Do not run concurrent pipeline operations or modify inputs while processing.
+
+## 1. Set Up Python
+
+Start in the directory containing `./tigris-download/`. Replace `REPO` with the absolute path to the `telugu-now` repository checkout. Python 3.12 must be installed.
+
+```bash
+DOWNLOADS="$(realpath ./tigris-download/indicVoice_telugu)"
+REPO="/absolute/path/to/telugu-now"
+cd "$REPO"
+python3.12 -m venv .venv-data
+source .venv-data/bin/activate
+python -m pip install -r data-transform/requirements.txt
+```
+
+Continue all remaining steps in this same terminal, from the repository root.
+
+## 2. Stage the Raw Files
+
+Start with empty `data-transform/raw/` and `data-transform/sample/` directories. Move any previous inputs elsewhere first; do not mix old samples with these downloads.
+
+```bash
+mkdir -p data-transform/raw/IndicVoices data-transform/raw/Shrutilipi
+cp "$DOWNLOADS/indicVoices/"*.parquet data-transform/raw/IndicVoices/
+cp "$DOWNLOADS/Shrutilipi(done)/"*.parquet data-transform/raw/Shrutilipi/
+```
+
+These source paths match the download directory names exactly, including lowercase `indicVoices` and the parentheses in `Shrutilipi(done)`. The destination names match the pipeline's expected layout.
+
+The Parquet files are the raw input format; no format conversion is needed if they match the schemas in the retained reference below. Copying preserves the original downloads because extraction consumes the staged raw files. Keep the original shard filenames.
+
+## 3. Create the Sample Inputs
+
+```bash
+python data-transform/scripts/extract-sample-data/IndicVoices.py \
+  --all-parquets --all-rows --batch-rows 20
+python data-transform/scripts/extract-sample-data/Shrutilipi.py \
+  --all-parquets --all-rows --batch-rows 20
+```
+
+This moves every staged shard into the corresponding sample directory:
+
+```text
+data-transform/sample/
+  IndicVoices/
+    train-*.parquet
+  Shrutilipi/
+    train-*.parquet
+```
+
+Despite the directory name, **every row is included** because `--all-rows` is supplied. The commands process only downloaded shards; they do not download any missing upstream shards.
+
+## 4. Build the Final Corpus
+
+The standard `control.sh data` command and `prepare.py` entry point also require FLEURS. Do not use them for this two-dataset run. The following command uses the existing readers and corpus writer to prepare only IndicVoices and Shrutilipi.
+
+This step replaces any existing `data/corpus/`; it does not append. Back up that directory first if it must be retained, and do not replace a corpus while it is in use. Allow disk space for the original downloads, samples, the new corpus, and any previous corpus during replacement.
+
+```bash
+python - <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "data-transform/scripts/create-tigris-schema")
+from common import CorpusWriter
+from sources import indicvoices, shrutilipi
+
+writer = CorpusWriter(Path("data/corpus"), replace=True, batch_rows=20)
+for module, folder, reader in (
+    (shrutilipi, "Shrutilipi", shrutilipi.read_shrutilipi),
+    (indicvoices, "IndicVoices", indicvoices.read_indicvoices),
+):
+    writer.add_source(
+        source_id=module.SOURCE_ID,
+        display_name=module.DISPLAY_NAME,
+        provider=module.PROVIDER,
+        license_name=module.LICENSE,
+        upstream_url=module.UPSTREAM_URL,
+        catalog_version=module.CATALOG_VERSION,
+        expected_audio_mime=module.EXPECTED_AUDIO_MIME,
+        rows=reader(Path("data-transform/sample") / folder, batch_rows=20),
+    )
+writer.finalize()
+PY
+```
+
+Preparation validates records, extracts audio, computes grapheme counts, builds SQLite indexes, and validates the corpus before publishing it. Samples are retained for rebuilding.
+
+If preparation fails, fix the reported error and rerun Step 4. Do not restage duplicate inputs. Preparation restarts from the samples rather than resuming a partially built database.
+
+## 5. Verify the Final Data Directory
+
+```bash
+python -m json.tool data/corpus/manifest.json
+```
+
+Confirm `indicvoices-te` and `shrutilipi-te` both have positive `acceptedRows`. Review `rejectedRows` and the corresponding reports under `data/corpus/reports/`; successful preparation does not mean every input row was accepted. Rejected records are excluded from the corpus.
+
+The completed output is:
+
+```text
+data/
+  corpus/
+    manifest.json
+    corpus.sqlite
+    objects/
+      media/
+        indicvoices-te/
+          audio/
+        shrutilipi-te/
+          audio/
+    reports/
+      indicvoices-te-rejected.jsonl
+      shrutilipi-te-rejected.jsonl
+```
+
+Keep the entire output together: `corpus.sqlite` references audio files under `objects/`. The final `data/` directory is the deliverable. No deployment or application startup is required for this task.
+
+## Raw Format Reference (Retained Handoff)
+
+The following raw-format notes are retained from the existing handoff. They describe the importers, not additional steps for this run. FLEURS is reference-only and is not required for the two-dataset instructions above. The validation guidance in this reference concerns checking raw inputs before extraction.
 
 Prepare `data-transform/raw/` to match the existing importers. Do not change
 the importers to accommodate incorrectly formatted downloads.
 
-## Required Layout
+### Required Layout
 
 Directory names are case-sensitive. These are the default inputs, not a limit
 on the dataset size. Preserve additional downloaded splits and shards under
@@ -20,7 +151,7 @@ data-transform/raw/
     train-00000-of-00012.parquet
 ```
 
-## FLEURS
+### FLEURS
 
 - Use Telugu data from `google/fleurs`.
 - Supply a UTF-8, headerless TSV with exactly seven columns in this order:
@@ -32,7 +163,7 @@ data-transform/raw/
 - Additional splits use matching `train.tsv` and `train.tar.gz`, or `test.tsv`
   and `test.tar.gz`, with `train/` or `test/` archive members respectively.
 
-## IndicVoices
+### IndicVoices
 
 - Use Telugu Parquet data from `ai4bharat/IndicVoices`.
 - Required columns: `audio_filepath`, `text`, `duration`, `lang`, `verbatim`,
@@ -40,14 +171,14 @@ data-transform/raw/
 - `audio_filepath` must be a struct containing a nonempty `path` and embedded
   binary FLAC `bytes`, not a plain filename or decoded sample array.
 
-## Shrutilipi
+### Shrutilipi
 
 - Use Telugu Parquet data from `ai4bharat/Shrutilipi`.
 - Required columns: `audio_filepath`, `text`, `duration`, `lang`.
 - Use the same `audio_filepath` struct and embedded FLAC representation as
   IndicVoices.
 
-## Preservation and Validation
+### Preservation and Validation
 
 - For both Parquet datasets, preserve original metadata, transcripts, paths,
   and split identities. Duration is in seconds.
@@ -61,302 +192,3 @@ data-transform/raw/
   consume or delete their inputs.
 - Do not overwrite or delete existing raw, sample, or corpus data without
   approval.
-
----
-
-## Previous Handoff Notes (Retained)
-
-## `ti/tests/selection-oracle.test.ts`
-### REPLACE
-**Location:** Replace the entire test beginning with:
-```ts
-test('injected random needles cross row-complexity probability boundaries at the oracle boundaries', () => {
-
-and ending with that test’s closing });.
-
-Replace with:
-
-test('injected random needles cross row-complexity probability boundaries at the oracle boundaries', () => {
-  const fixture = {
-    only: [
-      {
-        sourceKey: 'one',
-        text: 'ఒకటి',
-      },
-      {
-        sourceKey: 'two',
-        text: 'రెండు పదాలు',
-      },
-      {
-        sourceKey: 'three',
-        text: 'మూడు చిన్న పదాలు',
-      },
-    ],
-  };
-  const rows = fixture.only.map(
-    (row) => ({
-      sourceKey: row.sourceKey,
-      complexityValue:
-        independentGraphemeCount(
-          row.text,
-        ),
-    }),
-  );
-  const complexityClasses:
-    SourceComplexityClass[] =
-      rows.map((row) => ({
-        complexityValue:
-          row.complexityValue,
-        rowCount: 1,
-      }));
-  const source: DataSource = {
-    id: 'only',
-    enabled: true,
-    rowCount: () =>
-      rows.length,
-    complexityClasses: () =>
-      complexityClasses,
-    candidateAt: (
-      complexityValue,
-      classIndex,
-    ) => {
-      const matching =
-        rows.filter(
-          (row) =>
-            row.complexityValue ===
-            complexityValue,
-        );
-      const row =
-        matching[classIndex];
-      if (!row) {
-        throw new Error(
-          `Missing test row ${complexityValue}/${classIndex}.`,
-        );
-      }
-      return row;
-    },
-    prepare: async (
-      sourceKey,
-    ) => {
-      const row =
-        fixture.only.find(
-          (item) =>
-            item.sourceKey ===
-            sourceKey,
-        );
-      if (!row) {
-        throw new Error(
-          `Missing test source row ${sourceKey}.`,
-        );
-      }
-      return {
-        text: row.text,
-        media: [
-          {
-            kind: 'text',
-            language: 'te',
-            text: row.text,
-          },
-        ],
-      };
-    },
-    info: () => ({
-      sourceId: 'only',
-      displayName: 'Only',
-      provider: 'Test',
-      license: 'Test fixture',
-      upstreamUrl: null,
-      catalogVersion: 2,
-      acceptedRows: rows.length,
-      rejectedRows: 0,
-      complexityMetric:
-        'grapheme-count',
-      status: 'fixture',
-    }),
-  };
-  const registry = {
-    selectableSources: () => [
-      source,
-    ],
-  } as unknown as SourceRegistry;
-  const settings:
-    ProfileSelectionSettings = {
-      sourceWeights: {
-        only: 1,
-      },
-      complexityPercentileTarget:
-        0.5,
-      complexityPercentileSpread:
-        0.4,
-      complexityReferenceVersion:
-        2,
-    };
-  const oracle =
-    buildOracle(
-      settings,
-      fixture,
-    );
-  const ordered = [
-    'one',
-    'two',
-    'three',
-  ].map(
-    (key) =>
-      oracle.get(
-        `only\u0000${key}`,
-      )!,
-  );
-  const firstBoundary =
-    ordered[0]!
-      .rowProbabilityWithinSource;
-  const secondBoundary =
-    firstBoundary +
-    ordered[1]!
-      .rowProbabilityWithinSource;
-  const choose = (
-    classNeedle: number,
-  ): string => {
-    const randoms = [
-      0,
-      classNeedle,
-      0,
-    ];
-    return new SelectionEngine(
-      registry,
-      () =>
-        randoms.shift() ?? 0,
-    )
-      .select(settings)
-      .sourceKey;
-  };
-  assert.equal(
-    choose(
-      Math.max(
-        0,
-        firstBoundary - 1e-5,
-      ),
-    ),
-    'one',
-  );
-  assert.equal(
-    choose(
-      Math.min(
-        1 - Number.EPSILON,
-        firstBoundary + 1e-5,
-      ),
-    ),
-    'two',
-  );
-  assert.equal(
-    choose(
-      Math.max(
-        0,
-        secondBoundary - 1e-5,
-      ),
-    ),
-    'two',
-  );
-  assert.equal(
-    choose(
-      Math.min(
-        1 - Number.EPSILON,
-        secondBoundary + 1e-5,
-      ),
-    ),
-    'three',
-  );
-});
-
-ti/tests/export-epub.test.ts
-
-INSERT
-
-Location: Inside selection(sourceKey: string): SelectionSnapshot, immediately after:
-
-    sourceKey,
-
-Insert:
-
-    complexityMetric:
-      'grapheme-count',
-
-REPLACE
-
-Location: Inside the same selection() fixture, replace:
-
-    complexityReferenceVersion:
-      1,
-
-With:
-
-    complexityReferenceVersion:
-      2,
-
-REPLACE
-
-Location: Inside sampleExport(), under settings, replace:
-
-      complexityReferenceVersion:
-        1,
-
-With:
-
-      complexityReferenceVersion:
-        2,
-
-ti/tests/repository-contract.test.ts
-
-REPLACE
-
-Location: Inside the test:
-
-'Settings export uses a transient format chooser and keeps format out of selection'
-
-replace the entire current exportPage declaration.
-
-Current affected declaration begins with:
-
-    const exportPage =
-      read(
-
-Replace with:
-
-    const exportPage =
-      read(
-        'frontend/src/settings/pages/ExportPage.tsx',
-      );
-
-The following files remain only in the existing requiredFiles array and must not be passed as additional arguments to read():
-
-frontend/src/settings/pages/DataSourcesPage.tsx
-server/src/sources/prepared-corpus/prepared-corpus-store.ts
-server/src/sources/prepared-corpus/prepared-corpus-data-source.ts
-
-data-transform/scripts/prepare-corpus/common.py
-
-REPLACE
-
-Location: Replace the entire current validate_text() function.
-
-Replace with:
-
-def validate_text(text: Any) -> str:
-    if not isinstance(text, str):
-        raise RowRejected(
-            "EMPTY_TEXT",
-            "Canonical text is missing or is not a string.",
-        )
-    value = text.strip()
-    if not value:
-        raise RowRejected(
-            "EMPTY_TEXT",
-            "Canonical text is empty.",
-        )
-    if grapheme_count(value) <= 0:
-        raise RowRejected(
-            "EMPTY_COMPLEXITY",
-            "Grapheme count is zero.",
-        )
-    return value
-
-This keeps null or otherwise malformed individual text values in the row-rejection path rather than allowing an AttributeError to abort the entire corpus transformation.
