@@ -5,8 +5,8 @@ import type {
   UpdateAudioSettingsRequest,
 } from '../../../shared/contracts';
 
-export const AUDIO_PLAYBACK_RATE_MIN = 0.3;
-export const AUDIO_PLAYBACK_RATE_MAX = 2.5;
+import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX, clampPlaybackRate } from '../../../shared/audio';
+export { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../shared/audio';
 
 export class InvalidAudioSettingsError extends Error {}
 
@@ -35,7 +35,7 @@ export function getProfileAudioSettings(profileCode: string): ProfileAudioSettin
     SELECT playback_rate FROM profile_audio_settings WHERE profile_code = ?
   `).get(profileCode) as { playback_rate: number } | undefined;
   if (!row) throw new Error(`Audio settings missing for profile ${profileCode}.`);
-  return { playbackRate: row.playback_rate };
+  return { playbackRate: clampPlaybackRate(row.playback_rate) };
 }
 
 export function updateProfileAudioSettings(

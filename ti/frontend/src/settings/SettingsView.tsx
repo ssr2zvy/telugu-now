@@ -9,6 +9,8 @@ import { ExportPage } from './pages/ExportPage';
 import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';
 import { SettingsIndex } from './pages/SettingsIndex';
 import { SourceWeightsPage } from './pages/SourceWeightsPage';
+import { settingsGroups, settingsPageLabel } from './navigation';
+import { AppearancePage } from './pages/AppearancePage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -41,13 +43,15 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
-  if (page === 'index') {
+  if (settingsGroups[page] || page === 'reset') {
     return (
       <SettingsShell
         {...shellProps}
-        title={t(language, 'settings')}
+        title={settingsPageLabel(page, language)}
+        {...(page === 'index' ? {} : { onBack: controller.backToIndex })}
       >
         <SettingsIndex
+          page={page}
           language={language}
           resetting={queueResetting}
           resetError={queueResetError}
@@ -61,6 +65,13 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={t(language, 'dataSources')} onBack={controller.backToIndex}>
         <DataSourcesPage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'appearance') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <AppearancePage language={language} />
       </SettingsShell>
     );
   }
@@ -125,14 +136,15 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'diagnostic') {
+  if (page === 'trigger' || page === 'source' || page === 'complexityInfo' || page === 'global') {
     return (
       <SettingsShell
         {...shellProps}
-        title={t(language, 'diagnostic')}
+        title={settingsPageLabel(page, language)}
         onBack={controller.backToIndex}
       >
         <DiagnosticPage
+          sectionKey={page === 'complexityInfo' ? 'complexity' : page}
           state={state}
           language={language}
         />

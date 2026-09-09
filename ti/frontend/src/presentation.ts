@@ -60,18 +60,21 @@ export function fontVerticalCorrectionPx(
 }
 export function chooseRandomObservationFont(
   random: () => number = Math.random,
+  enabledFonts: readonly ObservationFontFamily[] = OBSERVATION_FONTS,
 ): ObservationFontFamily {
   const raw = random();
   const normalized = Number.isFinite(raw)
     ? clamp(0, 0.9999999999999999, raw)
     : 0;
-  const index = Math.floor(normalized * OBSERVATION_PRESENTATION.fonts.length);
-  return OBSERVATION_PRESENTATION.fonts[index]!;
+  const fonts = enabledFonts.length ? enabledFonts : OBSERVATION_FONTS;
+  const index = Math.floor(normalized * fonts.length);
+  return fonts[index]!;
 }
 export function preferredObservationFontSizePx(
   text: string,
   containerWidth: number,
   containerHeight: number,
+  fontScale = 50,
 ): number {
   const normalized = text.trim().replace(/\s+/g, ' ');
   if (!normalized) return OBSERVATION_PRESENTATION.emptyFontSizePx;
@@ -96,7 +99,8 @@ export function preferredObservationFontSizePx(
   const size =
     (heightBase * widthScale) /
     Math.pow(contentLoad, OBSERVATION_PRESENTATION.contentExponent);
-  return clamp(
+  const scale = 0.5 + clamp(0, 100, Number.isFinite(fontScale) ? fontScale : 50) / 100;
+  return scale * clamp(
     OBSERVATION_PRESENTATION.preferredMinimumFontSizePx,
     OBSERVATION_PRESENTATION.preferredMaximumFontSizePx,
     size,

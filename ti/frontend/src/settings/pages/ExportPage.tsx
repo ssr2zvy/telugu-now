@@ -71,6 +71,7 @@ export function ExportPage({
       >
         {t(language, 'download')}
       </button>
+      {exporting && <progress className="export-progress" aria-label={t(language, 'exporting')} />}
       {preparedArtifact ? (
         <div className="export-ready" role="status">
           {t(language, 'ready')}: {preparedArtifact.entryCount} · {preparedFormatLabel}

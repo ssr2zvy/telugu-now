@@ -101,3 +101,15 @@ def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
                         "gender": gender,
                     },
                 )
+
+                # Once the caller has taken this row, its sample audio file has
+                # moved into the corpus and no longer needs to live in sample.
+                if audio_path.is_file():
+                    audio_path.unlink()
+
+        # The whole split's tsv has now been fully consumed row by row.
+        tsv_path.unlink()
+        try:
+            audio_dir.rmdir()
+        except OSError:
+            pass

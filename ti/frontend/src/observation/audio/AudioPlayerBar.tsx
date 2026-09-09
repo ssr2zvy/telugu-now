@@ -36,6 +36,7 @@ export function AudioPlayerBar({
         className="audio-transport-button"
         type="button"
         aria-label={player.playing ? 'పాజ్' : 'ప్లే'}
+        title={player.playing ? 'Pause' : 'Play'}
         onClick={player.togglePlay}
       >
         {player.playing ? <PauseIcon /> : <PlayIcon />}
@@ -52,6 +53,8 @@ export function AudioPlayerBar({
         className="audio-transport-button"
         type="button"
         aria-label="ప్లేబ్యాక్ వేగం"
+        title="Playback speed"
+        aria-expanded={speedPopoverOpen}
         onClick={() => setSpeedPopoverOpen(true)}
       >
         <SpeedIcon />
@@ -60,6 +63,7 @@ export function AudioPlayerBar({
         className="audio-transport-button"
         type="button"
         aria-label="బుక్‌మార్క్‌లు"
+        title="Bookmarks: click to return, double-click to add, triple-click to remove"
         onClick={player.clickBookmarkButton}
       >
         <BookmarkIcon />

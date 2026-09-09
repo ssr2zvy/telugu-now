@@ -1,6 +1,7 @@
 import type {
   ChangeEvent,
 } from 'react';
+import { Check } from 'lucide-react';
 import {
   t,
 } from '../language';
@@ -93,6 +94,7 @@ export function SourceWeightsPage({
         disabled={saving}
         onClick={onSave}
       >
+        <Check aria-hidden="true" />
         {saving
           ? t(
               language,

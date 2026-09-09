@@ -5,6 +5,7 @@ import {
   buildDiagnosticSections,
   diagnosticLabel,
   diagnosticSectionLabel,
+  type DiagnosticSectionKey,
 } from '../diagnostic';
 import type {
   UiLanguage,
@@ -12,10 +13,12 @@ import type {
 interface DiagnosticPageProps {
   state: ProfileStateResponse;
   language: UiLanguage;
+  sectionKey?: DiagnosticSectionKey;
 }
 export function DiagnosticPage({
   state,
   language,
+  sectionKey,
 }: DiagnosticPageProps) {
   const sections =
     buildDiagnosticSections(
@@ -31,7 +34,7 @@ export function DiagnosticPage({
   }
   return (
     <div className="diagnostic-sections">
-      {sections.map(
+      {sections.filter((section) => !sectionKey || section.key === sectionKey).map(
         (section) => (
           <div
             key={section.key}

@@ -1,5 +1,13 @@
 export type SettingsPage =
   | 'index'
+  | 'sampling'
+  | 'display'
+  | 'appearance'
+  | 'reset'
+  | 'trigger'
+  | 'source'
+  | 'complexityInfo'
+  | 'global'
   | 'complexity'
   | 'sources'
   | 'playback'

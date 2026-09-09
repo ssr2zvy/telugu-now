@@ -54,6 +54,12 @@ The configured prototype profile code is `001`.
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
+With the development server running, run the isolated UI checks from `ti/`:
+```bash
+npx playwright install --with-deps chromium
+npx playwright test tests/ui.browser.spec.ts --workers=1
+```
+The browser checks mock API responses and generate audio in memory, leaving real profiles and queues untouched. They cover desktop, phone, and landscape layouts, settings navigation, appearance persistence, export progress, playback speed, precision seeking, and popover dismissal. Screenshots are written to the ignored `test-results/` directory. Set `UI_TEST_URL` to test a different development-server URL.
 ## Selectable sources
 Iteration 3 has six selectable sources with independently persisted weights:
 1. `source1`: 12 development-fixture rows
@@ -143,18 +149,20 @@ npm run fonts:sync
 The sync script stores the corresponding SIL Open Font License text and writes `frontend/public/fonts/font-assets.lock.json` with the resolved source URLs and SHA-256 hashes. The generated WOFF2 files, license files, and lock file are intended to remain committed so production behavior is tied to exact assets.
 No font is fetched from the internet while a user generates or opens a completed export.
 ## Full-page Settings
-Settings replaces the observation view while open; it is not a modal. The Settings root links to five child pages:
-1. Complexity
-2. Source weights
-3. Diagnostic
+Settings replaces the observation view while open; it is not a modal. The root contains five entries:
+1. Sampling: Complexity, Source weights, and Data sources
+2. Diagnostic: Trigger & acquisition, Source, Complexity, and Global
+3. Display: Playback speed and Appearance
 4. Export
-5. Data sources
-Each child page has Back to return to the Settings root. `×` exits the entire Settings hierarchy and returns to the same observation.
+5. Reset queue: a separate page containing the explanation and reset action
+Each child page has Back to return to its parent group. `×` exits the entire Settings hierarchy and returns to the same observation.
+Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Back/Next changes transform the gradient layers at different rates, respecting reduced-motion preferences.
+Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance colors, and the precision scrubber moves one millisecond per pointer pixel. Popovers stay within the viewport and consume their outside-dismissal click without also navigating.
 Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
 A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is presentation-only.
 The Data sources page exposes the current source catalog and attribution information. For FLEURS, Shrutilipi, and IndicVoices it shows the provider, CC BY 4.0 license, upstream Hugging Face repository, catalog version, accepted and rejected row counts, complexity metric, and deployed source status. The dummy sources are explicitly identified as development fixtures.
 ## Diagnostic
-Diagnostic has its own full page and renders the current acquisition as a two-column mapping table rather than free-form text. The table contains the accepted trigger/preparation fields and the complete persisted selection snapshot, including complexity metric, grapheme complexity value, reference version, source mass, source probability, conditional row probability, and overall probability.
+Diagnostic groups its two-column mapping tables into child pages for trigger/acquisition, source, complexity, and global fields. Together these contain the accepted trigger/preparation fields and the complete persisted selection snapshot, including complexity metric, grapheme complexity value, reference version, source mass, source probability, conditional row probability, and overall probability.
 If there is no current acquisition, the Diagnostic page displays `...`.
 ## Export selection semantics
 Export is not a history export and does not simulate repeated Next presses.
@@ -185,6 +193,7 @@ package the completed ExportResponse
 Download
 ```
 Pressing Export opens a small transient format-choice modal. Cancel closes it without generating anything.
+An indeterminate progress bar remains visible during generation and packaging; the API does not report completion percentages.
 The selected format is not passed into source or row selection. EPUB versus HTML is only an artifact/container choice.
 After the first format has generated the batch, pressing Export again and selecting the other format repackages the same retained `ExportResponse`; it does not generate another `N` selections.
 Editing `N` or successfully saving source/complexity settings invalidates both the retained current batch and any prepared artifact shown by the Export page.

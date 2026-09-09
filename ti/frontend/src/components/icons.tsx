@@ -52,7 +52,7 @@ export function SpeedIcon() {
       aria-hidden="true"
     >
       <path d="M4 16a8 8 0 0 1 16 0" />
-      <path d="M12 16 16 9" />
+      <path d="M12 16 14.5 11.6" />
     </svg>
   );
 }

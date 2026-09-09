@@ -5,8 +5,11 @@ import type {
   SettingsPage,
   UiLanguage,
 } from '../types';
+import { settingsGroups, settingsPageLabel } from '../navigation';
+import { ChevronRight } from 'lucide-react';
 interface SettingsIndexProps {
   language: UiLanguage;
+  page: SettingsPage;
   resetting: boolean;
   resetError: boolean;
   onNavigate:
@@ -21,51 +24,13 @@ interface SettingsIndexProps {
 }
 export function SettingsIndex({
   language,
+  page: currentPage,
   resetting,
   resetError,
   onNavigate,
   onResetQueue,
 }: SettingsIndexProps) {
-  const entries:
-    Array<{
-      page:
-        Exclude<
-          SettingsPage,
-          'index'
-        >;
-      label:
-        | 'complexity'
-        | 'sourceWeights'
-        | 'playbackSpeed'
-        | 'diagnostic'
-        | 'export'
-        | 'dataSources';
-    }> = [
-      {
-        page: 'complexity',
-        label: 'complexity',
-      },
-      {
-        page: 'sources',
-        label: 'sourceWeights',
-      },
-      {
-        page: 'playback',
-        label: 'playbackSpeed',
-      },
-      {
-        page: 'dataSources',
-        label: 'dataSources',
-      },
-      {
-        page: 'diagnostic',
-        label: 'diagnostic',
-      },
-      {
-        page: 'export',
-        label: 'export',
-      },
-    ];
+  const entries = settingsGroups[currentPage] ?? [];
   return (
     <div className="settings-index-page">
       <nav
@@ -78,36 +43,31 @@ export function SettingsIndex({
         }
       >
         {entries.map(
-          ({
-            page,
-            label,
-          }) => (
+          (page) => (
             <button
               key={page}
               type="button"
               onClick={() =>
-                onNavigate(page)
+                onNavigate(page as Exclude<SettingsPage, 'index'>)
               }
             >
               <span>
-                {t(
-                  language,
-                  label,
-                )}
+                {settingsPageLabel(page, language)}
               </span>
-              <span aria-hidden="true">
-                ›
-              </span>
+              <ChevronRight aria-hidden="true" />
             </button>
           ),
         )}
       </nav>
-      <div className="settings-reset-queue">
+      {currentPage === 'reset' && <div className="settings-reset-queue">
         <p className="settings-reset-queue-description">
           {t(
             language,
             'resetQueueDescription',
           )}
+        </p>
+        <p className="settings-reset-queue-description">
+          {language === 'en' ? 'Your current observation and history stay unchanged. Unseen observations are replaced using your current sampling settings.' : 'ప్రస్తుత పరిశీలన మరియు చరిత్ర మారవు. చూడని పరిశీలనలు ప్రస్తుత ఎంపిక సెట్టింగులతో భర్తీ అవుతాయి.'}
         </p>
         <button
           className="secondary-action"
@@ -133,7 +93,7 @@ export function SettingsIndex({
             )}
           </div>
         ) : null}
-      </div>
+      </div>}
     </div>
   );
 }

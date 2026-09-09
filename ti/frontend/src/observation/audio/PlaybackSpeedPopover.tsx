@@ -47,7 +47,7 @@ export function PlaybackSpeedPopover({
     onChange(rateFromClientY(event.clientY));
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.buttons === 0) return;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     onChange(rateFromClientY(event.clientY));
   };
 
@@ -68,6 +68,19 @@ export function PlaybackSpeedPopover({
         ref={trackRef}
         className="audio-speed-track"
         role="slider"
+        tabIndex={0}
+        aria-orientation="vertical"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            onChange(clamp(AUDIO_PLAYER_PRESENTATION.playbackRateMin, AUDIO_PLAYER_PRESENTATION.playbackRateMax, Number((playbackRate + (event.key === 'ArrowUp' ? 0.05 : -0.05)).toFixed(2))));
+          }
+          if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault();
+            onChange(event.key === 'Home' ? AUDIO_PLAYER_PRESENTATION.playbackRateMin : AUDIO_PLAYER_PRESENTATION.playbackRateMax);
+          }
+        }}
         aria-label="Playback speed"
         aria-valuemin={AUDIO_PLAYER_PRESENTATION.playbackRateMin}
         aria-valuemax={AUDIO_PLAYER_PRESENTATION.playbackRateMax}

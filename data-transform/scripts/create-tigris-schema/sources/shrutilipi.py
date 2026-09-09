@@ -100,3 +100,6 @@ def read_shrutilipi(root: Path) -> Iterator[CanonicalInputRow]:
                         "upstreamAudioPath": normalized_audio_path,
                     },
                 )
+
+        # Every row in this shard has now moved into the corpus.
+        parquet_path.unlink()

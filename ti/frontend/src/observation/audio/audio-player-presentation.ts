@@ -1,7 +1,8 @@
+import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../../shared/audio';
+
 export const AUDIO_PLAYER_PRESENTATION = {
-  // Keep in sync with server/src/services/audio-settings-service.ts bounds.
-  playbackRateMin: 0.3,
-  playbackRateMax: 2.5,
+  playbackRateMin: AUDIO_PLAYBACK_RATE_MIN,
+  playbackRateMax: AUDIO_PLAYBACK_RATE_MAX,
   playbackRateStep: 0.05,
   // Milliseconds a press must be held before the precision magnifier engages.
   magnifierHoldMs: 300,

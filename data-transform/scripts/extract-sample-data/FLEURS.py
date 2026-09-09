@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import argparse
-import itertools
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Iterator
 
 SPLITS = ("dev", "test", "train")
 DEFAULT_INPUT_ROOT = Path("data-transform/raw/FLEURS")
@@ -51,14 +51,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Replace existing sampled split outputs before writing.",
     )
+    parser.add_argument(
+        "--batch-rows",
+        type=int,
+        default=20,
+        help="Number of rows moved out of raw at a time.",
+    )
     return parser.parse_args()
 
 
-def selected_rows(tsv_path: Path, count: int | None) -> list[str]:
-    with tsv_path.open("r", encoding="utf-8", newline="") as handle:
-        if count is None:
-            return list(handle)
-        return list(itertools.islice(handle, count))
+def read_all_lines(path: Path) -> list[str]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(handle)
+
+
+def batched(rows: list[str], batch_size: int) -> Iterator[list[str]]:
+    for start in range(0, len(rows), batch_size):
+        yield rows[start : start + batch_size]
 
 
 def audio_members(rows: list[str], split: str) -> list[str]:
@@ -71,10 +80,17 @@ def audio_members(rows: list[str], split: str) -> list[str]:
     return members
 
 
-def write_lines(path: Path, lines: list[str]) -> None:
+def append_lines(path: Path, lines: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as handle:
+    with path.open("a", encoding="utf-8", newline="") as handle:
         handle.writelines(lines)
+
+
+def replace_lines(path: Path, lines: list[str]) -> None:
+    temporary = path.with_name(path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8", newline="") as handle:
+        handle.writelines(lines)
+    temporary.replace(path)
 
 
 def extract_members(archive_path: Path, output_root: Path, members: list[str]) -> None:
@@ -92,7 +108,7 @@ def extract_members(archive_path: Path, output_root: Path, members: list[str]) -
     subprocess.run(command, check=True)
 
 
-def sample_split(args: argparse.Namespace, split: str) -> None:
+def move_split(args: argparse.Namespace, split: str) -> None:
     tsv_path = args.input_root / f"{split}.tsv"
     archive_path = args.input_root / f"{split}.tar.gz"
     output_tsv_path = args.output_root / f"{split}.tsv"
@@ -119,10 +135,26 @@ def sample_split(args: argparse.Namespace, split: str) -> None:
             f"Output for {split!r} already exists; pass --replace to overwrite it."
         )
 
-    rows = selected_rows(tsv_path, None if args.all_rows else args.rows)
-    write_lines(output_tsv_path, rows)
-    extract_members(archive_path, args.output_root, audio_members(rows, split))
-    print(f"{split}: {len(rows)} rows -> {output_tsv_path}")
+    all_rows = read_all_lines(tsv_path)
+    target = len(all_rows) if args.all_rows else min(args.rows, len(all_rows))
+    moved_rows, kept_rows = all_rows[:target], all_rows[target:]
+
+    output_audio_dir.mkdir(parents=True, exist_ok=True)
+    for batch in batched(moved_rows, args.batch_rows):
+        # Extracting from the archive is non-destructive, so each batch's wav
+        # files land in sample first; only once they are on disk does the
+        # matching tsv slice (and, at the end, the raw tsv itself) move too.
+        extract_members(archive_path, args.output_root, audio_members(batch, split))
+        append_lines(output_tsv_path, batch)
+
+    if kept_rows:
+        replace_lines(tsv_path, kept_rows)
+    else:
+        # Every row referencing this split's archive has now moved out of raw.
+        tsv_path.unlink()
+        archive_path.unlink()
+
+    print(f"{split}: moved {len(moved_rows)} rows -> {output_tsv_path}")
     print(f"{split}: audio -> {output_audio_dir}")
 
 
@@ -130,10 +162,12 @@ def main() -> None:
     args = parse_args()
     if args.rows < 1 and not args.all_rows:
         raise ValueError("--rows must be greater than 0")
+    if args.batch_rows < 1:
+        raise ValueError("--batch-rows must be greater than 0")
 
     args.output_root.mkdir(parents=True, exist_ok=True)
     for split in args.splits:
-        sample_split(args, split)
+        move_split(args, split)
 
 
 if __name__ == "__main__":

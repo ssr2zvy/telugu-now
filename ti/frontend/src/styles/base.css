@@ -34,24 +34,25 @@ button {
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
-  background:
-    radial-gradient(
-      circle at 50% 35%,
-      rgba(
-        255,
-        255,
-        255,
-        0.22
-      ),
-      transparent 42%
-    ),
-    linear-gradient(
-      145deg,
-      #9a9a9a 0%,
-      #707070 48%,
-      #515151 100%
-    );
+  background: transparent;
 }
+.appearance-root {
+  --muted: color-mix(in srgb, var(--foreground) 64%, transparent);
+  --line: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --wash: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --surface: color-mix(in srgb, var(--gradient-start) 4%, var(--canvas));
+  --input-surface: color-mix(in srgb, var(--foreground) 3%, var(--surface));
+  --control-color: color-mix(in srgb, var(--foreground) 94%, var(--gradient-start));
+  position: relative; isolation: isolate; width: 100%; height: 100%; color: var(--foreground); letter-spacing: 0;
+}
+.gradient-field { position: absolute; inset: 0; overflow: hidden; z-index: -1; background: var(--gradient-middle); }
+.gradient-field > div { position: absolute; left: calc(50% - 100vmax); top: calc(50% - 100vmax); width: 200vmax; height: 200vmax; transition: transform 6000ms cubic-bezier(.25,.1,.25,1); animation: gradient-drift 140s linear infinite; will-change: transform, rotate; }
+.gradient-field > div:nth-child(1) { background: linear-gradient(135deg, var(--gradient-start) 20%, var(--gradient-middle) 50%, var(--gradient-end) 80%); transform: rotate(var(--gradient-turn-a, 0deg)); }
+.gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); animation-duration: 190s; animation-direction: reverse; transition-duration: 7500ms; }
+.gradient-field > div:nth-child(3) { background: linear-gradient(165deg, transparent 30%, var(--gradient-end) 85%); opacity: .45; transform: translateY(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-a, 0deg)); animation-duration: 230s; transition-duration: 9000ms; }
+@keyframes gradient-drift { from { rotate: 0deg; } to { rotate: 360deg; } }
+button:focus-visible, input:focus-visible, [role='slider']:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .gradient-field > div:nth-child(n) { transition: none; transform: none; animation: none; will-change: auto; } }
 .control-icon {
   width: 1.35rem;
   height: 1.35rem;

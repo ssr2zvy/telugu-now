@@ -78,13 +78,15 @@ export function ObservationView({
             MouseEvent<HTMLButtonElement>,
         ) => {
           event.stopPropagation();
-          if (canBack) {
+          if (event.detail === 0 && canBack) {
             void move('back');
           }
         }}
-      >
-        ‹
-      </button>
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          if (canBack) void move('back');
+        }}
+      />
       <section
         ref={typography.containerRef}
         className="observation-center"
@@ -104,6 +106,7 @@ export function ObservationView({
         )}
         {observation?.audio ? (
           <AudioPlayerBar
+            key={observation.id}
             audio={observation.audio}
             sourceId={observation.sourceId}
             sourceKey={observation.sourceKey}
@@ -121,13 +124,15 @@ export function ObservationView({
             MouseEvent<HTMLButtonElement>,
         ) => {
           event.stopPropagation();
-          if (canNext) {
+          if (event.detail === 0 && canNext) {
             void move('next');
           }
         }}
-      >
-        ›
-      </button>
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          if (canNext) void move('next');
+        }}
+      />
       <button
         className="settings-trigger"
         type="button"

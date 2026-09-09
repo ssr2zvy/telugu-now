@@ -1,6 +1,7 @@
 import type {
   ReactNode,
 } from 'react';
+import { ChevronLeft, X } from 'lucide-react';
 import {
   LanguageIcon,
 } from '../components/icons';
@@ -42,7 +43,7 @@ export function SettingsShell({
               }
               onClick={onBack}
             >
-              ‹
+              <ChevronLeft size={20} aria-hidden="true" />
             </button>
           ) : null}
         </div>
@@ -59,7 +60,7 @@ export function SettingsShell({
             }
             onClick={onClose}
           >
-            ×
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
       </header>

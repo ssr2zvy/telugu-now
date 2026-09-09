@@ -68,7 +68,7 @@ export const config = {
   ),
   defaultAudioPlaybackRate: (() => {
     const parsed = parseFiniteNumber(process.env.AUDIO_PLAYBACK_RATE_DEFAULT, 1);
-    return parsed >= 0.3 && parsed <= 2.5 ? parsed : 1;
+    return parsed >= 0.1 && parsed <= 1.5 ? parsed : 1;
   })(),
   maxExportCount: Math.max(1, parseNonNegativeInt(process.env.MAX_EXPORT_COUNT, 500)),
 };

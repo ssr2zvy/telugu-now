@@ -1,6 +1,7 @@
 import type {
   ChangeEvent,
 } from 'react';
+import { Check } from 'lucide-react';
 import {
   t,
 } from '../language';
@@ -41,7 +42,8 @@ export function ComplexityPage({
             'target',
           )}
         </span>
-        <input
+        <div className="field-value">
+          <input
           type="number"
           min="0"
           max="100"
@@ -60,7 +62,9 @@ export function ComplexityPage({
                 event.target.value,
             });
           }}
-        />
+          />
+          <span className="field-unit" aria-hidden="true">%</span>
+        </div>
       </label>
       <label>
         <span>
@@ -69,7 +73,8 @@ export function ComplexityPage({
             'spread',
           )}
         </span>
-        <input
+        <div className="field-value">
+          <input
           type="number"
           min="0.000001"
           step="0.1"
@@ -87,7 +92,9 @@ export function ComplexityPage({
                 event.target.value,
             });
           }}
-        />
+          />
+          <span className="field-unit" aria-hidden="true">%</span>
+        </div>
       </label>
       {error ? (
         <div className="settings-error">
@@ -103,6 +110,7 @@ export function ComplexityPage({
         disabled={saving}
         onClick={onSave}
       >
+        <Check aria-hidden="true" />
         {saving
           ? t(
               language,

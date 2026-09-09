@@ -483,18 +483,20 @@ test(
     resetDatabase();
     ensureProfile();
 
-    const saved = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.75 });
-    assert.equal(saved.playbackRate, 1.75);
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.75);
+    const minimum = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 0.1 });
+    assert.equal(minimum.playbackRate, 0.1);
+    const saved = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.5 });
+    assert.equal(saved.playbackRate, 1.5);
+    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
 
-    for (const invalid of [0.1, 3, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const invalid of [0.09, 1.51, Number.NaN, Number.POSITIVE_INFINITY]) {
       assert.throws(
         () => audioSettingsService.updateProfileAudioSettings('001', { playbackRate: invalid }),
         audioSettingsService.InvalidAudioSettingsError,
       );
     }
     // A rejected update leaves the previously persisted rate untouched.
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.75);
+    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
   });
 
   await suite.test('rejects every invalid settings family, including non-finite values and incomplete source maps', () => {

@@ -17,6 +17,8 @@ import {
   saveSettingsLanguage,
 } from './language';
 import { draftFromSettings } from './settings-utils';
+import { parentSettingsPage } from './navigation';
+import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../shared/audio';
 import type {
   SettingsDraft,
   SettingsPage,
@@ -131,7 +133,7 @@ export function useSettingsController({
     setQueueResetError(false);
     setPlaybackError(false);
     setFormatChooserOpen(false);
-    setPage('index');
+    setPage(parentSettingsPage(page));
   };
   const toggleLanguage = () => {
     setLanguage((current) => {
@@ -232,7 +234,7 @@ export function useSettingsController({
   const savePlaybackSettings = async () => {
     if (!profileCode) return;
     const rate = Number(playbackRateDraft);
-    if (!Number.isFinite(rate) || rate < 0.3 || rate > 2.5) {
+    if (!Number.isFinite(rate) || rate < AUDIO_PLAYBACK_RATE_MIN || rate > AUDIO_PLAYBACK_RATE_MAX) {
       setPlaybackError(true);
       return;
     }

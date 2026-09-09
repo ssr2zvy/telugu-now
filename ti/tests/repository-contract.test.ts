@@ -149,8 +149,8 @@ test(
       'scripts/sync-fonts.mjs',
       'frontend/src/styles/base.css',
       'frontend/src/styles/profile.css',
-      'frontend/src/styles/observation.css',
-      'frontend/src/styles/settings.css',
+      'frontend/src/styles/observation-layout.css',
+      'frontend/src/styles/settings-layout.css',
     ];
     for (
       const relativePath
@@ -237,7 +237,7 @@ test(
       );
     const styles =
       read(
-        'frontend/src/styles/settings.css',
+        'frontend/src/styles/settings-layout.css',
       );
     assert.ok(
       settingsView.includes(
@@ -600,7 +600,7 @@ test(
       );
     const observationStyles =
       read(
-        'frontend/src/styles/observation.css',
+        'frontend/src/styles/observation-layout.css',
       );
     const indexHtml =
       read(
@@ -656,7 +656,7 @@ test(
     );
     assert.ok(
       typography.includes(
-        'chooseRandomObservationFont()',
+        'chooseRandomObservationFont(Math.random, appearance.fonts)',
       ),
     );
     assert.ok(

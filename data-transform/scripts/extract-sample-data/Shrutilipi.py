@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 from pathlib import Path
 
-import pyarrow as pa
 import pyarrow.parquet as pq
+
+from parquet_shard import move_rows, row_count
 
 DEFAULT_INPUT_ROOT = Path("data-transform/raw/Shrutilipi")
 DEFAULT_OUTPUT_ROOT = Path("data-transform/sample/Shrutilipi")
@@ -103,49 +103,51 @@ def output_path(
     return args.output_root / f"{stem}{suffix}"
 
 
-def read_sample_pages(paths: list[Path], row_limit: int) -> list[pa.Table]:
-    pages = []
-    remaining = row_limit
+def contributing_path_count(paths: list[Path], row_limit: int | None) -> int:
+    if row_limit is None:
+        return len(paths)
 
+    remaining = row_limit
+    count = 0
     for path in paths:
-        parquet_file = pq.ParquetFile(path)
-        if remaining == 0:
+        if remaining <= 0:
+            break
+        count += 1
+        remaining -= row_count(path)
+    return count
+
+
+def move_sample_rows(args: argparse.Namespace, paths: list[Path]) -> None:
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    row_limit = None if args.all_rows else args.rows
+    paged = contributing_path_count(paths, row_limit) > 1
+    remaining = row_limit
+    total_moved = 0
+
+    for index, path in enumerate(paths, start=1):
+        if remaining is not None and remaining <= 0:
             break
 
-        path_tables = []
+        destination = output_path(args, index if paged else None)
+        take_limit = None if remaining is None else remaining
+        writer: pq.ParquetWriter | None = None
+        moved_rows = 0
 
-        for batch in parquet_file.iter_batches(batch_size=remaining):
-            table = pa.Table.from_batches([batch])
-            path_tables.append(table)
-            remaining -= table.num_rows
-            if remaining == 0:
-                break
+        for table in move_rows(path, take_limit):
+            if writer is None:
+                writer = pq.ParquetWriter(destination, table.schema)
+            writer.write_table(table)
+            moved_rows += table.num_rows
 
-        if path_tables:
-            pages.append(pa.concat_tables(path_tables, promote_options="default"))
+        if writer is not None:
+            writer.close()
+        if remaining is not None:
+            remaining -= moved_rows
+        total_moved += moved_rows
+        print(f"{destination}: moved {moved_rows} rows from {path}")
 
-    if not pages:
+    if total_moved == 0:
         raise RuntimeError("No rows were sampled")
-
-    return pages
-
-
-def copy_all_rows(args: argparse.Namespace, paths: list[Path]) -> None:
-    args.output_root.mkdir(parents=True, exist_ok=True)
-    paged = len(paths) > 1
-    for index, path in enumerate(paths, start=1):
-        destination = output_path(args, index if paged else None)
-        shutil.copy2(path, destination)
-        print(f"{destination}: copied")
-
-
-def write_sample_pages(args: argparse.Namespace, pages: list[pa.Table]) -> None:
-    args.output_root.mkdir(parents=True, exist_ok=True)
-    paged = len(pages) > 1
-    for index, table in enumerate(pages, start=1):
-        destination = output_path(args, index if paged else None)
-        pq.write_table(table, destination)
-        print(f"{destination}: {table.num_rows} rows")
 
 
 def main() -> None:
@@ -160,11 +162,7 @@ def main() -> None:
     else:
         parquet_paths = [resolve_parquet(args.input_root, item) for item in args.parquets]
 
-    if args.all_rows:
-        copy_all_rows(args, parquet_paths)
-        return
-
-    write_sample_pages(args, read_sample_pages(parquet_paths, args.rows))
+    move_sample_rows(args, parquet_paths)
 
 
 if __name__ == "__main__":

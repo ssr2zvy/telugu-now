@@ -17,8 +17,8 @@ export const COPY = {
     playbackSpeed: 'Playback speed',
     defaultPlaybackRate: 'Default speed (x)',
 
-    target: 'Target (%)',
-    spread: 'Spread (%)',
+    target: 'Target',
+    spread: 'Spread',
     save: 'Save',
     saving: 'Saving…',
     invalidValues: 'Invalid values',
@@ -58,8 +58,8 @@ export const COPY = {
     playbackSpeed: 'ప్లేబ్యాక్ వేగం',
     defaultPlaybackRate: 'దినెల వేగం (x)',
 
-    target: 'లక్ష్యం (%)',
-    spread: 'వ్యాప్తి (%)',
+    target: 'లక్ష్యం',
+    spread: 'వ్యాప్తి',
     save: 'భద్రపరచు',
     saving: 'భద్రపరుస్తోంది…',
     invalidValues: 'చెల్లని విలువలు',

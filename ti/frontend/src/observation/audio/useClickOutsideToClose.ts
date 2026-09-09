@@ -23,10 +23,33 @@ export function useClickOutsideToClose(
         (ref) => ref.current && target && ref.current.contains(target),
       );
       if (inside) return;
+      event.preventDefault();
       event.stopPropagation();
+      const pending = new AbortController();
+      const cleanupTimer = window.setTimeout(() => pending.abort(), 1500);
+      const finish = (release: PointerEvent) => {
+        if (release.pointerId !== event.pointerId) return;
+        pending.abort();
+        window.clearTimeout(cleanupTimer);
+        const consumeClick = (click: MouseEvent) => {
+          click.preventDefault();
+          click.stopImmediatePropagation();
+        };
+        document.addEventListener('click', consumeClick, { capture: true, once: true });
+        window.setTimeout(() => document.removeEventListener('click', consumeClick, true), 0);
+      };
+      document.addEventListener('pointerup', finish, { capture: true, signal: pending.signal });
+      document.addEventListener('pointercancel', () => pending.abort(), { once: true, signal: pending.signal });
       onCloseRef.current();
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.stopPropagation(); onCloseRef.current(); }
+    };
     document.addEventListener('pointerdown', handlePointerDown, true);
-    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [active]);
 }

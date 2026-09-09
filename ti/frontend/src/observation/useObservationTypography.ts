@@ -8,6 +8,7 @@ import {
 import type {
   DisplayObservation,
 } from '../../../shared/contracts';
+import { useAppearance } from '../appearance';
 import {
   OBSERVATION_PRESENTATION,
   chooseRandomObservationFont,
@@ -26,12 +27,13 @@ export interface ObservationTypography {
 export function useObservationTypography(
   observation: DisplayObservation | null,
 ): ObservationTypography {
+  const { appearance } = useAppearance();
   const containerRef = useRef<HTMLElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
   const [presentation, setPresentation] = useState<ObservationPresentation>(
     () => ({
       observationId: observation?.id ?? null,
-      fontFamily: chooseRandomObservationFont(),
+      fontFamily: chooseRandomObservationFont(Math.random, appearance.fonts),
     }),
   );
   const [fontSizePx, setFontSizePx] = useState<number>(
@@ -45,10 +47,10 @@ export function useObservationTypography(
   // two-pass sequence (fit with old font, then again with the new font once a
   // later effect fired) was a real user-visible flash of mismatched text.
   const nextObservationId = observation?.id ?? null;
-  if (nextObservationId !== presentation.observationId) {
+  if (nextObservationId !== presentation.observationId || !appearance.fonts.includes(presentation.fontFamily)) {
     setPresentation({
       observationId: nextObservationId,
-      fontFamily: chooseRandomObservationFont(),
+      fontFamily: chooseRandomObservationFont(Math.random, appearance.fonts),
     });
     setReady(false);
   }
@@ -72,6 +74,7 @@ export function useObservationTypography(
         observation.text,
         containerRect.width,
         availableHeight,
+        appearance.fontScale,
       );
       try {
         await document.fonts.load(
@@ -125,6 +128,7 @@ export function useObservationTypography(
     observation?.id,
     observation?.text,
     presentation.fontFamily,
+    appearance.fontScale,
   ]);
   return {
     containerRef,
