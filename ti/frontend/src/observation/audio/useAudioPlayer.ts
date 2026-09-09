@@ -23,6 +23,7 @@ import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
   playing: boolean;
+  playbackError: string | null;
   currentTime: number;
   duration: number;
   playbackRate: number;
@@ -67,7 +68,11 @@ function getAudioContext(): AudioContextLike | null {
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextClass) return null;
   if (!sharedAudioContext) {
-    sharedAudioContext = new AudioContextClass();
+    try {
+      sharedAudioContext = new AudioContextClass();
+    } catch {
+      return null;
+    }
     try {
       primeAudioDevice(sharedAudioContext);
     } catch {
@@ -85,11 +90,13 @@ export function useAudioPlayer(
 ): AudioPlayerState {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const normalizationGainRef = useRef(1);
   const connectedElementRef = useRef<HTMLAudioElement | null>(null);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
 
   const [playing, setPlaying] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(audio?.durationSeconds ?? 0);
   const [playbackRate, setPlaybackRateState] = useState(defaultPlaybackRate);
@@ -102,12 +109,13 @@ export function useAudioPlayer(
     const element = audioRef.current;
     if (!element || connectedElementRef.current === element) return;
     const context = getAudioContext();
-    if (!context) return;
+    if (!context || context.state !== 'running') return;
     try {
-      const source = context.createMediaElementSource(element);
       const gain = context.createGain();
-      source.connect(gain);
+      gain.gain.value = normalizationGainRef.current;
       gain.connect(context.destination);
+      const source = context.createMediaElementSource(element);
+      source.connect(gain);
       gainNodeRef.current = gain;
       connectedElementRef.current = element;
     } catch {
@@ -118,10 +126,12 @@ export function useAudioPlayer(
   // Reset transport/analysis state whenever a new observation's audio arrives.
   useEffect(() => {
     setPlaying(false);
+    setPlaybackError(null);
     setCurrentTime(0);
     setWaveformPeaks([]);
     setDuration(audio?.durationSeconds ?? 0);
     setPlaybackRateState(defaultPlaybackRate);
+    normalizationGainRef.current = 1;
     if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
     setBookmarks(sourceId && sourceKey ? loadBookmarks(sourceId, sourceKey) : []);
 
@@ -135,7 +145,8 @@ export function useAudioPlayer(
         .then((decoded) => {
           if (cancelled) return;
           setWaveformPeaks(computeWaveformPeaks(decoded));
-          if (gainNodeRef.current) gainNodeRef.current.gain.value = computeNormalizationGain(decoded);
+          normalizationGainRef.current = computeNormalizationGain(decoded);
+          if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
         })
         .catch(() => {
           // Loudness analysis/waveform are enhancements; direct playback still works.
@@ -164,19 +175,27 @@ export function useAudioPlayer(
   useEffect(() => {
     const element = audioRef.current;
     if (!element) return;
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => { setPlaying(true); setPlaybackError(null); };
     const onPause = () => setPlaying(false);
+    const onError = () => {
+      setPlaying(false);
+      setPlaybackError(element.error?.code === MediaError.MEDIA_ERR_NETWORK
+        ? 'Audio could not be loaded. Check your connection and retry.'
+        : 'This audio file could not be played.');
+    };
     const onLoadedMetadata = () => {
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
     };
     const onTimeUpdate = () => setCurrentTime(element.currentTime);
     element.addEventListener('play', onPlay);
     element.addEventListener('pause', onPause);
+    element.addEventListener('error', onError);
     element.addEventListener('loadedmetadata', onLoadedMetadata);
     element.addEventListener('timeupdate', onTimeUpdate);
     return () => {
       element.removeEventListener('play', onPlay);
       element.removeEventListener('pause', onPause);
+      element.removeEventListener('error', onError);
       element.removeEventListener('loadedmetadata', onLoadedMetadata);
       element.removeEventListener('timeupdate', onTimeUpdate);
     };
@@ -201,15 +220,23 @@ export function useAudioPlayer(
       element.pause();
       return;
     }
-    const start = () => void element.play().catch(() => undefined);
+    setPlaybackError(null);
+    if (element.error) element.load();
+    void element.play().catch((error: unknown) => {
+      if (audioRef.current !== element || !element.isConnected) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setPlaying(false);
+      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Playback was blocked. Allow sound for this site and retry.'
+        : 'This audio file could not be played.');
+    });
     const context = getAudioContext();
-    // Wait for a suspended context's resume to actually complete (the device's
-    // priming noise is already scheduled and starts flowing here) before asking
-    // the element to play, so real audio never races a still-cold device.
-    if (context && context.state === 'suspended') {
-      void context.resume().then(start, start);
-    } else {
-      start();
+    if (context && context.state !== 'running' && context.state !== 'closed') {
+      try {
+        void context.resume().catch(() => undefined);
+      } catch {
+        return;
+      }
     }
   };
 
@@ -260,6 +287,7 @@ export function useAudioPlayer(
   return {
     audioRef,
     playing,
+    playbackError,
     currentTime,
     duration,
     playbackRate,

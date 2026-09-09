@@ -27,7 +27,7 @@ function audioFixture(): Buffer {
   return buffer;
 }
 
-async function loadFixture(page: Page, realAudioUrl?: string) {
+async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = true) {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const selection: SelectionSnapshot = {
@@ -49,7 +49,7 @@ async function loadFixture(page: Page, realAudioUrl?: string) {
     audioSettings: { playbackRate: 1 },
     currentObservation: {
       id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: sampleText,
-      audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
+      audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl && new URL(realAudioUrl, baseUrl).pathname.endsWith('.flac') ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
       diagnostic: {
         acquisitionNumber: 1, triggerKind: 'initial-fill', triggeredByObservationId: null,
         triggeredByAcquisitionNumber: null, triggeredByHistoryPosition: null,
@@ -106,9 +106,11 @@ async function loadFixture(page: Page, realAudioUrl?: string) {
     }
   });
   await page.goto(baseUrl);
-  await page.locator('.profile-input').fill('001');
-  await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
-  await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
+  if (enterProfile) {
+    await page.locator('.profile-input').fill('001');
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
+  }
   return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount };
 }
 
@@ -137,12 +139,75 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+for (const failure of ['pending', 'rejected', 'unavailable']) {
+  test(`playback starts even when Web Audio is ${failure}`, async ({ page }) => {
+    await page.addInitScript((failure) => {
+      if (failure === 'unavailable') {
+        window.AudioContext = class extends AudioContext {
+          constructor() { super(); throw new Error('Audio processing unavailable'); }
+        };
+        return;
+      }
+      Object.defineProperty(AudioContext.prototype, 'state', { get: () => 'suspended' });
+      const connect = AudioContext.prototype.createMediaElementSource;
+      AudioContext.prototype.createMediaElementSource = function (element) {
+        document.documentElement.dataset.audioGraphConnected = 'true';
+        return connect.call(this, element);
+      };
+      AudioContext.prototype.resume = () => failure === 'pending'
+        ? new Promise<void>(() => {})
+        : Promise.reject(new DOMException('Audio processing blocked', 'NotAllowedError'));
+    }, failure);
+    const fixture = await loadFixture(page);
+    await revealControls(page);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+    await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
+    await expect(page.locator('html')).not.toHaveAttribute('data-audio-graph-connected', 'true');
+    await page.getByTitle('Pause', { exact: true }).click();
+    await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('playback failure is visible and retry can start audio', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const play = HTMLMediaElement.prototype.play;
+    let rejected = false;
+    HTMLMediaElement.prototype.play = function () {
+      if (!rejected) {
+        rejected = true;
+        return Promise.reject(new DOMException('Playback blocked', 'NotAllowedError'));
+      }
+      return play.call(this);
+    };
+  });
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Playback was blocked. Allow sound for this site and retry.');
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(viewport);
+    await page.getByTitle('Play', { exact: true }).hover();
+    await withinViewport(page.getByRole('alert'), page);
+    const messageBounds = (await page.getByRole('alert').boundingBox())!;
+    const textBounds = (await page.locator('.observation-text').boundingBox())!;
+    expect(textBounds.y + textBounds.height).toBeLessThan(messageBounds.y);
+    await page.screenshot({ path: testInfo.outputPath(`playback-error-${viewport.width}.png`) });
+  }
+  await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
+  expect(fixture.errors).toEqual([]);
+});
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-  test.describe(`FLAC over HTTP ${viewport.width}`, () => {
+  test.describe(`real audio over HTTP ${viewport.width}`, () => {
     test.use({ viewport });
-    test('actual FLAC bytes support coarse and precise seeking and resumed playback', async ({ page }) => {
-      const audioUrl = process.env.UI_TEST_FLAC_URL;
-      test.skip(!audioUrl, 'Set UI_TEST_FLAC_URL to a prepared FLAC /api/audio/ URL.');
+    test('actual audio bytes support coarse and precise seeking and resumed playback', async ({ page }) => {
+      const audioUrl = process.env.UI_TEST_AUDIO_URL ?? process.env.UI_TEST_FLAC_URL;
+      test.skip(!audioUrl, 'Set UI_TEST_AUDIO_URL to a prepared /api/audio/ URL.');
       let partialResponses = 0;
       page.on('response', (response) => {
         if (new URL(response.url()).pathname === new URL(audioUrl!, baseUrl).pathname && response.status() === 206) partialResponses += 1;
@@ -180,6 +245,96 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     });
   });
 }
+
+test('refitting visible text never hides it or restarts a settled gradient', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await page.locator('.gradient-field').evaluate(async element => {
+    await Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished));
+  });
+  const before = await page.locator('html').evaluate(element => ['--gradient-turn-a', '--gradient-turn-b', '--gradient-shift'].map(property => element.style.getPropertyValue(property)));
+  const family = await page.locator('.observation-text').evaluate(element => element.style.fontFamily);
+  await page.evaluate(() => {
+    document.fonts.load = () => new Promise<FontFace[]>(() => {});
+    const text = document.querySelector('.observation-text') as HTMLElement;
+    const observer = new MutationObserver(() => {
+      if (text.style.opacity === '0') text.dataset.hiddenDuringRefit = 'true';
+    });
+    observer.observe(text, { attributes: true, attributeFilter: ['style'] });
+  });
+  await page.setViewportSize({ width: 900, height: 720 });
+  await page.setViewportSize({ width: 920, height: 740 });
+  await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.observation-text')).not.toHaveAttribute('data-hidden-during-refit', 'true');
+  expect(await page.locator('.observation-text').evaluate(element => element.style.fontFamily)).toBe(family);
+  expect(await page.locator('html').evaluate(element => ['--gradient-turn-a', '--gradient-turn-b', '--gradient-shift'].map(property => element.style.getPropertyValue(property)))).toEqual(before);
+  expect(await page.locator('.gradient-field').evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  expect(fixture.navigationCount()).toBe(0);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('a delayed status poll cannot replay the previous observation after navigation', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  const staleState = structuredClone(fixture.state);
+  let releasePoll = () => {};
+  let pollRequested = () => {};
+  const pollGate = new Promise<void>(resolve => { releasePoll = resolve; });
+  const requestGate = new Promise<void>(resolve => { pollRequested = resolve; });
+  let held = false;
+  await page.route('**/api/profiles/001/state?*', async (route) => {
+    if (held) { await route.fallback(); return; }
+    held = true;
+    pollRequested();
+    await pollGate;
+    await route.fulfill({ json: staleState });
+  });
+  await requestGate;
+  await page.locator('.nav-zone-right').dblclick();
+  await expect.poll(fixture.navigationCount).toBe(1);
+  await expect(page.locator('.nav-zone-right')).toBeEnabled();
+  const rotation = await page.locator('html').evaluate(element => element.style.getPropertyValue('--gradient-turn-a'));
+  const response = page.waitForResponse('**/api/profiles/001/state?*');
+  releasePoll();
+  await response;
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(await page.locator('html').evaluate(element => element.style.getPropertyValue('--gradient-turn-a'))).toBe(rotation);
+  expect(fixture.navigationCount()).toBe(1);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('navigation feedback counts dispatched requests once and rejects overlapping activation', async ({ page }, testInfo) => {
+  const fixture = await loadFixture(page);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await expect(page.locator('.navigation-feedback')).toHaveCount(0);
+  await page.locator('.nav-zone-right').click();
+  expect(fixture.navigationCount()).toBe(0);
+  await expect(page.locator('.navigation-feedback')).toHaveCount(0);
+  let releaseNavigation = () => {};
+  const gate = new Promise<void>(resolve => { releaseNavigation = resolve; });
+  await page.route('**/api/profiles/001/next', async route => { await gate; await route.fallback(); });
+  await page.locator('.nav-zone-right').evaluate(element => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+  });
+  const feedback = page.getByRole('status', { name: 'Next request 1', exact: true });
+  await expect(feedback).toHaveAttribute('data-sequence', '1');
+  await withinViewport(feedback, page);
+  const bounds = (await feedback.boundingBox())!;
+  expect(bounds.y).toBe(16);
+  expect(page.viewportSize()!.width - bounds.x - bounds.width).toBe(20);
+  releaseNavigation();
+  await expect(page.locator('.nav-zone-right')).toBeEnabled();
+  expect(fixture.navigationCount()).toBe(1);
+  await page.locator('.nav-zone-left').press('Enter');
+  await expect(page.getByRole('status', { name: 'Back request 2', exact: true })).toHaveAttribute('data-sequence', '2');
+  await expect(page.locator('.nav-zone-left')).toBeEnabled();
+  expect(fixture.navigationCount()).toBe(2);
+  await page.screenshot({ path: testInfo.outputPath('navigation-feedback.png') });
+  await page.clock.fastForward(1600);
+  await expect(page.locator('.navigation-feedback')).toHaveCount(0);
+  expect(fixture.navigationCount()).toBe(2);
+  expect(fixture.errors).toEqual([]);
+});
 
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -258,6 +413,53 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
   test.describe(`${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
+
+    test('profile entry is text-free with stable digit, loading and error states', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page, undefined, false);
+      const input = page.locator('.profile-input');
+      const screen = page.locator('.entry-screen');
+      const field = page.locator('.entry-code');
+      await expect(screen).toHaveText('');
+      await expect(input).not.toHaveAttribute('placeholder');
+      await withinViewport(field, page);
+      const initialBounds = await field.boundingBox();
+      await page.screenshot({ path: testInfo.outputPath('profile-entry.png') });
+      await input.fill('12');
+      await expect(page.locator('.entry-digits')).toHaveText('12');
+      expect(await field.boundingBox()).toEqual(initialBounds);
+      await input.press('Backspace');
+      await expect(input).toHaveValue('1');
+      await input.press('ArrowLeft');
+      await expect(page.locator('.entry-digit').first()).toHaveAttribute('data-active', 'true');
+      await page.screenshot({ path: testInfo.outputPath('profile-entry-focused.png') });
+      const submissions: string[] = [];
+      let releaseLoad = () => {};
+      const gate = new Promise<void>(resolve => { releaseLoad = resolve; });
+      await page.route('**/api/profiles/load', async route => {
+        const code = route.request().postDataJSON().code as string;
+        submissions.push(code);
+        if (code === '999') { await route.fulfill({ status: 404, json: { error: 'invalid-profile-code' } }); return; }
+        await gate;
+        await route.fallback();
+      });
+      await input.fill('999');
+      await expect(input).toHaveAttribute('aria-invalid', 'true');
+      await expect(input).toHaveValue('');
+      await expect(screen).toHaveText('');
+      await expect(page.getByRole('status', { name: 'Invalid profile code' })).toBeVisible();
+      expect(await field.boundingBox()).toEqual(initialBounds);
+      await page.screenshot({ path: testInfo.outputPath('profile-entry-invalid.png') });
+      await input.fill('001');
+      await expect(page.getByRole('status', { name: 'Loading profile' })).toBeVisible();
+      await expect(input).toHaveJSProperty('readOnly', true);
+      await expect(screen).toHaveText('001');
+      expect(await field.boundingBox()).toEqual(initialBounds);
+      await page.screenshot({ path: testInfo.outputPath('profile-entry-loading.png') });
+      releaseLoad();
+      await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+      expect(submissions).toEqual(['999', '001']);
+      expect(fixture.errors).toEqual([]);
+    });
 
     test('settings typography and navigation fit Telugu labels', async ({ page }, testInfo) => {
       const fixture = await loadFixture(page);
@@ -390,14 +592,16 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.locator('.nav-zone-right')).toBeEnabled();
       await page.locator('.nav-zone-right').press('Enter');
       await expect.poll(fixture.navigationCount).toBe(3);
+      await expect(page.locator('.nav-zone-right')).toBeEnabled();
       const gradient = page.locator('.gradient-field > div').first();
-      await expect(gradient).toHaveCSS('animation-name', 'gradient-drift');
+      await expect(gradient).toHaveCSS('animation-name', 'none');
+      await expect.poll(() => gradient.evaluate(element => element.getAnimations().length)).toBe(0);
       const drift = await gradient.evaluate(async (element) => {
-        const before = getComputedStyle(element).rotate;
+        const before = getComputedStyle(element).transform;
         await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        return { before, after: getComputedStyle(element).rotate };
+        return { before, after: getComputedStyle(element).transform };
       });
-      expect(drift.after).not.toBe(drift.before);
+      expect(drift.after).toBe(drift.before);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await expect(gradient).toHaveCSS('animation-name', 'none');
       await expect(gradient).toHaveCSS('transform', 'none');

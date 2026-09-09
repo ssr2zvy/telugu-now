@@ -19,3 +19,25 @@ test('precision dragging moves one millisecond per pixel without accumulating fe
   assert.equal(precisionSeekTime(0, -100, 300), 0);
   assert.equal(precisionSeekTime(300, 100, 300), 300);
 });
+
+test('playback rate clamping preserves fractions and handles lower and non-finite bounds', () => {
+  for (const rate of [0.1, 0.375, 0.8, 1, 1.25, 1.5]) {
+    assert.equal(clampPlaybackRate(rate), rate);
+  }
+  for (const rate of [-100, 0, 0.099]) {
+    assert.equal(clampPlaybackRate(rate), AUDIO_PLAYBACK_RATE_MIN);
+  }
+  for (const rate of [NaN, Infinity, -Infinity]) {
+    assert.equal(clampPlaybackRate(rate), 1);
+  }
+  assert.equal(clampPlaybackRate(Number.MAX_VALUE), AUDIO_PLAYBACK_RATE_MAX);
+});
+
+test('precision seeking retains subpixel accuracy and clamps short and empty clips', () => {
+  assert.ok(Math.abs(precisionSeekTime(12.345, 0.5, 60) - 12.3455) < 1e-12);
+  assert.ok(Math.abs(precisionSeekTime(12.345, -0.5, 60) - 12.3445) < 1e-12);
+  assert.equal(precisionSeekTime(0.001, 1_000_000, 0.002), 0.002);
+  assert.equal(precisionSeekTime(0.001, -1_000_000, 0.002), 0);
+  assert.equal(precisionSeekTime(0, 100, 0), 0);
+  assert.equal(precisionSeekTime(0, -100, 0), 0);
+});

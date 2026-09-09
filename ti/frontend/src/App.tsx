@@ -55,6 +55,7 @@ function AppContent() {
     <ObservationView
       state={session.state}
       busy={session.busy}
+      navigationEvent={session.navigationEvent}
       onMove={session.move}
       onOpenSettings={() => {
         settings.prepareOpen();

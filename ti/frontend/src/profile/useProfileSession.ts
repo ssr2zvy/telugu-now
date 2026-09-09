@@ -15,6 +15,7 @@ export interface ProfileSession {
   state: ProfileStateResponse | null;
   invalidCode: boolean;
   busy: boolean;
+  navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
   submitCode: (code: string) => Promise<boolean>;
   clearInvalidCode: () => void;
   move: (direction: 'back' | 'next') => Promise<boolean>;
@@ -28,6 +29,10 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const [state, setState] = useState<ProfileStateResponse | null>(null);
   const [invalidCode, setInvalidCode] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [navigationEvent, setNavigationEvent] = useState<ProfileSession['navigationEvent']>(null);
+  const navigationSequenceRef = useRef(0);
+  const navigationInFlightRef = useRef(false);
+  const stateRevisionRef = useRef(0);
   const activeCodeRef = useRef<string | null>(null);
   const settingsOpenRef = useRef(settingsOpen);
   useEffect(() => {
@@ -37,18 +42,29 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     settingsOpenRef.current = settingsOpen;
   }, [settingsOpen]);
   useEffect(() => {
+    if (!navigationEvent) return;
+    const timer = window.setTimeout(() => setNavigationEvent(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [navigationEvent]);
+  useEffect(() => {
     if (!profileCode) return;
     let cancelled = false;
+    let refreshing = false;
     const refresh = async () => {
+      if (refreshing || navigationInFlightRef.current) return;
+      refreshing = true;
+      const revision = stateRevisionRef.current;
       try {
         const observationVisible =
           document.visibilityState === 'visible' && !settingsOpen;
         const next = await getProfileState(profileCode, observationVisible);
-        if (!cancelled) {
+        if (!cancelled && !navigationInFlightRef.current && revision === stateRevisionRef.current) {
           setState(next);
         }
       } catch {
         // Keep the last known state. The next poll will retry.
+      } finally {
+        refreshing = false;
       }
     };
     void refresh();
@@ -130,9 +146,13 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const move = async (
     direction: 'back' | 'next',
   ): Promise<boolean> => {
-    if (!profileCode) {
+    if (!profileCode || navigationInFlightRef.current || !(direction === 'back' ? state?.canBack : state?.canNext)) {
       return false;
     }
+    navigationInFlightRef.current = true;
+    stateRevisionRef.current += 1;
+    navigationSequenceRef.current += 1;
+    setNavigationEvent({ sequence: navigationSequenceRef.current, direction });
     setBusy(true);
     try {
       const next = await navigate(
@@ -150,6 +170,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
       // Polling refreshes readiness/state.
       return false;
     } finally {
+      navigationInFlightRef.current = false;
       setBusy(false);
     }
   };
@@ -165,6 +186,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const applySelectionSettings = (
     settings: ProfileSelectionSettings,
   ) => {
+    stateRevisionRef.current += 1;
     setState((current) =>
       current
         ? {
@@ -177,6 +199,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const applyAudioSettings = (
     settings: ProfileAudioSettings,
   ) => {
+    stateRevisionRef.current += 1;
     setState((current) =>
       current
         ? {
@@ -189,6 +212,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const applyProfileState = (
     next: ProfileStateResponse,
   ) => {
+    stateRevisionRef.current += 1;
     setState(next);
   };
   return {
@@ -196,6 +220,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     state,
     invalidCode,
     busy,
+    navigationEvent,
     submitCode,
     clearInvalidCode: () =>
       setInvalidCode(false),

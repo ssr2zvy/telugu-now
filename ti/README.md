@@ -60,7 +60,7 @@ npx playwright install --with-deps chromium
 npx playwright test tests/ui.browser.spec.ts --workers=1
 ```
 The browser checks mock API responses and generate audio in memory, leaving real profiles and queues untouched. They cover desktop, phone, and landscape layouts, settings navigation, appearance persistence, export progress, playback speed, precision seeking, and popover dismissal. Screenshots are written to the ignored `test-results/` directory. Set `UI_TEST_URL` to test a different development-server URL.
-To include the real-FLAC HTTP seeking checks, set `UI_TEST_FLAC_URL` to a prepared FLAC object's `/api/audio/...flac?v=2` URL when running Playwright. These checks leave profile requests mocked but let the FLAC request reach the real server, verifying byte-range responses, forward/backward seeking, precision dragging, and resumed playback. Only these corpus-dependent checks are skipped when that variable is absent.
+To include real-media HTTP seeking checks, set `UI_TEST_AUDIO_URL` to a prepared WAV or FLAC object's `/api/audio/...` URL when running Playwright (`UI_TEST_FLAC_URL` remains supported). These checks leave profile requests mocked but let the audio request reach the real server, verifying byte-range responses, forward/backward seeking, precision dragging, and resumed playback. Only these corpus-dependent checks are skipped when neither variable is supplied.
 ## Selectable sources
 Iteration 3 has six selectable sources with independently persisted weights:
 1. `source1`: 12 development-fixture rows
@@ -113,6 +113,7 @@ Back/forward movement through already-seen history does not consume the queue an
 Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
 ## Observation controls
 Back and Next use invisible edge regions: double-click or double-tap the left edge to go back and the right edge to go next. Single edge clicks do not navigate. The regions remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
+A brief top-right arrow and sequence number identify each Back/Next request actually dispatched, including failed requests. Polling and rerenders do not increment or replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
 A single tap on the central observation surface reveals the bottom-right Settings icon; another central tap or successful navigation hides it. Settings uses the same corner placement as the Settings-language control.
 The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
 When a valid profile has no current observation yet, the observation area displays:
@@ -121,7 +122,8 @@ When a valid profile has no current observation yet, the observation area displa
 ```
 The placeholder does not create history, an acquisition, source data, or timing state.
 ## Stable profile-code entry
-The initial three-digit profile-code input is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move the bar upward as the mobile visual viewport changes.
+The initial screen has three fixed digit positions and a profile icon, with no visible labels, placeholders, or error copy. Only entered digits are shown as text. Loading and invalid-code states use icons, with accessible status labels; input remains one native numeric-keyboard field supporting editing and paste. Completing three digits submits once and locks editing until the request finishes.
+The control is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move it upward as the mobile visual viewport changes.
 ## Observation typography
 Each time an observation becomes actively displayed, the client randomly chooses one font from this fixed collection:
 - Noto Sans Telugu
@@ -135,6 +137,7 @@ Each time an observation becomes actively displayed, the client randomly chooses
 - Suranna
 - Tenali Ramakrishna
 Font selection is presentation-only and is not stored in history, acquisitions, source records, or selection snapshots. Navigating away and later returning rerolls the font. Closing Settings and returning also creates a fresh typography activation. Ordinary React rerenders, polling, timing refreshes, and queue-readiness changes do not reroll while the same observation remains continuously active.
+Refitting an already visible observation keeps it visible, reuses loaded fonts, skips unchanged dimensions, and discards superseded asynchronous fit results.
 The canonical presentation configuration lives in `frontend/src/presentation.ts` and is reused by the live viewer and both export formats.
 The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area.
 ## Font assets
@@ -159,15 +162,16 @@ Settings replaces the observation view while open; it is not a modal. The root c
 Each child page has Back to return to its parent group. The top-right screen-corner `×` exits the entire Settings hierarchy and returns to the same observation.
 At desktop widths (960px and above), a navigation rail also provides direct access to every settings page, with the active destination marked. The top-left sidebar button collapses and restores the rail without changing the current page or discarding unsaved field values. Phones and smaller windows retain the grouped drill-down navigation. The overview shows saved sampling values, the current acquisition, playback/font preferences, and the unseen queue count. Page changes reset content scroll and focus the heading; the short entrance transition is disabled for reduced motion.
 The settings interface uses locally bundled Manrope variable type for Latin text, with the existing Noto Sans Telugu fallback. Appearance includes a live gradient and Telugu type sample that responds to color, font-pool, and size changes; the reader continues to choose from the enabled font pool.
-Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers drift continuously at different rates, with small eased changes on navigation and no skewed layer edges. Reduced-motion mode keeps the gradient static.
+Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
 Settings uses compact rows, inline numeric values with understated unit suffixes, and checkmark Save actions. Numeric fields use one underline focus indicator instead of an outer focus ring; keyboard focus remains visible.
 Appearance exposes three explicit color roles:
-- Background: the three colors used by the moving reader gradient.
+- Background: the three colors used by the reader gradient.
 - Text & icons: the exact foreground shared by reader text, settings text, icons, audio tracks, and waveform marks. Borders and muted states derive from this color.
 - Settings & popovers: the shared surface behind Settings, export dialogs, and the precision magnifier. Automatic surface selects a light neutral for dark text or a dark neutral for light text; selecting a swatch makes it custom. Changing gradient colors no longer changes these surfaces.
 Color swatches show their hex values. Randomize chooses a coordinated palette and restores Automatic surface. Reset colors restores the default colors without changing font size or font exclusions. Custom text/surface pairs should be chosen with sufficient contrast.
 The settings refinement references [Google's Material 3 Expressive research](https://design.google/library/expressive-material-design-google-research), [Apple's materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), and [Linear's UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui), consulted September 2026: stronger typography and hierarchy, a distinct navigation layer, restrained interaction states, and consistent alignment. Form surfaces remain opaque and use the selected appearance colors, rather than applying glass effects to content.
 Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance colors, and the precision scrubber moves one millisecond per pointer pixel. Popovers stay within the viewport and consume their outside-dismissal click without also navigating.
+Play starts the native audio element directly during the user gesture, independently of Web Audio resume. Loudness normalization connects only after the processing context is running; an unavailable or stalled context does not block native playback. Media loading and playback failures appear above the bar, and Play retries the request.
 The audio bar and Settings button start hidden. Clicking the reading area toggles them; after revealing them, pointer movement keeps them visible. They fade after three seconds of inactivity, except while a control is hovered, keyboard-focused, being dragged, or has an open popover. Movement alone does not reveal hidden controls. Keyboard focus can reveal its control, and hiding the audio bar does not interrupt playback. Navigating to another observation hides the controls again.
 Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
 Scrubbers prevent native text dragging, selection, and touch callouts while retaining keyboard focus. Pointer capture keeps fine seeking active outside the track and resets after cancellation so the next drag can begin normally.

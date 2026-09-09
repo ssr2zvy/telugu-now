@@ -4,6 +4,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -19,6 +20,7 @@ import {
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
+  navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
   onMove: (
     direction: 'back' | 'next',
   ) => Promise<boolean>;
@@ -27,6 +29,7 @@ interface ObservationViewProps {
 export function ObservationView({
   state,
   busy,
+  navigationEvent,
   onMove,
   onOpenSettings,
 }: ObservationViewProps) {
@@ -95,11 +98,24 @@ export function ObservationView({
         )
       }
     >
+      {navigationEvent ? (
+        <div
+          key={navigationEvent.sequence}
+          className="navigation-feedback"
+          role="status"
+          aria-label={`${navigationEvent.direction === 'next' ? 'Next' : 'Back'} request ${navigationEvent.sequence}`}
+          data-sequence={navigationEvent.sequence}
+        >
+          {navigationEvent.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
+          <span aria-hidden="true">{navigationEvent.sequence}</span>
+        </div>
+      ) : null}
       <button
         className="nav-zone nav-zone-left"
         type="button"
         aria-label="వెనుక"
         disabled={!canBack}
+        onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
         onClick={(
           event:
             MouseEvent<HTMLButtonElement>,
@@ -146,6 +162,7 @@ export function ObservationView({
         type="button"
         aria-label="తర్వాత"
         disabled={!canNext}
+        onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
         onClick={(
           event:
             MouseEvent<HTMLButtonElement>,

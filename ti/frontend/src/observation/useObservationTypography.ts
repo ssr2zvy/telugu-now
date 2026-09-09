@@ -62,10 +62,16 @@ export function useObservationTypography(
       return;
     }
     let cancelled = false;
+    let fitGeneration = 0;
+    let fittedWidth = -1;
+    let fittedHeight = -1;
     let resizeObserver: ResizeObserver | null = null;
     const fit = async () => {
-      setReady(false);
       const containerRect = container.getBoundingClientRect();
+      if (containerRect.width === fittedWidth && containerRect.height === fittedHeight) return;
+      fittedWidth = containerRect.width;
+      fittedHeight = containerRect.height;
+      const generation = ++fitGeneration;
       const availableHeight = Math.max(
         1,
         containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx,
@@ -76,18 +82,18 @@ export function useObservationTypography(
         availableHeight,
         appearance.fontScale,
       );
+      const font = `${OBSERVATION_PRESENTATION.fontWeight} ${Math.max(
+        OBSERVATION_PRESENTATION.preferredMinimumFontSizePx,
+        desired,
+      )}px "${presentation.fontFamily}"`;
       try {
-        await document.fonts.load(
-          `${OBSERVATION_PRESENTATION.fontWeight} ${Math.max(
-            OBSERVATION_PRESENTATION.preferredMinimumFontSizePx,
-            desired,
-          )}px "${presentation.fontFamily}"`,
-          observation.text.slice(0, 64),
-        );
+        if (!document.fonts.check(font, observation.text.slice(0, 64))) {
+          await document.fonts.load(font, observation.text.slice(0, 64));
+        }
       } catch {
         // The local fallback stack remains usable if a font cannot be loaded.
       }
-      if (cancelled) return;
+      if (cancelled || generation !== fitGeneration) return;
       let low: number = OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
       let high: number = desired;
       let best: number = Math.min(low, desired);

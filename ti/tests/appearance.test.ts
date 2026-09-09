@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceSurface, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
+import { appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
 import { chooseRandomObservationFont, preferredObservationFontSizePx, OBSERVATION_FONTS } from '../frontend/src/presentation';
 import { parentSettingsPage, settingsGroups } from '../frontend/src/settings/navigation';
 
@@ -38,4 +38,46 @@ test('settings leaf pages return to their group and reset remains last', () => {
   assert.equal(parentSettingsPage('appearance'), 'display');
   assert.equal(parentSettingsPage('sampling'), 'index');
   assert.equal(settingsGroups.index?.at(-1), 'reset');
+});
+
+test('non-object persisted appearance values recover all defaults', () => {
+  for (const value of [undefined, null, false, 0, 'invalid', []]) {
+    assert.deepEqual(parseAppearance(value), DEFAULT_APPEARANCE);
+  }
+});
+
+test('parsed appearance arrays do not alias persisted settings or shared defaults', () => {
+  const persisted = { gradient: ['#112233', '#445566', '#778899'], fonts: ['Mandali'] };
+  const parsed = parseAppearance(persisted);
+  parsed.gradient[0] = '#abcdef';
+  parsed.fonts.push('NTR');
+  assert.deepEqual(persisted, { gradient: ['#112233', '#445566', '#778899'], fonts: ['Mandali'] });
+
+  const defaults = parseAppearance(null);
+  const expected = structuredClone(DEFAULT_APPEARANCE);
+  defaults.gradient[0] = '#abcdef';
+  defaults.fonts.pop();
+  assert.deepEqual(DEFAULT_APPEARANCE, expected);
+  assert.deepEqual(parseAppearance(null), expected);
+});
+
+test('gradient validation preserves valid mixed-case hex and rejects malformed palettes atomically', () => {
+  const valid = ['#AaBbCc', '#001122', '#DDEEFF'];
+  assert.deepEqual(parseAppearance({ gradient: valid }).gradient, valid);
+  for (const gradient of [
+    ['#112233', '#445566', '#gg7788'],
+    ['#112233', '#fff', '#778899'],
+    ['#112233', '#445566', '#77889900'],
+    ['#112233', '#445566', null],
+    [...valid, '#ffffff'],
+  ]) {
+    assert.deepEqual(parseAppearance({ gradient }).gradient, DEFAULT_APPEARANCE.gradient);
+  }
+});
+
+test('persisted font pools discard duplicates and unknown fonts in canonical order', () => {
+  const fonts = [...OBSERVATION_FONTS].reverse();
+  const parsed = parseAppearance({ fonts: [...fonts, fonts[0], 'unknown', fonts[0]] });
+  assert.deepEqual(parsed.fonts, [...OBSERVATION_FONTS]);
+  assert.equal(new Set(parsed.fonts).size, parsed.fonts.length);
 });

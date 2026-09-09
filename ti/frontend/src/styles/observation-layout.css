@@ -9,10 +9,14 @@
 .nav-zone { z-index: 3; padding: 0; border: 0; background: transparent; color: var(--control-color); cursor: default; touch-action: manipulation; user-select: none; }
 .nav-zone:disabled { cursor: default; }
 .nav-zone:focus-visible { outline: 1px solid var(--line); outline-offset: -12px; }
+.navigation-feedback { position: absolute; z-index: 6; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 52px; height: 36px; color: var(--control-color); font-family: ui-monospace, monospace; font-size: .75rem; font-variant-numeric: tabular-nums; pointer-events: none; animation: navigation-feedback 1500ms ease-out both; }
+@keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }
 .settings-trigger { position: absolute; z-index: 4; right: max(20px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
 .audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: flex; align-items: center; gap: 0; width: min(416px, calc(100vw - 112px)); min-height: 44px; padding: 0; border-radius: 0; background: none; box-shadow: none; transform: translateX(-50%); color: var(--control-color); cursor: default; }
 .audio-transport-button { display: grid; flex: none; place-items: center; width: 36px; height: 44px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .audio-transport-button .control-icon { width: 17px; height: 17px; }
+.audio-playback-error { position: absolute; bottom: calc(100% + 8px); inset-inline: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; text-align: left; }
 .audio-scrubber-wrap, .audio-speed-popover { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .audio-scrubber-thumb, .audio-scrubber-progress, .audio-scrubber-bookmark, .audio-magnifier-bar, .audio-magnifier-playhead { pointer-events: none; }
 .audio-scrubber:focus-visible, .audio-speed-track:focus-visible, .audio-magnifier-track:focus-visible { outline: none; }

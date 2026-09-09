@@ -68,6 +68,7 @@ export function AudioPlayerBar({
       >
         <BookmarkIcon />
       </button>
+      {player.playbackError ? <div className="audio-playback-error" role="alert">{player.playbackError}</div> : null}
       {speedPopoverOpen ? (
         <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
