@@ -1,6 +1,14 @@
 import { diagnosticSectionLabel } from './diagnostic';
 import { t } from './language';
 import type { SettingsPage, UiLanguage } from './types';
+import { Activity, ChartNoAxesCombined, Database, Download, Gauge, Globe, Layers, Palette, RotateCcw, SlidersHorizontal, Sparkles, Workflow } from 'lucide-react';
+
+export const settingsPageIcons = {
+  index: SlidersHorizontal, sampling: SlidersHorizontal, diagnostic: Activity,
+  display: Palette, export: Download, reset: RotateCcw, complexity: ChartNoAxesCombined,
+  sources: Layers, dataSources: Database, trigger: Workflow, source: Database,
+  complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
+};
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   index: ['sampling', 'diagnostic', 'display', 'export', 'reset'],

@@ -112,8 +112,15 @@ async function loadFixture(page: Page, realAudioUrl?: string) {
   return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount };
 }
 
+async function revealControls(page: Page) {
+  if (!await page.locator('.observation-screen').evaluate(element => element.classList.contains('controls-visible'))) {
+    await page.locator('.observation-text').click();
+  }
+  await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
+}
+
 async function openSettings(page: Page) {
-  await page.locator('.observation-text').click();
+  await revealControls(page);
   await page.locator('.settings-trigger').click();
   if (await page.locator('.settings-header h1').textContent() !== 'Settings') {
     await page.locator('.language-toggle').click();
@@ -141,6 +148,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         if (new URL(response.url()).pathname === new URL(audioUrl!, baseUrl).pathname && response.status() === 206) partialResponses += 1;
       });
       const fixture = await loadFixture(page, audioUrl!);
+      await revealControls(page);
       const audio = page.locator('audio');
       const duration = await audio.evaluate((element: HTMLAudioElement) => element.duration);
       expect(Number.isFinite(duration)).toBe(true);
@@ -177,6 +185,8 @@ test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   test('precision touch dragging survives cancellation and capture outside the track', async ({ page }) => {
     const fixture = await loadFixture(page);
+    await page.locator('.observation-text').tap();
+    await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
     const client = await page.context().newCDPSession(page);
     const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
     const bar = (await scrubber.boundingBox())!;
@@ -208,6 +218,8 @@ test.describe('touch navigation', () => {
     await next.tap();
     await expect.poll(fixture.navigationCount).toBe(1);
     await expect(next).toBeEnabled();
+    await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '0');
+    await page.locator('.observation-text').tap();
     await page.getByTitle('Playback speed', { exact: true }).tap();
     await next.tap();
     await next.tap();
@@ -247,8 +259,40 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   test.describe(`${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
 
+    test('settings typography and navigation fit Telugu labels', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page);
+      await openSettings(page);
+      await page.locator('.language-toggle').click();
+      await expect(page.locator('.settings-header h1')).toHaveText('అమరికలు');
+      await page.evaluate(() => document.fonts.ready);
+      expect(await page.evaluate(() => document.fonts.check('16px "Manrope Variable"', 'Settings'))).toBe(true);
+      expect(await page.evaluate(() => document.fonts.check('16px "Noto Sans Telugu"', 'అమరికలు'))).toBe(true);
+      const content = page.locator('.settings-page-content');
+      expect(await content.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      for (const button of await page.locator('.settings-index button').all()) {
+        await button.scrollIntoViewIfNeeded();
+        await withinViewport(button, page);
+        const bounds = (await button.boundingBox())!;
+        const label = (await button.locator('.settings-entry-text').boundingBox())!;
+        expect(label.x).toBeGreaterThan(bounds.x);
+        expect(label.x + label.width).toBeLessThan(bounds.x + bounds.width);
+      }
+      await content.evaluate(element => element.scrollTo(0, 0));
+      await page.screenshot({ path: testInfo.outputPath('settings-telugu.png') });
+      if (viewport.width >= 960) {
+        const rail = page.locator('.settings-rail');
+        expect(await rail.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+        const appearance = rail.getByRole('button', { name: 'ప్రదర్శన: రూపం', exact: true });
+        await appearance.click();
+        await expect(appearance).toHaveAttribute('aria-current', 'page');
+        await expect(page.locator('.settings-header h1')).toHaveText('రూపం');
+      }
+      expect(fixture.errors).toEqual([]);
+    });
+
     test('reader and audio controls stay usable and precisely seek', async ({ page }, testInfo) => {
       const fixture = await loadFixture(page);
+      await revealControls(page);
       const player = page.locator('.audio-player-bar');
       await expect(player).toHaveCSS('box-shadow', 'none');
       await expect(player).toHaveCSS('background-image', 'none');
@@ -291,7 +335,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.screenshot({ path: testInfo.outputPath('speed.png') });
       await page.mouse.click(10, 10);
       await expect(speed).toHaveCount(0);
-      await expect(page.locator('.observation-screen')).not.toHaveClass(/controls-visible/);
+      await expect(page.locator('.observation-screen')).toHaveClass(/controls-visible/);
       expect(fixture.navigationCount()).toBe(0);
       await page.getByTitle('Play', { exact: true }).click();
       await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.02);
@@ -323,9 +367,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.screenshot({ path: testInfo.outputPath('precision.png') });
       await page.mouse.click(10, 10);
       await expect(precise).toHaveCount(0);
-      await expect(page.locator('.observation-screen')).not.toHaveClass(/controls-visible/);
+      await expect(page.locator('.observation-screen')).toHaveClass(/controls-visible/);
 
-      await page.locator('.observation-text').click();
+      await revealControls(page);
       await expect(page.locator('.nav-zone svg')).toHaveCount(0);
       const settings = (await page.locator('.settings-trigger').boundingBox())!;
       expect(viewport.width - settings.x - settings.width).toBe(20);
@@ -339,6 +383,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(fixture.navigationCount()).toBe(0);
       await page.locator('.nav-zone-right').dblclick();
       await expect.poll(fixture.navigationCount).toBe(1);
+      await expect(player).toHaveCSS('opacity', '0');
       await expect.poll(() => page.locator('html').evaluate((element) => element.style.getPropertyValue('--gradient-turn-a'))).not.toBe(rotation);
       await page.locator('.nav-zone-left').dblclick();
       await expect.poll(fixture.navigationCount).toBe(2);
@@ -359,10 +404,97 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(fixture.errors).toEqual([]);
     });
 
+    test('audio controls require a click and remain visible during activity', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page);
+      const player = page.locator('.audio-player-bar');
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(player).toHaveCSS('pointer-events', 'none');
+      await page.mouse.move(100, 100);
+      await expect(player).toHaveCSS('opacity', '0');
+      await page.screenshot({ path: testInfo.outputPath('reader-hidden.png') });
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await revealControls(page);
+      for (let step = 0; step < 3; step += 1) {
+        await page.clock.fastForward(2000);
+        await page.mouse.move(120 + step * 10, 120);
+        await expect(player).toHaveCSS('opacity', '1');
+        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      }
+      await page.screenshot({ path: testInfo.outputPath('reader-controls.png') });
+      await page.clock.fastForward(3500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
+      await page.mouse.move(160, 120);
+      await expect(player).toHaveCSS('opacity', '0');
+      await revealControls(page);
+      await page.getByTitle('Play', { exact: true }).click();
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+      await page.mouse.move(160, 120);
+      await page.clock.fastForward(3500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+      await revealControls(page);
+      await page.getByTitle('Pause', { exact: true }).click();
+      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.mouse.move(160, 120);
+      await page.clock.fastForward(5000);
+      await expect(player).toHaveCSS('opacity', '1');
+      await page.mouse.click(10, 10);
+      await expect(page.locator('.audio-speed-popover')).toHaveCount(0);
+      await page.clock.fastForward(3500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await page.locator('.nav-zone-left').focus();
+      await page.keyboard.press('Tab');
+      await expect(page.getByTitle('Play', { exact: true })).toBeFocused();
+      await expect(player).toHaveCSS('opacity', '1');
+      expect(fixture.errors).toEqual([]);
+    });
+
     test('settings groups, appearance, reset and export work', async ({ page }, testInfo) => {
       const fixture = await loadFixture(page);
       await openSettings(page);
       await expect(page.locator('.settings-header')).toHaveCSS('border-bottom-width', '0px');
+      await page.evaluate(() => document.fonts.ready);
+      await expect(page.locator('.settings-screen')).toHaveCSS('font-family', /Manrope Variable/);
+      await expect(page.locator('#settings-summary-sampling')).toHaveText('Target 50% · Spread 25%');
+      await expect(page.locator('#settings-summary-display')).toContainText('1x');
+      const closeBounds = (await page.locator('.settings-close').boundingBox())!;
+      expect(viewport.width - closeBounds.x - closeBounds.width).toBe(20);
+      expect(closeBounds.y).toBe(16);
+      const rail = page.getByRole('navigation', { name: 'Settings navigation' });
+      if (viewport.width >= 960) {
+        await expect(rail).toBeVisible();
+        await rail.getByRole('button', { name: 'Display: Appearance', exact: true }).click();
+        await expect(page.locator('.settings-header h1')).toHaveText('Appearance');
+        await expect(page.locator('.settings-header h1')).toBeFocused();
+        await expect(rail.getByRole('button', { name: 'Display: Appearance', exact: true })).toHaveAttribute('aria-current', 'page');
+        await rail.getByRole('button', { name: 'Sampling: Complexity', exact: true }).click();
+        await expect(page.getByLabel('Target', { exact: true })).toHaveValue('50');
+        await page.getByLabel('Target', { exact: true }).fill('65');
+        await page.getByRole('button', { name: 'Hide settings menu', exact: true }).click();
+        await expect(rail).toHaveCount(0);
+        const railToggle = page.getByRole('button', { name: 'Show settings menu', exact: true });
+        await expect(railToggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(railToggle).toBeFocused();
+        await expect(page.getByLabel('Target', { exact: true })).toHaveValue('65');
+        await withinViewport(page.locator('.settings-page-content'), page);
+        await page.screenshot({ path: testInfo.outputPath('settings-collapsed.png') });
+        await railToggle.press('Enter');
+        await expect(rail).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Hide settings menu', exact: true })).toHaveAttribute('aria-expanded', 'true');
+        await expect(page.getByLabel('Target', { exact: true })).toHaveValue('65');
+        await rail.getByRole('button', { name: 'Diagnostic: Complexity', exact: true }).click();
+        await expect(page.locator('.diagnostic-table')).toBeVisible();
+        await rail.getByRole('button', { name: 'Settings: Settings', exact: true }).click();
+        await expect(page.locator('.settings-header h1')).toHaveText('Settings');
+      } else {
+        await expect(rail).toHaveCount(0);
+        await expect(page.locator('.settings-rail-toggle')).toBeHidden();
+      }
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(page.locator('.settings-page-transition')).toHaveCSS('animation-name', 'none');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
       const sampling = page.getByRole('button', { name: 'Sampling', exact: true });
       await sampling.hover();
       await expect(sampling).toHaveCSS('padding-left', '12px');
@@ -408,12 +540,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.getByRole('switch', { name: 'Automatic surface' })).not.toBeChecked();
       await expect(page.locator('.settings-screen')).toHaveCSS('background-color', 'rgb(232, 238, 238)');
       await page.getByLabel('Gradient color 1', { exact: true }).fill('#e4f0eb');
+      const appearancePreview = page.getByRole('img', { name: 'Appearance preview' });
+      await appearancePreview.scrollIntoViewIfNeeded();
+      await withinViewport(appearancePreview, page);
+      await expect(appearancePreview).toHaveCSS('background-image', /rgb\(228, 240, 235\)/);
+      await expect(appearancePreview).toHaveCSS('color', 'rgb(32, 51, 44)');
       await page.screenshot({ path: testInfo.outputPath('color-roles.png') });
       const scale = page.getByRole('slider', { name: 'Font size scale' });
       await scale.scrollIntoViewIfNeeded();
       await scale.press('End');
       for (let step = 0; step < 20; step += 1) await scale.press('ArrowLeft');
       await expect(scale).toHaveValue('80');
+      await expect(appearancePreview.locator('span')).toHaveCSS('font-size', '43.2px');
       const fonts = page.getByRole('checkbox');
       const fontCount = await fonts.count();
       for (let index = 1; index < fontCount; index += 1) await fonts.nth(index).uncheck();
@@ -425,6 +563,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.locator('.observation-text')).toHaveCSS('font-family', /Noto Sans Telugu/);
       await expect(page.locator('.observation-text')).toHaveCSS('color', 'rgb(32, 51, 44)');
       await expect(page.locator('.audio-player-bar')).toHaveCSS('color', 'rgb(32, 51, 44)');
+      await revealControls(page);
       await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
       await expect(page.locator('.audio-magnifier')).toHaveCSS('background-color', 'rgb(232, 238, 238)');
       await expect(page.locator('.audio-magnifier')).toHaveCSS('color', 'rgb(32, 51, 44)');

@@ -21,6 +21,7 @@
     "prebuild:client": "npm run fonts:sync"
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
     "@hono/node-server": "^2.1.1",
     "better-sqlite3": "^12.4.1",
     "hono": "^4.12.8",

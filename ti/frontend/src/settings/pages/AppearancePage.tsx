@@ -9,6 +9,9 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
   const text = (english: string, telugu: string) => language === 'en' ? english : telugu;
   return (
     <div className="appearance-page">
+      <div className="appearance-preview" role="img" aria-label={text('Appearance preview', 'రూపం నమూనా')}>
+        <span lang="te" style={{ fontFamily: `"${appearance.fonts[0]}"`, fontSize: `${24 + appearance.fontScale * .24}px` }}>తెలుగు</span>
+      </div>
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Background', 'నేపథ్యం')}</h2>

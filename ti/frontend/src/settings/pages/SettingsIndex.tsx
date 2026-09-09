@@ -5,10 +5,13 @@ import type {
   SettingsPage,
   UiLanguage,
 } from '../types';
-import { settingsGroups, settingsPageLabel } from '../navigation';
+import { settingsGroups, settingsPageIcons, settingsPageLabel } from '../navigation';
 import { ChevronRight } from 'lucide-react';
+import type { ProfileStateResponse } from '../../../../shared/contracts';
+import { useAppearance } from '../../appearance';
 interface SettingsIndexProps {
   language: UiLanguage;
+  state: ProfileStateResponse;
   page: SettingsPage;
   resetting: boolean;
   resetError: boolean;
@@ -24,13 +27,25 @@ interface SettingsIndexProps {
 }
 export function SettingsIndex({
   language,
+  state,
   page: currentPage,
   resetting,
   resetError,
   onNavigate,
   onResetQueue,
 }: SettingsIndexProps) {
+  const { appearance } = useAppearance();
   const entries = settingsGroups[currentPage] ?? [];
+  const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
+  const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
+    sampling: `${t(language, 'target')} ${percent.format(state.selectionSettings.complexityPercentileTarget)} · ${t(language, 'spread')} ${percent.format(state.selectionSettings.complexityPercentileSpread)}`,
+    diagnostic: state.currentObservation
+      ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
+      : t(language, 'unavailable'),
+    display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
+    export: 'EPUB / HTML',
+    reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
+  } : {};
   return (
     <div className="settings-index-page">
       <nav
@@ -43,20 +58,30 @@ export function SettingsIndex({
         }
       >
         {entries.map(
-          (page) => (
+          (page) => {
+            const Icon = settingsPageIcons[page];
+            return (
             <button
               key={page}
               type="button"
+              aria-label={settingsPageLabel(page, language)}
+              aria-describedby={summaries[page] ? `settings-summary-${page}` : undefined}
               onClick={() =>
                 onNavigate(page as Exclude<SettingsPage, 'index'>)
               }
             >
-              <span>
-                {settingsPageLabel(page, language)}
+              <Icon className="settings-entry-icon" aria-hidden="true" />
+              <span className="settings-entry-text">
+                <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
+                {summaries[page] && <span className="settings-entry-meta" id={`settings-summary-${page}`}>
+                  {page === 'display' && <span className="settings-palette-preview" aria-hidden="true" />}
+                  <span>{summaries[page]}</span>
+                </span>}
               </span>
-              <ChevronRight aria-hidden="true" />
+              <ChevronRight className="settings-entry-chevron" aria-hidden="true" />
             </button>
-          ),
+            );
+          },
         )}
       </nav>
       {currentPage === 'reset' && <div className="settings-reset-queue">

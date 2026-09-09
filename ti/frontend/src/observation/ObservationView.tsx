@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useRef,
   useState,
   type MouseEvent,
 } from 'react';
@@ -32,6 +34,30 @@ export function ObservationView({
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
+  const screenRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const screen = screenRef.current;
+    if (!controlsVisible || !screen) return;
+    let idleTimer: number;
+    const scheduleHide = (event?: Event) => {
+      window.clearTimeout(idleTimer);
+      if (event instanceof PointerEvent && event.buttons !== 0) return;
+      idleTimer = window.setTimeout(() => {
+        if (screen.querySelector('.audio-player-bar:hover, .settings-trigger:hover, .audio-magnifier, .audio-speed-popover, :focus-visible')) {
+          scheduleHide();
+          return;
+        }
+        setControlsVisible(false);
+      }, 3000);
+    };
+    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'pointerleave', 'keydown', 'focusin', 'focusout'];
+    for (const event of events) screen.addEventListener(event, scheduleHide);
+    scheduleHide();
+    return () => {
+      window.clearTimeout(idleTimer);
+      for (const event of events) screen.removeEventListener(event, scheduleHide);
+    };
+  }, [controlsVisible]);
   const observation =
     state?.currentObservation ?? null;
   const typography =
@@ -55,6 +81,7 @@ export function ObservationView({
   };
   return (
     <main
+      ref={screenRef}
       className={
         `app-shell observation-screen ${
           controlsVisible

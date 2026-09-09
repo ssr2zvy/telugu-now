@@ -40,6 +40,10 @@ export function SettingsView({
   } = controller;
   const shellProps = {
     language,
+    page,
+    profileCode: state.profileCode,
+    onNavigate: controller.enterPage,
+    onOverview: controller.prepareOpen,
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
@@ -53,6 +57,7 @@ export function SettingsView({
         <SettingsIndex
           page={page}
           language={language}
+          state={state}
           resetting={queueResetting}
           resetError={queueResetError}
           onNavigate={controller.enterPage}
