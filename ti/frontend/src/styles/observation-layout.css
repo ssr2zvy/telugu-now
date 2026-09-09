@@ -1,8 +1,10 @@
 .observation-screen { --nav-width: max(3.5rem, 16vw); --audio-bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px)); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); }
 .observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }
 .observation-center:has(.audio-player-bar) { margin-bottom: calc(var(--audio-bottom) + 60px); }
-.observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.3; overflow-wrap: anywhere; user-select: none; transition: opacity 80ms linear; }
+.observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.3; overflow-wrap: anywhere; user-select: none; }
 .observation-placeholder { color: var(--muted); font-size: 3rem; line-height: 1; user-select: none; }
+.observation-start { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
+.observation-start:hover { background: var(--wash); }
 .settings-trigger, .audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .controls-visible .settings-trigger, .settings-trigger:focus-visible,
 .controls-visible .audio-player-bar, .audio-player-bar:has(:focus-visible) { opacity: 1; pointer-events: auto; }

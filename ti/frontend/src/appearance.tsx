@@ -10,7 +10,7 @@ export interface AppearanceSettings {
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  gradient: ['#9a9a9a', '#707070', '#515151'],
+  gradient: ['#b6b6b6', '#969696', '#787878'],
   foreground: '#171717',
   surface: null,
   fontScale: 50,

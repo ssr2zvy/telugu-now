@@ -246,6 +246,69 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
+test('startup keeps loading dots until the first observation is available', async ({ page }, testInfo) => {
+  const fixture = await loadFixture(page, undefined, false);
+  const firstObservation = fixture.state.currentObservation;
+  fixture.state.currentObservation = null;
+  fixture.state.canBack = false;
+  fixture.state.canNext = false;
+  fixture.state.nextStatus = 'preparing';
+  fixture.state.currentPosition = null;
+  fixture.state.historyLength = 0;
+  fixture.state.queue = { unseenCount: 1, readyCount: 0, preparingCount: 1, pendingCount: 0 };
+  await page.locator('.profile-input').fill('001');
+  const loading = page.getByRole('status', { name: 'Loading observation', exact: true });
+  const start = page.getByRole('button', { name: 'Start observations', exact: true });
+  await expect(loading).toHaveText('...');
+  await expect(start).toHaveCount(0);
+  await expect(page.locator('.nav-zone-right')).toBeDisabled();
+  await page.screenshot({ path: testInfo.outputPath('startup-loading.png') });
+  fixture.state.canNext = true;
+  fixture.state.nextStatus = 'ready';
+  fixture.state.queue = { unseenCount: 1, readyCount: 1, preparingCount: 0, pendingCount: 0 };
+  await expect(start).toBeVisible();
+  await expect(loading).toHaveCount(0);
+  await withinViewport(start, page);
+  await page.screenshot({ path: testInfo.outputPath('startup-ready.png') });
+  let releaseNavigation = () => {};
+  const gate = new Promise<void>(resolve => { releaseNavigation = resolve; });
+  await page.route('**/api/profiles/001/next', async route => {
+    await gate;
+    fixture.state.currentObservation = firstObservation;
+    await route.fallback();
+  });
+  await start.press('Enter');
+  await expect(loading).toBeVisible();
+  await expect(start).toHaveCount(0);
+  releaseNavigation();
+  await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+  await expect(loading).toHaveCount(0);
+  expect(fixture.navigationCount()).toBe(1);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('navigation hides replacement text immediately until its font is fitted', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await page.evaluate(() => {
+    document.fonts.check = () => false;
+    document.fonts.load = () => new Promise<FontFace[]>(resolve => {
+      const text = document.querySelector('.observation-text') as HTMLElement;
+      text.dataset.opacityBeforeFont = getComputedStyle(text).opacity;
+      window.addEventListener('release-observation-font', () => resolve([]), { once: true });
+    });
+  });
+  fixture.state.currentObservation!.text = `${sampleText} ${sampleText}`;
+  await page.locator('.nav-zone-right').dblclick();
+  const text = page.locator('.observation-text');
+  await expect(text).toHaveText(fixture.state.currentObservation!.text);
+  await expect(text).toHaveAttribute('data-opacity-before-font', '0');
+  await expect(text).toHaveCSS('opacity', '0');
+  await page.evaluate(() => window.dispatchEvent(new Event('release-observation-font')));
+  await expect(text).toHaveCSS('opacity', '1');
+  expect(fixture.navigationCount()).toBe(1);
+  expect(fixture.errors).toEqual([]);
+});
+
 test('refitting visible text never hides it or restarts a settled gradient', async ({ page }) => {
   const fixture = await loadFixture(page);
   await page.locator('.gradient-field').evaluate(async element => {
@@ -421,6 +484,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const field = page.locator('.entry-code');
       await expect(screen).toHaveText('');
       await expect(input).not.toHaveAttribute('placeholder');
+      for (const digit of await page.locator('.entry-digit').all()) {
+        await expect(digit).toHaveCSS('border-top-style', 'solid');
+        await expect(digit).toHaveCSS('border-radius', '6px');
+      }
       await withinViewport(field, page);
       const initialBounds = await field.boundingBox();
       await page.screenshot({ path: testInfo.outputPath('profile-entry.png') });

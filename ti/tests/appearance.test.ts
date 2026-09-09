@@ -14,6 +14,19 @@ test('appearance validates persisted data and keeps a nonempty font pool', () =>
   assert.equal(randomAppearanceColors(() => 0).gradient.length, 3);
 });
 
+test('the default gradient is lighter neutral grey and preserves custom palettes', () => {
+  const previousLevels = [0x9a, 0x70, 0x51];
+  DEFAULT_APPEARANCE.gradient.forEach((color, index) => {
+    const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)];
+    assert.equal(channels[0], channels[1]);
+    assert.equal(channels[1], channels[2]);
+    assert.ok(parseInt(channels[0]!, 16) > previousLevels[index]!);
+  });
+  assert.deepEqual(parseAppearance(null).gradient, DEFAULT_APPEARANCE.gradient);
+  const custom = ['#344a44', '#56515e', '#354452'];
+  assert.deepEqual(parseAppearance({ gradient: custom }).gradient, custom);
+});
+
 test('font selection respects exclusions and size scale preserves the content relationship', () => {
   assert.equal(chooseRandomObservationFont(() => 0.99, ['Mandali']), 'Mandali');
   assert.ok(chooseRandomObservationFont(() => 0, []));

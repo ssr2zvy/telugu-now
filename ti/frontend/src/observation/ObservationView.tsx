@@ -142,8 +142,21 @@ export function ObservationView({
           >
             {observation.text}
           </div>
+        ) : canNext ? (
+          <button
+            className="observation-start"
+            type="button"
+            aria-label="Start observations"
+            title="Start observations"
+            onClick={(event) => {
+              event.stopPropagation();
+              void move('next');
+            }}
+          >
+            <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
+          </button>
         ) : (
-          <div className="observation-placeholder">
+          <div className="observation-placeholder" role="status" aria-label="Loading observation">
             ...
           </div>
         )}

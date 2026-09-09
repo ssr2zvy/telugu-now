@@ -116,13 +116,13 @@ Back and Next use invisible edge regions: double-click or double-tap the left ed
 A brief top-right arrow and sequence number identify each Back/Next request actually dispatched, including failed requests. Polling and rerenders do not increment or replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
 A single tap on the central observation surface reveals the bottom-right Settings icon; another central tap or successful navigation hides it. Settings uses the same corner placement as the Settings-language control.
 The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
-When a valid profile has no current observation yet, the observation area displays:
+When a valid profile has no current observation yet, the observation area displays a loading status until the first queued item is ready:
 ```text
 ...
 ```
-The placeholder does not create history, an acquisition, source data, or timing state.
+Once ready, a central arrow replaces the dots. Clicking, tapping, or activating it with Enter/Space opens the first observation. The loading status itself does not create history, an acquisition, source data, or timing state.
 ## Stable profile-code entry
-The initial screen has three fixed digit positions and a profile icon, with no visible labels, placeholders, or error copy. Only entered digits are shown as text. Loading and invalid-code states use icons, with accessible status labels; input remains one native numeric-keyboard field supporting editing and paste. Completing three digits submits once and locks editing until the request finishes.
+The initial screen has three fixed, softly outlined digit slots and a profile icon, with no visible labels, placeholders, or error copy. Only entered digits are shown as text. Loading and invalid-code states use icons, with accessible status labels; input remains one native numeric-keyboard field supporting editing and paste. Completing three digits submits once and locks editing until the request finishes.
 The control is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move it upward as the mobile visual viewport changes.
 ## Observation typography
 Each time an observation becomes actively displayed, the client randomly chooses one font from this fixed collection:
@@ -139,7 +139,7 @@ Each time an observation becomes actively displayed, the client randomly chooses
 Font selection is presentation-only and is not stored in history, acquisitions, source records, or selection snapshots. Navigating away and later returning rerolls the font. Closing Settings and returning also creates a fresh typography activation. Ordinary React rerenders, polling, timing refreshes, and queue-readiness changes do not reroll while the same observation remains continuously active.
 Refitting an already visible observation keeps it visible, reuses loaded fonts, skips unchanged dimensions, and discards superseded asynchronous fit results.
 The canonical presentation configuration lives in `frontend/src/presentation.ts` and is reused by the live viewer and both export formats.
-The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area.
+The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area. Replacement text is hidden immediately, without an opacity transition, until its font and final size are ready.
 ## Font assets
 The live application, HTML export, and EPUB export use the same ten application-controlled Telugu WOFF2 assets under:
 ```text
