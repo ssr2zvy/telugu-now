@@ -219,7 +219,7 @@ function audioObjectUrl(objectKey: string): string {
   return `/api/audio/${objectKey.split('/').map(encodeURIComponent).join('/')}?v=2`;
 }
 
-function parseObservationAudio(raw: string | null): ObservationAudio | null {
+export function parseObservationAudio(raw: string | null): ObservationAudio | null {
   if (!raw) return null;
   try {
     const items = JSON.parse(raw) as MediaItem[];

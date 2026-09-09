@@ -1,4 +1,5 @@
-import type { ChangeEvent, MouseEvent } from 'react';
+import { useEffect, useRef, type ChangeEvent } from 'react';
+import { BookOpen, Download, FileCode2, FileDown } from 'lucide-react';
 import {
   downloadPreparedExportArtifact,
   type ExportFormat,
@@ -10,6 +11,7 @@ interface ExportPageProps {
   language: UiLanguage;
   count: string;
   exporting: boolean;
+  phase: 'selecting' | 'packaging';
   error: boolean;
   formatChooserOpen: boolean;
   preparedArtifact: PreparedExportArtifact | null;
@@ -22,6 +24,7 @@ export function ExportPage({
   language,
   count,
   exporting,
+  phase,
   error,
   formatChooserOpen,
   preparedArtifact,
@@ -30,15 +33,28 @@ export function ExportPage({
   onCancelFormatChoice,
   onChooseFormat,
 }: ExportPageProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!formatChooserOpen || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [formatChooserOpen]);
+  const progressLabel = phase === 'selecting'
+    ? (language === 'en' ? 'Selecting observations' : 'పరిశీలనలను ఎంచుకుంటోంది')
+    : (language === 'en' ? 'Preparing file' : 'ఫైల్ సిద్ధం చేస్తోంది');
   const preparedFormatLabel =
     preparedArtifact?.format === 'epub'
       ? t(language, 'epub')
       : t(language, 'html');
   return (
     <div className="export-page">
+      <label className="export-count">
+      <span>{t(language, 'count')}</span>
       <input
         type="number"
         min="1"
+        max="500"
         step="1"
         inputMode="numeric"
         aria-label={t(language, 'count')}
@@ -49,12 +65,15 @@ export function ExportPage({
           onCountChange(event.target.value)
         }
       />
+      </label>
+      <div className="export-actions">
       <button
         className="primary-action"
         type="button"
         disabled={exporting}
         onClick={onRequestExport}
       >
+        <FileDown aria-hidden="true" />
         {exporting
           ? t(language, 'exporting')
           : t(language, 'export')}
@@ -69,9 +88,16 @@ export function ExportPage({
           }
         }}
       >
+        <Download aria-hidden="true" />
         {t(language, 'download')}
       </button>
-      {exporting && <progress className="export-progress" aria-label={t(language, 'exporting')} />}
+      </div>
+      {exporting && (
+        <div className="export-status" role="status">
+          <span>{progressLabel}</span>
+          <div className="export-progress" role="progressbar" aria-label={progressLabel}><span /></div>
+        </div>
+      )}
       {preparedArtifact ? (
         <div className="export-ready" role="status">
           {t(language, 'ready')}: {preparedArtifact.entryCount} · {preparedFormatLabel}
@@ -82,18 +108,15 @@ export function ExportPage({
           {t(language, 'invalidExport')}
         </div>
       ) : null}
-      {formatChooserOpen ? (
-        <div
-          className="export-format-backdrop"
-          role="presentation"
-          onClick={onCancelFormatChoice}
-        >
-          <section
+          <dialog
+            ref={dialogRef}
             className="export-format-modal"
-            role="dialog"
-            aria-modal="true"
             aria-labelledby="export-format-title"
-            onClick={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
+            onCancel={(event) => { event.preventDefault(); onCancelFormatChoice(); }}
+            onClick={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              if (event.target === event.currentTarget && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) onCancelFormatChoice();
+            }}
           >
             <h2 id="export-format-title">
               {t(language, 'chooseExportFormat')}
@@ -103,16 +126,16 @@ export function ExportPage({
               type="button"
               onClick={() => onChooseFormat('epub')}
             >
-              <strong>{t(language, 'epub')}</strong>
-              <span>{t(language, 'epubDescription')}</span>
+              <BookOpen aria-hidden="true" />
+              <span><strong>{t(language, 'epub')}</strong><small>{t(language, 'epubDescription')}</small></span>
             </button>
             <button
               className="export-format-option"
               type="button"
               onClick={() => onChooseFormat('html')}
             >
-              <strong>{t(language, 'html')}</strong>
-              <span>{t(language, 'htmlDescription')}</span>
+              <FileCode2 aria-hidden="true" />
+              <span><strong>{t(language, 'html')}</strong><small>{t(language, 'htmlDescription')}</small></span>
             </button>
             <button
               className="export-format-cancel"
@@ -121,9 +144,7 @@ export function ExportPage({
             >
               {t(language, 'cancel')}
             </button>
-          </section>
-        </div>
-      ) : null}
+          </dialog>
     </div>
   );
 }

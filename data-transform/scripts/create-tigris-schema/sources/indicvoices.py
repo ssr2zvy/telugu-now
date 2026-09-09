@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import pyarrow.parquet as pq
 
@@ -34,7 +34,9 @@ def split_from_path(path: Path) -> tuple[str, str]:
     raise CorpusStructuralError(f"INDICVOICES_SCHEMA:UNKNOWN_SPLIT:{path}")
 
 
-def read_indicvoices(root: Path) -> Iterator[CanonicalInputRow]:
+def read_indicvoices(root: Path, batch_rows: int = 20, on_consumed: Callable[[Path], None] | None = None) -> Iterator[CanonicalInputRow]:
+    if batch_rows < 1:
+        raise ValueError("batch_rows must be greater than 0")
     parquet_paths = sorted(root.rglob("*.parquet"))
     if not parquet_paths:
         raise CorpusStructuralError("INDICVOICES_SCHEMA:NO_PARQUET_FILES")
@@ -58,7 +60,7 @@ def read_indicvoices(root: Path) -> Iterator[CanonicalInputRow]:
                 f"INDICVOICES_SCHEMA:MISSING_COLUMNS:{','.join(sorted(missing))}"
             )
 
-        for batch in parquet.iter_batches():
+        for batch in parquet.iter_batches(batch_size=batch_rows):
             for row in batch.to_pylist():
                 audio = row["audio_filepath"]
                 if not isinstance(audio, dict):
@@ -108,5 +110,6 @@ def read_indicvoices(root: Path) -> Iterator[CanonicalInputRow]:
                     },
                 )
 
-        # Every row in this shard has now moved into the corpus.
-        parquet_path.unlink()
+        parquet.close()
+        if on_consumed is not None:
+            on_consumed(parquet_path)

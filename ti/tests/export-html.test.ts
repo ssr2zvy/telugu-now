@@ -97,6 +97,11 @@ class FakeClassList {
   }
 }
 class FakeElement {
+  hidden = true;
+  src = '';
+  pause(): void {}
+  load(): void {}
+  removeAttribute(): void {}
   textContent = '';
   innerHTML = '';
   disabled = false;
@@ -168,6 +173,8 @@ test('shared standalone viewer rerolls on activation but not diagnostic toggles 
   const match = html.match(/<script>(const DATA=[\s\S]*?)<\/script>\s*<\/body>/i);
   assert.ok(match?.[1]);
   const ids = [
+    'audio',
+    'viewer',
     'text-wrap',
     'text',
     'back',
@@ -254,7 +261,7 @@ test('shared standalone viewer rerolls on activation but not diagnostic toggles 
   assert.equal(randomCallCount, 3);
   assert.equal(fontLoadCount, 3);
 });
-test('prepared HTML artifact resolves local fonts before becoming downloadable', async () => {
+test('prepared HTML artifact resolves local fonts and audio before becoming downloadable', async () => {
   const originalFetch = globalThis.fetch;
   const requested: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -276,6 +283,17 @@ test('prepared HTML artifact resolves local fonts before becoming downloadable',
     assert.equal(requested.length, 20);
     assert.ok(requested.every((url) => url.startsWith('/fonts/')));
     assert.equal(/\bfetch\s*\(/.test(html), false);
+    const result = sampleExport();
+    result.entries.forEach(entry => { entry.audio = { url: '/api/audio/test.wav', mimeType: 'audio/wav', durationSeconds: 1 }; });
+    const audioArtifact = await prepareHtmlExport(result);
+    const audioHtml = await audioArtifact.blob.text();
+    assert.match(audioHtml, /data:audio\/wav;base64,AQID/);
+    assert.doesNotMatch(audioHtml, /\/api\/audio\//);
+    assert.match(audioHtml, /<audio id="audio" controls="controls"/);
+    assert.equal(requested.filter(url => url.startsWith('/api/audio/')).length, 1);
+    assert.equal(result.entries[0]!.audio!.url, '/api/audio/test.wav');
+    globalThis.fetch = (async () => new Response('', { status: 503 })) as typeof fetch;
+    await assert.rejects(prepareHtmlExport(result));
   } finally {
     globalThis.fetch = originalFetch;
   }

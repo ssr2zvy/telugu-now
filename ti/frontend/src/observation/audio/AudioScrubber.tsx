@@ -16,6 +16,7 @@ interface AudioScrubberProps {
   bookmarks: number[];
   disabled: boolean;
   onSeek: (time: number) => void;
+  onMagnifierOpen: () => void;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -44,6 +45,7 @@ export function AudioScrubber({
   bookmarks,
   disabled,
   onSeek,
+  onMagnifierOpen,
 }: AudioScrubberProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const magnifierRef = useRef<HTMLDivElement | null>(null);
@@ -65,8 +67,7 @@ export function AudioScrubber({
       const parent = barRef.current?.closest('.audio-player-bar')?.getBoundingClientRect();
       if (!parent) return;
       const left = clamp(12, Math.max(12, window.innerWidth - panel.width - 12), anchor.left + anchor.width / 2 - panel.width / 2);
-      const below = parent.bottom + 8;
-      const top = below + panel.height <= window.innerHeight - 12 ? below : Math.max(12, parent.top - panel.height - 8);
+      const top = Math.max(12, parent.top - panel.height - 8);
       setPosition({ left: left - anchor.left, top: top - anchor.top });
     };
     place();
@@ -103,6 +104,7 @@ export function AudioScrubber({
     clearHoldTimer();
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
+      onMagnifierOpen();
       setMagnifierOpen(true);
     }, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
   };
@@ -170,7 +172,11 @@ export function AudioScrubber({
         aria-disabled={disabled}
         onKeyDown={(event) => {
           if (disabled || duration <= 0) return;
-          if (event.key === 'Enter') { event.preventDefault(); setMagnifierOpen((open) => !open); }
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            if (!magnifierOpen) onMagnifierOpen();
+            setMagnifierOpen((open) => !open);
+          }
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
             onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));

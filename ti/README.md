@@ -15,6 +15,8 @@ The explicit data-controller operations are:
 ./control.sh data --option samples
 ./control.sh data --option prepare
 ./control.sh data --option all
+./control.sh data --option samples --rows 500 --batch-rows 20
+./control.sh data --option all --rows all --batch-rows 20
 ```
 `samples` transforms source downloads under:
 ```text
@@ -33,8 +35,22 @@ data/corpus/
 └── reports/
 ```
 `all` runs `samples` and then `prepare`, stopping immediately if either stage fails.
+The workflow option and row scope are separate: `--option all` alone still extracts the default 100 rows; `--rows all` removes the limit. Numeric limits apply to the FLEURS `dev` split and separately across all available shards of each Parquet dataset. Full mode discovers all available FLEURS `dev`, `test`, and `train` splits and recursively discovers every Parquet shard, preserving its relative split path. It processes local downloads only; it does not download missing upstream data. The interactive data menu also asks for a row count or `all`.
+
+Both stages accept `--batch-rows` (default 20). Parquet decoding and final SQLite writes are bounded by this row count, with progress reported during preparation. Audio payload sizes still determine memory per row. Full raw Parquet shards are moved directly without decoding; partial extraction rewrites only the remainder after the sampled output writer closes successfully. FLEURS scans each selected compressed archive once and reads its TSV metadata into memory. Repeated extraction keeps earlier samples instead of overwriting them; full-shard destination collisions fail explicitly.
+
+The controller keeps move semantics: consumed raw files disappear after extraction, and consumed sample files disappear **only after the complete replacement corpus validates and is published**. A preparation error leaves sample inputs and the previous final corpus intact. This is bounded batch processing, not resumable in-place ingestion: failed preparation restarts from samples. Budget disk space for samples, the new prepared corpus, and any previous corpus until publication; batches do not eliminate that temporary disk requirement. Do not run overlapping data operations or modify their input folders during processing. `prepare` rebuilds from current samples; it does not append to an existing final corpus. Direct `prepare.py` runs retain inputs unless `--consume-input` is specified.
+
+Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
+```bash
+python3.12 -m venv /tmp/telugu-data-venv
+/tmp/telugu-data-venv/bin/python -m pip install -r data-transform/requirements.txt
+PYTHON=/tmp/telugu-data-venv/bin/python ./control.sh data --option all --rows all --batch-rows 20
+/tmp/telugu-data-venv/bin/python -m unittest discover -s data-transform/tests -v
+```
+The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
 `./control.sh dev` never performs data transformation. It requires `manifest.json` and `corpus.sqlite` to already exist under `data/corpus/` and returns `CORPUS_NOT_PREPARED` otherwise.
-The preparation scripts themselves accept explicit input and output paths. The current Codespaces workflow uses sample-sized source data, while the same transformation implementation is intended to process the complete downloaded corpora before production publication to Fly.io Tigris.
+The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
 The root `control.sh` is the normal development entry point.
 Install dependencies on a new checkout:
@@ -113,16 +129,16 @@ Back/forward movement through already-seen history does not consume the queue an
 Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
 ## Observation controls
 Back and Next use invisible edge regions: double-click or double-tap the left edge to go back and the right edge to go next. Single edge clicks do not navigate. The regions remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
-A brief top-right arrow and sequence number identify each Back/Next request actually dispatched, including failed requests. Polling and rerenders do not increment or replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
-A single tap on the central observation surface reveals the bottom-right Settings icon; another central tap or successful navigation hides it. Settings uses the same corner placement as the Settings-language control.
+A brief top-right direction arrow identifies each Back/Next request actually dispatched, including failed requests. No sequence number is displayed. Polling and rerenders do not replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
+A single tap on the observation surface, including either edge region even when navigation is unavailable, toggles the Settings and audio controls; successful navigation hides them. Selecting observation text does not toggle the controls. Settings uses the same corner placement as the Settings-language control.
 The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
-When a valid profile has no current observation yet, the observation area displays:
+When a valid profile has no current observation yet, the observation area displays a loading status until the first queued item is ready:
 ```text
 ...
 ```
-The placeholder does not create history, an acquisition, source data, or timing state.
+Once ready, a central arrow replaces the dots. Clicking, tapping, or activating it with Enter/Space opens the first observation. The loading status itself does not create history, an acquisition, source data, or timing state.
 ## Stable profile-code entry
-The initial screen has three fixed digit positions and a profile icon, with no visible labels, placeholders, or error copy. Only entered digits are shown as text. Loading and invalid-code states use icons, with accessible status labels; input remains one native numeric-keyboard field supporting editing and paste. Completing three digits submits once and locks editing until the request finishes.
+The initial screen has three fixed, softly outlined digit slots and a profile icon, with no visible labels, placeholders, or error copy. Only entered digits are shown as text. Loading and invalid-code states use icons, with accessible status labels; input remains one native numeric-keyboard field supporting editing and paste. Completing three digits submits once and locks editing until the request finishes.
 The control is anchored to the viewport height captured when the entry screen first renders. Opening the software keyboard therefore does not recenter or move it upward as the mobile visual viewport changes.
 ## Observation typography
 Each time an observation becomes actively displayed, the client randomly chooses one font from this fixed collection:
@@ -138,8 +154,9 @@ Each time an observation becomes actively displayed, the client randomly chooses
 - Tenali Ramakrishna
 Font selection is presentation-only and is not stored in history, acquisitions, source records, or selection snapshots. Navigating away and later returning rerolls the font. Closing Settings and returning also creates a fresh typography activation. Ordinary React rerenders, polling, timing refreshes, and queue-readiness changes do not reroll while the same observation remains continuously active.
 Refitting an already visible observation keeps it visible, reuses loaded fonts, skips unchanged dimensions, and discards superseded asynchronous fit results.
+The reader lowers text by up to 20px when spare vertical space permits, retaining clearance for the transport and playback messages. Long passages keep their fitted size and receive a smaller or zero offset.
 The canonical presentation configuration lives in `frontend/src/presentation.ts` and is reused by the live viewer and both export formats.
-The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area.
+The preferred size is derived continuously from observation length. After a font is selected, the browser waits for that font, measures the rendered observation, and reduces the preferred size only as necessary to fit the available area. Replacement text is hidden immediately, without an opacity transition, until its font and final size are ready. Rendered text supports native selection and copying in the live reader and shared HTML/EPUB viewer.
 ## Font assets
 The live application, HTML export, and EPUB export use the same ten application-controlled Telugu WOFF2 assets under:
 ```text
@@ -167,10 +184,12 @@ Settings uses compact rows, inline numeric values with understated unit suffixes
 Appearance exposes three explicit color roles:
 - Background: the three colors used by the reader gradient.
 - Text & icons: the exact foreground shared by reader text, settings text, icons, audio tracks, and waveform marks. Borders and muted states derive from this color.
-- Settings & popovers: the shared surface behind Settings, export dialogs, and the precision magnifier. Automatic surface selects a light neutral for dark text or a dark neutral for light text; selecting a swatch makes it custom. Changing gradient colors no longer changes these surfaces.
+- Settings & popovers: the surface behind Settings and export dialogs. Automatic selects a light neutral for dark text or a dark neutral for light text. Audio popovers use an opaque mix of 35% automatic surface and 65% middle gradient colour, avoiding a stark white panel on the reader. An explicit surface swatch overrides all these surfaces exactly.
 Color swatches show their hex values. Randomize chooses a coordinated palette and restores Automatic surface. Reset colors restores the default colors without changing font size or font exclusions. Custom text/surface pairs should be chosen with sufficient contrast.
 The settings refinement references [Google's Material 3 Expressive research](https://design.google/library/expressive-material-design-google-research), [Apple's materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), and [Linear's UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui), consulted September 2026: stronger typography and hierarchy, a distinct navigation layer, restrained interaction states, and consistent alignment. Form surfaces remain opaque and use the selected appearance colors, rather than applying glass effects to content.
 Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance colors, and the precision scrubber moves one millisecond per pointer pixel. Popovers stay within the viewport and consume their outside-dismissal click without also navigating.
+The precision magnifier pauses audio when opened by a sustained press or Enter; closing it does not resume playback. Both precision and speed popovers open above the main transport. Keyboard focus marks the precision playhead, not the bottom edge of the panel.
+The desktop settings rail has independent collapse controls for Sampling, Diagnostic, and Display. Group navigation and child links remain available without resetting the current page.
 Play starts the native audio element directly during the user gesture, independently of Web Audio resume. Loudness normalization connects only after the processing context is running; an unavailable or stalled context does not block native playback. Media loading and playback failures appear above the bar, and Play retries the request.
 The audio bar and Settings button start hidden. Clicking the reading area toggles them; after revealing them, pointer movement keeps them visible. They fade after three seconds of inactivity, except while a control is hovered, keyboard-focused, being dragged, or has an open popover. Movement alone does not reveal hidden controls. Keyboard focus can reveal its control, and hiding the audio bar does not interrupt playback. Navigating to another observation hides the controls again.
 Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
@@ -203,16 +222,16 @@ choose format
     ├─ EPUB — iPhone / iPad · Apple Books · Interactive · Offline
     └─ HTML — Browser / Desktop · Interactive · Offline
     ↓
-generate N selections if no current batch exists
+generate N fresh selections
     ↓
 package the completed ExportResponse
     ↓
 Download
 ```
-Pressing Export opens a small transient format-choice modal. Cancel closes it without generating anything.
-An indeterminate progress bar remains visible during generation and packaging; the API does not report completion percentages.
+Pressing Export opens a native modal format chooser covering the full viewport. Cancel or Escape closes it without generating anything and restores focus to Export.
+An indeterminate progress bar occupies a separate row, showing selection and file-preparation stages; the API does not report completion percentages.
 The selected format is not passed into source or row selection. EPUB versus HTML is only an artifact/container choice.
-After the first format has generated the batch, pressing Export again and selecting the other format repackages the same retained `ExportResponse`; it does not generate another `N` selections.
+Every Export action generates a new batch, even if the count and format are unchanged. Download saves the currently prepared artifact without resampling. Fresh random selections may repeat rows, and source-record cache hits can still make later exports faster.
 Editing `N` or successfully saving source/complexity settings invalidates both the retained current batch and any prepared artifact shown by the Export page.
 ## Shared standalone viewer
 `frontend/src/export-viewer.ts` owns the standalone viewer CSS, markup, diagnostic mapping, random-font activation semantics, continuous preferred-size formula integration, and DOM fit behavior shared by HTML and EPUB.
@@ -238,7 +257,7 @@ Choosing HTML produces:
 ```text
 telugu-export-N.html
 ```
-It is one self-contained browser document containing all observations, diagnostics, inline CSS, inline JavaScript, canonical presentation configuration, all ten embedded WOFF2 fonts, and font-license notices.
+It is one self-contained browser document containing all observations, diagnostics, inline CSS, inline JavaScript, canonical presentation configuration, all ten embedded WOFF2 fonts, font-license notices, and available audio clips embedded as data URLs. A native audio control plays and seeks the active clip; navigation stops the previous clip. Text-only source rows have no audio control.
 It performs no runtime network requests after download.
 ## EPUB export
 Choosing EPUB produces:
@@ -258,6 +277,8 @@ EPUB/
   viewer.css
   viewer.js
   data.json
+        audio/
+                <available audio clips>
   fonts/
     <all 10 WOFF2 files>
   licenses/
@@ -270,7 +291,7 @@ Because Apple Books is the explicit EPUB target and the book embeds its own font
 ```
 This tells Apple Books to honor the packaged font faces used by the randomized typography viewer rather than substituting reader-selected fonts.
 The browser-side EPUB packager is isolated in `frontend/src/export-epub.ts`. ZIP mechanics are isolated in `frontend/src/zip.ts`; the current implementation emits deterministic stored ZIP entries and requires no third-party ZIP runtime.
-The EPUB contains the same immutable `ExportResponse` data and the same viewer behavior as HTML. All fonts and executable resources are inside the EPUB, so normal viewer operation requires no Telugu Now server, Fly.io, Codespaces, Google Fonts, installed Telugu fonts, APIs, external JavaScript, or external CSS.
+The EPUB contains the same immutable `ExportResponse` data and the same viewer behavior as HTML. Audio clips are packaged as local files and declared in the OPF manifest. Each distinct clip is fetched once per export; missing or failed audio aborts packaging rather than silently producing an incomplete file. All fonts, audio, and executable resources are inside the EPUB, so normal viewer operation requires no Telugu Now server, Fly.io, Codespaces, Google Fonts, installed Telugu fonts, APIs, external JavaScript, or external CSS. Audio and scripting support still depend on the EPUB reader and supported codecs; Apple Books device acceptance remains required.
 ## EPUB acceptance
 Automated tests validate the EPUB ZIP/container structure, first uncompressed mimetype entry, OPF manifest, scripted declaration, Apple Books embedded-font metadata, viewer resources, data, ten fonts, licenses, and offline viewer code.
 Before EPUB support is considered complete for release, it should additionally pass an actual-device acceptance test in Apple Books on iPhone:

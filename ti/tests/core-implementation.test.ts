@@ -717,6 +717,15 @@ test(
     assert.equal(state.currentObservation?.audio?.mimeType, 'audio/wav');
     assert.equal(state.currentObservation?.audio?.url, '/api/audio/media/fleurs-te/fixture.wav?v=2');
     assert.ok((state.currentObservation?.audio?.durationSeconds ?? 0) > 0);
+    settingsService.updateProfileSelectionSettings('001', {
+      sourceWeights: { ...SOURCE1_ONLY_WEIGHTS, source1: 0, 'fleurs-te': 1 },
+      complexityPercentileTarget: 0.5,
+      complexityPercentileSpread: 0.25,
+    });
+    const exported = await exportService.generateExport('001', 2);
+    assert.ok(exported.entries.every(entry => entry.sourceId === 'fleurs-te'));
+    assert.deepEqual(exported.entries[0]!.audio, state.currentObservation!.audio);
+    assert.deepEqual(exported.entries[1]!.audio, state.currentObservation!.audio);
   });
 
   await suite.test('updating settings resets the queue with the new settings while keeping the currently displayed observation', () => {

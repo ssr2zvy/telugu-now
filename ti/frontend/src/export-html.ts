@@ -1,5 +1,6 @@
 import type { ExportResponse } from '../../shared/contracts';
 import type { PreparedExportArtifact } from './export-artifact';
+import { prepareExportAudio } from './export-audio';
 import {
   createPlaceholderEmbeddedObservationFontBundle,
   loadEmbeddedObservationFontBundle,
@@ -55,8 +56,11 @@ ${viewerMarkup}
 export async function prepareHtmlExport(
   result: ExportResponse,
 ): Promise<PreparedExportArtifact> {
-  const fontBundle = await loadEmbeddedObservationFontBundle();
-  const html = buildStandaloneExportHtml(result, fontBundle);
+  const [fontBundle, audio] = await Promise.all([
+    loadEmbeddedObservationFontBundle(),
+    prepareExportAudio(result, 'html'),
+  ]);
+  const html = buildStandaloneExportHtml(audio.result, fontBundle);
   return {
     format: 'html',
     blob: new Blob([html], { type: 'text/html;charset=utf-8' }),

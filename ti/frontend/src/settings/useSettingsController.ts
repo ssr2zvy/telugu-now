@@ -44,6 +44,7 @@ export interface SettingsController {
   playbackError: boolean;
   exportCount: string;
   exporting: boolean;
+  exportPhase: 'selecting' | 'packaging';
   exportError: boolean;
   formatChooserOpen: boolean;
   generatedExport: ExportResponse | null;
@@ -86,6 +87,7 @@ export function useSettingsController({
   const [playbackError, setPlaybackError] = useState(false);
   const [exportCount, setExportCountState] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportPhase, setExportPhase] = useState<'selecting' | 'packaging'>('selecting');
   const [exportError, setExportError] = useState(false);
   const [formatChooserOpen, setFormatChooserOpen] = useState(false);
   const [generatedExport, setGeneratedExport] = useState<ExportResponse | null>(null);
@@ -275,14 +277,13 @@ export function useSettingsController({
     }
     setFormatChooserOpen(false);
     setExporting(true);
+    setExportPhase('selecting');
     setExportError(false);
     setPreparedArtifact(null);
     try {
-      let result = generatedExport;
-      if (!result) {
-        result = await generateExport(profileCode, { count });
-        setGeneratedExport(result);
-      }
+      const result = await generateExport(profileCode, { count });
+      setGeneratedExport(result);
+      setExportPhase('packaging');
       const prepared =
         format === 'epub'
           ? await prepareEpubExport(result)
@@ -307,6 +308,7 @@ export function useSettingsController({
     playbackError,
     exportCount,
     exporting,
+    exportPhase,
     exportError,
     formatChooserOpen,
     generatedExport,

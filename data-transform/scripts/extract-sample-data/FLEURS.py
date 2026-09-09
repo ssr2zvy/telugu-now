@@ -47,9 +47,20 @@ def parse_args() -> argparse.Namespace:
         help="Include all rows from each selected split.",
     )
     parser.add_argument(
+        "--all-splits",
+        action="store_true",
+        help="Discover every available dev, test, and train split under --input-root.",
+    )
+    output_mode = parser.add_mutually_exclusive_group()
+    output_mode.add_argument(
         "--replace",
         action="store_true",
         help="Replace existing sampled split outputs before writing.",
+    )
+    output_mode.add_argument(
+        "--append",
+        action="store_true",
+        help="Keep previously extracted rows and append remaining raw rows.",
     )
     parser.add_argument(
         "--batch-rows",
@@ -103,9 +114,10 @@ def extract_members(archive_path: Path, output_root: Path, members: list[str]) -
         str(archive_path),
         "-C",
         str(output_root),
-        *members,
+        "--verbatim-files-from",
+        "--files-from=-",
     ]
-    subprocess.run(command, check=True)
+    subprocess.run(command, input="\n".join(members) + "\n", text=True, check=True)
 
 
 def move_split(args: argparse.Namespace, split: str) -> None:
@@ -130,7 +142,7 @@ def move_split(args: argparse.Namespace, split: str) -> None:
         if legacy_audio_dir.exists():
             shutil.rmtree(legacy_audio_dir)
 
-    if output_tsv_path.exists() or output_audio_dir.exists():
+    if not args.append and (output_tsv_path.exists() or output_audio_dir.exists()):
         raise RuntimeError(
             f"Output for {split!r} already exists; pass --replace to overwrite it."
         )
@@ -140,11 +152,8 @@ def move_split(args: argparse.Namespace, split: str) -> None:
     moved_rows, kept_rows = all_rows[:target], all_rows[target:]
 
     output_audio_dir.mkdir(parents=True, exist_ok=True)
+    extract_members(archive_path, args.output_root, audio_members(moved_rows, split))
     for batch in batched(moved_rows, args.batch_rows):
-        # Extracting from the archive is non-destructive, so each batch's wav
-        # files land in sample first; only once they are on disk does the
-        # matching tsv slice (and, at the end, the raw tsv itself) move too.
-        extract_members(archive_path, args.output_root, audio_members(batch, split))
         append_lines(output_tsv_path, batch)
 
     if kept_rows:
@@ -164,6 +173,19 @@ def main() -> None:
         raise ValueError("--rows must be greater than 0")
     if args.batch_rows < 1:
         raise ValueError("--batch-rows must be greater than 0")
+
+    if args.all_splits:
+        args.splits = [split for split in SPLITS if (args.input_root / f"{split}.tsv").is_file()]
+        if not args.splits:
+            if args.append and any(args.output_root.glob("*.tsv")):
+                print("FLEURS: no remaining raw splits; keeping existing samples")
+                return
+            raise FileNotFoundError(f"No FLEURS splits found under {args.input_root}")
+    for split in args.splits:
+        for suffix in (".tsv", ".tar.gz"):
+            source = args.input_root / f"{split}{suffix}"
+            if not source.is_file():
+                raise FileNotFoundError(source)
 
     args.output_root.mkdir(parents=True, exist_ok=True)
     for split in args.splits:

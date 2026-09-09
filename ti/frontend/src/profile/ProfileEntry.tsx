@@ -1,12 +1,14 @@
 import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
-import { CircleAlert, LoaderCircle, UserRound } from 'lucide-react';
+import { CircleAlert, LoaderCircle, ServerOff, UserRound } from 'lucide-react';
 interface ProfileEntryProps {
   invalidCode: boolean;
+  loadUnavailable: boolean;
   onSubmit: (code: string) => Promise<boolean>;
   onInputChange: () => void;
 }
 export function ProfileEntry({
   invalidCode,
+  loadUnavailable,
   onSubmit,
   onInputChange,
 }: ProfileEntryProps) {
@@ -47,11 +49,12 @@ export function ProfileEntry({
       <div className="entry-wrap">
         <div
           className="entry-status"
-          data-state={submitting ? 'loading' : invalidCode ? 'invalid' : 'idle'}
-          role={invalidCode || submitting ? 'status' : undefined}
-          aria-label={submitting ? 'Loading profile' : invalidCode ? 'Invalid profile code' : undefined}
+          data-state={submitting ? 'loading' : invalidCode ? 'invalid' : loadUnavailable ? 'unavailable' : 'idle'}
+          role={invalidCode || loadUnavailable || submitting ? 'status' : undefined}
+          aria-label={submitting ? 'Loading profile' : invalidCode ? 'Invalid profile code' : loadUnavailable ? 'Profile server unavailable' : undefined}
+          title={!submitting && loadUnavailable ? 'Profile server unavailable' : undefined}
         >
-          {submitting ? <LoaderCircle aria-hidden="true" /> : invalidCode ? <CircleAlert aria-hidden="true" /> : <UserRound aria-hidden="true" />}
+          {submitting ? <LoaderCircle aria-hidden="true" /> : invalidCode ? <CircleAlert aria-hidden="true" /> : loadUnavailable ? <ServerOff aria-hidden="true" /> : <UserRound aria-hidden="true" />}
         </div>
         <div className="entry-code" data-invalid={invalidCode} aria-busy={submitting}>
           <input

@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
 
 const baseUrl = process.env.UI_TEST_URL ?? 'http://127.0.0.1:5173';
@@ -60,6 +61,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
   };
   let navigationCount = 0;
   let resetCount = 0;
+  let exportCount = 0;
   let releaseExport = () => {};
   const exportGate = new Promise<void>((resolve) => { releaseExport = resolve; });
   const audio = audioFixture();
@@ -93,8 +95,9 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
       resetCount += 1;
       await route.fulfill({ json: state });
     } else if (pathname.endsWith('/export')) {
+      exportCount += 1;
       await exportGate;
-      await route.fulfill({ json: { settings: state.selectionSettings, entries: [{ position: 0, sourceId: 'fixture', sourceKey: 'row-1', text: sampleText, diagnostic: { selection, cacheHit: false, requestStartedAt: 0, requestCompletedAt: 1, requestDurationMs: 1 } }] } });
+      await route.fulfill({ json: { settings: state.selectionSettings, entries: [{ position: 0, sourceId: 'fixture', sourceKey: 'row-1', text: sampleText, audio: state.currentObservation?.audio, diagnostic: { selection, cacheHit: false, requestStartedAt: 0, requestCompletedAt: 1, requestDurationMs: 1 } }] } });
     } else if (/\/(next|back)$/.test(pathname)) {
       navigationCount += 1;
       state.currentObservation = { ...state.currentObservation!, id: `observation-${navigationCount + 1}` };
@@ -111,7 +114,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
     await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
   }
-  return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount };
+  return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
 }
 
 async function revealControls(page: Page) {
@@ -120,6 +123,102 @@ async function revealControls(page: Page) {
   }
   await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
 }
+
+test('downloaded HTML plays its embedded audio offline', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  fixture.releaseExport();
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('spinbutton').fill('1');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('button', { name: /^HTML/ }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
+  const download = await downloadPromise;
+  const html = await readFile((await download.path())!, 'utf8');
+  expect(html).toContain('data:audio/wav;base64,');
+  expect(html).not.toContain('/api/test-audio.wav');
+  const viewer = await page.context().newPage();
+  const requests: string[] = [];
+  viewer.on('request', request => { if (request.url().startsWith('http')) requests.push(request.url()); });
+  await page.context().setOffline(true);
+  await viewer.setContent(html);
+  await expect(viewer.locator('#text')).toHaveCSS('opacity', '1');
+  await expect(viewer.locator('#text')).toHaveCSS('user-select', 'text');
+  const audio = viewer.locator('audio');
+  await expect(audio).toBeVisible();
+  await audio.evaluate((element: HTMLAudioElement) => element.play());
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
+  expect(requests).toEqual([]);
+  await viewer.close();
+  expect(fixture.errors).toEqual([]);
+});
+
+test('sidebar groups collapse independently without changing the active page', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fixture = await loadFixture(page);
+  await openSettings(page);
+  const rail = page.locator('.settings-rail');
+  for (const group of ['Sampling', 'Diagnostic', 'Display']) {
+    await rail.getByRole('button', { name: `Collapse ${group}`, exact: true }).click();
+    await expect(rail.getByRole('button', { name: `Expand ${group}`, exact: true })).toHaveAttribute('aria-expanded', 'false');
+  }
+  await expect(rail.getByRole('button', { name: 'Sampling: Complexity', exact: true })).toBeHidden();
+  await expect(page.locator('.settings-header h1')).toHaveText('Settings');
+  await rail.getByRole('button', { name: 'Expand Sampling', exact: true }).press('Enter');
+  await rail.getByRole('button', { name: 'Sampling: Complexity', exact: true }).click();
+  await expect(page.locator('.settings-header h1')).toHaveText('Complexity');
+  await expect(rail.getByRole('button', { name: 'Expand Display', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  expect(fixture.errors).toEqual([]);
+});
+
+test('each export requests a fresh batch even when the count stays the same', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  fixture.releaseExport();
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('spinbutton').fill('10');
+  for (const expected of [1, 2]) {
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    await page.getByRole('button', { name: /^HTML/ }).click();
+    await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
+    expect(fixture.exportCount()).toBe(expected);
+  }
+  expect(fixture.errors).toEqual([]);
+});
+
+test('opening precision seeking pauses playback and popovers sit above the transport', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  const audio = page.locator('audio');
+  const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+  for (const activation of ['keyboard', 'hold']) {
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect(audio).toHaveJSProperty('paused', false);
+    if (activation === 'keyboard') await scrubber.press('Enter');
+    else {
+      const bounds = (await scrubber.boundingBox())!;
+      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      await page.mouse.down();
+    }
+    const precise = page.getByRole('slider', { name: 'Precise audio position' });
+    await expect(precise).toBeVisible();
+    await expect(audio).toHaveJSProperty('paused', true);
+    if (activation === 'hold') await page.mouse.up();
+    const panel = (await page.locator('.audio-magnifier').boundingBox())!;
+    const bar = (await page.locator('.audio-player-bar').boundingBox())!;
+    expect(panel.y + panel.height).toBeLessThan(bar.y);
+    await precise.focus();
+    await expect(precise).toHaveCSS('box-shadow', 'none');
+    await precise.press('Escape');
+  }
+  await page.getByTitle('Playback speed', { exact: true }).click();
+  const speed = page.locator('.audio-speed-popover');
+  await withinViewport(speed, page);
+  const bounds = (await speed.boundingBox())!;
+  expect(bounds.y + bounds.height).toBeLessThan((await page.locator('.audio-player-bar').boundingBox())!.y);
+  expect(fixture.errors).toEqual([]);
+});
 
 async function openSettings(page: Page) {
   await revealControls(page);
@@ -246,6 +345,93 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
+for (const failure of ['proxy-error', 'network-error', 'missing-endpoint']) {
+  test(`profile loading distinguishes ${failure} from an invalid code and can retry`, async ({ page }) => {
+    const fixture = await loadFixture(page, undefined, false);
+    let attempts = 0;
+    await page.route('**/api/profiles/load', async route => {
+      attempts += 1;
+      if (attempts > 1) { await route.fallback(); return; }
+      if (failure === 'network-error') { await route.abort('connectionrefused'); return; }
+      await route.fulfill({ status: failure === 'proxy-error' ? 500 : 404, contentType: 'text/plain', body: '' });
+    });
+    const input = page.locator('.profile-input');
+    await input.fill('001');
+    await expect(page.getByRole('status', { name: 'Profile server unavailable', exact: true })).toBeVisible();
+    await expect(input).toHaveAttribute('aria-invalid', 'false');
+    await expect(page.locator('.entry-code')).toHaveAttribute('data-invalid', 'false');
+    await expect(page.getByRole('status', { name: 'Invalid profile code', exact: true })).toHaveCount(0);
+    await expect(input).toHaveValue('');
+    await input.fill('001');
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    expect(attempts).toBe(2);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('startup keeps loading dots until the first observation is available', async ({ page }, testInfo) => {
+  const fixture = await loadFixture(page, undefined, false);
+  const firstObservation = fixture.state.currentObservation;
+  fixture.state.currentObservation = null;
+  fixture.state.canBack = false;
+  fixture.state.canNext = false;
+  fixture.state.nextStatus = 'preparing';
+  fixture.state.currentPosition = null;
+  fixture.state.historyLength = 0;
+  fixture.state.queue = { unseenCount: 1, readyCount: 0, preparingCount: 1, pendingCount: 0 };
+  await page.locator('.profile-input').fill('001');
+  const loading = page.getByRole('status', { name: 'Loading observation', exact: true });
+  const start = page.getByRole('button', { name: 'Start observations', exact: true });
+  await expect(loading).toHaveText('...');
+  await expect(start).toHaveCount(0);
+  await expect(page.locator('.nav-zone-right')).toBeDisabled();
+  await page.screenshot({ path: testInfo.outputPath('startup-loading.png') });
+  fixture.state.canNext = true;
+  fixture.state.nextStatus = 'ready';
+  fixture.state.queue = { unseenCount: 1, readyCount: 1, preparingCount: 0, pendingCount: 0 };
+  await expect(start).toBeVisible();
+  await expect(loading).toHaveCount(0);
+  await withinViewport(start, page);
+  await page.screenshot({ path: testInfo.outputPath('startup-ready.png') });
+  let releaseNavigation = () => {};
+  const gate = new Promise<void>(resolve => { releaseNavigation = resolve; });
+  await page.route('**/api/profiles/001/next', async route => {
+    await gate;
+    fixture.state.currentObservation = firstObservation;
+    await route.fallback();
+  });
+  await start.press('Enter');
+  await expect(loading).toBeVisible();
+  await expect(start).toHaveCount(0);
+  releaseNavigation();
+  await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+  await expect(loading).toHaveCount(0);
+  expect(fixture.navigationCount()).toBe(1);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('navigation hides replacement text immediately until its font is fitted', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await page.evaluate(() => {
+    document.fonts.check = () => false;
+    document.fonts.load = () => new Promise<FontFace[]>(resolve => {
+      const text = document.querySelector('.observation-text') as HTMLElement;
+      text.dataset.opacityBeforeFont = getComputedStyle(text).opacity;
+      window.addEventListener('release-observation-font', () => resolve([]), { once: true });
+    });
+  });
+  fixture.state.currentObservation!.text = `${sampleText} ${sampleText}`;
+  await page.locator('.nav-zone-right').dblclick();
+  const text = page.locator('.observation-text');
+  await expect(text).toHaveText(fixture.state.currentObservation!.text);
+  await expect(text).toHaveAttribute('data-opacity-before-font', '0');
+  await expect(text).toHaveCSS('opacity', '0');
+  await page.evaluate(() => window.dispatchEvent(new Event('release-observation-font')));
+  await expect(text).toHaveCSS('opacity', '1');
+  expect(fixture.navigationCount()).toBe(1);
+  expect(fixture.errors).toEqual([]);
+});
+
 test('refitting visible text never hides it or restarts a settled gradient', async ({ page }) => {
   const fixture = await loadFixture(page);
   await page.locator('.gradient-field').evaluate(async element => {
@@ -316,7 +502,8 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
   });
-  const feedback = page.getByRole('status', { name: 'Next request 1', exact: true });
+  const feedback = page.getByRole('status', { name: 'Next', exact: true });
+  await expect(feedback).toHaveText('');
   await expect(feedback).toHaveAttribute('data-sequence', '1');
   await withinViewport(feedback, page);
   const bounds = (await feedback.boundingBox())!;
@@ -326,7 +513,7 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
   await expect(page.locator('.nav-zone-right')).toBeEnabled();
   expect(fixture.navigationCount()).toBe(1);
   await page.locator('.nav-zone-left').press('Enter');
-  await expect(page.getByRole('status', { name: 'Back request 2', exact: true })).toHaveAttribute('data-sequence', '2');
+  await expect(page.getByRole('status', { name: 'Back', exact: true })).toHaveAttribute('data-sequence', '2');
   await expect(page.locator('.nav-zone-left')).toBeEnabled();
   expect(fixture.navigationCount()).toBe(2);
   await page.screenshot({ path: testInfo.outputPath('navigation-feedback.png') });
@@ -370,6 +557,7 @@ test.describe('touch navigation', () => {
     const next = page.locator('.nav-zone-right');
     await next.tap();
     expect(fixture.navigationCount()).toBe(0);
+    await expect(page.locator('.observation-screen')).toHaveClass(/controls-visible/);
     await next.tap();
     await expect.poll(fixture.navigationCount).toBe(1);
     await expect(next).toBeEnabled();
@@ -421,9 +609,24 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const field = page.locator('.entry-code');
       await expect(screen).toHaveText('');
       await expect(input).not.toHaveAttribute('placeholder');
+      for (const digit of await page.locator('.entry-digit').all()) {
+        await expect(digit).toHaveCSS('border-top-style', 'none');
+        await expect(digit).toHaveCSS('border-bottom-style', 'solid');
+        await expect(digit).toHaveCSS('border-radius', '0px');
+        await expect(digit).toHaveCSS('box-shadow', 'none');
+        expect(await digit.evaluate(element => getComputedStyle(element, '::before').opacity)).toBe('0');
+      }
       await withinViewport(field, page);
       const initialBounds = await field.boundingBox();
       await page.screenshot({ path: testInfo.outputPath('profile-entry.png') });
+      await input.fill('0');
+      const middleDigit = page.locator('.entry-digit').nth(1);
+      await expect(middleDigit).toHaveAttribute('data-active', 'true');
+      await expect.poll(() => middleDigit.evaluate(element => getComputedStyle(element, '::before').opacity)).toBe('1');
+      expect(await middleDigit.evaluate(element => getComputedStyle(element, '::before').backgroundImage)).toContain('linear-gradient');
+      await page.screenshot({ path: testInfo.outputPath('profile-entry-highlight.png') });
+      await input.evaluate(element => element.blur());
+      await expect.poll(() => middleDigit.evaluate(element => getComputedStyle(element, '::before').opacity)).toBe('0');
       await input.fill('12');
       await expect(page.locator('.entry-digits')).toHaveText('12');
       expect(await field.boundingBox()).toEqual(initialBounds);
@@ -431,6 +634,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(input).toHaveValue('1');
       await input.press('ArrowLeft');
       await expect(page.locator('.entry-digit').first()).toHaveAttribute('data-active', 'true');
+      await expect.poll(() => page.locator('.entry-digit').first().evaluate(element => getComputedStyle(element, '::before').opacity)).toBe('1');
+      await expect.poll(() => middleDigit.evaluate(element => getComputedStyle(element, '::before').opacity)).toBe('0');
       await page.screenshot({ path: testInfo.outputPath('profile-entry-focused.png') });
       const submissions: string[] = [];
       let releaseLoad = () => {};
@@ -447,6 +652,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(input).toHaveValue('');
       await expect(screen).toHaveText('');
       await expect(page.getByRole('status', { name: 'Invalid profile code' })).toBeVisible();
+      await expect(page.locator('.entry-digit').first()).toHaveCSS('border-bottom-style', 'dashed');
       expect(await field.boundingBox()).toEqual(initialBounds);
       await page.screenshot({ path: testInfo.outputPath('profile-entry-invalid.png') });
       await input.fill('001');
@@ -458,6 +664,36 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       releaseLoad();
       await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
       expect(submissions).toEqual(['999', '001']);
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('export dialog covers the viewport and progress has its own row', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page);
+      await openSettings(page);
+      await page.getByRole('button', { name: 'Export', exact: true }).click();
+      await page.getByRole('spinbutton').fill('10');
+      const trigger = page.getByRole('button', { name: 'Export', exact: true });
+      await trigger.click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      expect(await dialog.evaluate(element => element.matches(':modal'))).toBe(true);
+      await withinViewport(dialog, page);
+      expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath('export-format.png') });
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(trigger).toBeFocused();
+      await trigger.click();
+      await page.getByRole('button', { name: /^HTML/ }).click();
+      const progress = page.getByRole('progressbar');
+      await expect(progress).toBeVisible();
+      const actions = (await page.locator('.export-actions').boundingBox())!;
+      expect((await progress.boundingBox())!.y).toBeGreaterThan(actions.y + actions.height);
+      await expect(page.getByRole('status')).toContainText('Selecting observations');
+      await page.screenshot({ path: testInfo.outputPath('export-progress.png') });
+      fixture.releaseExport();
+      await expect(progress).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
       expect(fixture.errors).toEqual([]);
     });
 
@@ -489,6 +725,62 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(appearance).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('.settings-header h1')).toHaveText('రూపం');
       }
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('lowered observation text still fits long passages at maximum scale', async ({ page }) => {
+      await page.addInitScript(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), { ...darkAppearance, fontScale: 100 });
+      const fixture = await loadFixture(page, undefined, false);
+      fixture.state.currentObservation!.text = sampleText.repeat(12);
+      await page.locator('.profile-input').fill('001');
+      const text = page.locator('.observation-text');
+      await expect(text).toHaveCSS('opacity', '1');
+      await withinViewport(text, page);
+      const textBounds = (await text.boundingBox())!;
+      const bar = (await page.locator('.audio-player-bar').boundingBox())!;
+      expect(textBounds.y + textBounds.height).toBeLessThan(bar.y);
+      expect(await text.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('corner controls use a distinct theme-aware color from audio', async ({ page }, testInfo) => {
+      if (viewport.width === 390 || viewport.width === 844) {
+        await page.addInitScript(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), darkAppearance);
+      }
+      const fixture = await loadFixture(page);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await page.locator('.nav-zone-right').press('Enter');
+      await expect(page.locator('.nav-zone-right')).toBeEnabled();
+      await revealControls(page);
+      const settings = page.locator('.settings-trigger');
+      const feedback = page.getByRole('status', { name: 'Next', exact: true });
+      const player = page.locator('.audio-player-bar');
+      const audioColor = await player.evaluate(element => getComputedStyle(element).color);
+      const cornerColor = await settings.evaluate(element => getComputedStyle(element).color);
+      expect(cornerColor).not.toBe(audioColor);
+      await expect(feedback).toHaveCSS('color', cornerColor);
+      await expect(page.locator('.observation-text')).toHaveCSS('color', audioColor);
+      await expect(player.locator('button').first()).toHaveCSS('color', audioColor);
+      await expect(page.locator('.audio-scrubber-thumb')).toHaveCSS('background-color', audioColor);
+      await expect(settings).toHaveCSS('opacity', '1');
+      await expect(player).toHaveCSS('opacity', '1');
+      await withinViewport(settings, page);
+      await withinViewport(feedback, page);
+      await page.screenshot({ path: testInfo.outputPath('corner-control-colors.png') });
+      await page.clock.resume();
+      await openSettings(page);
+      await page.getByRole('button', { name: 'Display', exact: true }).click();
+      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      for (const [index, color] of ['#c5decf', '#aacabb', '#90b09f'].entries()) {
+        await page.getByLabel(`Gradient color ${index + 1}`, { exact: true }).fill(color);
+      }
+      await page.locator('.settings-close').click();
+      await revealControls(page);
+      await expect(settings).not.toHaveCSS('color', cornerColor);
+      await expect(player).toHaveCSS('color', audioColor);
+      await page.screenshot({ path: testInfo.outputPath('corner-control-colors-updated.png') });
       expect(fixture.errors).toEqual([]);
     });
 
@@ -529,7 +821,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await withinViewport(page.locator('.audio-speed-popover'), page);
       await withinViewport(page.locator('.audio-speed-readout'), page);
       const speedBounds = (await speed.boundingBox())!;
-      expect(Math.abs(speedBounds.y + speedBounds.height / 2 - playerBounds.y - playerBounds.height / 2)).toBeLessThan(1);
+      expect(speedBounds.y + speedBounds.height).toBeLessThan(playerBounds.y);
       await speed.press('Home');
       await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.1);
       await speed.press('End');
@@ -615,6 +907,45 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(player).toHaveCSS('pointer-events', 'none');
       await page.mouse.move(100, 100);
       await expect(player).toHaveCSS('opacity', '0');
+      const text = page.locator('.observation-text');
+      await expect(text).toHaveCSS('user-select', 'text');
+      const selectionBounds = await text.evaluate(element => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const rects = Array.from(range.getClientRects());
+        const first = rects[0]!;
+        const last = rects.at(-1)!;
+        return { startX: first.left + 1, startY: first.top + first.height / 2, endX: last.right - 1, endY: last.top + last.height / 2 };
+      });
+      await page.mouse.move(selectionBounds.startX, selectionBounds.startY);
+      await page.mouse.down();
+      await page.mouse.move(selectionBounds.endX, selectionBounds.endY, { steps: 12 });
+      await page.mouse.up();
+      const selected = await page.evaluate(() => window.getSelection()?.toString() ?? '');
+      expect(selected.length).toBeGreaterThan(0);
+      await expect(page.locator('.observation-screen')).not.toHaveClass(/controls-visible/);
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+      await page.keyboard.press('Control+c');
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(selected);
+      await page.evaluate(() => window.getSelection()?.removeAllRanges());
+      for (const edge of ['.nav-zone-right', '.nav-zone-left']) {
+        await page.locator(edge).click();
+        await expect(player).toHaveCSS('opacity', '1');
+        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+        await page.locator(edge).click();
+        await expect(player).toHaveCSS('opacity', '0');
+        expect(fixture.navigationCount()).toBe(0);
+      }
+      fixture.state.canBack = false;
+      await expect(page.locator('.nav-zone-left')).toBeDisabled();
+      const back = (await page.locator('.nav-zone-left').boundingBox())!;
+      await page.mouse.click(back.x + back.width / 2, back.y + back.height / 2);
+      await expect(player).toHaveCSS('opacity', '1');
+      await page.mouse.dblclick(back.x + back.width / 2, back.y + back.height / 2);
+      await expect(player).toHaveCSS('opacity', '0');
+      expect(fixture.navigationCount()).toBe(0);
+      fixture.state.canBack = true;
+      await expect(page.locator('.nav-zone-left')).toBeEnabled();
       await page.screenshot({ path: testInfo.outputPath('reader-hidden.png') });
       await page.clock.install();
       await page.clock.pauseAt(new Date());

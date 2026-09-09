@@ -92,44 +92,45 @@ export function ObservationView({
             : ''
         }`
       }
-      onClick={() =>
-        setControlsVisible(
-          (visible) => !visible,
-        )
-      }
+      onClick={(event) => {
+        if (event.detail > 1) return;
+        if (typography.textRef.current?.contains(event.target as Node) && !window.getSelection()?.isCollapsed) return;
+        setControlsVisible((visible) => !visible);
+      }}
     >
       {navigationEvent ? (
         <div
           key={navigationEvent.sequence}
           className="navigation-feedback"
           role="status"
-          aria-label={`${navigationEvent.direction === 'next' ? 'Next' : 'Back'} request ${navigationEvent.sequence}`}
+          aria-label={navigationEvent.direction === 'next' ? 'Next' : 'Back'}
           data-sequence={navigationEvent.sequence}
         >
           {navigationEvent.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
-          <span aria-hidden="true">{navigationEvent.sequence}</span>
         </div>
       ) : null}
-      <button
-        className="nav-zone nav-zone-left"
-        type="button"
-        aria-label="వెనుక"
-        disabled={!canBack}
-        onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
-        onClick={(
-          event:
-            MouseEvent<HTMLButtonElement>,
-        ) => {
-          event.stopPropagation();
-          if (event.detail === 0 && canBack) {
-            void move('back');
-          }
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-          if (canBack) void move('back');
-        }}
-      />
+      <div className="nav-region">
+        <button
+          className="nav-zone nav-zone-left"
+          type="button"
+          aria-label="వెనుక"
+          disabled={!canBack}
+          onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+          onClick={(
+            event:
+              MouseEvent<HTMLButtonElement>,
+          ) => {
+            if (event.detail === 0) {
+              event.stopPropagation();
+              if (canBack) void move('back');
+            }
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            if (canBack) void move('back');
+          }}
+        />
+      </div>
       <section
         ref={typography.containerRef}
         className="observation-center"
@@ -142,8 +143,21 @@ export function ObservationView({
           >
             {observation.text}
           </div>
+        ) : canNext ? (
+          <button
+            className="observation-start"
+            type="button"
+            aria-label="Start observations"
+            title="Start observations"
+            onClick={(event) => {
+              event.stopPropagation();
+              void move('next');
+            }}
+          >
+            <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
+          </button>
         ) : (
-          <div className="observation-placeholder">
+          <div className="observation-placeholder" role="status" aria-label="Loading observation">
             ...
           </div>
         )}
@@ -157,26 +171,28 @@ export function ObservationView({
           />
         ) : null}
       </section>
-      <button
-        className="nav-zone nav-zone-right"
-        type="button"
-        aria-label="తర్వాత"
-        disabled={!canNext}
-        onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
-        onClick={(
-          event:
-            MouseEvent<HTMLButtonElement>,
-        ) => {
-          event.stopPropagation();
-          if (event.detail === 0 && canNext) {
-            void move('next');
-          }
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-          if (canNext) void move('next');
-        }}
-      />
+      <div className="nav-region">
+        <button
+          className="nav-zone nav-zone-right"
+          type="button"
+          aria-label="తర్వాత"
+          disabled={!canNext}
+          onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+          onClick={(
+            event:
+              MouseEvent<HTMLButtonElement>,
+          ) => {
+            if (event.detail === 0) {
+              event.stopPropagation();
+              if (canNext) void move('next');
+            }
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            if (canNext) void move('next');
+          }}
+        />
+      </div>
       <button
         className="settings-trigger"
         type="button"

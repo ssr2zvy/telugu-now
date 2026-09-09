@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from parquet_shard import move_rows, row_count
+from parquet_shard import available_output_path, move_complete_shards, move_rows, row_count
 
 DEFAULT_INPUT_ROOT = Path("data-transform/raw/Shrutilipi")
 DEFAULT_OUTPUT_ROOT = Path("data-transform/sample/Shrutilipi")
@@ -57,6 +57,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Output filename override. Page ids are added when multiple files are produced.",
     )
+    parser.add_argument("--batch-rows", type=int, default=20, help="Maximum rows decoded per batch.")
     return parser.parse_args()
 
 
@@ -128,19 +129,25 @@ def move_sample_rows(args: argparse.Namespace, paths: list[Path]) -> None:
         if remaining is not None and remaining <= 0:
             break
 
-        destination = output_path(args, index if paged else None)
+        destination = available_output_path(output_path(args, index if paged else None))
         take_limit = None if remaining is None else remaining
         writer: pq.ParquetWriter | None = None
         moved_rows = 0
 
-        for table in move_rows(path, take_limit):
-            if writer is None:
-                writer = pq.ParquetWriter(destination, table.schema)
-            writer.write_table(table)
-            moved_rows += table.num_rows
-
-        if writer is not None:
-            writer.close()
+        try:
+            with move_rows(path, take_limit, args.batch_rows) as tables:
+                try:
+                    for table in tables:
+                        if writer is None:
+                            writer = pq.ParquetWriter(destination, table.schema)
+                        writer.write_table(table)
+                        moved_rows += table.num_rows
+                finally:
+                    if writer is not None:
+                        writer.close()
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
         if remaining is not None:
             remaining -= moved_rows
         total_moved += moved_rows
@@ -154,15 +161,23 @@ def main() -> None:
     args = parse_args()
     if args.rows < 1 and not args.all_rows:
         raise ValueError("--rows must be greater than 0")
+    if args.batch_rows < 1:
+        raise ValueError("--batch-rows must be greater than 0")
 
     if args.all_parquets:
         parquet_paths = sorted(args.input_root.rglob("*.parquet"))
         if not parquet_paths:
+            if args.all_rows and any(args.output_root.rglob("*.parquet")):
+                print("Shrutilipi: no remaining raw shards; keeping existing samples")
+                return
             raise FileNotFoundError(f"No .parquet files found under {args.input_root}")
     else:
         parquet_paths = [resolve_parquet(args.input_root, item) for item in args.parquets]
 
-    move_sample_rows(args, parquet_paths)
+    if args.all_rows and args.all_parquets and not args.output_name:
+        move_complete_shards(parquet_paths, args.input_root, args.output_root)
+    else:
+        move_sample_rows(args, parquet_paths)
 
 
 if __name__ == "__main__":

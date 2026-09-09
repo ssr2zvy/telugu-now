@@ -118,6 +118,7 @@ export function useObservationTypography(
         Math.min(desired, best),
       );
       element.style.fontSize = `${finalSize}px`;
+      element.style.translate = `0 ${Math.min(20, Math.max(0, (availableHeight - element.scrollHeight) / 2 - 24))}px`;
       setFontSizePx(finalSize);
       setReady(true);
     };

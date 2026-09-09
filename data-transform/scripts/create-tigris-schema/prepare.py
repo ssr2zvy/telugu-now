@@ -45,6 +45,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--batch-rows", type=int, default=20, help="Maximum rows decoded and written per batch.")
+    parser.add_argument("--consume-input", action="store_true", help="Delete consumed sample files only after successful corpus publication.")
     parser.add_argument(
         "--replace",
         action="store_true",
@@ -55,7 +57,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    writer = CorpusWriter(args.output, replace=args.replace)
+    if args.batch_rows < 1:
+        raise ValueError("--batch-rows must be greater than 0")
+    input_root, output_root = args.input.resolve(), args.output.resolve()
+    if input_root == output_root or input_root in output_root.parents or output_root in input_root.parents:
+        raise ValueError("Input and output directories must not overlap")
+    writer = CorpusWriter(args.output, replace=args.replace, batch_rows=args.batch_rows)
+    on_consumed = writer.consume_after_publish if args.consume_input else None
 
     writer.add_source(
         source_id=FLEURS_ID,
@@ -65,7 +73,7 @@ def main() -> None:
         upstream_url=FLEURS_URL,
         catalog_version=FLEURS_VERSION,
         expected_audio_mime=FLEURS_AUDIO,
-        rows=read_fleurs(args.input / "FLEURS"),
+        rows=read_fleurs(args.input / "FLEURS", on_consumed=on_consumed),
     )
 
     writer.add_source(
@@ -76,7 +84,7 @@ def main() -> None:
         upstream_url=SHRUTI_URL,
         catalog_version=SHRUTI_VERSION,
         expected_audio_mime=SHRUTI_AUDIO,
-        rows=read_shrutilipi(args.input / "Shrutilipi"),
+        rows=read_shrutilipi(args.input / "Shrutilipi", batch_rows=args.batch_rows, on_consumed=on_consumed),
     )
 
     writer.add_source(
@@ -87,7 +95,7 @@ def main() -> None:
         upstream_url=INDIC_URL,
         catalog_version=INDIC_VERSION,
         expected_audio_mime=INDIC_AUDIO,
-        rows=read_indicvoices(args.input / "IndicVoices"),
+        rows=read_indicvoices(args.input / "IndicVoices", batch_rows=args.batch_rows, on_consumed=on_consumed),
     )
 
     writer.finalize()

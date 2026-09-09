@@ -25,7 +25,7 @@ Usage:
   ./$SCRIPT_NAME test [--option start|abort|exit]
   ./$SCRIPT_NAME build [--option start|abort|exit]
   ./$SCRIPT_NAME dev [--option start|stop|exit]
-  ./$SCRIPT_NAME data [--option samples|prepare|all|exit]
+  ./$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
 USAGE
 }
 
@@ -35,37 +35,57 @@ prepared_corpus_ready() {
 }
 
 run_data_samples() {
-  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/FLEURS.py" \
+  local rows="${1:-100}"
+  local batch_rows="${2:-20}"
+  local -a fleurs_args=(--rows "$rows" --append --batch-rows "$batch_rows")
+  local -a parquet_args=(--rows "$rows" --all-parquets --batch-rows "$batch_rows")
+  if [[ "$rows" == "all" ]]; then
+    fleurs_args=(--all-rows --all-splits --append --batch-rows "$batch_rows")
+    parquet_args=(--all-rows --all-parquets --batch-rows "$batch_rows")
+  fi
+  printf 'Extracting rows: %s; batch size: %s. Raw inputs are consumed after extraction.\n' "$rows" "$batch_rows"
+  "${PYTHON:-python}" "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/FLEURS.py" \
     --input-root "$RAW_DATA_DIR/FLEURS" \
     --output-root "$SAMPLE_DATA_DIR/FLEURS" \
-    --replace || return $?
+    "${fleurs_args[@]}" || return $?
 
-  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
+  "${PYTHON:-python}" "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/Shrutilipi.py" \
     --input-root "$RAW_DATA_DIR/Shrutilipi" \
     --output-root "$SAMPLE_DATA_DIR/Shrutilipi" \
-    || return $?
+    "${parquet_args[@]}" || return $?
 
-  python "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
+  "${PYTHON:-python}" "$DATA_TRANSFORM_DIR/scripts/extract-sample-data/IndicVoices.py" \
     --input-root "$RAW_DATA_DIR/IndicVoices" \
     --output-root "$SAMPLE_DATA_DIR/IndicVoices" \
-    || return $?
+    "${parquet_args[@]}" || return $?
 }
 
 run_data_prepare() {
-  python "$DATA_TRANSFORM_DIR/scripts/create-tigris-schema/prepare.py" \
+  "${PYTHON:-python}" "$DATA_TRANSFORM_DIR/scripts/create-tigris-schema/prepare.py" \
     --input "$SAMPLE_DATA_DIR" \
     --output "$PREPARED_CORPUS_DIR" \
+    --batch-rows "${1:-20}" \
+    --consume-input \
     --replace
 }
 
 run_data_domain() {
   local option="${1:-}"
+  local rows="${2:-}"
+  local batch_rows="${3:-20}"
+  local interactive=false
+
+  if [[ ! "$batch_rows" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'ERROR: --batch-rows must be a positive integer.\n' >&2
+    return 2
+  fi
 
   if [[ -z "$option" ]]; then
+    interactive=true
     printf 'DATA OPTIONS\n'
     printf '1) samples\n'
     printf '2) prepare\n'
-    printf '3) all\n'
+    printf '3) all (extract, then prepare)\n'
     printf '4) exit\n'
     printf '\nSelect option: '
     read -r selection
@@ -78,16 +98,31 @@ run_data_domain() {
     esac
   fi
 
+  if [[ "$option" == "samples" || "$option" == "all" ]]; then
+    if [[ -z "$rows" && "$interactive" == true ]]; then
+      printf '\nRows to extract (positive count or all) [100]: '
+      read -r rows
+    fi
+    rows="${rows:-100}"
+    if [[ "$rows" != "all" && ! "$rows" =~ ^[1-9][0-9]*$ ]]; then
+      printf 'ERROR: --rows must be a positive integer or all.\n' >&2
+      return 2
+    fi
+  elif [[ -n "$rows" ]]; then
+    printf 'ERROR: --rows only applies to samples or all.\n' >&2
+    return 2
+  fi
+
   case "$option" in
     samples)
-      run_data_samples
+      run_data_samples "$rows" "$batch_rows"
       ;;
     prepare)
-      run_data_prepare
+      run_data_prepare "$batch_rows"
       ;;
     all)
-      run_data_samples || return $?
-      run_data_prepare || return $?
+      run_data_samples "$rows" "$batch_rows" || return $?
+      run_data_prepare "$batch_rows" || return $?
       ;;
     exit)
       return 0
@@ -712,6 +747,8 @@ fi
 if [[ "${1:-}" == "data" ]]; then
   shift
   DATA_OPTION=""
+  DATA_ROWS=""
+  DATA_BATCH_ROWS="20"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -723,6 +760,18 @@ if [[ "${1:-}" == "data" ]]; then
         DATA_OPTION="$2"
         shift 2
         ;;
+      --rows|--batch-rows)
+        [[ $# -ge 2 && -n "$2" ]] || {
+          printf 'ERROR: %s requires a value.\n' "$1" >&2
+          exit 2
+        }
+        if [[ "$1" == "--rows" ]]; then
+          DATA_ROWS="$2"
+        else
+          DATA_BATCH_ROWS="$2"
+        fi
+        shift 2
+        ;;
       *)
         printf 'ERROR: unknown argument "%s".\n' "$1" >&2
         exit 2
@@ -730,7 +779,7 @@ if [[ "${1:-}" == "data" ]]; then
     esac
   done
 
-  run_data_domain "$DATA_OPTION"
+  run_data_domain "$DATA_OPTION" "$DATA_ROWS" "$DATA_BATCH_ROWS"
   exit $?
 fi
 

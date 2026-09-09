@@ -17,6 +17,26 @@ interface ParsedStoredZipEntry {
   method: number;
   data: Uint8Array;
 }
+async function assertPackagedAudio(): Promise<void> {
+  const result = sampleExport();
+  result.entries[0]!.audio = { url: '/api/audio/test.wav', mimeType: 'audio/wav', durationSeconds: 1 };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3]))) as typeof fetch;
+  try {
+    const prepared = await prepareEpubExport(result);
+    const entries = parseStoredZip(new Uint8Array(await prepared.blob.arrayBuffer()));
+    const clip = entries.find(entry => entry.name === 'EPUB/audio/clip-1.wav');
+    assert.deepEqual(clip?.data, new Uint8Array([1, 2, 3]));
+    const decoder = new TextDecoder();
+    const manifest = decoder.decode(entries.find(entry => entry.name === 'EPUB/package.opf')!.data);
+    assert.match(manifest, /href="audio\/clip-1.wav" media-type="audio\/wav"/);
+    const data = JSON.parse(decoder.decode(entries.find(entry => entry.name === 'EPUB/data.json')!.data));
+    assert.equal(data.entries[0].audio.url, 'audio/clip-1.wav');
+    const script = decoder.decode(entries.find(entry => entry.name === 'EPUB/viewer.js')!.data);
+    assert.doesNotMatch(script, /\/api\/audio\//);
+  } finally { globalThis.fetch = originalFetch; }
+}
+
 function readUint16(
   view: DataView,
   offset: number,
@@ -600,8 +620,9 @@ test(
   },
 );
 test(
-  'prepared EPUB resolves only local font assets and exposes one downloadable epub blob',
+  'prepared EPUB resolves local fonts and audio and exposes one downloadable epub blob',
   async () => {
+    await assertPackagedAudio();
     const originalFetch =
       globalThis.fetch;
     const requested:

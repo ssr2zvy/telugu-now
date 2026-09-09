@@ -21,12 +21,24 @@ export async function getDataSources(): Promise<DataSourcesResponse> {
   return parseJson<DataSourcesResponse>(await fetch('/api/data-sources'));
 }
 
+export class InvalidProfileCodeError extends Error {
+  constructor() {
+    super('Invalid profile code');
+    this.name = 'InvalidProfileCodeError';
+  }
+}
+
 export async function loadProfile(request: LoadProfileRequest): Promise<ProfileStateResponse> {
-  return parseJson<ProfileStateResponse>(await fetch('/api/profiles/load', {
+  const response = await fetch('/api/profiles/load', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
-  }));
+  });
+  if (response.status === 404) {
+    const body = await response.json().catch(() => null);
+    if (body?.error === 'invalid-profile-code') throw new InvalidProfileCodeError();
+  }
+  return parseJson<ProfileStateResponse>(response);
 }
 
 export async function getProfileState(code: string, visible: boolean): Promise<ProfileStateResponse> {

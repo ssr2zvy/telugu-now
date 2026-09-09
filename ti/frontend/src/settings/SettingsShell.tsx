@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronLeft, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { parentSettingsPage, settingsGroups, settingsPageIcons, settingsPageLabel } from './navigation';
 import {
   LanguageIcon,
@@ -36,6 +36,7 @@ export function SettingsShell({
   children,
 }: SettingsShellProps) {
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>({});
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const parent = parentSettingsPage(page);
@@ -100,8 +101,27 @@ export function SettingsShell({
           {navigationButton('index')}
           {settingsGroups.index?.map((group) => (
             <div className="settings-rail-group" key={group}>
-              {navigationButton(group)}
-              {settingsGroups[group]?.map((child) => navigationButton(child, true))}
+              <div className="settings-rail-group-heading">
+                {navigationButton(group)}
+                {settingsGroups[group] ? (
+                  <button
+                    className="settings-rail-disclosure"
+                    type="button"
+                    aria-label={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group, language)}`}
+                    title={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group, language)}`}
+                    aria-expanded={!collapsedGroups[group]}
+                    aria-controls={`settings-rail-${group}`}
+                    onClick={() => setCollapsedGroups(current => ({ ...current, [group]: !current[group] }))}
+                  >
+                    {collapsedGroups[group] ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+                  </button>
+                ) : null}
+              </div>
+              {settingsGroups[group] ? (
+                <div id={`settings-rail-${group}`} hidden={Boolean(collapsedGroups[group])}>
+                  {settingsGroups[group]?.map((child) => navigationButton(child, true))}
+                </div>
+              ) : null}
             </div>
           ))}
         </nav>

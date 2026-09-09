@@ -177,6 +177,7 @@ export interface ExportEntry {
   sourceId: string;
   sourceKey: string;
   text: string;
+  audio?: ObservationAudio | null;
   diagnostic: ExportEntryDiagnostic;
 }
 

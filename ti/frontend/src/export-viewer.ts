@@ -9,7 +9,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:"Noto Sans
 *{box-sizing:border-box}
 #viewer{position:relative;width:100%;height:100%;min-height:100vh;display:grid;grid-template-columns:minmax(3.5rem,16vw) 1fr minmax(3.5rem,16vw);background:radial-gradient(circle at 50% 35%,rgba(255,255,255,.22),transparent 42%),linear-gradient(145deg,#9a9a9a 0%,#707070 48%,#515151 100%)}
 #text-wrap{display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;padding:2rem .5rem;text-align:center}
-#text{width:100%;max-width:min(82vw,70rem);line-height:${OBSERVATION_PRESENTATION.lineHeight};overflow-wrap:anywhere;user-select:none;opacity:0}
+#viewer.has-audio #text-wrap{margin-bottom:120px}
+#audio{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);width:min(416px,calc(100% - 48px));height:44px}
+#audio[hidden]{display:none}
+#text{width:100%;max-width:min(82vw,70rem);line-height:${OBSERVATION_PRESENTATION.lineHeight};overflow-wrap:anywhere;-webkit-user-select:text;user-select:text;opacity:0}
 button{border:0;background:transparent;color:rgba(20,20,20,.48);font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .nav{font-family:system-ui,sans-serif;font-size:clamp(2.2rem,6vw,4rem)}
 button:disabled{opacity:.24;cursor:default}
@@ -34,6 +37,7 @@ export function buildStandaloneViewerMarkup(): string {
 <button id="next" class="nav" type="button" aria-label="తర్వాత">›</button>
 <button id="info" type="button" aria-label="సమాచారం">i</button>
 <div id="position"></div>
+<audio id="audio" controls="controls" preload="metadata" hidden="hidden"></audio>
 <section id="diagnostic" aria-label="Diagnostic"><div id="diagnostic-body" class="diagnostic-sections"></div></section>
 </main>`;
 }
@@ -53,6 +57,8 @@ const next=document.getElementById('next');
 const position=document.getElementById('position');
 const diagnostic=document.getElementById('diagnostic');
 const diagnosticBody=document.getElementById('diagnostic-body');
+const audio=document.getElementById('audio');
+const viewer=document.getElementById('viewer');
 function clamp(minimum,maximum,value){return Math.min(maximum,Math.max(minimum,value))}
 function number(value){if(value===0)return '0';if(Math.abs(value)<0.000001)return value.toExponential(6);return value.toFixed(8).replace(/0+$/,'').replace(/\\.$/,'')}
 function percent(value){return (value*100).toFixed(4)+'%'}
@@ -158,6 +164,11 @@ async function activate(nextIndex){
   const serial=++activationSerial;
   const entry=DATA.entries[index];
   activeFontFamily=chooseFont();
+  audio.pause();
+  audio.hidden=!entry.audio;
+  viewer.classList.toggle('has-audio',Boolean(entry.audio));
+  if(entry.audio){audio.src=entry.audio.url}else{audio.removeAttribute('src')}
+  audio.load();
   text.style.opacity='0';
   text.style.fontFamily='"'+activeFontFamily+'", "Noto Sans Telugu", "Nirmala UI", sans-serif';
   text.style.fontWeight=String(PRESENTATION.fontWeight);

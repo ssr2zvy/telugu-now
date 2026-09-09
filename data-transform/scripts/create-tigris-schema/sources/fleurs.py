@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from common import (
     CanonicalInputRow,
@@ -21,7 +21,7 @@ EXPECTED_AUDIO_MIME = "audio/wav"
 SAMPLE_RATE_HZ = 16_000
 
 
-def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
+def read_fleurs(root: Path, on_consumed: Callable[[Path], None] | None = None) -> Iterator[CanonicalInputRow]:
     tsv_files = sorted(root.glob("*.tsv"))
     if not tsv_files:
         raise CorpusStructuralError("FLEURS_SCHEMA:NO_TSV_FILES")
@@ -102,14 +102,8 @@ def read_fleurs(root: Path) -> Iterator[CanonicalInputRow]:
                     },
                 )
 
-                # Once the caller has taken this row, its sample audio file has
-                # moved into the corpus and no longer needs to live in sample.
-                if audio_path.is_file():
-                    audio_path.unlink()
+                if on_consumed is not None and audio_path.is_file():
+                    on_consumed(audio_path)
 
-        # The whole split's tsv has now been fully consumed row by row.
-        tsv_path.unlink()
-        try:
-            audio_dir.rmdir()
-        except OSError:
-            pass
+        if on_consumed is not None:
+            on_consumed(tsv_path)
