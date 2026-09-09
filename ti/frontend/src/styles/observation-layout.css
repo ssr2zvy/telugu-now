@@ -12,7 +12,12 @@
 .audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: flex; align-items: center; gap: 0; width: min(416px, calc(100vw - 112px)); min-height: 44px; padding: 0; border-radius: 0; background: none; box-shadow: none; transform: translateX(-50%); color: var(--control-color); cursor: default; }
 .audio-transport-button { display: grid; flex: none; place-items: center; width: 36px; height: 44px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .audio-transport-button .control-icon { width: 17px; height: 17px; }
-.audio-scrubber-wrap { position: relative; flex: 1 1 auto; min-width: 0; margin-inline: 6px; }
+.audio-scrubber-wrap, .audio-speed-popover { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.audio-scrubber-thumb, .audio-scrubber-progress, .audio-scrubber-bookmark, .audio-magnifier-bar, .audio-magnifier-playhead { pointer-events: none; }
+.audio-scrubber:focus-visible, .audio-speed-track:focus-visible, .audio-magnifier-track:focus-visible { outline: none; }
+.audio-scrubber:focus-visible .audio-scrubber-thumb, .audio-speed-track:focus-visible .audio-speed-thumb { outline: 1px solid currentColor; outline-offset: 3px; }
+.audio-magnifier-track:focus-visible { box-shadow: inset 0 -1px currentColor; }
+.audio-scrubber-wrap { position: relative; flex: 1 1 auto; min-width: 0; margin-inline: 15px; }
 .audio-scrubber { position: relative; display: flex; align-items: center; height: 44px; touch-action: none; cursor: pointer; }
 .audio-scrubber::before { content: ''; position: absolute; inset-inline: 0; top: 50%; height: 3px; border-radius: 2px; background: currentColor; opacity: .22; transform: translateY(-50%); }
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }

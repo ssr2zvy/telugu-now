@@ -216,7 +216,7 @@ function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
 }
 
 function audioObjectUrl(objectKey: string): string {
-  return `/api/audio/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
+  return `/api/audio/${objectKey.split('/').map(encodeURIComponent).join('/')}?v=2`;
 }
 
 function parseObservationAudio(raw: string | null): ObservationAudio | null {

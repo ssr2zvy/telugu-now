@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { serveStatic } from '@hono/node-server/serve-static';
+import type { MiddlewareHandler } from 'hono';
 import { config } from '../config/config';
 
 const AUDIO_MIME_TYPES_BY_EXTENSION: Record<string, string> = {
@@ -25,4 +27,24 @@ export function resolveAudioFilePath(objectKey: string, objectsRoot = config.cor
 
 export function audioMimeTypeForFilePath(filePath: string): string {
   return AUDIO_MIME_TYPES_BY_EXTENSION[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
+}
+
+export function serveAudio(objectsRoot = config.corpusObjectsPath): MiddlewareHandler {
+  return async (context) => {
+    let filePath: string;
+    try {
+      filePath = resolveAudioFilePath(context.req.path.slice('/api/audio/'.length), objectsRoot);
+    } catch (error) {
+      if (error instanceof InvalidAudioObjectKeyError || error instanceof URIError) {
+        return context.json({ error: 'invalid-object-key' }, 400);
+      }
+      throw error;
+    }
+    context.header('Accept-Ranges', 'bytes');
+    const response = await serveStatic({ path: filePath })(context, async () => {});
+    if (!response) return context.json({ error: 'audio-not-found' }, 404);
+    response.headers.set('Content-Type', audioMimeTypeForFilePath(filePath));
+    if (response.ok) response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return response;
+  };
 }

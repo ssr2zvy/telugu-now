@@ -715,7 +715,7 @@ test(
 
     const state = profileService.getProfileState('001', false);
     assert.equal(state.currentObservation?.audio?.mimeType, 'audio/wav');
-    assert.equal(state.currentObservation?.audio?.url, '/api/audio/media/fleurs-te/fixture.wav');
+    assert.equal(state.currentObservation?.audio?.url, '/api/audio/media/fleurs-te/fixture.wav?v=2');
     assert.ok((state.currentObservation?.audio?.durationSeconds ?? 0) > 0);
   });
 

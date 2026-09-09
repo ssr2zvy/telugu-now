@@ -27,7 +27,7 @@ function audioFixture(): Buffer {
   return buffer;
 }
 
-async function loadFixture(page: Page) {
+async function loadFixture(page: Page, realAudioUrl?: string) {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const selection: SelectionSnapshot = {
@@ -49,7 +49,7 @@ async function loadFixture(page: Page) {
     audioSettings: { playbackRate: 1 },
     currentObservation: {
       id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: sampleText,
-      audio: { url: '/api/test-audio.wav', mimeType: 'audio/wav', durationSeconds: 20 },
+      audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
       diagnostic: {
         acquisitionNumber: 1, triggerKind: 'initial-fill', triggeredByObservationId: null,
         triggeredByAcquisitionNumber: null, triggeredByHistoryPosition: null,
@@ -65,6 +65,10 @@ async function loadFixture(page: Page) {
   const audio = audioFixture();
   await page.route('**/api/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    if (realAudioUrl && pathname === new URL(realAudioUrl, baseUrl).pathname) {
+      await route.continue();
+      return;
+    }
     if (pathname === '/api/test-audio.wav') {
       const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/);
       const start = range ? Number(range[1]) : 0;
@@ -126,8 +130,76 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test.describe(`FLAC over HTTP ${viewport.width}`, () => {
+    test.use({ viewport });
+    test('actual FLAC bytes support coarse and precise seeking and resumed playback', async ({ page }) => {
+      const audioUrl = process.env.UI_TEST_FLAC_URL;
+      test.skip(!audioUrl, 'Set UI_TEST_FLAC_URL to a prepared FLAC /api/audio/ URL.');
+      let partialResponses = 0;
+      page.on('response', (response) => {
+        if (new URL(response.url()).pathname === new URL(audioUrl!, baseUrl).pathname && response.status() === 206) partialResponses += 1;
+      });
+      const fixture = await loadFixture(page, audioUrl!);
+      const audio = page.locator('audio');
+      const duration = await audio.evaluate((element: HTMLAudioElement) => element.duration);
+      expect(Number.isFinite(duration)).toBe(true);
+      expect(duration).toBeGreaterThan(1);
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.seekable.length ? element.seekable.end(element.seekable.length - 1) : 0)).toBeCloseTo(duration, 1);
+      const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+      const bounds = (await scrubber.boundingBox())!;
+      for (const fraction of [0.75, 0.25]) {
+        await page.mouse.click(bounds.x + bounds.width * fraction, bounds.y + bounds.height / 2);
+        await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(duration * fraction, 1);
+        await expect(audio).toHaveJSProperty('seeking', false);
+      }
+      await scrubber.press('Enter');
+      const precise = page.getByRole('slider', { name: 'Precise audio position' });
+      const track = (await precise.boundingBox())!;
+      const before = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+      await page.mouse.move(track.x + 30, track.y + track.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(track.x + 130, track.y + track.height / 2, { steps: 10 });
+      await page.mouse.up();
+      await expect(audio).toHaveJSProperty('seeking', false);
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(before + 0.1, 2);
+      await precise.press('Escape');
+      await page.getByTitle('Play', { exact: true }).click();
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(before + 0.2);
+      await page.getByTitle('Pause', { exact: true }).click();
+      expect(partialResponses).toBeGreaterThan(0);
+      expect(fixture.errors).toEqual([]);
+    });
+  });
+}
+
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('precision touch dragging survives cancellation and capture outside the track', async ({ page }) => {
+    const fixture = await loadFixture(page);
+    const client = await page.context().newCDPSession(page);
+    const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+    const bar = (await scrubber.boundingBox())!;
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: bar.x + bar.width / 2, y: bar.y + bar.height / 2 }] });
+    const precise = page.getByRole('slider', { name: 'Precise audio position' });
+    await expect(precise).toBeVisible();
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => Number(await precise.getAttribute('aria-valuenow'))).toBeGreaterThan(9);
+    const bounds = (await precise.boundingBox())!;
+    const before = Number(await precise.getAttribute('aria-valuenow'));
+    const point = { x: bounds.x + 30, y: bounds.y + bounds.height / 2 };
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x + 100, y: point.y - 70 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    await expect.poll(async () => Number(await precise.getAttribute('aria-valuenow'))).toBeCloseTo(before + 0.1, 2);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x + 50, y: point.y }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => Number(await precise.getAttribute('aria-valuenow'))).toBeCloseTo(before + 0.15, 2);
+    expect(fixture.navigationCount()).toBe(0);
+    expect(fixture.errors).toEqual([]);
+    await client.detach();
+  });
   test('double taps navigate but a popover dismissal does not', async ({ page }) => {
     const fixture = await loadFixture(page);
     const next = page.locator('.nav-zone-right');
@@ -187,6 +259,25 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(textBounds.y + textBounds.height).toBeLessThan(playerBounds.y);
       await page.screenshot({ path: testInfo.outputPath('reader.png') });
 
+      const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+      const bar = (await scrubber.boundingBox())!;
+      await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(bar.x + bar.width + 1, bar.y + bar.height / 2);
+      await page.mouse.up();
+      await expect(scrubber).toHaveAttribute('aria-valuenow', '20');
+      const speedIcon = (await page.getByTitle('Playback speed', { exact: true }).locator('svg').boundingBox())!;
+      const bookmarkIcon = (await player.locator('button').last().locator('svg').boundingBox())!;
+      const endThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
+      const iconGap = bookmarkIcon.x - speedIcon.x - speedIcon.width;
+      expect(Math.abs(speedIcon.x - endThumb.x - endThumb.width - iconGap)).toBeLessThan(1);
+      await page.screenshot({ path: testInfo.outputPath('audio-end-spacing.png') });
+      await page.mouse.click(bar.x, bar.y + bar.height / 2);
+      await expect(scrubber).toHaveAttribute('aria-valuenow', '0');
+      const playIcon = (await page.getByTitle('Play', { exact: true }).locator('svg').boundingBox())!;
+      const startThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
+      expect(Math.abs(startThumb.x - playIcon.x - playIcon.width - iconGap)).toBeLessThan(1);
+
       await page.getByTitle('Playback speed', { exact: true }).click();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await withinViewport(page.locator('.audio-speed-popover'), page);
@@ -206,14 +297,22 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.02);
       await page.getByTitle('Pause', { exact: true }).click();
 
-      const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
-      const bar = (await scrubber.boundingBox())!;
       await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
       await page.mouse.down();
       const precise = page.getByRole('slider', { name: 'Precise audio position' });
       await expect(precise).toBeVisible();
       await page.mouse.up();
       await withinViewport(page.locator('.audio-magnifier'), page);
+      await expect(page.locator('.audio-magnifier')).toHaveCSS('user-select', 'none');
+      const nativeDragBlocked = await precise.evaluate((element) => {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(element.closest('.audio-magnifier')!);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return !element.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true }));
+      });
+      expect(nativeDragBlocked).toBe(true);
       const fineBounds = (await precise.boundingBox())!;
       const before = Number(await precise.getAttribute('aria-valuenow'));
       await page.mouse.move(fineBounds.x + 30, fineBounds.y + fineBounds.height / 2);
@@ -264,6 +363,12 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const fixture = await loadFixture(page);
       await openSettings(page);
       await expect(page.locator('.settings-header')).toHaveCSS('border-bottom-width', '0px');
+      const sampling = page.getByRole('button', { name: 'Sampling', exact: true });
+      await sampling.hover();
+      await expect(sampling).toHaveCSS('padding-left', '12px');
+      await expect(sampling).toHaveCSS('padding-right', '12px');
+      await withinViewport(sampling, page);
+      await page.screenshot({ path: testInfo.outputPath('settings-hover.png') });
       await page.screenshot({ path: testInfo.outputPath('settings.png') });
       await page.getByRole('button', { name: 'Sampling', exact: true }).click();
       for (const name of ['Complexity', 'Source weights', 'Data sources']) {
@@ -298,10 +403,17 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.locator('.settings-back').click();
       await page.getByRole('button', { name: 'Display', exact: true }).click();
       await page.getByRole('button', { name: 'Appearance', exact: true }).click();
-      await page.getByLabel('Text color', { exact: true }).fill('#20332c');
+      await page.getByLabel('Text & icons color', { exact: true }).fill('#20332c');
+      await page.getByLabel('Settings & popovers color', { exact: true }).fill('#e8eeee');
+      await expect(page.getByRole('switch', { name: 'Automatic surface' })).not.toBeChecked();
+      await expect(page.locator('.settings-screen')).toHaveCSS('background-color', 'rgb(232, 238, 238)');
       await page.getByLabel('Gradient color 1', { exact: true }).fill('#e4f0eb');
+      await page.screenshot({ path: testInfo.outputPath('color-roles.png') });
       const scale = page.getByRole('slider', { name: 'Font size scale' });
-      await scale.fill('80');
+      await scale.scrollIntoViewIfNeeded();
+      await scale.press('End');
+      for (let step = 0; step < 20; step += 1) await scale.press('ArrowLeft');
+      await expect(scale).toHaveValue('80');
       const fonts = page.getByRole('checkbox');
       const fontCount = await fonts.count();
       for (let index = 1; index < fontCount; index += 1) await fonts.nth(index).uncheck();
@@ -312,7 +424,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.locator('.settings-close').click();
       await expect(page.locator('.observation-text')).toHaveCSS('font-family', /Noto Sans Telugu/);
       await expect(page.locator('.observation-text')).toHaveCSS('color', 'rgb(32, 51, 44)');
-      await expect(page.locator('.audio-player-bar')).not.toHaveCSS('color', 'rgb(23, 23, 23)');
+      await expect(page.locator('.audio-player-bar')).toHaveCSS('color', 'rgb(32, 51, 44)');
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      await expect(page.locator('.audio-magnifier')).toHaveCSS('background-color', 'rgb(232, 238, 238)');
+      await expect(page.locator('.audio-magnifier')).toHaveCSS('color', 'rgb(32, 51, 44)');
+      await page.screenshot({ path: testInfo.outputPath('custom-magnifier.png') });
       await page.reload();
       await page.locator('.profile-input').fill('001');
       await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
@@ -320,7 +436,14 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.getByRole('button', { name: 'Display', exact: true }).click();
       await page.getByRole('button', { name: 'Appearance', exact: true }).click();
       await expect(scale).toHaveValue('80');
-      await expect(page.getByLabel('Text color', { exact: true })).toHaveValue('#20332c');
+      await expect(page.getByLabel('Text & icons color', { exact: true })).toHaveValue('#20332c');
+      await expect(page.getByLabel('Settings & popovers color', { exact: true })).toHaveValue('#e8eeee');
+      await expect(fonts.first()).toBeDisabled();
+      await page.getByRole('switch', { name: 'Automatic surface' }).check();
+      await expect(page.getByLabel('Settings & popovers color', { exact: true })).toHaveValue('#f8f9fa');
+      await page.getByRole('button', { name: 'Reset colors', exact: true }).click();
+      await expect(page.getByLabel('Text & icons color', { exact: true })).toHaveValue('#171717');
+      await expect(scale).toHaveValue('80');
       await expect(fonts.first()).toBeDisabled();
       await page.locator('.settings-back').click();
       await page.getByRole('button', { name: 'Playback speed', exact: true }).click();

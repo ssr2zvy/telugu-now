@@ -43,6 +43,9 @@ export function PlaybackSpeedPopover({
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !event.isPrimary) return;
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     onChange(rateFromClientY(event.clientY));
   };
@@ -62,6 +65,9 @@ export function PlaybackSpeedPopover({
     <div
       ref={popoverRef}
       className="audio-speed-popover"
+      draggable={false}
+      onDragStart={(event) => event.preventDefault()}
+      onContextMenu={(event) => event.preventDefault()}
       onClick={(event) => event.stopPropagation()}
     >
       <div

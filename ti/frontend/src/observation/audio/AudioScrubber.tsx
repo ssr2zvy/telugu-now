@@ -94,7 +94,9 @@ export function AudioScrubber({
   // sustained press additionally opens the precision magnifier, which then
   // stays open (fine dragging happens inside it) until dismissed elsewhere.
   const handleBarPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (disabled || duration <= 0) return;
+    if (disabled || duration <= 0 || event.button !== 0 || !event.isPrimary) return;
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     onSeek(timeFromClientX(event.clientX));
 
@@ -131,6 +133,9 @@ export function AudioScrubber({
       : [];
 
   const handleMagnifierPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled || duration <= 0 || event.button !== 0 || !event.isPrimary) return;
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     fineDrag.current = { clientX: event.clientX, time: currentTime };
   };
@@ -146,7 +151,12 @@ export function AudioScrubber({
   };
 
   return (
-    <div className="audio-scrubber-wrap">
+    <div
+      className="audio-scrubber-wrap"
+      draggable={false}
+      onDragStart={(event) => event.preventDefault()}
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <div
         ref={barRef}
         className="audio-scrubber"
@@ -154,10 +164,12 @@ export function AudioScrubber({
         onPointerMove={handleBarPointerMove}
         onPointerUp={releaseBarCapture}
         onPointerCancel={releaseBarCapture}
+        onLostPointerCapture={clearHoldTimer}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
         onKeyDown={(event) => {
+          if (disabled || duration <= 0) return;
           if (event.key === 'Enter') { event.preventDefault(); setMagnifierOpen((open) => !open); }
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
@@ -202,6 +214,7 @@ export function AudioScrubber({
             onPointerMove={handleMagnifierPointerMove}
             onPointerUp={releaseMagnifierCapture}
             onPointerCancel={releaseMagnifierCapture}
+            onLostPointerCapture={() => { fineDrag.current = null; }}
           >
             {magnifierPeaks.map((peak, index) => (
               <span

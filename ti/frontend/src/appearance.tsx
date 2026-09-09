@@ -4,6 +4,7 @@ import { OBSERVATION_FONTS, type ObservationFontFamily } from './presentation';
 export interface AppearanceSettings {
   gradient: [string, string, string];
   foreground: string;
+  surface: string | null;
   fontScale: number;
   fonts: ObservationFontFamily[];
 }
@@ -11,6 +12,7 @@ export interface AppearanceSettings {
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   gradient: ['#9a9a9a', '#707070', '#515151'],
   foreground: '#171717',
+  surface: null,
   fontScale: 50,
   fonts: [...OBSERVATION_FONTS],
 };
@@ -24,10 +26,19 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
     foreground: isColor(candidate.foreground) ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
+    surface: isColor(candidate.surface) ? candidate.surface : null,
     fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     fonts: fonts.length ? fonts : [...OBSERVATION_FONTS],
   };
+}
+
+export function appearanceSurface(appearance: AppearanceSettings): string {
+  if (appearance.surface) return appearance.surface;
+  const brightness = parseInt(appearance.foreground.slice(1, 3), 16) * 0.2126
+    + parseInt(appearance.foreground.slice(3, 5), 16) * 0.7152
+    + parseInt(appearance.foreground.slice(5, 7), 16) * 0.0722;
+  return brightness > 140 ? '#191b1d' : '#f8f9fa';
 }
 
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
@@ -61,7 +72,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     });
   };
   const style = {
-    '--canvas': parseInt(appearance.foreground.slice(1, 3), 16) * 0.2126 + parseInt(appearance.foreground.slice(3, 5), 16) * 0.7152 + parseInt(appearance.foreground.slice(5, 7), 16) * 0.0722 > 140 ? '#171a19' : '#fafbf9',
+    '--surface': appearanceSurface(appearance),
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],
     '--gradient-end': appearance.gradient[2],

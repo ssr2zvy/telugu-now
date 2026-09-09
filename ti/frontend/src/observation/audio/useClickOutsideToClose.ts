@@ -36,6 +36,15 @@ export function useClickOutsideToClose(
           click.stopImmediatePropagation();
         };
         document.addEventListener('click', consumeClick, { capture: true, once: true });
+        const doubleClickGuard = new AbortController();
+        document.addEventListener('dblclick', (click) => {
+          consumeClick(click);
+          doubleClickGuard.abort();
+        }, { capture: true, signal: doubleClickGuard.signal });
+        document.addEventListener('click', (click) => {
+          if (click.detail < 2) doubleClickGuard.abort();
+        }, { capture: true, signal: doubleClickGuard.signal });
+        window.setTimeout(() => doubleClickGuard.abort(), 1500);
         window.setTimeout(() => document.removeEventListener('click', consumeClick, true), 0);
       };
       document.addEventListener('pointerup', finish, { capture: true, signal: pending.signal });

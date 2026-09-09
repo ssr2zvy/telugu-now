@@ -4,11 +4,7 @@ import { Hono } from 'hono';
 import fs from 'node:fs/promises';
 import { config } from './config/config';
 import './db/database';
-import {
-  audioMimeTypeForFilePath,
-  InvalidAudioObjectKeyError,
-  resolveAudioFilePath,
-} from './services/audio-service';
+import { serveAudio } from './services/audio-service';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
@@ -45,40 +41,7 @@ app.get('/api/data-sources', (c) =>
   c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
 );
 
-const AUDIO_MIME_TYPES_BY_EXTENSION: Record<string, string> = {
-  '.wav': 'audio/wav',
-  '.flac': 'audio/flac',
-};
-
-// Streams a prepared observation's audio object from local corpus storage.
-// Object keys are always server-generated (never user input), but this still
-// rejects traversal segments defensively before resolving the file path.
-app.get('/api/audio/*', async (c) => {
-  const objectKey = c.req.path.slice('/api/audio/'.length);
-
-  let filePath: string;
-  try {
-    filePath = resolveAudioFilePath(objectKey);
-  } catch (error) {
-    if (error instanceof InvalidAudioObjectKeyError) {
-      return c.json({ error: 'invalid-object-key' }, 400);
-    }
-    throw error;
-  }
-
-  let fileBuffer: Buffer;
-  try {
-    fileBuffer = await fs.readFile(filePath);
-  } catch {
-    return c.json({ error: 'audio-not-found' }, 404);
-  }
-
-  return c.body(Uint8Array.from(fileBuffer), 200, {
-    'content-type': audioMimeTypeForFilePath(filePath),
-    'content-length': String(fileBuffer.length),
-    'cache-control': 'public, max-age=31536000, immutable',
-  });
-});
+app.get('/api/audio/*', serveAudio());
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

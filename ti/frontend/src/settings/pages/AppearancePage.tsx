@@ -1,6 +1,7 @@
-import { randomAppearanceColors, useAppearance } from '../../appearance';
-import { Shuffle } from 'lucide-react';
+import { appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
+import { RotateCcw, Shuffle } from 'lucide-react';
 import { OBSERVATION_FONTS } from '../../presentation';
+import type { CSSProperties } from 'react';
 import type { UiLanguage } from '../types';
 
 export function AppearancePage({ language }: { language: UiLanguage }) {
@@ -9,7 +10,13 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
   return (
     <div className="appearance-page">
       <section className="appearance-section">
-        <h2>{text('Colors', 'రంగులు')}</h2>
+        <div className="appearance-section-heading">
+          <h2>{text('Background', 'నేపథ్యం')}</h2>
+          <div className="appearance-color-actions">
+            <button type="button" className="appearance-icon-action" title={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} aria-label={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} onClick={() => updateAppearance({ ...randomAppearanceColors(), surface: null })}><Shuffle aria-hidden="true" /></button>
+            <button type="button" className="appearance-icon-action" title={text('Reset colors', 'రంగులను పునరుద్ధరించు')} aria-label={text('Reset colors', 'రంగులను పునరుద్ధరించు')} onClick={() => updateAppearance({ gradient: DEFAULT_APPEARANCE.gradient, foreground: DEFAULT_APPEARANCE.foreground, surface: null })}><RotateCcw aria-hidden="true" /></button>
+          </div>
+        </div>
         <div className="appearance-colors">
           {appearance.gradient.map((color, index) => (
             <label key={index}>
@@ -19,19 +26,31 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
                 updateAppearance({ gradient });
               }} />
               <span>{text(`Gradient ${index + 1}`, `గ్రేడియంట్ ${index + 1}`)}</span>
+              <output>{color.toUpperCase()}</output>
             </label>
           ))}
-          <label>
-            <input type="color" aria-label={text('Text color', 'అక్షరాల రంగు')} value={appearance.foreground} onChange={(event) => updateAppearance({ foreground: event.target.value })} />
-            <span>{text('Text', 'అక్షరాలు')}</span>
+        </div>
+        <div className="appearance-color-roles">
+          <label className="appearance-color-role">
+            <span>{text('Text & icons', 'అక్షరాలు & చిహ్నాలు')}</span>
+            <output>{appearance.foreground.toUpperCase()}</output>
+            <input type="color" aria-label={text('Text & icons color', 'అక్షరాలు & చిహ్నాల రంగు')} value={appearance.foreground} onChange={(event) => updateAppearance({ foreground: event.target.value })} />
+          </label>
+          <label className="appearance-color-role">
+            <span>{text('Settings & popovers', 'అమరికలు & పాప్‌ఓవర్లు')}</span>
+            <output>{appearanceSurface(appearance).toUpperCase()}</output>
+            <input type="color" aria-label={text('Settings & popovers color', 'అమరికలు & పాప్‌ఓవర్ల రంగు')} value={appearanceSurface(appearance)} onChange={(event) => updateAppearance({ surface: event.target.value })} />
+          </label>
+          <label className="appearance-surface-auto">
+            <span>{text('Automatic surface', 'స్వయంచాలక ఉపరితలం')}</span>
+            <input type="checkbox" role="switch" checked={appearance.surface === null} onChange={(event) => updateAppearance({ surface: event.target.checked ? null : appearanceSurface(appearance) })} />
           </label>
         </div>
-        <button className="secondary-action" onClick={() => updateAppearance(randomAppearanceColors())}><Shuffle aria-hidden="true" />{text('Randomize colors', 'యాదృచ్ఛిక రంగులు')}</button>
       </section>
       <section className="appearance-section">
         <h2>{text('Type size', 'అక్షరాల పరిమాణం')}</h2>
         <label className="appearance-scale">
-          <input type="range" min={0} max={100} step={1} aria-label={text('Font size scale', 'అక్షరాల పరిమాణ స్థాయి')} value={appearance.fontScale} onChange={(event) => updateAppearance({ fontScale: Number(event.target.value) })} />
+          <input type="range" min={0} max={100} step={1} style={{ '--range-progress': `${appearance.fontScale}%` } as CSSProperties} aria-label={text('Font size scale', 'అక్షరాల పరిమాణ స్థాయి')} value={appearance.fontScale} onChange={(event) => updateAppearance({ fontScale: Number(event.target.value) })} />
           <output>{appearance.fontScale}</output>
         </label>
       </section>

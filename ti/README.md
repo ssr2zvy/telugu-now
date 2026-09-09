@@ -60,6 +60,7 @@ npx playwright install --with-deps chromium
 npx playwright test tests/ui.browser.spec.ts --workers=1
 ```
 The browser checks mock API responses and generate audio in memory, leaving real profiles and queues untouched. They cover desktop, phone, and landscape layouts, settings navigation, appearance persistence, export progress, playback speed, precision seeking, and popover dismissal. Screenshots are written to the ignored `test-results/` directory. Set `UI_TEST_URL` to test a different development-server URL.
+To include the real-FLAC HTTP seeking checks, set `UI_TEST_FLAC_URL` to a prepared FLAC object's `/api/audio/...flac?v=2` URL when running Playwright. These checks leave profile requests mocked but let the FLAC request reach the real server, verifying byte-range responses, forward/backward seeking, precision dragging, and resumed playback. Only these corpus-dependent checks are skipped when that variable is absent.
 ## Selectable sources
 Iteration 3 has six selectable sources with independently persisted weights:
 1. `source1`: 12 development-fixture rows
@@ -111,8 +112,8 @@ The live profile maintains ten selected unseen observations. Initial load fills 
 Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
 Saved source/complexity settings affect only acquisitions selected after the save. Existing history, existing unseen selections, and already-pending preparation work are not resampled.
 ## Observation controls
-Back, Next, and the bottom-right Settings icon are hidden by default. A single tap on the ordinary observation surface reveals all three; another background tap hides them. Successful Back/Next navigation hides them again.
-Whenever controls are revealed, both Back and Next remain in fixed positions. An unavailable direction is greyed and disabled rather than removed.
+Back and Next use invisible edge regions: double-click or double-tap the left edge to go back and the right edge to go next. Single edge clicks do not navigate. The regions remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
+A single tap on the central observation surface reveals the bottom-right Settings icon; another central tap or successful navigation hides it. Settings uses the same corner placement as the Settings-language control.
 The Settings and Settings-language controls are monochrome application-rendered SVGs using `currentColor` rather than platform emoji glyphs.
 When a valid profile has no current observation yet, the observation area displays:
 ```text
@@ -156,8 +157,17 @@ Settings replaces the observation view while open; it is not a modal. The root c
 4. Export
 5. Reset queue: a separate page containing the explanation and reset action
 Each child page has Back to return to its parent group. `×` exits the entire Settings hierarchy and returns to the same observation.
-Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Back/Next changes transform the gradient layers at different rates, respecting reduced-motion preferences.
+Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers drift continuously at different rates, with small eased changes on navigation and no skewed layer edges. Reduced-motion mode keeps the gradient static.
+Settings uses compact rows, inline numeric values with understated unit suffixes, and checkmark Save actions. Numeric fields use one underline focus indicator instead of an outer focus ring; keyboard focus remains visible.
+Appearance exposes three explicit color roles:
+- Background: the three colors used by the moving reader gradient.
+- Text & icons: the exact foreground shared by reader text, settings text, icons, audio tracks, and waveform marks. Borders and muted states derive from this color.
+- Settings & popovers: the shared surface behind Settings, export dialogs, and the precision magnifier. Automatic surface selects a light neutral for dark text or a dark neutral for light text; selecting a swatch makes it custom. Changing gradient colors no longer changes these surfaces.
+Color swatches show their hex values. Randomize chooses a coordinated palette and restores Automatic surface. Reset colors restores the default colors without changing font size or font exclusions. Custom text/surface pairs should be chosen with sufficient contrast.
+The settings refinement references [Radix's functional color scale](https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale) and [Linear's UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui): distinct surface/foreground roles, restrained interaction states, and consistent alignment.
 Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance colors, and the precision scrubber moves one millisecond per pointer pixel. Popovers stay within the viewport and consume their outside-dismissal click without also navigating.
+Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
+Scrubbers prevent native text dragging, selection, and touch callouts while retaining keyboard focus. Pointer capture keeps fine seeking active outside the track and resets after cancellation so the next drag can begin normally.
 Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
 A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is presentation-only.
 The Data sources page exposes the current source catalog and attribution information. For FLEURS, Shrutilipi, and IndicVoices it shows the provider, CC BY 4.0 license, upstream Hugging Face repository, catalog version, accepted and rejected row counts, complexity metric, and deployed source status. The dummy sources are explicitly identified as development fixtures.

@@ -40,9 +40,8 @@ button {
   --muted: color-mix(in srgb, var(--foreground) 64%, transparent);
   --line: color-mix(in srgb, var(--foreground) 10%, transparent);
   --wash: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --surface: color-mix(in srgb, var(--gradient-start) 4%, var(--canvas));
-  --input-surface: color-mix(in srgb, var(--foreground) 3%, var(--surface));
-  --control-color: color-mix(in srgb, var(--foreground) 94%, var(--gradient-start));
+  --canvas: var(--surface);
+  --control-color: var(--foreground);
   position: relative; isolation: isolate; width: 100%; height: 100%; color: var(--foreground); letter-spacing: 0;
 }
 .gradient-field { position: absolute; inset: 0; overflow: hidden; z-index: -1; background: var(--gradient-middle); }
