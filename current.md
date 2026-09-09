@@ -1,3 +1,71 @@
+# Current Handoff: Prepare the Raw Dataset Folder
+
+Prepare `data-transform/raw/` to match the existing importers. Do not change
+the importers to accommodate incorrectly formatted downloads.
+
+## Required Layout
+
+Directory names are case-sensitive. These are the default inputs, not a limit
+on the dataset size. Preserve additional downloaded splits and shards under
+the corresponding dataset directory using their original filenames.
+
+```text
+data-transform/raw/
+  FLEURS/
+    dev.tsv
+    dev.tar.gz
+  IndicVoices/
+    train-00000-of-00061.parquet
+  Shrutilipi/
+    train-00000-of-00012.parquet
+```
+
+## FLEURS
+
+- Use Telugu data from `google/fleurs`.
+- Supply a UTF-8, headerless TSV with exactly seven columns in this order:
+  `sentence_id`, `audio_filename`, `raw_transcription`,
+  `normalized_transcription`, `characterized_transcription`, `num_samples`,
+  `gender`.
+- `dev.tar.gz` must contain `dev/<audio_filename>` for every TSV row.
+- Preserve the original 16 kHz WAV audio.
+- Additional splits use matching `train.tsv` and `train.tar.gz`, or `test.tsv`
+  and `test.tar.gz`, with `train/` or `test/` archive members respectively.
+
+## IndicVoices
+
+- Use Telugu Parquet data from `ai4bharat/IndicVoices`.
+- Required columns: `audio_filepath`, `text`, `duration`, `lang`, `verbatim`,
+  `normalized`.
+- `audio_filepath` must be a struct containing a nonempty `path` and embedded
+  binary FLAC `bytes`, not a plain filename or decoded sample array.
+
+## Shrutilipi
+
+- Use Telugu Parquet data from `ai4bharat/Shrutilipi`.
+- Required columns: `audio_filepath`, `text`, `duration`, `lang`.
+- Use the same `audio_filepath` struct and embedded FLAC representation as
+  IndicVoices.
+
+## Preservation and Validation
+
+- For both Parquet datasets, preserve original metadata, transcripts, paths,
+  and split identities. Duration is in seconds.
+- Do not substitute CSV, JSON, Arrow caches, or renamed non-Parquet files.
+- If converting existing downloads, embed the matching original audio bytes.
+  Do not fabricate missing metadata; report anything that cannot be recovered.
+- Validate read-only: inspect Parquet schemas, embedded audio signatures,
+  row counts, and TSV-to-archive matches. Report the resulting folder tree
+  and any missing files.
+- Do not run extraction or preparation for validation: the current scripts
+  consume or delete their inputs.
+- Do not overwrite or delete existing raw, sample, or corpus data without
+  approval.
+
+---
+
+## Previous Handoff Notes (Retained)
+
 ## `ti/tests/selection-oracle.test.ts`
 ### REPLACE
 **Location:** Replace the entire test beginning with:
