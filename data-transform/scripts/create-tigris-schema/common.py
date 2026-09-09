@@ -135,7 +135,10 @@ def detect_audio(audio: bytes) -> tuple[str, str]:
 
 
 class CorpusWriter:
-    def __init__(self, output: Path, replace: bool = False) -> None:
+    def __init__(self, output: Path, replace: bool = False, batch_rows: int = 20) -> None:
+        if batch_rows < 1:
+            raise ValueError("batch_rows must be greater than 0")
+        self.batch_rows = batch_rows
         self.output = Path(output).resolve()
         self.replace = replace
         self.output.parent.mkdir(parents=True, exist_ok=True)
@@ -218,8 +221,16 @@ class CorpusWriter:
         self.db.commit()
         self.source_manifests: list[dict[str, Any]] = []
         self.finalized = False
+        self.cleanup_handle: Any = None
+
+    def consume_after_publish(self, path: Path) -> None:
+        if self.cleanup_handle is None:
+            self.cleanup_handle = (self.temporary / "pending-input-cleanup.jsonl").open("a", encoding="utf-8")
+        self.cleanup_handle.write(json.dumps(str(path.resolve())) + "\n")
 
     def _cleanup_temporary(self) -> None:
+        if self.cleanup_handle is not None:
+            self.cleanup_handle.close()
         try:
             self.db.close()
         except Exception:
@@ -315,7 +326,7 @@ class CorpusWriter:
                 "w",
                 encoding="utf-8",
             ) as rejection_handle:
-                for row in rows:
+                for processed_rows, row in enumerate(rows, start=1):
                     if row.source_id != source_id:
                         raise CorpusStructuralError(
                             "SOURCE_ID_MISMATCH:"
@@ -486,6 +497,11 @@ class CorpusWriter:
                             error,
                         )
 
+                    if processed_rows % self.batch_rows == 0:
+                        rejection_handle.flush()
+                        self.db.commit()
+                        print(f"{source_id}: processed {processed_rows} rows ({accepted_rows} accepted, {rejected_rows} rejected)", flush=True)
+
             if accepted_rows <= 0:
                 raise CorpusStructuralError(
                     "SOURCE_HAS_NO_ACCEPTED_ROWS:"
@@ -508,7 +524,7 @@ class CorpusWriter:
             )
             self.db.commit()
 
-        except Exception:
+        except BaseException:
             self.db.rollback()
             self._cleanup_temporary()
             raise
@@ -587,6 +603,8 @@ class CorpusWriter:
             self._verify()
             self.db.commit()
             self.db.close()
+            if self.cleanup_handle is not None:
+                self.cleanup_handle.close()
 
             manifest = {
                 "corpusFormatVersion": CORPUS_FORMAT_VERSION,
@@ -660,3 +678,10 @@ class CorpusWriter:
                     ignore_errors=True,
                 )
             raise
+
+        cleanup_path = self.output / "pending-input-cleanup.jsonl"
+        if cleanup_path.exists():
+            with cleanup_path.open(encoding="utf-8") as handle:
+                for line in handle:
+                    Path(json.loads(line)).unlink(missing_ok=True)
+            cleanup_path.unlink()

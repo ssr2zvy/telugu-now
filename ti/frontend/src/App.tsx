@@ -32,6 +32,7 @@ function AppContent() {
     return (
       <ProfileEntry
         invalidCode={session.invalidCode}
+        loadUnavailable={session.loadUnavailable}
         onSubmit={session.submitCode}
         onInputChange={session.clearInvalidCode}
       />

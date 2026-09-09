@@ -48,6 +48,10 @@ export function AudioPlayerBar({
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
         onSeek={player.seek}
+        onMagnifierOpen={() => {
+          player.audioRef.current?.pause();
+          setSpeedPopoverOpen(false);
+        }}
       />
       <button
         className="audio-transport-button"
@@ -60,7 +64,7 @@ export function AudioPlayerBar({
         <SpeedIcon />
       </button>
       <button
-        className="audio-transport-button"
+        className="audio-transport-button audio-bookmark-button"
         type="button"
         aria-label="బుక్‌మార్క్‌లు"
         title="Bookmarks: click to return, double-click to add, triple-click to remove"

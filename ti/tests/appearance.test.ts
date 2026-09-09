@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
+import { appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
 import { chooseRandomObservationFont, preferredObservationFontSizePx, OBSERVATION_FONTS } from '../frontend/src/presentation';
 import { parentSettingsPage, settingsGroups } from '../frontend/src/settings/navigation';
 
@@ -12,9 +12,6 @@ test('appearance validates persisted data and keeps a nonempty font pool', () =>
   assert.equal(parseAppearance({ foreground: 'url(bad)' }).foreground, '#171717');
   assert.equal(parseAppearance({ gradient: ['#ffffff'] }).gradient.length, 3);
   assert.equal(randomAppearanceColors(() => 0).gradient.length, 3);
-});
-
-test('the default gradient is lighter neutral grey and preserves custom palettes', () => {
   const previousLevels = [0x9a, 0x70, 0x51];
   DEFAULT_APPEARANCE.gradient.forEach((color, index) => {
     const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)];
@@ -35,7 +32,7 @@ test('font selection respects exclusions and size scale preserves the content re
   assert.ok(preferredObservationFontSizePx(short, 600, 600, 80) > preferredObservationFontSizePx(short.repeat(20), 600, 600, 80));
 });
 
-test('surface colors migrate to automatic and custom colors remain independent of the gradient', () => {
+test('surface colors remain independent while corner colors adapt to palette and contrast', () => {
   assert.equal(parseAppearance({}).surface, null);
   assert.equal(parseAppearance({ surface: 'url(bad)' }).surface, null);
   assert.equal(appearanceSurface(parseAppearance({ foreground: '#171717' })), '#f8f9fa');
@@ -43,6 +40,34 @@ test('surface colors migrate to automatic and custom colors remain independent o
   const custom = parseAppearance({ surface: '#e8eeee', gradient: ['#ff0000', '#00ff00', '#0000ff'] });
   assert.equal(appearanceSurface(custom), '#e8eeee');
   assert.equal(appearanceSurface(parseAppearance({ ...custom, ...randomAppearanceColors(() => 0), surface: null })), '#f8f9fa');
+  const relativeLuminance = (color: string) => [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
+    .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const contrast = (first: string, second: string) => {
+    const levels = [relativeLuminance(first), relativeLuminance(second)];
+    return (Math.max(...levels) + 0.05) / (Math.min(...levels) + 0.05);
+  };
+  for (const appearance of [
+    DEFAULT_APPEARANCE,
+    ...Array.from({ length: 5 }, (_, index) => parseAppearance(randomAppearanceColors(() => index / 5))),
+    parseAppearance({ gradient: ['#ffffff', '#ffffff', '#ffffff'], foreground: '#ffffff' }),
+    parseAppearance({ gradient: ['#000000', '#000000', '#000000'], foreground: '#000000' }),
+  ]) {
+    const corner = appearanceCornerColor(appearance);
+    assert.match(corner, /^#[0-9a-f]{6}$/);
+    assert.equal(appearanceCornerColor(appearance), corner);
+    assert.ok(contrast(corner, appearance.foreground) >= 1.2, `${corner} must differ visibly from audio`);
+    for (const background of appearance.gradient) {
+      assert.ok(contrast(corner, background) >= 3, `${corner} must contrast with ${background}`);
+    }
+  }
+  const neutral = appearanceCornerColor(DEFAULT_APPEARANCE);
+  assert.equal(neutral.slice(1, 3), neutral.slice(3, 5));
+  assert.equal(neutral.slice(3, 5), neutral.slice(5, 7));
+  assert.notEqual(appearanceCornerColor(parseAppearance(randomAppearanceColors(() => 0.6))), neutral);
+  assert.equal(appearanceCornerColor({ ...DEFAULT_APPEARANCE, ...parseAppearance({ surface: '#ff0000' }) }), neutral);
+  const extreme = parseAppearance({ gradient: ['#000000', '#ffffff', '#777777'] });
+  assert.match(appearanceCornerColor(extreme), /^#[0-9a-f]{6}$/);
 });
 
 test('settings leaf pages return to their group and reset remains last', () => {

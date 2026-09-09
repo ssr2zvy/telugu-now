@@ -41,6 +41,48 @@ export function appearanceSurface(appearance: AppearanceSettings): string {
   return brightness > 140 ? '#191b1d' : '#f8f9fa';
 }
 
+function colorChannels(color: string): number[] {
+  return [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16));
+}
+
+function luminance(channels: number[]): number {
+  return channels.reduce((total, channel, index) => {
+    const normalized = channel / 255;
+    const linear = normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+    return total + linear * [0.2126, 0.7152, 0.0722][index]!;
+  }, 0);
+}
+
+function contrastRatio(first: number, second: number): number {
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground'>): string {
+  const backgrounds = appearance.gradient.map(colorChannels);
+  const palette = [0, 1, 2].map(channel => backgrounds.reduce((total, color) => total + color[channel]!, 0) / backgrounds.length);
+  const backgroundLuminances = backgrounds.flatMap((start, index) => backgrounds.slice(index).flatMap(end =>
+    Array.from({ length: 11 }, (_, step) => luminance(start.map((channel, channelIndex) => channel + (end[channelIndex]! - channel) * step / 10))),
+  ));
+  const foreground = colorChannels(appearance.foreground);
+  const foregroundLuminance = luminance(foreground);
+  let bestColor = appearance.foreground;
+  let bestContrast = 0;
+  for (const target of [foreground, [0, 0, 0], [255, 255, 255]]) {
+    for (let step = 0; step <= 100; step += 1) {
+      const channels = palette.map((channel, index) => Math.round(channel + (target[index]! - channel) * step / 100));
+      const candidateLuminance = luminance(channels);
+      const contrast = Math.min(...backgroundLuminances.map(background => contrastRatio(candidateLuminance, background)));
+      const color = `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+      if (contrast > bestContrast) {
+        bestColor = color;
+        bestContrast = contrast;
+      }
+      if (contrast >= 3 && contrastRatio(candidateLuminance, foregroundLuminance) >= 1.2) return color;
+    }
+  }
+  return bestColor;
+}
+
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
   const palettes: Array<Pick<AppearanceSettings, 'gradient' | 'foreground'>> = [
     { gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c' },
@@ -73,10 +115,12 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   };
   const style = {
     '--surface': appearanceSurface(appearance),
+    '--audio-surface': appearance.surface ?? 'color-mix(in srgb, var(--surface) 35%, var(--gradient-middle))',
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],
     '--gradient-end': appearance.gradient[2],
     '--foreground': appearance.foreground,
+    '--corner-control-color': appearanceCornerColor(appearance),
   } as CSSProperties;
   return (
     <AppearanceContext.Provider value={{ appearance, updateAppearance }}>

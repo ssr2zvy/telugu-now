@@ -1,5 +1,6 @@
 import type { ExportResponse } from '../../shared/contracts';
 import type { PreparedExportArtifact } from './export-artifact';
+import { prepareExportAudio, type ExportAudioAsset } from './export-audio';
 import {
   OBSERVATION_FONT_ASSETS,
   loadObservationFontBundle,
@@ -15,6 +16,7 @@ import { createStoredZip, type StoredZipEntry } from './zip';
 export interface EpubBuildOptions {
   identifier?: string;
   modified?: string;
+  audioAssets?: ExportAudioAsset[];
 }
 function xmlEscape(value: string): string {
   return value
@@ -92,6 +94,7 @@ function buildPackageOpf(
   identifier: string,
   modified: string,
   fontBundle: ObservationFontBundle,
+  audioAssets: ExportAudioAsset[],
 ): string {
   const fontItems =
     fontBundle.fonts
@@ -124,6 +127,7 @@ function buildPackageOpf(
     <item id="export-data" href="data.json" media-type="application/json"/>
 ${fontItems}
 ${licenseItems}
+${audioAssets.map((asset, index) => `    <item id="audio-${index + 1}" href="${xmlEscape(asset.path)}" media-type="${xmlEscape(asset.mimeType)}"/>`).join('\n')}
   </manifest>
   <spine>
     <itemref idref="viewer"/>
@@ -180,6 +184,7 @@ export function buildEpubBytes(
       identifier,
       modified,
       fontBundle,
+      options.audioAssets ?? [],
     );
   const entries:
     StoredZipEntry[] = [
@@ -242,17 +247,23 @@ export function buildEpubBytes(
       },
     );
   }
+  for (const asset of options.audioAssets ?? []) {
+    entries.push({ name: `EPUB/${asset.path}`, data: asset.bytes });
+  }
   return createStoredZip(entries);
 }
 export async function prepareEpubExport(
   result: ExportResponse,
 ): Promise<PreparedExportArtifact> {
-  const fontBundle =
-    await loadObservationFontBundle();
+  const [fontBundle, audio] = await Promise.all([
+    loadObservationFontBundle(),
+    prepareExportAudio(result, 'epub'),
+  ]);
   const bytes =
     buildEpubBytes(
-      result,
+      audio.result,
       fontBundle,
+      { audioAssets: audio.assets },
     );
   return {
     format: 'epub',

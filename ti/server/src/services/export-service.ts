@@ -1,6 +1,6 @@
 import { config } from '../config/config';
 import type { ExportResponse } from '../../../shared/contracts';
-import { ensureProfileRow } from './profile-service';
+import { ensureProfileRow, parseObservationAudio } from './profile-service';
 import { getProfileSelectionSettings } from './selection-settings-service';
 import { selectionEngine } from './selection-engine';
 import { sourceRecordService } from './source-record-service';
@@ -28,6 +28,7 @@ export async function generateExport(profileCode: string, count: number): Promis
       sourceId: selected.sourceId,
       sourceKey: selected.sourceKey,
       text: resolved.text,
+      audio: parseObservationAudio(JSON.stringify(resolved.media)),
       diagnostic: {
         selection: selected.snapshot,
         cacheHit: resolved.cacheHit,

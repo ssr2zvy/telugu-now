@@ -5,6 +5,7 @@ import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
 import {
+  InvalidProfileCodeError,
   getProfileState,
   loadProfile,
   navigate,
@@ -14,6 +15,7 @@ export interface ProfileSession {
   profileCode: string | null;
   state: ProfileStateResponse | null;
   invalidCode: boolean;
+  loadUnavailable: boolean;
   busy: boolean;
   navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
   submitCode: (code: string) => Promise<boolean>;
@@ -28,6 +30,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const [profileCode, setProfileCode] = useState<string | null>(null);
   const [state, setState] = useState<ProfileStateResponse | null>(null);
   const [invalidCode, setInvalidCode] = useState(false);
+  const [loadUnavailable, setLoadUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [navigationEvent, setNavigationEvent] = useState<ProfileSession['navigationEvent']>(null);
   const navigationSequenceRef = useRef(0);
@@ -126,6 +129,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     }
     setBusy(true);
     setInvalidCode(false);
+    setLoadUnavailable(false);
     try {
       const loaded = await loadProfile({
         code,
@@ -136,8 +140,9 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
       setProfileCode(code);
       setState(loaded);
       return true;
-    } catch {
-      setInvalidCode(true);
+    } catch (error) {
+      setInvalidCode(error instanceof InvalidProfileCodeError);
+      setLoadUnavailable(!(error instanceof InvalidProfileCodeError));
       return false;
     } finally {
       setBusy(false);
@@ -219,11 +224,14 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     profileCode,
     state,
     invalidCode,
+    loadUnavailable,
     busy,
     navigationEvent,
     submitCode,
-    clearInvalidCode: () =>
-      setInvalidCode(false),
+    clearInvalidCode: () => {
+      setInvalidCode(false);
+      setLoadUnavailable(false);
+    },
     move,
     setObservationVisible,
     applySelectionSettings,

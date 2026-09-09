@@ -332,9 +332,12 @@ test(
     );
     assert.ok(
       styles.includes(
-        '.export-format-backdrop',
+        '.export-format-modal::backdrop',
       ),
     );
+    assert.ok(exportPage.includes('dialog.showModal()'));
+    assert.ok(exportPage.includes('role="progressbar"'));
+    assert.equal(controller.includes('let result = generatedExport'), false);
     assert.ok(
       styles.includes(
         '.export-format-modal',

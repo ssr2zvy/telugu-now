@@ -166,6 +166,7 @@ export function SettingsView({
         language={language}
         count={exportCount}
         exporting={exporting}
+        phase={controller.exportPhase}
         error={exportError}
         formatChooserOpen={formatChooserOpen}
         preparedArtifact={preparedArtifact}
