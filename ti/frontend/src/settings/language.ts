@@ -1,5 +1,4 @@
 import type { UiLanguage } from './types';
-const SETTINGS_LANGUAGE_KEY = 'telugu-now-settings-language';
 export const COPY = {
   en: {
     settings: 'Settings',
@@ -89,11 +88,4 @@ export function t(
   key: keyof typeof COPY.en,
 ): string {
   return COPY[language][key];
-}
-export function loadSettingsLanguage(): UiLanguage {
-  const stored = window.localStorage.getItem(SETTINGS_LANGUAGE_KEY);
-  return stored === 'en' || stored === 'te' ? stored : 'te';
-}
-export function saveSettingsLanguage(language: UiLanguage): void {
-  window.localStorage.setItem(SETTINGS_LANGUAGE_KEY, language);
 }

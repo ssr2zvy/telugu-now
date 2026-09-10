@@ -6,6 +6,7 @@ export interface ImageSettings {
   prompt: string;
   model: string;
   keyConfigured: boolean;
+  allowRegeneration: boolean;
 }
 
 export function validImagePrompt(prompt: unknown): prompt is string {

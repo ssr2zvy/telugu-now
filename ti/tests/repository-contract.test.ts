@@ -585,6 +585,8 @@ test(
       read(
         'frontend/src/presentation.ts',
       );
+    const appearance = read('shared/appearance.ts');
+    assert.ok(presentation.includes("from '../../shared/appearance'"));
     const fontAssets =
       read(
         'frontend/src/font-assets.ts',
@@ -717,7 +719,7 @@ test(
       ]
     ) {
       assert.ok(
-        presentation.includes(
+        appearance.includes(
           `'${family}'`,
         ),
       );

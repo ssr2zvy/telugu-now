@@ -1,16 +1,5 @@
-export const OBSERVATION_FONTS = [
-  'Noto Sans Telugu',
-  'Noto Serif Telugu',
-  'Mandali',
-  'Ramabhadra',
-  'NTR',
-  'Peddana',
-  'Ramaraja',
-  'Sree Krushnadevaraya',
-  'Suranna',
-  'Tenali Ramakrishna',
-] as const;
-export type ObservationFontFamily = (typeof OBSERVATION_FONTS)[number];
+import { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
+export { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
 export const OBSERVATION_PRESENTATION = {
   fonts: OBSERVATION_FONTS,
   fontWeight: 400,

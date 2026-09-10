@@ -19,6 +19,7 @@ import {
   nearestPriorBookmark,
 } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
+import { useAppearance } from '../../appearance';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
@@ -29,6 +30,9 @@ export interface AudioPlayerState {
   playbackRate: number;
   waveformPeaks: number[];
   bookmarks: number[];
+  bookmarksBusy: boolean;
+  bookmarkError: string | null;
+  retryBookmarks: () => void;
   togglePlay: () => void;
   pause: () => void;
   seek: (time: number) => void;
@@ -90,6 +94,7 @@ export function useAudioPlayer(
   sourceKey: string | null,
   defaultPlaybackRate: number,
 ): AudioPlayerState {
+  const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const normalizationGainRef = useRef(1);
@@ -105,6 +110,36 @@ export function useAudioPlayer(
   const [playbackRate, setPlaybackRateState] = useState(defaultPlaybackRate);
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
   const [bookmarks, setBookmarks] = useState<number[]>([]);
+  const [bookmarksLoading, setBookmarksLoading] = useState(true);
+  const [bookmarksSaving, setBookmarksSaving] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null);
+  const [bookmarkLoadAttempt, setBookmarkLoadAttempt] = useState(0);
+  const bookmarkVersion = useRef(0);
+  const pendingBookmarks = useRef<number[] | null>(null);
+  const bookmarkWriteInFlight = useRef(false);
+
+  useEffect(() => {
+    const version = ++bookmarkVersion.current;
+    setBookmarks([]);
+    setBookmarkError(null);
+    setBookmarksLoading(true);
+    setBookmarksSaving(false);
+    bookmarkWriteInFlight.current = false;
+    pendingBookmarks.current = null;
+    bookmarkClickCountRef.current = 0;
+    if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+    if (profileCode && sourceId && sourceKey) {
+      void loadBookmarks(profileCode, sourceId, sourceKey).then(saved => {
+        if (bookmarkVersion.current === version) setBookmarks(saved);
+      }).catch(() => {
+        if (bookmarkVersion.current === version) setBookmarkError('Could not load bookmarks.');
+      }).finally(() => { if (bookmarkVersion.current === version) setBookmarksLoading(false); });
+    }
+    return () => {
+      bookmarkVersion.current += 1;
+      if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+    };
+  }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);
 
   // Connect the one persistent <audio> element to a gain node exactly once;
   // MediaElementAudioSourceNode can only ever be created a single time per element.
@@ -139,7 +174,6 @@ export function useAudioPlayer(
     setPlaybackRateState(defaultPlaybackRate);
     normalizationGainRef.current = 1;
     if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
-    setBookmarks(sourceId && sourceKey ? loadBookmarks(sourceId, sourceKey) : []);
 
     if (!audio) return;
     let cancelled = false;
@@ -286,15 +320,28 @@ export function useAudioPlayer(
     );
   };
 
-  const persistBookmarks = (next: number[]) => {
-    setBookmarks(next);
-    if (sourceId && sourceKey) saveBookmarks(sourceId, sourceKey, next);
+  const persistBookmarks = async (next: number[]) => {
+    if (!profileCode || !sourceId || !sourceKey || bookmarkWriteInFlight.current) return;
+    const version = bookmarkVersion.current;
+    pendingBookmarks.current = next;
+    bookmarkWriteInFlight.current = true;
+    setBookmarksSaving(true);
+    setBookmarkError(null);
+    try {
+      const saved = await saveBookmarks(profileCode, sourceId, sourceKey, next);
+      if (bookmarkVersion.current === version) { setBookmarks(saved); pendingBookmarks.current = null; }
+    } catch {
+      if (bookmarkVersion.current === version) setBookmarkError('Bookmarks not saved.');
+    } finally {
+      if (bookmarkVersion.current === version) { bookmarkWriteInFlight.current = false; setBookmarksSaving(false); }
+    }
   };
 
   // Resolved once no further click arrives within the window: 1 click seeks to
   // the nearest prior bookmark, 2 creates one at the current position, 3 (or
   // more) deletes the nearest prior bookmark.
   const clickBookmarkButton = () => {
+    if (bookmarksLoading || bookmarkWriteInFlight.current || bookmarkError) return;
     bookmarkClickCountRef.current += 1;
     if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
     bookmarkClickTimerRef.current = window.setTimeout(() => {
@@ -306,9 +353,9 @@ export function useAudioPlayer(
         const target = nearestPriorBookmark(bookmarks, time);
         if (target !== null) seek(target);
       } else if (clicks === 2) {
-        persistBookmarks(insertBookmark(bookmarks, time));
+        void persistBookmarks(insertBookmark(bookmarks, time));
       } else {
-        persistBookmarks(deleteNearestPriorBookmark(bookmarks, time));
+        void persistBookmarks(deleteNearestPriorBookmark(bookmarks, time));
       }
     }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
   };
@@ -322,6 +369,9 @@ export function useAudioPlayer(
     playbackRate,
     waveformPeaks,
     bookmarks,
+    bookmarksBusy: bookmarksLoading || bookmarksSaving,
+    bookmarkError,
+    retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(attempt => attempt + 1),
     togglePlay,
     pause,
     seek,

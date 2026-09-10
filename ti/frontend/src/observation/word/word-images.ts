@@ -1,3 +1,5 @@
+import type { ImageSettings } from '../../../../shared/image-settings';
+
 const pending = new Map<string, Promise<Blob>>();
 
 function imageUrl(root: string): string {
@@ -18,11 +20,17 @@ export async function existingWordImage(root: string): Promise<Blob | null> {
   return response.blob();
 }
 
-export function generateWordImage(root: string): Promise<Blob> {
+export async function wordImageSettings(profileCode: string): Promise<ImageSettings> {
+  const response = await fetch(`/api/word-images/settings?profile=${encodeURIComponent(profileCode)}`);
+  if (!response.ok) throw await imageError(response);
+  return response.json() as Promise<ImageSettings>;
+}
+
+export function generateWordImage(root: string, profileCode: string, regenerate = false): Promise<Blob> {
   const key = root.normalize('NFC').trim();
   const inFlight = pending.get(key);
   if (inFlight) return inFlight;
-  const task = fetch(imageUrl(key), { method: 'POST' }).then(async response => {
+  const task = fetch(`${imageUrl(key)}&profile=${encodeURIComponent(profileCode)}${regenerate ? '&regenerate=1' : ''}`, { method: 'POST' }).then(async response => {
     if (!response.ok) throw await imageError(response);
     return response.blob();
   }).finally(() => { pending.delete(key); });

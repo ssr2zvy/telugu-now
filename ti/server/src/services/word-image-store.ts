@@ -48,7 +48,12 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
         throw new Error('Invalid metadata');
       }
       const mimeType = metadata.mimeType as ImageMimeType;
-      const file = path.join(folder, imageFiles[mimeType]);
+      const fileName = 'file' in metadata ? metadata.file : imageFiles[mimeType];
+      if (typeof fileName !== 'string' || (fileName !== imageFiles[mimeType]
+        && !new RegExp(`^image-[a-f0-9]{64}\\.${imageFiles[mimeType].split('.')[1]}$`).test(fileName))) {
+        throw new Error('Invalid image file');
+      }
+      const file = path.join(folder, fileName);
       if (fs.statSync(file).size > MAX_IMAGE_BYTES) throw new Error('Oversized image');
       const image = fs.readFileSync(file);
       if (imageType(image) !== mimeType) throw new Error('Invalid image');
@@ -57,13 +62,22 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
       throw new Error('Could not read the saved word image.');
     }
   };
-  const save = (root: string, record: WordImageRecord, createdAt = Date.now()): WordImageRecord => {
+  const save = (root: string, record: WordImageRecord, createdAt = Date.now(), replace = false): WordImageRecord => {
     const existing = get(root);
-    if (existing) return existing;
+    if (existing && !replace) return existing;
     if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
     fs.mkdirSync(directory, { recursive: true });
     const temporary = fs.mkdtempSync(path.join(directory, '.pending-'));
     try {
+      if (existing && replace) {
+        const digest = createHash('sha256').update(record.image).digest('hex');
+        const file = `image-${digest}.${imageFiles[record.mimeType].split('.')[1]}`;
+        fs.writeFileSync(path.join(temporary, file), record.image, { flag: 'wx' });
+        fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt, file }, null, 2) + '\n', { flag: 'wx' });
+        fs.renameSync(path.join(temporary, file), path.join(imageDirectory(root), file));
+        fs.renameSync(path.join(temporary, 'metadata.json'), path.join(imageDirectory(root), 'metadata.json'));
+        return record;
+      }
       fs.writeFileSync(path.join(temporary, imageFiles[record.mimeType]), record.image, { flag: 'wx' });
       fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt }, null, 2) + '\n', { flag: 'wx' });
       try {
@@ -78,5 +92,5 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
   };
-  return { get, save };
+  return { get, save, replace: (root: string, record: WordImageRecord) => save(root, record, Date.now(), true) };
 }

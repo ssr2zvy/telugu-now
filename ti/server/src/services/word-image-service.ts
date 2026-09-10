@@ -4,6 +4,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../../../shared/image-settings';
 import { generatePollinationsImage, readPollinationsKey } from './pollinations-service';
 import { imageType, wordImageStore, type WordImageRecord } from './word-image-store';
+import { config } from '../config/config';
+import { profilePreferencesStore } from './profile-preferences-service';
 
 function normalizeRoot(value: string | undefined): string | null {
   const root = value?.normalize('NFC').trim();
@@ -14,6 +16,7 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
   imageDirectory?: string;
   readKey?: () => string;
   generate?: (prompt: string, key: string) => Promise<Buffer>;
+  profileCodes?: ReadonlySet<string>;
 } = {}): Hono {
   const readKey = dependencies.readKey ?? readPollinationsKey;
   const generate = dependencies.generate ?? generatePollinationsImage;
@@ -27,7 +30,10 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     );
   `);
   database.prepare('INSERT OR IGNORE INTO image_settings (id, prompt) VALUES (1, ?)').run(DEFAULT_IMAGE_PROMPT);
-  const getPrompt = () => (database.prepare('SELECT prompt FROM image_settings WHERE id = 1').get() as { prompt: string }).prompt;
+  const preferences = profilePreferencesStore(database);
+  const validProfile = (code: string | undefined): code is string => Boolean(code
+    && (dependencies.profileCodes ?? config.profileCodes).has(code)
+    && database.prepare('SELECT 1 FROM profiles WHERE code = ?').get(code));
   const imageResponse = (record: WordImageRecord) => new Response(new Uint8Array(record.image), {
     headers: {
       'Content-Type': record.mimeType,
@@ -50,15 +56,22 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     await next();
   });
   app.get('/settings', context => {
+    const code = context.req.query('profile');
+    if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
     context.header('Cache-Control', 'no-store');
-    return context.json({ prompt: getPrompt(), model: IMAGE_MODEL, keyConfigured: Boolean(readKey()) });
+    const settings = preferences.get(code);
+    return context.json({ prompt: settings.imagePrompt, allowRegeneration: settings.allowImageRegeneration, model: IMAGE_MODEL, keyConfigured: Boolean(readKey()) });
   });
   app.put('/settings', async context => {
+    const code = context.req.query('profile');
+    if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
     const body: unknown = await context.req.json().catch(() => null);
     const prompt = body && typeof body === 'object' && 'prompt' in body ? body.prompt : null;
     if (!validImagePrompt(prompt)) return context.json({ error: 'Prompt must contain <core word> and be at most 2000 characters.' }, 400);
-    database.prepare('UPDATE image_settings SET prompt = ? WHERE id = 1').run(prompt);
-    return context.json({ prompt, model: IMAGE_MODEL, keyConfigured: Boolean(readKey()) });
+    const allowRegeneration = body && typeof body === 'object' && 'allowRegeneration' in body ? body.allowRegeneration : undefined;
+    if (allowRegeneration !== undefined && typeof allowRegeneration !== 'boolean') return context.json({ error: 'Invalid regeneration setting.' }, 400);
+    const settings = preferences.update(code, { imagePrompt: prompt, ...(allowRegeneration === undefined ? {} : { allowImageRegeneration: allowRegeneration }) });
+    return context.json({ prompt, allowRegeneration: settings.allowImageRegeneration, model: IMAGE_MODEL, keyConfigured: Boolean(readKey()) });
   });
   app.get('/', context => {
     const root = normalizeRoot(context.req.query('root'));
@@ -75,15 +88,22 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
   app.post('/', async context => {
     const root = normalizeRoot(context.req.query('root'));
     if (!root) return context.json({ error: 'invalid-root' }, 400);
+    const regenerate = context.req.query('regenerate') === '1';
     let cached: WordImageRecord | undefined;
     try { cached = images.get(root); }
     catch { return context.json({ error: 'Could not read the saved word image.' }, 500); }
-    if (cached) return imageResponse(cached);
+    if (cached && !regenerate) return imageResponse(cached);
+    const code = context.req.query('profile');
+    if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
+    const settings = preferences.get(code);
+    if (regenerate && !settings.allowImageRegeneration) return context.json({ error: 'Image regeneration is disabled for this profile.' }, 403);
+    if (regenerate && !cached) return context.json({ error: 'image-not-found' }, 404);
     let task = pending.get(root);
     if (!task) {
-      const prompt = renderImagePrompt(getPrompt(), root);
+      const prompt = renderImagePrompt(settings.imagePrompt, root);
+      const unsavedKey = `${regenerate ? 'replace' : 'create'}:${root}`;
       task = (async () => {
-        let record = unsaved.get(root);
+        let record = unsaved.get(unsavedKey);
         if (!record) {
           const key = readKey();
           if (!key) throw new Error('Add pollinations_api_key to the root env file before generating images.');
@@ -91,11 +111,11 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           const mime = imageType(bytes);
           if (!mime) throw new Error('Pollinations did not return a supported image.');
           record = { image: bytes, mimeType: mime };
-          unsaved.set(root, record);
+          unsaved.set(unsavedKey, record);
         }
         try {
-          const saved = images.save(root, record);
-          unsaved.delete(root);
+          const saved = regenerate ? images.replace(root, record) : images.save(root, record);
+          unsaved.delete(unsavedKey);
           return saved;
         } catch {
           throw new Error('Image generated, but saving failed. Retry to save the same image.');

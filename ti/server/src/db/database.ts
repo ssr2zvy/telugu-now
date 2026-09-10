@@ -3,6 +3,27 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../config/config';
 
+export function migrateUserDatabase(destination: string, legacyPath: string | null): void {
+  if (!legacyPath || destination === legacyPath || fs.existsSync(destination) || !fs.existsSync(legacyPath)) return;
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  const temporary = fs.mkdtempSync(path.join(path.dirname(destination), '.users-migration-'));
+  const snapshot = path.join(temporary, 'users.sqlite');
+  const legacy = new Database(legacyPath, { readonly: true, fileMustExist: true });
+  try {
+    legacy.prepare('VACUUM INTO ?').run(snapshot);
+    const verified = new Database(snapshot, { readonly: true, fileMustExist: true });
+    try {
+      if (verified.pragma('quick_check', { simple: true }) !== 'ok') throw new Error('User database snapshot validation failed.');
+    } finally { verified.close(); }
+    fs.linkSync(snapshot, destination);
+  } finally {
+    legacy.close();
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+if (config.databasePath === config.corpusDatabasePath) throw new Error('User and corpus databases must be separate files.');
+migrateUserDatabase(config.databasePath, config.legacyDatabasePath);
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 
 export const db = new Database(config.databasePath);
@@ -28,6 +49,24 @@ const observationTableSql = `
     group_size INTEGER NOT NULL,
     group_position INTEGER NOT NULL
   );
+`;
+
+const sourceRecordTableSql = `
+  CREATE TABLE IF NOT EXISTS source_records (
+    profile_code TEXT NOT NULL REFERENCES profiles(code) ON DELETE CASCADE,
+    source_id TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    text TEXT NOT NULL,
+    media_json TEXT NOT NULL DEFAULT '[]',
+    prepared_at INTEGER NOT NULL,
+    PRIMARY KEY (profile_code, source_id, source_key)
+  );
+`;
+
+const observationOwnershipSql = `
+  SELECT profile_code, observation_id FROM queue_items
+  UNION SELECT profile_code, observation_id FROM history_entries
+  UNION SELECT profile_code, observation_id FROM observation_acquisitions
 `;
 
 db.exec(`
@@ -83,14 +122,7 @@ db.exec(`
     FOREIGN KEY (trigger_observation_id) REFERENCES observations(id)
   );
 
-  CREATE TABLE IF NOT EXISTS source_records (
-    source_id TEXT NOT NULL,
-    source_key TEXT NOT NULL,
-    text TEXT NOT NULL,
-    media_json TEXT NOT NULL DEFAULT '[]',
-    prepared_at INTEGER NOT NULL,
-    PRIMARY KEY (source_id, source_key)
-  );
+  ${sourceRecordTableSql}
 
   CREATE TABLE IF NOT EXISTS profile_selection_settings (
     profile_code TEXT PRIMARY KEY,
@@ -198,6 +230,20 @@ if (!columnExists('source_records', 'media_json')) {
   `);
 }
 
+if (!columnExists('source_records', 'profile_code')) {
+  db.transaction(() => {
+    db.exec(`ALTER TABLE source_records RENAME TO source_records_unscoped; ${sourceRecordTableSql}`);
+    db.exec(`
+      INSERT OR IGNORE INTO source_records (profile_code, source_id, source_key, text, media_json, prepared_at)
+      SELECT owners.profile_code, cached.source_id, cached.source_key, cached.text, cached.media_json, cached.prepared_at
+      FROM (${observationOwnershipSql}) owners
+      JOIN observations observation ON observation.id = owners.observation_id
+      JOIN source_records_unscoped cached ON cached.source_id = observation.source_id AND cached.source_key = observation.source_key;
+      DROP TABLE source_records_unscoped;
+    `);
+  })();
+}
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_queue_profile_position
     ON queue_items(profile_code, queue_position);
@@ -218,13 +264,12 @@ db.exec(`
     ON profile_source_weights(profile_code, source_id);
 `);
 
-// Any already-prepared Iteration 1 row is immediately useful as a shared source-record
-// cache entry after upgrade.
 db.exec(`
-  INSERT OR IGNORE INTO source_records (source_id, source_key, text, media_json, prepared_at)
-  SELECT source_id, source_key, text, '[]', COALESCE(prepared_at, selected_at)
-  FROM observations
-  WHERE status = 'ready' AND text IS NOT NULL;
+  INSERT OR IGNORE INTO source_records (profile_code, source_id, source_key, text, media_json, prepared_at)
+  SELECT owners.profile_code, observation.source_id, observation.source_key, observation.text, '[]', COALESCE(observation.prepared_at, observation.selected_at)
+  FROM observations observation
+  JOIN (${observationOwnershipSql}) owners ON owners.observation_id = observation.id
+  WHERE observation.status = 'ready' AND observation.text IS NOT NULL;
 `);
 
 // Backfill acquisition metadata for databases created by earlier Iteration 1 builds.

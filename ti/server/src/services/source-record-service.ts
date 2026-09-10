@@ -31,20 +31,21 @@ class SourceRecordService {
   private readonly legacyIteration1Resolver = new LegacyIteration1MockDataSource();
   private readonly inFlight = new Map<string, Promise<FreshResolution>>();
 
-  private cacheKey(sourceId: string, sourceKey: string): string {
-    return `${sourceId}\u0000${sourceKey}`;
+  private cacheKey(profileCode: string, sourceId: string, sourceKey: string): string {
+    return JSON.stringify([profileCode, sourceId, sourceKey]);
   }
 
-  private cached(sourceId: string, sourceKey: string): CachedRow | undefined {
+  private cached(profileCode: string, sourceId: string, sourceKey: string): CachedRow | undefined {
     return db.prepare(`
       SELECT text, media_json
       FROM source_records
-      WHERE source_id = ? AND source_key = ?
-    `).get(sourceId, sourceKey) as CachedRow | undefined;
+      WHERE profile_code = ? AND source_id = ? AND source_key = ?
+    `).get(profileCode, sourceId, sourceKey) as CachedRow | undefined;
   }
 
-  async resolve(sourceId: string, sourceKey: string): Promise<ResolvedSourceRecord> {
-    const existing = this.cached(sourceId, sourceKey);
+  async resolve(profileCode: string, sourceId: string, sourceKey: string): Promise<ResolvedSourceRecord> {
+    if (!db.prepare('SELECT 1 FROM profiles WHERE code = ?').get(profileCode)) throw new Error('Unknown cache profile.');
+    const existing = this.cached(profileCode, sourceId, sourceKey);
     if (existing) {
       const parsed = JSON.parse(
         existing.media_json,
@@ -70,10 +71,10 @@ class SourceRecordService {
       };
     }
 
-    const key = this.cacheKey(sourceId, sourceKey);
+    const key = this.cacheKey(profileCode, sourceId, sourceKey);
     let promise = this.inFlight.get(key);
     if (!promise) {
-      promise = this.fetchAndCache(sourceId, sourceKey);
+      promise = this.fetchAndCache(profileCode, sourceId, sourceKey);
       this.inFlight.set(key, promise);
       const cleanup = () => {
         if (this.inFlight.get(key) === promise) this.inFlight.delete(key);
@@ -94,7 +95,7 @@ class SourceRecordService {
     };
   }
 
-  private async fetchAndCache(sourceId: string, sourceKey: string): Promise<FreshResolution> {
+  private async fetchAndCache(profileCode: string, sourceId: string, sourceKey: string): Promise<FreshResolution> {
     const requestStartedAt = Date.now();
     const source = sourceId === this.legacyIteration1Resolver.id
       ? this.legacyIteration1Resolver
@@ -103,11 +104,11 @@ class SourceRecordService {
     const requestCompletedAt = Date.now();
 
     db.prepare(`
-      INSERT INTO source_records (source_id, source_key, text, media_json, prepared_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(source_id, source_key) DO UPDATE SET
+      INSERT INTO source_records (profile_code, source_id, source_key, text, media_json, prepared_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(profile_code, source_id, source_key) DO UPDATE SET
         text = excluded.text, media_json = excluded.media_json, prepared_at = excluded.prepared_at
-    `).run(sourceId, sourceKey, prepared.text, JSON.stringify(prepared.media), requestCompletedAt);
+    `).run(profileCode, sourceId, sourceKey, prepared.text, JSON.stringify(prepared.media), requestCompletedAt);
 
     return {
       text: prepared.text,

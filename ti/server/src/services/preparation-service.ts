@@ -2,6 +2,7 @@ import { db } from '../db/database';
 import { sourceRecordService } from './source-record-service';
 
 interface PendingRow {
+  profile_code: string;
   id: string;
   source_id: string;
   source_key: string;
@@ -23,7 +24,7 @@ class PreparationService {
 
   private nextPending(): PendingRow | undefined {
     return db.prepare(`
-      SELECT o.id, o.source_id, o.source_key
+      SELECT q.profile_code, o.id, o.source_id, o.source_key
       FROM queue_items q
       JOIN observations o ON o.id = q.observation_id
       WHERE o.status = 'pending'
@@ -63,7 +64,7 @@ class PreparationService {
     if (claimed.changes !== 1) return;
 
     try {
-      const resolved = await sourceRecordService.resolve(row.source_id, row.source_key);
+      const resolved = await sourceRecordService.resolve(row.profile_code, row.source_id, row.source_key);
       const preparedAt = Date.now();
 
       db.prepare(`

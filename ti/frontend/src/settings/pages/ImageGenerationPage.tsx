@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import { CORE_WORD_PLACEHOLDER, IMAGE_MODEL, validImagePrompt, type ImageSettings } from '../../../../shared/image-settings';
 import type { UiLanguage } from '../types';
+import { useAppearance } from '../../appearance';
 
 export function ImageGenerationPage({ language }: { language: UiLanguage }) {
+  const { profileCode } = useAppearance();
+  const settingsUrl = `/api/word-images/settings?profile=${encodeURIComponent(profileCode ?? '')}`;
   const [settings, setSettings] = useState<ImageSettings | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [allowRegeneration, setAllowRegeneration] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -14,21 +18,21 @@ export function ImageGenerationPage({ language }: { language: UiLanguage }) {
   useEffect(() => {
     let cancelled = false;
     setError('');
-    void fetch('/api/word-images/settings').then(async response => {
+    void fetch(settingsUrl).then(async response => {
       if (!response.ok) throw new Error('Could not load image settings.');
       const result = await response.json() as ImageSettings;
-      if (!cancelled) { setSettings(result); setPrompt(result.prompt); }
+      if (!cancelled) { setSettings(result); setPrompt(result.prompt); setAllowRegeneration(result.allowRegeneration); }
     }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Could not load image settings.'); });
     return () => { cancelled = true; };
-  }, [attempt]);
+  }, [attempt, settingsUrl]);
   const save = async () => {
     if (saving || !validImagePrompt(prompt)) return;
     setSaving(true);
     setError('');
     setSaved(false);
     try {
-      const response = await fetch('/api/word-images/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }),
+      const response = await fetch(settingsUrl, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, allowRegeneration }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? 'Could not save image settings.');
@@ -49,6 +53,11 @@ export function ImageGenerationPage({ language }: { language: UiLanguage }) {
         aria-describedby="image-prompt-placeholder" aria-invalid={Boolean(settings && !validImagePrompt(prompt))}
         onChange={event => { setPrompt(event.target.value); setSaved(false); setError(''); }} />
       <p id="image-prompt-placeholder" className="image-prompt-requirement">{english ? 'Required placeholder' : 'అవసరమైన గుర్తు'}: <code>{CORE_WORD_PLACEHOLDER}</code></p>
+      <label className="appearance-surface-auto">
+        <span>{english ? 'Enable regeneration' : 'చిత్రాన్ని మళ్లీ సృష్టించడానికి అనుమతించు'}</span>
+        <input type="checkbox" role="switch" checked={allowRegeneration} disabled={!settings || saving}
+          onChange={event => { setAllowRegeneration(event.target.checked); setSaved(false); setError(''); }} />
+      </label>
       {error ? <p className="settings-error" role="alert">{error}</p> : null}
       {!settings && error ? <button className="secondary-action" type="button" onClick={() => setAttempt(value => value + 1)}>{english ? 'Retry' : 'మళ్లీ ప్రయత్నించు'}</button> : (
         <button className="primary-action" type="submit" disabled={!settings || saving || !validImagePrompt(prompt)}><Save aria-hidden="true" />{saving ? (english ? 'Saving...' : 'భద్రపరుస్తోంది...') : (english ? 'Save' : 'భద్రపరచు')}</button>

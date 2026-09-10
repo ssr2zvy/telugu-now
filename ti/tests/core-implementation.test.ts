@@ -692,7 +692,7 @@ test(
   await suite.test('currentObservation exposes a streamable audio URL when the resolved source record includes audio media', async () => {
     resetDatabase();
     ensureProfile();
-    const resolved = await sourceRecordService.resolve('fleurs-te', 'train:fixture');
+    const resolved = await sourceRecordService.resolve('001', 'fleurs-te', 'train:fixture');
     assert.ok(resolved.media.some((item) => item.kind === 'audio'));
 
     db.prepare(`
@@ -762,10 +762,11 @@ test(
     assert.deepEqual(afterSnapshots[1]?.sourceWeights, SOURCE1_ONLY_WEIGHTS);
   });
 
-  await suite.test('shared SourceRecord cache turns a repeated resolution into a cache hit', async () => {
+  await suite.test('profile SourceRecord cache turns a repeated resolution into a cache hit', async () => {
     resetDatabase();
-    const first = await sourceRecordService.resolve('source1', 'source1-001');
-    const second = await sourceRecordService.resolve('source1', 'source1-001');
+    ensureProfile();
+    const first = await sourceRecordService.resolve('001', 'source1', 'source1-001');
+    const second = await sourceRecordService.resolve('001', 'source1', 'source1-001');
     assert.equal(first.cacheHit, false);
     assert.equal(second.cacheHit, true);
     assert.equal(first.text, second.text);
@@ -773,19 +774,46 @@ test(
     assert.equal(count, 1);
   });
 
+  await suite.test('source records and concurrent requests are isolated by profile', async () => {
+    resetDatabase();
+    ensureProfile();
+    appConfig.profileCodes.add('002');
+    profileService.ensureProfileRow('002');
+    const source = sourceRegistryModule.sourceRegistry.get('source1');
+    const originalPrepare = source.prepare.bind(source);
+    let calls = 0;
+    source.prepare = async key => { calls += 1; return originalPrepare(key); };
+    try {
+      const [first, second] = await Promise.all([
+        sourceRecordService.resolve('001', 'source1', 'source1-004'),
+        sourceRecordService.resolve('002', 'source1', 'source1-004'),
+      ]);
+      assert.equal(calls, 2);
+      assert.equal(first.cacheHit, false);
+      assert.equal(second.cacheHit, false);
+      db.prepare("UPDATE source_records SET text = 'profile-specific' WHERE profile_code = '001'").run();
+      assert.equal((await sourceRecordService.resolve('001', 'source1', 'source1-004')).text, 'profile-specific');
+      assert.equal((await sourceRecordService.resolve('002', 'source1', 'source1-004')).text, second.text);
+      await assert.rejects(sourceRecordService.resolve('999', 'source1', 'source1-004'), /Unknown cache profile/);
+    } finally { source.prepare = originalPrepare; appConfig.profileCodes.delete('002'); }
+  });
+
   await suite.test(
     'historical cached rows with empty media synthesize TextMedia',
     async () => {
       resetDatabase();
+      ensureProfile();
       db.prepare(`
         INSERT INTO source_records (
+          profile_code,
           source_id,
           source_key,
           text,
           media_json,
           prepared_at
-        ) VALUES (?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?)
       `).run(
+        '001',
         'source1',
         'historical-text-only',
         'చరిత్ర',
@@ -794,6 +822,7 @@ test(
       );
       const resolved =
         await sourceRecordService.resolve(
+          '001',
           'source1',
           'historical-text-only',
         );
@@ -816,6 +845,7 @@ test(
 
   await suite.test('failed source resolution clears in-flight state so a later attempt can retry and cache', async () => {
     resetDatabase();
+    ensureProfile();
     const source = sourceRegistryModule.sourceRegistry.get('source1');
     const originalPrepare = source.prepare.bind(source);
     let calls = 0;
@@ -826,9 +856,9 @@ test(
     };
 
     try {
-      await assert.rejects(sourceRecordService.resolve('source1', 'source1-002'));
-      const retried = await sourceRecordService.resolve('source1', 'source1-002');
-      const cached = await sourceRecordService.resolve('source1', 'source1-002');
+      await assert.rejects(sourceRecordService.resolve('001', 'source1', 'source1-002'));
+      const retried = await sourceRecordService.resolve('001', 'source1', 'source1-002');
+      const cached = await sourceRecordService.resolve('001', 'source1', 'source1-002');
       assert.equal(calls, 2);
       assert.equal(retried.cacheHit, false);
       assert.equal(cached.cacheHit, true);
@@ -839,6 +869,7 @@ test(
 
   await suite.test('concurrent resolutions of one uncached source record coalesce to one source call', async () => {
     resetDatabase();
+    ensureProfile();
     const source = sourceRegistryModule.sourceRegistry.get('source1');
     const originalPrepare = source.prepare.bind(source);
     let calls = 0;
@@ -855,9 +886,9 @@ test(
     };
 
     try {
-      const firstPromise = sourceRecordService.resolve('source1', 'source1-003');
+      const firstPromise = sourceRecordService.resolve('001', 'source1', 'source1-003');
       await started;
-      const secondPromise = sourceRecordService.resolve('source1', 'source1-003');
+      const secondPromise = sourceRecordService.resolve('001', 'source1', 'source1-003');
       release();
       const [first, second] = await Promise.all([firstPromise, secondPromise]);
       assert.equal(calls, 1);
@@ -983,7 +1014,7 @@ test(
     assert.equal(acquisitionCount(), acquisitionsBefore);
     assert.equal(historyCount(), historyBefore);
 
-    const cached = await sourceRecordService.resolve('source1', exported.entries[0]!.sourceKey);
+    const cached = await sourceRecordService.resolve('001', 'source1', exported.entries[0]!.sourceKey);
     assert.equal(cached.cacheHit, true);
 
     const html = buildStandaloneExportHtml(exported);

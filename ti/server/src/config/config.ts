@@ -32,7 +32,7 @@ function parseProfileCodes(value: string | undefined): Set<string> {
   );
 }
 
-const databasePath = process.env.DATABASE_PATH ?? './data/app.sqlite';
+const databasePath = process.env.DATABASE_PATH ?? '../data/users.sqlite';
 const corpusDatabasePath = process.env.CORPUS_DATABASE_PATH ?? '../data/corpus/corpus.sqlite';
 const corpusObjectsPath = process.env.CORPUS_OBJECTS_PATH ?? '../data/corpus/objects';
 const defaultSourceWeights = {
@@ -52,6 +52,7 @@ export const config = {
   port: parseNonNegativeInt(process.env.PORT, 8080),
   devPort: parseNonNegativeInt(process.env.API_DEV_PORT, 8787),
   databasePath: path.resolve(databasePath),
+  legacyDatabasePath: path.resolve(databasePath) === path.resolve('../data/users.sqlite') ? path.resolve('./data/app.sqlite') : null,
   corpusDatabasePath: path.resolve(corpusDatabasePath),
   corpusObjectsPath: path.resolve(corpusObjectsPath),
   profileCodes: parseProfileCodes(process.env.PROFILE_CODES),

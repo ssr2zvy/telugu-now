@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL } from '../shared/image-settings';
+import { parseAppearance, type ProfilePreferences, type UpdateProfilePreferences } from '../shared/appearance';
 
 const baseUrl = process.env.UI_TEST_URL ?? 'http://127.0.0.1:5173';
 const darkAppearance = { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#f3f5ee', fontScale: 50, fonts: ['Noto Sans Telugu'] };
@@ -29,7 +30,7 @@ function audioFixture(): Buffer {
   return buffer;
 }
 
-async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = true, observationText = sampleText) {
+async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = true, observationText = sampleText, preferences = new Map<string, ProfilePreferences>()) {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const selection: SelectionSnapshot = {
@@ -61,6 +62,9 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     },
   };
   let navigationCount = 0;
+  let failPreferences = false;
+  const bookmarkMigrations = new Set<string>();
+  const bookmarks = new Map<string, number[]>();
   let resetCount = 0;
   let exportCount = 0;
   let releaseExport = () => {};
@@ -86,6 +90,42 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
       await route.fulfill({ json: { sources: [{ sourceId: 'fixture', displayName: 'Fixture', provider: 'Test', license: 'Test fixture', upstreamUrl: null, catalogVersion: 2, acceptedRows: 12, rejectedRows: 0, complexityMetric: 'grapheme-count', status: 'fixture' }] } });
     } else if (pathname.endsWith('/visibility')) {
       await route.fulfill({ status: 204 });
+    } else if (pathname.endsWith('/migrations')) {
+      const code = pathname.split('/')[3]!;
+      const current = preferences.get(code);
+      await route.fulfill({ json: { settings: Boolean(current?.appearance && current.language), bookmarks: bookmarkMigrations.has(code) } });
+    } else if (pathname.endsWith('/bookmarks/import')) {
+      const code = pathname.split('/')[3]!;
+      const imported = !bookmarkMigrations.has(code);
+      if (imported) {
+        for (const record of route.request().postDataJSON().records) {
+          const key = JSON.stringify([code, record.sourceId, record.sourceKey]);
+          if (!bookmarks.has(key)) bookmarks.set(key, record.bookmarks);
+        }
+        bookmarkMigrations.add(code);
+      }
+      await route.fulfill({ json: { imported } });
+    } else if (pathname.endsWith('/bookmarks')) {
+      const code = pathname.split('/')[3]!;
+      const query = new URL(route.request().url()).searchParams;
+      const record = route.request().method() === 'PUT' ? route.request().postDataJSON() : { sourceId: query.get('sourceId'), sourceKey: query.get('sourceKey') };
+      const key = JSON.stringify([code, record.sourceId, record.sourceKey]);
+      if (record.bookmarks) bookmarks.set(key, record.bookmarks);
+      await route.fulfill({ json: { bookmarks: bookmarks.get(key) ?? [] } });
+    } else if (pathname.endsWith('/preferences')) {
+      if (failPreferences) { await route.fulfill({ status: 503 }); return; }
+      const code = pathname.split('/')[3]!;
+      const current = preferences.get(code) ?? { appearance: null, language: null, imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false };
+      const patch = route.request().postDataJSON() as UpdateProfilePreferences;
+      const initialize = route.request().method() === 'POST';
+      const saved = {
+        appearance: patch.appearance && (!initialize || current.appearance === null) ? parseAppearance({ ...current.appearance, ...patch.appearance }) : current.appearance,
+        language: patch.language && (!initialize || current.language === null) ? patch.language : current.language,
+        imagePrompt: current.imagePrompt,
+        allowImageRegeneration: current.allowImageRegeneration,
+      };
+      preferences.set(code, saved);
+      await route.fulfill({ json: saved });
     } else if (pathname.endsWith('/audio-settings')) {
       state.audioSettings = route.request().postDataJSON();
       await route.fulfill({ json: state.audioSettings });
@@ -104,6 +144,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
       state.currentObservation = { ...state.currentObservation!, id: `observation-${navigationCount + 1}` };
       await route.fulfill({ json: state });
     } else if (pathname.endsWith('/load') || pathname.endsWith('/state')) {
+      if (pathname.endsWith('/load')) state.profileCode = route.request().postDataJSON().code;
       await route.fulfill({ json: state });
     } else {
       throw new Error(`Unmocked API request: ${pathname}`);
@@ -115,7 +156,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
     await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
   }
-  return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
+  return { errors, state, preferences, failPreferences: (fail: boolean) => { failPreferences = fail; }, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
 }
 
 async function doubleClickWord(page: Page, word: string, delay = 0) {
@@ -135,34 +176,42 @@ async function wordImageFixture(page: Page) {
   const generations: string[] = [];
   let failure = '';
   let prompt = DEFAULT_IMAGE_PROMPT;
+  let allowRegeneration = false;
   let release = () => {};
   let gate: Promise<void> | null = null;
-  const png = Buffer.from(await page.evaluate(() => {
+  const imageBytes = await page.evaluate(() => ['#73916d', '#c47b65'].map(color => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 256;
     const context = canvas.getContext('2d')!;
-    context.fillStyle = '#73916d';
+    context.fillStyle = color;
     context.fillRect(0, 0, 256, 256);
     context.fillStyle = '#d4dfd7';
     context.fillRect(64, 64, 128, 128);
     return canvas.toDataURL('image/png').split(',')[1]!;
-  }), 'base64');
-  await page.route('**/api/word-images/settings', async route => {
-    if (route.request().method() === 'PUT') prompt = route.request().postDataJSON().prompt;
-    await route.fulfill({ json: { prompt, model: IMAGE_MODEL, keyConfigured: true } });
+  }));
+  const png = Buffer.from(imageBytes[0]!, 'base64');
+  const replacement = Buffer.from(imageBytes[1]!, 'base64');
+  await page.route('**/api/word-images/settings?*', async route => {
+    if (route.request().method() === 'PUT') {
+      prompt = route.request().postDataJSON().prompt;
+      allowRegeneration = route.request().postDataJSON().allowRegeneration ?? allowRegeneration;
+    }
+    await route.fulfill({ json: { prompt, model: IMAGE_MODEL, keyConfigured: true, allowRegeneration } });
   });
   await page.route('**/api/word-images?*', async route => {
     const root = new URL(route.request().url()).searchParams.get('root')!;
+    const regenerate = new URL(route.request().url()).searchParams.get('regenerate') === '1';
     if (route.request().method() === 'POST') {
+      if (regenerate && !allowRegeneration) { await route.fulfill({ status: 403, json: { error: 'Regeneration disabled' } }); return; }
       generations.push(root);
       if (gate) await gate;
       if (failure) { await route.fulfill({ status: 502, json: { error: failure } }); return; }
-      if (!images.has(root)) images.set(root, png);
+      if (!images.has(root) || regenerate) images.set(root, regenerate ? replacement : png);
     }
     const image = images.get(root);
     await route.fulfill(image ? { contentType: 'image/png', body: image } : { status: 404, json: { error: 'image-not-found' } });
   });
-  return { images, generations, prompt: () => prompt,
+  return { images, generations, prompt: () => prompt, allowRegeneration: () => allowRegeneration,
     fail: (message: string) => { failure = message; },
     hold: () => { gate = new Promise(resolve => { release = resolve; }); },
     release: () => release(),
@@ -321,6 +370,157 @@ test('image generation settings require the core word placeholder and persist th
   await openSettings(page);
   await page.getByRole('button', { name: 'Display: Image generation', exact: true }).click();
   await expect(input).toHaveValue(images.prompt());
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+  test(`regeneration toggle gates shared image replacement at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
+    const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో చెట్టు.');
+    const images = await wordImageFixture(page);
+    const openImageSettings = async () => {
+      await openSettings(page);
+      await page.getByRole('button', { name: 'Display', exact: true }).click();
+      await page.getByRole('button', { name: 'Image generation', exact: true }).click();
+    };
+    await doubleClickWord(page, 'చెట్లలో');
+    await page.getByRole('button', { name: 'Generate', exact: true }).click();
+    const image = page.getByRole('img', { name: 'Drawing of the concept of చెట్టు' });
+    await expect(image).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Regenerate', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close word profile' }).click();
+
+    await openImageSettings();
+    const toggle = page.getByRole('switch', { name: 'Enable regeneration', exact: true });
+    await expect(toggle).not.toBeChecked();
+    await toggle.check();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Saved');
+    expect(images.allowRegeneration()).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('regeneration-setting.png') });
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await openImageSettings();
+    await expect(toggle).toBeChecked();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+
+    await doubleClickWord(page, 'చెట్టు');
+    await expect(image).toBeVisible();
+    const original = await image.getAttribute('src');
+    const regenerate = page.getByRole('button', { name: 'Regenerate', exact: true });
+    await expect(regenerate).toBeVisible();
+    await regenerate.scrollIntoViewIfNeeded();
+    await withinViewport(regenerate, page);
+    expect(await page.getByRole('dialog').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('regenerate-button.png') });
+    page.once('dialog', dialog => dialog.dismiss());
+    await regenerate.click();
+    expect(images.generations).toHaveLength(1);
+    images.hold();
+    page.once('dialog', dialog => {
+      expect(dialog.message()).toContain('all profiles');
+      return dialog.accept();
+    });
+    await regenerate.click();
+    await expect(page.getByRole('button', { name: 'Regenerating...', exact: true })).toBeDisabled();
+    await expect(image).toHaveAttribute('src', original!);
+    images.release();
+    await expect(regenerate).toBeEnabled();
+    await expect(image).not.toHaveAttribute('src', original!);
+    await expect(image).toHaveJSProperty('naturalWidth', 256);
+    const pixels = await image.evaluate(element => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(element as HTMLImageElement, 0, 0);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    });
+    expect(pixels).toEqual([196, 123, 101, 255]);
+
+    const savedSource = await image.getAttribute('src');
+    images.fail('Temporary provider failure');
+    page.once('dialog', dialog => dialog.accept());
+    await regenerate.click();
+    await expect(page.getByRole('alert')).toContainText('Temporary provider failure');
+    await expect(image).toHaveAttribute('src', savedSource!);
+    images.fail('');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Retry regeneration', exact: true }).click();
+    await expect(regenerate).toBeEnabled();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close word profile' }).click();
+    await openImageSettings();
+    await toggle.uncheck();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Saved');
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await doubleClickWord(page, 'చెట్లలో');
+    await expect(image).toBeVisible();
+    await expect(regenerate).toHaveCount(0);
+    expect(images.generations).toHaveLength(4);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('profile preferences migrate once, restore in a fresh browser and isolate another profile', async ({ page, browser }, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('telugu-now-appearance-v1', JSON.stringify({ fontScale: 73, foreground: '#123456', fonts: ['Mandali'] }));
+    localStorage.setItem('telugu-now-settings-language', 'en');
+  });
+  const fixture = await loadFixture(page);
+  await expect.poll(() => fixture.preferences.get('001')?.appearance?.fontScale).toBe(73);
+  expect(fixture.preferences.get('001')?.language).toBe('en');
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Display', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await page.getByRole('slider', { name: 'Auto-fade delay', exact: true }).press('End');
+  await expect.poll(() => fixture.preferences.get('001')?.appearance?.autoFadeSeconds).toBe(60);
+  await page.screenshot({ path: testInfo.outputPath('profile-preferences-desktop.png') });
+
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const fresh = await context.newPage();
+    const freshFixture = await loadFixture(fresh, undefined, true, sampleText, fixture.preferences);
+    await openSettings(fresh);
+    await fresh.getByRole('button', { name: 'Display', exact: true }).click();
+    await fresh.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await expect(fresh.getByRole('slider', { name: 'Auto-fade delay', exact: true })).toHaveValue('60');
+    await expect(fresh.getByLabel('Text & icons color', { exact: true })).toHaveValue('#123456');
+    await fresh.screenshot({ path: testInfo.outputPath('profile-preferences-mobile.png') });
+    await fresh.reload();
+    await fresh.locator('.profile-input').fill('002');
+    await expect(fresh.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await expect.poll(() => fixture.preferences.get('002')?.appearance?.fontScale).toBe(50);
+    expect(fixture.preferences.get('002')?.appearance?.foreground).toBe('#171717');
+    expect(fixture.preferences.get('001')?.appearance?.fontScale).toBe(73);
+    expect(freshFixture.errors).toEqual([]);
+  } finally { await context.close(); }
+  expect(fixture.errors).toEqual([]);
+});
+
+test('profile preferences show load and save failures and retry without losing edits', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, false);
+  fixture.failPreferences(true);
+  await page.locator('.profile-input').fill('001');
+  await expect(page.getByRole('alert')).toContainText('Could not load profile settings.');
+  fixture.failPreferences(false);
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Display', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await expect.poll(() => fixture.preferences.get('001')?.language).toBe('en');
+  fixture.failPreferences(true);
+  const delay = page.getByRole('slider', { name: 'Auto-fade delay', exact: true });
+  await delay.press('End');
+  await expect(page.getByRole('alert')).toContainText('Settings not saved.');
+  await delay.press('ArrowLeft');
+  await expect(delay).toHaveValue('59');
+  await expect(page.getByRole('alert')).toContainText('Settings not saved.');
+  fixture.failPreferences(false);
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect.poll(() => fixture.preferences.get('001')?.appearance?.autoFadeSeconds).toBe(59);
+  await expect(page.getByRole('alert')).toHaveCount(0);
   expect(fixture.errors).toEqual([]);
 });
 
@@ -1211,8 +1411,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const fixture = await loadFixture(page, undefined, false);
       fixture.state.currentObservation!.text = sampleText.repeat(12);
       for (const [offset, magnifierPosition] of [[-200, 'above'], [200, 'above'], [200, 'below']] as const) {
-        await page.evaluate(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), {
-          ...darkAppearance, fontScale: 100, textOffset: offset, audioOffset: offset, magnifierPosition,
+        fixture.preferences.set('001', {
+          appearance: parseAppearance({ ...darkAppearance, fontScale: 100, textOffset: offset, audioOffset: offset, magnifierPosition }),
+          language: 'en', imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
         });
         await page.reload();
         await page.locator('.profile-input').fill('001');

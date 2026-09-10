@@ -1,55 +1,11 @@
-import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
-import { OBSERVATION_FONTS, type ObservationFontFamily } from './presentation';
-
-export interface AppearanceSettings {
-  gradient: [string, string, string];
-  foreground: string;
-  surface: string | null;
-  fontScale: number;
-  textOffset: number;
-  audioOffset: number;
-  magnifierPosition: 'above' | 'below';
-  autoFadeSeconds: number;
-  fonts: ObservationFontFamily[];
-}
-
-export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  gradient: ['#b6b6b6', '#969696', '#787878'],
-  foreground: '#171717',
-  surface: null,
-  fontScale: 50,
-  textOffset: 0,
-  audioOffset: 0,
-  magnifierPosition: 'above',
-  autoFadeSeconds: 15,
-  fonts: [...OBSERVATION_FONTS],
-};
-export const APPEARANCE_OFFSET_LIMIT = 200;
-export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { RotateCw } from 'lucide-react';
+import { getProfileMigrations, saveProfilePreferences } from './api';
+import { migrateLegacyBookmarks } from './observation/audio/audio-bookmarks-storage';
+import type { UpdateProfilePreferences } from '../../shared/appearance';
+import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
+export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
 const storageKey = 'telugu-now-appearance-v1';
-const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
-const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
-  ? Math.round(Math.max(-APPEARANCE_OFFSET_LIMIT, Math.min(APPEARANCE_OFFSET_LIMIT, value))) : 0;
-
-export function parseAppearance(value: unknown): AppearanceSettings {
-  const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings>;
-  const fonts = OBSERVATION_FONTS.filter((font) => Array.isArray(candidate.fonts) && candidate.fonts.includes(font));
-  return {
-    gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
-      ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
-    foreground: isColor(candidate.foreground) ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
-    surface: isColor(candidate.surface) ? candidate.surface : null,
-    fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
-      ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
-    textOffset: parseOffset(candidate.textOffset),
-    audioOffset: parseOffset(candidate.audioOffset),
-    magnifierPosition: candidate.magnifierPosition === 'below' ? 'below' : 'above',
-    autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
-      ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
-      : DEFAULT_APPEARANCE.autoFadeSeconds,
-    fonts: fonts.length ? fonts : [...OBSERVATION_FONTS],
-  };
-}
 
 export function appearanceSurface(appearance: AppearanceSettings): string {
   if (appearance.surface) return appearance.surface;
@@ -113,23 +69,99 @@ export function randomAppearanceColors(random = Math.random): Pick<AppearanceSet
 }
 
 const AppearanceContext = createContext<{
+  profileCode: string | null;
   appearance: AppearanceSettings;
   updateAppearance: (patch: Partial<AppearanceSettings>) => void;
-}>({ appearance: DEFAULT_APPEARANCE, updateAppearance: () => {} });
+  language: 'en' | 'te';
+  updateLanguage: (language: 'en' | 'te') => void;
+}>({ profileCode: null, appearance: DEFAULT_APPEARANCE, updateAppearance: () => {}, language: 'te', updateLanguage: () => {} });
 
 export const useAppearance = () => useContext(AppearanceContext);
 
-export function AppearanceProvider({ children }: { children: ReactNode }) {
+export function AppearanceProvider({ children, profileCode = null }: { children: ReactNode; profileCode?: string | null }) {
   const [appearance, setAppearance] = useState(() => {
     try { return parseAppearance(JSON.parse(localStorage.getItem(storageKey) ?? 'null')); }
     catch { return parseAppearance(null); }
   });
+  const [language, setLanguage] = useState<'en' | 'te'>('te');
+  const [loaded, setLoaded] = useState(!profileCode);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [error, setError] = useState(false);
+  const pending = useRef<UpdateProfilePreferences>({});
+  const saving = useRef(false);
+  useEffect(() => {
+    if (!profileCode) return;
+    let cancelled = false;
+    setError(false);
+    const load = async () => {
+      const migrations = await getProfileMigrations(profileCode);
+      let legacy: UpdateProfilePreferences = { appearance: parseAppearance(null), language: 'te' };
+      if (!migrations.settings) {
+        try {
+          if (!localStorage.getItem('telugu-now-preferences-migrated')) legacy = {
+            appearance: parseAppearance(JSON.parse(localStorage.getItem(storageKey) ?? 'null')),
+            language: localStorage.getItem('telugu-now-settings-language') === 'en' ? 'en' : 'te',
+          };
+        } catch {}
+      }
+      const preferences = await saveProfilePreferences(profileCode, legacy, true);
+      if (!migrations.bookmarks) await migrateLegacyBookmarks(profileCode);
+      return preferences;
+    };
+    void load().then(preferences => {
+      if (cancelled) return;
+      setAppearance(parseAppearance(preferences.appearance));
+      setLanguage(preferences.language ?? 'te');
+      setLoaded(true);
+      try {
+        localStorage.removeItem('telugu-now-preferences-migrated');
+        localStorage.removeItem(storageKey);
+        localStorage.removeItem('telugu-now-settings-language');
+      } catch {}
+    }).catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, [profileCode, loadAttempt]);
+  useEffect(() => {
+    const warnUnsaved = (event: BeforeUnloadEvent) => {
+      if (!saving.current && Object.keys(pending.current).length === 0) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnUnsaved);
+    return () => window.removeEventListener('beforeunload', warnUnsaved);
+  }, []);
+  const flush = async () => {
+    if (!profileCode || saving.current || !loaded) return;
+    saving.current = true;
+    setError(false);
+    try {
+      while (Object.keys(pending.current).length) {
+        const patch = pending.current;
+        pending.current = {};
+        try { await saveProfilePreferences(profileCode, patch); }
+        catch {
+          pending.current = {
+            ...patch, ...pending.current,
+            ...(patch.appearance || pending.current.appearance
+              ? { appearance: { ...patch.appearance, ...pending.current.appearance } } : {}),
+          };
+          setError(true);
+          break;
+        }
+      }
+    } finally { saving.current = false; }
+  };
   const updateAppearance = (patch: Partial<AppearanceSettings>) => {
-    setAppearance((current) => {
-      const next = parseAppearance({ ...current, ...patch });
-      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
-      return next;
-    });
+    if (!profileCode || !loaded) return;
+    setAppearance(current => parseAppearance({ ...current, ...patch }));
+    pending.current = { ...pending.current, appearance: { ...pending.current.appearance, ...patch } };
+    void flush();
+  };
+  const updateLanguage = (next: 'en' | 'te') => {
+    if (!profileCode || !loaded) return;
+    setLanguage(next);
+    pending.current = { ...pending.current, language: next };
+    void flush();
   };
   const style = {
     '--surface': appearanceSurface(appearance),
@@ -145,10 +177,14 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       : 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
   } as CSSProperties;
   return (
-    <AppearanceContext.Provider value={{ appearance, updateAppearance }}>
+    <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
       <div className="appearance-root" style={style}>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
-        {children}
+        {loaded ? children : <div className="profile-screen" role="status">{error ? '' : 'Loading profile settings...'}</div>}
+        {error ? <div className="profile-preferences-error" role="alert">
+          <span>{loaded ? 'Settings not saved.' : 'Could not load profile settings.'}</span>
+          <button type="button" onClick={() => loaded ? void flush() : setLoadAttempt(current => current + 1)}><RotateCw size={16} aria-hidden="true" />Retry</button>
+        </div> : null}
       </div>
     </AppearanceContext.Provider>
   );

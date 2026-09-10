@@ -9,6 +9,7 @@ import {
 import { AudioScrubber } from './AudioScrubber';
 import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
+import { RotateCw } from 'lucide-react';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio;
@@ -68,11 +69,16 @@ export function AudioPlayerBar({
         type="button"
         aria-label="బుక్‌మార్క్‌లు"
         title="Bookmarks: click to return, double-click to add, triple-click to remove"
+        disabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
         onClick={player.clickBookmarkButton}
       >
         <BookmarkIcon />
       </button>
-      {player.playbackError ? <div className="audio-playback-error" role="alert">{player.playbackError}</div> : null}
+      {player.bookmarkError || player.playbackError ? <div className="audio-playback-error" role="alert">
+        {player.bookmarkError ?? player.playbackError}
+        {player.bookmarkError ? <button type="button" className="audio-transport-button" title="Retry bookmarks" aria-label="Retry bookmarks"
+          disabled={player.bookmarksBusy} onClick={player.retryBookmarks}><RotateCw size={16} aria-hidden="true" /></button> : null}
+      </div> : null}
       {speedPopoverOpen ? (
         <PlaybackSpeedPopover
           playbackRate={player.playbackRate}

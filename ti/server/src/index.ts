@@ -6,6 +6,7 @@ import { config } from './config/config';
 import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
 import { wordImageRoutes } from './services/word-image-service';
+import { profilePreferencesRoutes } from './services/profile-preferences-service';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
@@ -44,6 +45,7 @@ app.get('/api/data-sources', (c) =>
 
 app.get('/api/audio/*', serveAudio());
 app.route('/api/word-images', wordImageRoutes(db));
+app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

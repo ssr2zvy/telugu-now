@@ -248,7 +248,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
     JOIN observations o ON o.id = h.observation_id
     JOIN observation_acquisitions a ON a.observation_id = o.id
     LEFT JOIN observation_acquisitions ta ON ta.observation_id = a.trigger_observation_id
-    LEFT JOIN source_records sr ON sr.source_id = o.source_id AND sr.source_key = o.source_key
+    LEFT JOIN source_records sr ON sr.profile_code = h.profile_code AND sr.source_id = o.source_id AND sr.source_key = o.source_key
     WHERE h.profile_code = ? AND h.history_position = ?
   `).get(code, currentPosition) as ObservationRow | undefined;
 

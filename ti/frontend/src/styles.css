@@ -4,3 +4,22 @@
 @import './styles/observation-layout.css';
 @import './styles/settings-layout.css';
 @import './styles/word-profile.css';
+
+.profile-preferences-error {
+	position: fixed;
+	bottom: max(12px, env(safe-area-inset-bottom));
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 100;
+	width: max-content;
+	max-width: calc(100% - 24px);
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	background: var(--surface);
+	color: var(--foreground);
+	border: 1px solid currentColor;
+	border-radius: 6px;
+}
+.profile-preferences-error button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }

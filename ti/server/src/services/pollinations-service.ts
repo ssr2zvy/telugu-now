@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { IMAGE_MODEL } from '../../../shared/image-settings';
+import { randomInt } from 'node:crypto';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -32,6 +33,7 @@ export async function generatePollinationsImage(
   if (!apiKey) throw new Error('Add pollinations_api_key to the root env file before generating images.');
   const url = new URL(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`);
   url.searchParams.set('model', IMAGE_MODEL);
+  url.searchParams.set('seed', String(randomInt(0, 2147483647)));
   let response: Response;
   try {
     response = await request(url, {

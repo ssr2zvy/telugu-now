@@ -29,6 +29,8 @@ test('Pollinations uses the exact model and keeps the key out of the URL', async
     assert.equal(url.origin, 'https://gen.pollinations.ai');
     assert.equal(decodeURIComponent(url.pathname), '/image/Draw అవును.');
     assert.equal(url.searchParams.get('model'), IMAGE_MODEL);
+    assert.match(url.searchParams.get('seed') ?? '', /^\d+$/);
+    assert.ok(Number(url.searchParams.get('seed')) < 2147483647);
     assert.equal(url.toString().includes('fixture-secret'), false);
     assert.equal(new Headers(options?.headers).get('authorization'), 'Bearer fixture-secret');
     assert.equal(options?.redirect, 'error');

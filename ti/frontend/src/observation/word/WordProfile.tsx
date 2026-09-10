@@ -1,19 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, Sparkles, X } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
-import { existingWordImage, generateWordImage, wordImageError } from './word-images';
+import { existingWordImage, generateWordImage, wordImageError, wordImageSettings } from './word-images';
+import { useAppearance } from '../../appearance';
 
 function WordImage({ root }: { root: string }) {
+  const { profileCode } = useAppearance();
   const [image, setImage] = useState<Blob | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'saved' | 'error'>('loading');
   const [error, setError] = useState('');
+  const [allowRegeneration, setAllowRegeneration] = useState(false);
+  const [settingsError, setSettingsError] = useState(false);
+  const [settingsAttempt, setSettingsAttempt] = useState(0);
   const active = useRef(true);
   const running = useRef(false);
   useEffect(() => {
     active.current = true;
     return () => { active.current = false; };
   }, []);
+  useEffect(() => {
+    if (!profileCode) return;
+    let cancelled = false;
+    setAllowRegeneration(false);
+    setSettingsError(false);
+    void wordImageSettings(profileCode).then(settings => {
+      if (!cancelled) setAllowRegeneration(settings.allowRegeneration);
+    }).catch(() => { if (!cancelled) setSettingsError(true); });
+    return () => { cancelled = true; };
+  }, [profileCode, settingsAttempt]);
   useEffect(() => {
     let cancelled = false;
     setStatus('loading');
@@ -33,13 +48,14 @@ function WordImage({ root }: { root: string }) {
     setSource(url);
     return () => URL.revokeObjectURL(url);
   }, [image]);
-  const generate = async () => {
-    if (running.current) return;
+  const generate = async (regenerate = false) => {
+    if (running.current || !profileCode) return;
+    if (regenerate && (!allowRegeneration || !window.confirm('Replace the shared image for this core word? This affects all profiles.'))) return;
     running.current = true;
     setStatus('generating');
     setError('');
     try {
-      const saved = await generateWordImage(root);
+      const saved = await generateWordImage(root, profileCode, regenerate);
       if (active.current) { setImage(saved); setStatus('saved'); }
     } catch (reason) {
       if (active.current) { setError(wordImageError(reason)); setStatus('error'); }
@@ -58,10 +74,20 @@ function WordImage({ root }: { root: string }) {
           </button>
         )}
       </div>
+      {source && allowRegeneration ? <button className="word-profile-action word-image-regenerate" type="button" disabled={busy}
+        title="Regenerate shared image" onClick={() => void generate(true)}>
+        {busy ? <LoaderCircle className="word-image-spinner" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
+        {busy ? 'Regenerating...' : status === 'error' ? 'Retry regeneration' : 'Regenerate'}
+      </button> : null}
       <div className="word-image-status" role="status" aria-live="polite">
-        {status === 'loading' ? 'Checking saved image' : status === 'generating' ? 'Generating image' : status === 'saved' ? 'Image ready' : ''}
+        {status === 'loading' ? 'Checking saved image' : status === 'generating' ? image ? 'Regenerating image' : 'Generating image' : status === 'saved' ? 'Image ready' : ''}
       </div>
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
+      {settingsError ? <div className="word-profile-error" role="alert">
+        Could not load image settings.
+        <button className="word-profile-action" type="button" title="Retry image settings" aria-label="Retry image settings"
+          onClick={() => setSettingsAttempt(attempt => attempt + 1)}><RefreshCw size={16} aria-hidden="true" /></button>
+      </div> : null}
     </section>
   );
 }

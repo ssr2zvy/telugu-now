@@ -12,10 +12,7 @@ import type {
 } from '../export-artifact';
 import { prepareEpubExport } from '../export-epub';
 import { prepareHtmlExport } from '../export-html';
-import {
-  loadSettingsLanguage,
-  saveSettingsLanguage,
-} from './language';
+import { useAppearance } from '../appearance';
 import { draftFromSettings } from './settings-utils';
 import { parentSettingsPage } from './navigation';
 import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../shared/audio';
@@ -74,9 +71,7 @@ export function useSettingsController({
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
-  const [language, setLanguage] = useState<UiLanguage>(() =>
-    loadSettingsLanguage(),
-  );
+  const { language, updateLanguage } = useAppearance();
   const [draft, setDraftState] = useState<SettingsDraft | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState(false);
@@ -138,11 +133,7 @@ export function useSettingsController({
     setPage(parentSettingsPage(page));
   };
   const toggleLanguage = () => {
-    setLanguage((current) => {
-      const next = current === 'te' ? 'en' : 'te';
-      saveSettingsLanguage(next);
-      return next;
-    });
+    updateLanguage(language === 'te' ? 'en' : 'te');
   };
   const saveComplexitySettings = async () => {
     if (!profileCode || !state || !draft) return;

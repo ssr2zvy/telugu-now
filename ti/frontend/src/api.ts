@@ -11,6 +11,20 @@ import type {
   UpdateSelectionSettingsRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
+import type { ProfilePreferences, UpdateProfilePreferences, ProfileMigrationState } from '../../shared/appearance';
+
+export async function getProfileMigrations(code: string): Promise<ProfileMigrationState> {
+  return parseJson<ProfileMigrationState>(await fetch(`/api/profiles/${encodeURIComponent(code)}/migrations`));
+}
+
+export async function saveProfilePreferences(code: string, patch: UpdateProfilePreferences, initialize = false): Promise<ProfilePreferences> {
+  return parseJson<ProfilePreferences>(await fetch(`/api/profiles/${encodeURIComponent(code)}/preferences`, {
+    method: initialize ? 'POST' : 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+    keepalive: true,
+  }));
+}
 
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) throw new Error(String(response.status));

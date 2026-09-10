@@ -22,7 +22,7 @@ export async function generateExport(profileCode: string, count: number): Promis
 
   for (let index = 0; index < count; index += 1) {
     const selected = selectionEngine.select(settings);
-    const resolved = await sourceRecordService.resolve(selected.sourceId, selected.sourceKey);
+    const resolved = await sourceRecordService.resolve(profileCode, selected.sourceId, selected.sourceKey);
     entries.push({
       position: index + 1,
       sourceId: selected.sourceId,

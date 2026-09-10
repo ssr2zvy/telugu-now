@@ -83,6 +83,11 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
       INSERT INTO profiles (
         code, current_position, last_client_seen_at, created_at, updated_at
       ) VALUES ('001', 0, 1300, 1000, 1300);
+      INSERT INTO profiles (code, created_at, updated_at) VALUES ('002', 1000, 1000);
+
+      CREATE TABLE source_records (source_id TEXT, source_key TEXT, text TEXT, media_json TEXT, prepared_at INTEGER,
+        PRIMARY KEY (source_id, source_key));
+      INSERT INTO source_records VALUES ('mock', 'ready-key', 'తెలుగు', '[]', 1100), ('mock', 'unowned-key', 'unused', '[]', 1100);
 
       INSERT INTO observations (
         id, source_id, source_key, status, text, selected_at, prepared_at,
@@ -116,7 +121,7 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
   process.env.MOCK_DELAY_MIN_MS = '0';
   process.env.MOCK_DELAY_MAX_MS = '0';
 
-  const { db } = await import('../server/src/db/database');
+  const { db, migrateUserDatabase } = await import('../server/src/db/database');
   const settingsService = await import('../server/src/services/selection-settings-service');
   const { config } = await import('../server/src/config/config');
   const { sourceRegistry } = await import('../server/src/services/source-registry');
@@ -143,11 +148,13 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
 
     const cached = db.prepare(`
       SELECT text, media_json, prepared_at FROM source_records
-      WHERE source_id = 'mock' AND source_key = 'ready-key'
+      WHERE profile_code = '001' AND source_id = 'mock' AND source_key = 'ready-key'
     `).get() as { text: string; media_json: string; prepared_at: number } | undefined;
     assert.equal(cached?.text, 'తెలుగు');
     assert.equal(cached?.prepared_at, 1100);
     assert.equal(cached?.media_json, '[]');
+    assert.equal(db.prepare("SELECT 1 FROM source_records WHERE profile_code = '002'").get(), undefined);
+    assert.equal(db.prepare("SELECT 1 FROM source_records WHERE source_key = 'unowned-key'").get(), undefined);
 
     const restarted = db.prepare(`
       SELECT status, request_started_at, request_completed_at, request_duration_ms, cache_hit
@@ -200,6 +207,23 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     }
     assert.equal(settings.complexityPercentileTarget, 0.5);
     assert.equal(settings.complexityPercentileSpread, 0.25);
+
+    const oldPath = path.join(directory, 'old-app.sqlite');
+    const newPath = path.join(directory, 'data', 'users.sqlite');
+    const old = new Database(oldPath);
+    try {
+      old.pragma('journal_mode = WAL');
+      old.pragma('wal_autocheckpoint = 0');
+      old.exec('CREATE TABLE saved (value INTEGER); INSERT INTO saved VALUES (73);');
+      migrateUserDatabase(newPath, oldPath);
+      old.exec('UPDATE saved SET value = 99;');
+      migrateUserDatabase(newPath, oldPath);
+      const snapshot = new Database(newPath, { readonly: true });
+      try { assert.equal((snapshot.prepare('SELECT value FROM saved').get() as { value: number }).value, 73); }
+      finally { snapshot.close(); }
+      assert.equal((old.prepare('SELECT value FROM saved').get() as { value: number }).value, 99);
+      assert.ok(fs.existsSync(oldPath));
+    } finally { old.close(); }
   } finally {
     db.close();
     fs.rmSync(directory, { recursive: true, force: true });

@@ -1,6 +1,6 @@
-# Implementation Iteration 3
-This repository contains Implementation Iteration 3 of the Telugu observation app. Iterations 1 and 2 remain the persistence, history/timing, ten-item queue, one-for-one replenishment, source selection, settings, typography, diagnostics, caching, and export foundation.
-Iteration 3 adds the offline corpus-transformation boundary, three prepared real Telugu speech sources, persisted grapheme complexity, formal text/audio media metadata, and six-source selection.
+# Telugu Now
+Telugu Now is a profile-based Telugu reader with prepared speech datasets, audio playback, personal settings and bookmarks, global word images, and offline HTML/EPUB exports.
+Implementation and migration notes belong in the existing [iteration 3 document](../impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory).
 ## Stack
 - TypeScript
 - React + Vite
@@ -117,12 +117,12 @@ sigma = R / 2.326347874
 The normal is truncated and renormalized to `[0,1]`. Probability mass over each tied grapheme-count percentile interval is divided by the global number of rows with that grapheme count to produce per-row global complexity mass.
 After a source is selected, those masses are normalized over the complexity classes present in that source.
 Source probability, conditional row probability, and overall source-and-row probability remain distinct and are persisted in every new acquisition's immutable selection snapshot.
-## Repeats and shared source-record cache
+## Repeats and profile source-record cache
 Selections are independent and with replacement. The same `(source_id, source_key)` may appear in multiple acquisitions.
 A stable source record and an acquisition are separate concepts:
 - a source record is the underlying source row and normalized retrieved content;
 - an acquisition is one particular probabilistic selection event.
-`source_records` is the shared persistent cache, keyed by `(source_id, source_key)`. Once either the live queue or Export retrieves a source record, later live/export selections reuse it without another source request.
+`source_records` is a profile-owned persistent cache, keyed by `(profile_code, source_id, source_key)` in `data/users.sqlite`. Once that profile's live queue or Export retrieves a source record, later live/export selections for the same profile reuse it. The canonical corpus and audio objects remain global.
 ## Queue behavior
 The live profile maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the future-queue tail.
 Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
@@ -161,43 +161,28 @@ The server substitutes every placeholder with the analyzed core word and request
 `microsoft/mai-image-2.5-flash` (MAI Image 2.5 Flash) from Pollinations' authenticated
 `https://gen.pollinations.ai/image/{prompt}` endpoint. There is no browser provider
 SDK, sign-in popup or exposed API key. Generation occurs only on an explicit click.
+Each new provider request includes a random seed to request a fresh variation.
 Pollinations account access, rate limits, credits and model terms apply; text-free
 output is requested by the default prompt but is not guaranteed by the model.
 
-Images are stored as files under the root `data/word-images/` directory, not in
-SQLite. Each NFC-normalized root maps to a SHA-256-named folder containing
-`image.png`, `image.jpg`, or `image.webp`, plus `metadata.json` with the original
-core word, MIME type and creation timestamp. The folder name is bounded and does
-not expose user input as a filesystem path. Image bytes and metadata are published
-together by an atomic directory rename; the first saved image is never overwritten.
-The directory is Git-ignored and is located from the repository's `control.sh`,
-with `../data/word-images` relative to the server working directory as a fallback.
-The cache is shared across
-profiles and survives reloads/server restarts; different senses of one root currently
-share one image. Opening a cached root displays it without a generation request,
-even when the API key is missing. The first stored image is retained; changes to
-the prompt affect only roots that do not already have images. Back up
-`data/word-images/` separately from the application database. Global prompt settings
-still use SQLite's `image_settings` table; image persistence has no database dependency.
-Any old `word_images` table is left untouched but is no longer read or written by
-the image routes. Existing blobs must be copied into the file cache before reuse.
+**Enable regeneration** on this page is saved per profile and defaults to off,
+including for existing profiles. Save the setting to expose **Regenerate** on word
+dialogs that already have an image. Confirming it replaces that core word's global
+image using the active profile's prompt, affecting all profiles and sentences that
+reuse the root. The server checks the toggle too. The previous image remains
+visible and readable until the replacement is successfully published; generation
+or save failures leave it intact. Disabling the setting hides the button again.
 
-`GET /api/word-images?root=...` retrieves an image; `POST` generates and saves it only
-if missing. `GET/PUT /api/word-images/settings` reads/saves the global prompt; only
-a key-configured boolean is exposed. Image downloads have a 10 MiB limit and a
-120-second provider timeout. Concurrent requests for one root coalesce on a single
-server process, including requests from different browsers. Multiple server processes
-are not globally locked. Failed file saves retain generated bytes in server
-memory for a retry without regeneration; avoid restarting until saving succeeds.
-Unreadable or damaged cache entries return an error rather than generating again.
-There are no automatic paid retries. Browser uploads and user-supplied upstream URLs
-are not accepted. Keep the app behind access controls: like the existing prototype
-routes, these endpoints are not an authentication system, and generation spends
-the configured account's credits.
-
-Tests mock the provider or local image API and do not spend credits or verify live
-model quality. They cover key confidentiality, exact model and prompt substitution,
-persistent cache reuse, concurrent requests, save retries, errors and responsive UI.
+Images live globally under `data/word-images/`, separately from both databases.
+All profiles and sentences reuse the same normalized core word's saved image,
+including when the API key is unavailable. Different senses currently share one
+image. Changing a personal prompt affects only future generation or explicit
+regeneration, never existing images automatically. Prior image versions are retained
+without automatic pruning or a history UI. Back up this directory separately.
+Generation is an explicit paid provider operation; keep the prototype behind
+access controls. Provider calls are mocked in tests, which do not spend credits
+or verify live model quality. API, publication, and retry details are recorded in
+the [iteration 3 document](../impl-iterations/iteration3.md#global-word-images).
 
 Back and Next use invisible edge regions: double-click or double-tap the left edge to go back and the right edge to go next. Single edge clicks do not navigate. The regions remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
 A brief top-right direction arrow identifies each Back/Next request actually dispatched, including failed requests. No sequence number is displayed. Polling and rerenders do not replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
@@ -244,15 +229,15 @@ No font is fetched from the internet while a user generates or opens a completed
 Settings replaces the observation view while open; it is not a modal. The root contains five entries:
 1. Sampling: Complexity, Source weights, and Data sources
 2. Diagnostic: Trigger & acquisition, Source, Complexity, and Global
-3. Display: Playback speed and Appearance
+3. Display: Playback speed, Appearance, and Image generation
 4. Export
 5. Reset queue: a separate page containing the explanation and reset action
 Each child page has Back to return to its parent group. The top-right screen-corner `×` exits the entire Settings hierarchy and returns to the same observation.
 At desktop widths (960px and above), a navigation rail also provides direct access to every settings page, with the active destination marked. The top-left sidebar button collapses and restores the rail without changing the current page or discarding unsaved field values. Phones and smaller windows retain the grouped drill-down navigation. The overview shows saved sampling values, the current acquisition, playback/font preferences, and the unseen queue count. Page changes reset content scroll and focus the heading; the short entrance transition is disabled for reduced motion.
 The settings interface uses locally bundled Manrope variable type for Latin text, with the existing Noto Sans Telugu fallback. Appearance includes a live gradient and Telugu type sample that responds to color, font-pool, and size changes; the reader continues to choose from the enabled font pool.
-Appearance preferences are saved in this browser, independently of profile sampling settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
+Appearance preferences are saved in server-side SQLite for the active profile, alongside its sampling and playback settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
 
-Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. The audio bar's buttons move with it, while the Settings button stays in its corner. **Magnifier position** selects Above (default) or Below; Below reserves room underneath the bar. Positions are constrained to the available viewport, and long text is refitted to avoid overlapping the audio bar. **Reset positions** restores both offsets to zero and the magnifier to Above without changing colors, type size or fonts. These settings persist in this browser and do not change exports.
+Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. The audio bar's buttons move with it, while the Settings button stays in its corner. **Magnifier position** selects Above (default) or Below; Below reserves room underneath the bar. Positions are constrained to the available viewport, and long text is refitted to avoid overlapping the audio bar. **Reset positions** restores both offsets to zero and the magnifier to Above without changing colors, type size or fonts. These settings persist per profile and do not change exports.
 Settings uses compact rows, inline numeric values with understated unit suffixes, and checkmark Save actions. Numeric fields use one underline focus indicator instead of an outer focus ring; keyboard focus remains visible.
 Appearance exposes three explicit color roles:
 - Background: the three colors used by the reader gradient.
@@ -264,11 +249,11 @@ Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance 
 The precision magnifier pauses audio when opened by a sustained press or Enter; closing it does not resume playback. Both precision and speed popovers open above the main transport. Keyboard focus marks the precision playhead, not the bottom edge of the panel.
 The desktop settings rail has independent collapse controls for Sampling, Diagnostic, and Display. Group navigation and child links remain available without resetting the current page.
 Starting or replaying a clip from the beginning includes a 500 ms silent lead-in while the audio device is primed, before the native audio element advances. No recorded samples are muted or skipped, and original audio files, exports, seek times and bookmarks remain unchanged. Mid-clip resume is immediate. Pause, seeking, opening the magnifier or navigating away cancels a pending start. Loudness normalization connects before playback when the processing context is running; an unavailable or stalled context does not block native playback after the lead-in. Media loading and playback failures appear above the bar, and Play retries the request.
-The audio bar and Settings button start hidden. Clicking the reading area toggles them; after revealing them, pointer movement or keyboard activity resets their idle timer. **Display > Appearance > Auto-fade** sets the delay from 1 to 60 seconds (default 15), saved automatically in this browser. Its reset button restores 15 seconds without changing other appearance settings. They fade together after inactivity, even when the pointer rests over a control or a control retains keyboard focus. An open magnifier keeps them visible, and active pointer dragging postpones the timer until release. Movement alone does not reveal hidden controls. Keyboard focus or activation can reveal the controls again, and hiding the audio bar does not interrupt playback. Navigating to another observation hides the controls again.
+The audio bar and Settings button start hidden. Clicking the reading area toggles them; after revealing them, pointer movement or keyboard activity resets their idle timer. **Display > Appearance > Auto-fade** sets the delay from 1 to 60 seconds (default 15), saved automatically for the profile. Its reset button restores 15 seconds without changing other appearance settings. They fade together after inactivity, even when the pointer rests over a control or a control retains keyboard focus. An open magnifier keeps them visible, and active pointer dragging postpones the timer until release. Movement alone does not reveal hidden controls. Keyboard focus or activation can reveal the controls again, and hiding the audio bar does not interrupt playback. Navigating to another observation hides the controls again.
 Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
 Scrubbers prevent native text dragging, selection, and touch callouts while retaining keyboard focus. Pointer capture keeps fine seeking active outside the track and resets after cancellation so the next drag can begin normally.
 Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
-A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is presentation-only.
+A monochrome language control remains bottom-right throughout Settings and switches static Settings/Diagnostic labels between Telugu and English. This language preference is saved per profile and does not change source content.
 The Data sources page exposes the current source catalog and attribution information. For FLEURS, Shrutilipi, and IndicVoices it shows the provider, CC BY 4.0 license, upstream Hugging Face repository, catalog version, accepted and rejected row counts, complexity metric, and deployed source status. The dummy sources are explicitly identified as development fixtures.
 ## Diagnostic
 Diagnostic groups its two-column mapping tables into child pages for trigger/acquisition, source, complexity, and global fields. Together these contain the accepted trigger/preparation fields and the complete persisted selection snapshot, including complexity metric, grapheme complexity value, reference version, source mass, source probability, conditional row probability, and overall probability.
@@ -397,31 +382,82 @@ Each canonical prepared row retains:
 FLEURS uses its raw transcription as canonical text and preserves WAV audio.
 Shrutilipi uses `text` as canonical text and preserves FLAC audio.
 IndicVoices uses `text` as canonical text and preserves FLAC audio. Its verbatim, normalized, unsanitized, speaker, scenario, task, demographic, verification, and other available source metadata remain in source metadata rather than being discarded.
-At runtime, canonical rows expose one `TextMedia` item and one `AudioMedia` item. The shared `source_records` cache persists those media descriptors.
-Iteration 3 still renders only Unicode text. Audio playback remains deferred to the later Point 11 media interface.
-Development resolves canonical object keys against `data/corpus/objects/`. Production will use equivalent object keys for media stored in Tigris; source selection and canonical row identity do not depend on the physical storage backend.
+At runtime, canonical rows expose one `TextMedia` item and one `AudioMedia` item. The profile-owned `source_records` cache persists those media descriptors, and the reader plays available audio with profile-owned bookmarks.
+Runtime resolves canonical object keys against `data/corpus/objects/`. Fly.io/Tigris integration is deferred; there is no storage-backend toggle or cloud connection.
 ## Persistence and migration
-The default SQLite file is:
+There are two active database files, with paths relative to the repository root:
 ```text
-./data/app.sqlite
+data/corpus/corpus.sqlite   Global prepared corpus
+data/users.sqlite           All user data, scoped by profile_code
 ```
-Override it with `DATABASE_PATH`.
-Iteration 2 introduced the non-destructive persistence migration for repeated acquisitions, shared source-record caching, profile source weights, complexity settings, and persisted selection snapshots.
-Iteration 3 extends `source_records` with `media_json`, introduces selection reference version 2 with grapheme complexity, and preserves compatibility with historical version-1 word-count snapshots.
-Already-ready Iteration 1 observations are backfilled into the shared source-record cache with `media_json = '[]'`. When such a historical cached row is read, the runtime synthesizes its canonical `TextMedia` from the cached text.
-A compatibility-only disabled Iteration 1 `mock` resolver remains available for old pending rows. It is not one of the six selectable Iteration 3 sources.
-The prepared corpus database is separate from mutable profile/application state:
-```text
-data/app.sqlite
-data/corpus/corpus.sqlite
-```
-The prepared corpus is generated data and is not application-authored user state.
+There is no separate database per user. The application reads the prepared corpus;
+all mutable reading state, settings, cache entries, bookmarks, and migration markers
+go into the shared user database with profile ownership. Images remain global files.
+
+With `control.sh`, the working directory is `ti`. `DATABASE_PATH` defaults to
+`../data/users.sqlite`; corpus overrides are `CORPUS_DATABASE_PATH` and
+`CORPUS_OBJECTS_PATH`. Never point both databases at the same file.
+On first startup with the new default path, an existing `ti/data/app.sqlite` is
+copied using a consistent SQLite snapshot, including committed WAL data. An existing
+destination is never overwritten. The old file remains an inactive recovery copy,
+not a third active store. Custom database paths are used as supplied and are not
+automatically relocated. Stop old app processes before upgrading so they cannot
+continue writing to the recovery copy.
+
+On profile entry, legacy browser appearance/language and valid audio bookmarks
+are imported once without overwriting saved profile values. Because old browser
+values had no profile owner, they are assigned to the first eligible profile entered
+in that browser. Successful imports retire those keys; failures preserve them.
+Migration completion is recorded per profile in SQLite, not in localStorage.
+Profiles already marked as imported do not merge data from additional browsers.
+Saved settings and bookmarks follow the profile across devices; open devices are
+not live-synchronized. Appearance/language saves are ordered and offer Retry on
+failure; bookmark edits become visible after server confirmation and also offer Retry.
+Unsaved edits and failed bookmark retries are not durable across closing the page.
+Profile codes remain prototype identifiers, not secure authentication.
+
+## Storage inventory
+Paths below are relative to the repository root with normal `control.sh` startup.
+This inventory includes durable data, legacy recovery data, and generated artifacts.
+
+| Information | Scope | Location and contents |
+| --- | --- | --- |
+| Prepared dataset catalog | Global | `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (text and audio metadata), `source_complexity_members` (selection index). |
+| Dataset audio and preparation metadata | Global | `data/corpus/objects/` holds WAV/FLAC audio; `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
+| Built-in fixture datasets | Global | TypeScript fixtures in `ti/server/src/sources/dummy/data/`, not a separate mutable database. |
+| Appearance and language | Profile | `data/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
+| Image-generation settings | Profile | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
+| Sampling and playback settings | Profile | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
+| Reading state and diagnostics | Profile-linked | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |
+| Prepared source-record cache | Profile | Same user database, `source_records`, keyed by profile code, source ID and source key. Stores reusable text, media descriptors and preparation timestamps, not copied audio bytes. |
+| Audio bookmarks | Profile | Same user database, `profile_audio_bookmarks`, keyed by profile code, source ID and source key; sorted playback positions in seconds. Empty lists retain an explicit cleared state. |
+| Migration markers | Profile | Same user database, `profile_migrations`: `settings-v1` and `bookmarks-v1` completion timestamps. |
+| Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
+| Legacy image storage | Retained migration data | Existing `word_images` blobs in `data/users.sqlite` are unused by image routes. `image_settings` retains the old global prompt only to seed profile preferences. These historical tables are not active global image storage. |
+| Previous application database | Inactive recovery copy | `ti/data/app.sqlite` and any sidecars remain after automatic relocation. No ongoing writes are sent there under the new default. An explicit old `DATABASE_PATH` override still uses that old location. |
+| Legacy browser data | Import input only | `localStorage`: `telugu-now-appearance-v1`, `telugu-now-settings-language`, `telugu-now-preferences-migrated`, and `telugu-now-audio-bookmarks:<sourceId>\u0000<sourceKey>`. Valid eligible data is retired after successful import; malformed, changed, or ineligible entries may remain. Normal saves no longer write user data or migration markers to localStorage. |
+| Provider credentials and runtime configuration | Server/deployment | Root `env` contains the Pollinations API key. Defaults and path/profile overrides come from `ti/server/src/config/config.ts` and process environment; `ti/.env.example` documents them. Environment configuration is not per-user SQLite state. Never expose credentials to the browser or commit them. |
+| Exports | Downloaded file | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
+| Operational/generated files | Local workspace | `ti/.control/` contains controller logs, process IDs and state; `ti/dist/` is build output; `ti/test-results/` contains test artifacts. These are not the canonical stores for profiles or datasets. |
+| Raw and sample inputs | Offline intermediates | `data-transform/raw/` and `data-transform/sample/`; successful controller operations consume inputs. They are absent in the current prepared workspace. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
+| Bundled fonts and application metadata | Application assets | `ti/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `ti/frontend/font-assets.json` maps families to files. Source code and package/config files remain in the repository, and dependencies under `ti/node_modules/` are generated. |
+| Database sidecars and migration staging | Managed files | `data/users.sqlite-wal` and `data/users.sqlite-shm` support live SQLite transactions; `.users-migration-*` directories under `data/` stage relocation and are cleaned on normal completion/failure. Corpus or legacy databases may also have SQLite sidecars. |
+
+SQLite WAL files may contain committed changes not yet checkpointed, so do not
+copy only the main database while the app is writing. Use SQLite-aware backups
+or stop the app cleanly before copying. Back up `data/users.sqlite`, the complete
+`data/corpus/`, `data/word-images/`, credentials, and any wanted downloads separately.
+Retain legacy database/browser data until the upgrade and imports are confirmed.
+User databases, sidecars, image files and corpus data are Git-ignored.
+Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
+current playback position, randomly activated fonts, UI navigation/collapse state,
+active profile session and in-memory export artifacts are not durable storage.
 ## Environment defaults
 See `.env.example`.
 ```text
-DATABASE_PATH=./data/app.sqlite
-CORPUS_DATABASE_PATH=./data/corpus/corpus.sqlite
-CORPUS_OBJECTS_PATH=./data/corpus/objects
+DATABASE_PATH=../data/users.sqlite
+CORPUS_DATABASE_PATH=../data/corpus/corpus.sqlite
+CORPUS_OBJECTS_PATH=../data/corpus/objects
 SOURCE1_WEIGHT=1
 SOURCE2_WEIGHT=1
 SOURCE3_WEIGHT=1

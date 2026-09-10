@@ -2,16 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { AppearanceProvider } from './appearance';
 import { ObservationView } from './observation/ObservationView';
 import { ProfileEntry } from './profile/ProfileEntry';
-import { useProfileSession } from './profile/useProfileSession';
+import { useProfileSession, type ProfileSession } from './profile/useProfileSession';
 import { SettingsView } from './settings/SettingsView';
 import { useSettingsController } from './settings/useSettingsController';
 import './styles.css';
 export function App() {
-  return <AppearanceProvider><AppContent /></AppearanceProvider>;
-}
-function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const session = useProfileSession(settingsOpen);
+  return <AppearanceProvider key={session.profileCode ?? 'entry'} profileCode={session.profileCode}>
+    <AppContent session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
+  </AppearanceProvider>;
+}
+function AppContent({ session, settingsOpen, setSettingsOpen }: {
+  session: ProfileSession;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+}) {
   const gradientStep = useRef(0);
   useEffect(() => {
     if (!session.state?.currentObservation?.id) return;
