@@ -17,6 +17,9 @@ import {
 import {
   useObservationTypography,
 } from './useObservationTypography';
+import { WordProfile } from './word/WordProfile';
+import { wordAtOffset } from './word/word-analysis';
+import { useAppearance } from '../appearance';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -33,11 +36,18 @@ export function ObservationView({
   onMove,
   onOpenSettings,
 }: ObservationViewProps) {
+  const { appearance } = useAppearance();
   const [
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
+  const controlsClickTimer = useRef<number | undefined>(undefined);
+  const cancelControlsClick = () => {
+    window.clearTimeout(controlsClickTimer.current);
+    controlsClickTimer.current = undefined;
+  };
   useEffect(() => {
     const screen = screenRef.current;
     if (!controlsVisible || !screen) return;
@@ -46,12 +56,12 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       if (event instanceof PointerEvent && event.buttons !== 0) return;
       idleTimer = window.setTimeout(() => {
-        if (screen.querySelector('.audio-player-bar:hover, .settings-trigger:hover, .audio-magnifier, .audio-speed-popover, :focus-visible')) {
+        if (screen.querySelector('.audio-magnifier')) {
           scheduleHide();
           return;
         }
         setControlsVisible(false);
-      }, 3000);
+      }, appearance.autoFadeSeconds * 1000);
     };
     const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'pointerleave', 'keydown', 'focusin', 'focusout'];
     for (const event of events) screen.addEventListener(event, scheduleHide);
@@ -60,9 +70,13 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible]);
+  }, [controlsVisible, appearance.autoFadeSeconds]);
   const observation =
     state?.currentObservation ?? null;
+  useEffect(() => () => {
+    window.clearTimeout(controlsClickTimer.current);
+    controlsClickTimer.current = undefined;
+  }, [observation?.id]);
   const typography =
     useObservationTypography(
       observation,
@@ -92,9 +106,27 @@ export function ObservationView({
             : ''
         }`
       }
+      onFocusCapture={(event) => {
+        if (event.target.matches(':focus-visible') && event.target.closest('.audio-player-bar, .settings-trigger')) {
+          setControlsVisible(true);
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest('.audio-player-bar, .settings-trigger')) {
+          setControlsVisible(true);
+        }
+      }}
       onClick={(event) => {
+        cancelControlsClick();
         if (event.detail > 1) return;
-        if (typography.textRef.current?.contains(event.target as Node) && !window.getSelection()?.isCollapsed) return;
+        if (typography.textRef.current?.contains(event.target as Node)) {
+          if (!window.getSelection()?.isCollapsed) return;
+          controlsClickTimer.current = window.setTimeout(() => {
+            controlsClickTimer.current = undefined;
+            if (window.getSelection()?.isCollapsed) setControlsVisible((visible) => !visible);
+          }, 500);
+          return;
+        }
         setControlsVisible((visible) => !visible);
       }}
     >
@@ -140,6 +172,39 @@ export function ObservationView({
             ref={typography.textRef}
             className="observation-text"
             style={typography.style}
+            onMouseDown={event => {
+              cancelControlsClick();
+              if (event.button === 0 && event.detail > 1) event.preventDefault();
+            }}
+            onDoubleClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelControlsClick();
+              const element = event.currentTarget;
+              const browserDocument = document as Document & {
+                caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+                caretRangeFromPoint?: (x: number, y: number) => Range | null;
+              };
+              const position = browserDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
+              const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
+              const node = position?.offsetNode ?? range?.startContainer;
+              const offset = position?.offset ?? range?.startOffset;
+              if (!node || node !== element.firstChild || offset === undefined) return;
+              const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
+              if (!word) return;
+              const segment = [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
+                .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length);
+              if (!segment) return;
+              const hit = document.createRange();
+              hit.setStart(node, segment.index);
+              hit.setEnd(node, segment.index + segment.segment.length);
+              const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+              if (inside) {
+                window.getSelection()?.removeAllRanges();
+                setControlsVisible(false);
+                setSelectedWord({ word, observationId: observation.id });
+              }
+            }}
           >
             {observation.text}
           </div>
@@ -207,6 +272,9 @@ export function ObservationView({
       >
         <SettingsIcon />
       </button>
+      {selectedWord && selectedWord.observationId === observation?.id ? (
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />
+      ) : null}
     </main>
   );
 }

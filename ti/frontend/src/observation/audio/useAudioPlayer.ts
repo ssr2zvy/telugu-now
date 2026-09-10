@@ -30,6 +30,7 @@ export interface AudioPlayerState {
   waveformPeaks: number[];
   bookmarks: number[];
   togglePlay: () => void;
+  pause: () => void;
   seek: (time: number) => void;
   setPlaybackRate: (rate: number) => void;
   clickBookmarkButton: () => void;
@@ -44,6 +45,7 @@ let sharedAudioContext: AudioContextLike | null = null;
 // startup latency) so the beginning of real playback is never clipped.
 const DEVICE_PRIMING_AMPLITUDE = 0.0006;
 const DEVICE_PRIMING_BUFFER_SECONDS = 1;
+const AUDIO_LEAD_IN_MS = 500;
 
 function primeAudioDevice(context: AudioContextLike): void {
   const frameCount = Math.max(1, Math.floor(context.sampleRate * DEVICE_PRIMING_BUFFER_SECONDS));
@@ -94,6 +96,7 @@ export function useAudioPlayer(
   const connectedElementRef = useRef<HTMLAudioElement | null>(null);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
+  const leadInTimerRef = useRef<number | undefined>(undefined);
 
   const [playing, setPlaying] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -105,7 +108,7 @@ export function useAudioPlayer(
 
   // Connect the one persistent <audio> element to a gain node exactly once;
   // MediaElementAudioSourceNode can only ever be created a single time per element.
-  useEffect(() => {
+  const connectAudioOutput = () => {
     const element = audioRef.current;
     if (!element || connectedElementRef.current === element) return;
     const context = getAudioContext();
@@ -121,10 +124,13 @@ export function useAudioPlayer(
     } catch {
       // Playback still works through the element's own output if this fails.
     }
-  });
+  };
+  useEffect(() => connectAudioOutput());
 
   // Reset transport/analysis state whenever a new observation's audio arrives.
   useEffect(() => {
+    window.clearTimeout(leadInTimerRef.current);
+    leadInTimerRef.current = undefined;
     setPlaying(false);
     setPlaybackError(null);
     setCurrentTime(0);
@@ -154,6 +160,8 @@ export function useAudioPlayer(
     }
     return () => {
       cancelled = true;
+      window.clearTimeout(leadInTimerRef.current);
+      leadInTimerRef.current = undefined;
     };
     // defaultPlaybackRate intentionally excluded: it should only seed state on change of clip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,9 +184,13 @@ export function useAudioPlayer(
     const element = audioRef.current;
     if (!element) return;
     const onPlay = () => { setPlaying(true); setPlaybackError(null); };
-    const onPause = () => setPlaying(false);
-    const onError = () => {
+    const onPause = () => {
+      window.clearTimeout(leadInTimerRef.current);
+      leadInTimerRef.current = undefined;
       setPlaying(false);
+    };
+    const onError = () => {
+      onPause();
       setPlaybackError(element.error?.code === MediaError.MEDIA_ERR_NETWORK
         ? 'Audio could not be loaded. Check your connection and retry.'
         : 'This audio file could not be played.');
@@ -213,34 +225,51 @@ export function useAudioPlayer(
     return () => window.cancelAnimationFrame(frame);
   }, [playing]);
 
+  const pause = () => {
+    window.clearTimeout(leadInTimerRef.current);
+    leadInTimerRef.current = undefined;
+    audioRef.current?.pause();
+    setPlaying(false);
+  };
+
   const togglePlay = () => {
     const element = audioRef.current;
     if (!element) return;
-    if (!element.paused) {
-      element.pause();
+    if (!element.paused || leadInTimerRef.current !== undefined) {
+      pause();
       return;
     }
     setPlaybackError(null);
     if (element.error) element.load();
-    void element.play().catch((error: unknown) => {
-      if (audioRef.current !== element || !element.isConnected) return;
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setPlaying(false);
-      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-        ? 'Playback was blocked. Allow sound for this site and retry.'
-        : 'This audio file could not be played.');
-    });
     const context = getAudioContext();
     if (context && context.state !== 'running' && context.state !== 'closed') {
       try {
         void context.resume().catch(() => undefined);
-      } catch {
-        return;
-      }
+      } catch {}
+    }
+    const startPlayback = () => {
+      leadInTimerRef.current = undefined;
+      if (audioRef.current !== element || !element.isConnected) return;
+      connectAudioOutput();
+      void element.play().catch((error: unknown) => {
+        if (audioRef.current !== element || !element.isConnected) return;
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setPlaying(false);
+        setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'Playback was blocked. Allow sound for this site and retry.'
+          : 'This audio file could not be played.');
+      });
+    };
+    if (element.currentTime === 0 || element.ended) {
+      setPlaying(true);
+      leadInTimerRef.current = window.setTimeout(startPlayback, AUDIO_LEAD_IN_MS);
+    } else {
+      startPlayback();
     }
   };
 
   const seek = (time: number) => {
+    if (leadInTimerRef.current !== undefined) pause();
     const element = audioRef.current;
     const safeTime = Math.min(Math.max(0, time), duration > 0 ? duration : time);
     if (element) element.currentTime = safeTime;
@@ -294,6 +323,7 @@ export function useAudioPlayer(
     waveformPeaks,
     bookmarks,
     togglePlay,
+    pause,
     seek,
     setPlaybackRate: applyPlaybackRate,
     clickBookmarkButton,

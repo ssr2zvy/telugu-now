@@ -3,6 +3,7 @@ export type SettingsPage =
   | 'sampling'
   | 'display'
   | 'appearance'
+  | 'images'
   | 'reset'
   | 'trigger'
   | 'source'

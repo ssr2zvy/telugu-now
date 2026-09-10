@@ -3,8 +3,9 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import fs from 'node:fs/promises';
 import { config } from './config/config';
-import './db/database';
+import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
+import { wordImageRoutes } from './services/word-image-service';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
@@ -42,6 +43,7 @@ app.get('/api/data-sources', (c) =>
 );
 
 app.get('/api/audio/*', serveAudio());
+app.route('/api/word-images', wordImageRoutes(db));
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
+import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL } from '../shared/image-settings';
 
 const baseUrl = process.env.UI_TEST_URL ?? 'http://127.0.0.1:5173';
 const darkAppearance = { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#f3f5ee', fontScale: 50, fonts: ['Noto Sans Telugu'] };
@@ -28,7 +29,7 @@ function audioFixture(): Buffer {
   return buffer;
 }
 
-async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = true) {
+async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = true, observationText = sampleText) {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const selection: SelectionSnapshot = {
@@ -49,7 +50,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     selectionSettings: { sourceWeights: { fixture: 1 }, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25, complexityReferenceVersion: 2 },
     audioSettings: { playbackRate: 1 },
     currentObservation: {
-      id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: sampleText,
+      id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: observationText,
       audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl && new URL(realAudioUrl, baseUrl).pathname.endsWith('.flac') ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
       diagnostic: {
         acquisitionNumber: 1, triggerKind: 'initial-fill', triggeredByObservationId: null,
@@ -117,9 +118,216 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
   return { errors, state, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
 }
 
-async function revealControls(page: Page) {
+async function doubleClickWord(page: Page, word: string, delay = 0) {
+  const bounds = await page.locator('.observation-text').evaluate((element, selected) => {
+    const start = element.textContent!.indexOf(selected);
+    const range = document.createRange();
+    range.setStart(element.firstChild!, start);
+    range.setEnd(element.firstChild!, start + selected.length);
+    const rect = range.getClientRects()[0]!;
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  }, word);
+  await page.mouse.dblclick(bounds.x, bounds.y, { delay });
+}
+
+async function wordImageFixture(page: Page) {
+  const images = new Map<string, Buffer>();
+  const generations: string[] = [];
+  let failure = '';
+  let prompt = DEFAULT_IMAGE_PROMPT;
+  let release = () => {};
+  let gate: Promise<void> | null = null;
+  const png = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#73916d';
+    context.fillRect(0, 0, 256, 256);
+    context.fillStyle = '#d4dfd7';
+    context.fillRect(64, 64, 128, 128);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  }), 'base64');
+  await page.route('**/api/word-images/settings', async route => {
+    if (route.request().method() === 'PUT') prompt = route.request().postDataJSON().prompt;
+    await route.fulfill({ json: { prompt, model: IMAGE_MODEL, keyConfigured: true } });
+  });
+  await page.route('**/api/word-images?*', async route => {
+    const root = new URL(route.request().url()).searchParams.get('root')!;
+    if (route.request().method() === 'POST') {
+      generations.push(root);
+      if (gate) await gate;
+      if (failure) { await route.fulfill({ status: 502, json: { error: failure } }); return; }
+      if (!images.has(root)) images.set(root, png);
+    }
+    const image = images.get(root);
+    await route.fulfill(image ? { contentType: 'image/png', body: image } : { status: 404, json: { error: 'image-not-found' } });
+  });
+  return { images, generations, prompt: () => prompt,
+    fail: (message: string) => { failure = message; },
+    hold: () => { gate = new Promise(resolve => { release = resolve; }); },
+    release: () => release(),
+  };
+}
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+  test(`word profile generates once and reuses the root image at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో చెట్టు.');
+    const images = await wordImageFixture(page);
+    const text = page.locator('.observation-text');
+    const original = await text.getAttribute('style');
+    await text.click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const external: string[] = [];
+    await page.route('https://**', route => { external.push(route.request().url()); return route.abort(); });
+    await doubleClickWord(page, 'చెట్లలో');
+    const dialog = page.getByRole('dialog', { name: 'చెట్లలో' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('h2')).toHaveText('చెట్లలో');
+    await expect(dialog.locator('.word-profile-ending')).toHaveText('ట్లలో');
+    expect(await dialog.locator('.word-profile-ending').evaluate(element => getComputedStyle(element).color)).not.toBe(await dialog.locator('h2').evaluate(element => getComputedStyle(element).color));
+    await expect(dialog.locator('input, dl, h3')).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Generate', exact: true })).toBeEnabled();
+    expect(images.generations).toEqual([]);
+    await dialog.getByRole('button', { name: 'Generate', exact: true }).click();
+    const image = dialog.getByRole('img', { name: 'Drawing of the concept of చెట్టు' });
+    await expect(image).toBeVisible();
+    await expect(image).toHaveJSProperty('naturalWidth', 256);
+    expect(images.generations).toEqual(['చెట్టు']);
+    await expect(dialog.getByRole('button', { name: 'Generate', exact: true })).toHaveCount(0);
+    expect(images.images.has('చెట్టు')).toBe(true);
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('word-profile.png') });
+    await dialog.getByRole('button', { name: 'Close word profile' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await text.getAttribute('style')).toBe(original);
+    expect(fixture.navigationCount()).toBe(0);
+    await doubleClickWord(page, 'చెట్టు.');
+    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్టు' })).toBeVisible();
+    expect(images.generations).toHaveLength(1);
+    await page.keyboard.press('Escape');
+    await page.reload();
+    await page.locator('.profile-input').fill('001');
+    await expect(text).toHaveCSS('opacity', '1');
+    await doubleClickWord(page, 'చెట్టు.');
+    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్టు' })).toBeVisible();
+    expect(images.generations).toHaveLength(1);
+    expect(external).toEqual([]);
+    await page.keyboard.press('Escape');
+    await revealControls(page);
+    await page.locator('.nav-zone-right').dblclick();
+    await expect.poll(fixture.navigationCount).toBe(1);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('word double-click never reveals audio controls or selects text, while single clicks and drag selection still work', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+  await wordImageFixture(page);
+  const screen = page.locator('.observation-screen');
+  const text = page.locator('.observation-text');
+  await screen.evaluate(element => {
+    element.setAttribute('data-controls-revealed', 'false');
+    new MutationObserver(records => {
+      if (element.classList.contains('controls-visible') || records.some(record => record.oldValue?.includes('controls-visible'))) {
+        element.setAttribute('data-controls-revealed', 'true');
+      }
+    }).observe(element, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  });
+  for (const delay of [0, 100]) {
+    await doubleClickWord(page, 'అవును', delay);
+    await expect(page.getByRole('dialog', { name: 'అవును' })).toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+    await expect(screen).not.toHaveClass(/controls-visible/);
+    await expect(screen).toHaveAttribute('data-controls-revealed', 'false');
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('');
+  }
+  await text.click();
+  await expect(screen).toHaveClass(/controls-visible/);
+  await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
+  await text.click();
+  await expect(screen).not.toHaveClass(/controls-visible/);
+  const bounds = await text.evaluate(element => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const rect = range.getBoundingClientRect();
+    return { left: rect.left + 1, right: rect.right - 1, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(bounds.left, bounds.y);
+  await page.mouse.down();
+  await page.mouse.move(bounds.right, bounds.y, { steps: 16 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('అవును చెట్టు');
+  await page.waitForTimeout(600);
+  await expect(screen).not.toHaveClass(/controls-visible/);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('word profile survives closing during generation without duplicate requests', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో');
+  const images = await wordImageFixture(page);
+  images.hold();
+  await doubleClickWord(page, 'అవును');
+  await expect(page.getByRole('button', { name: 'Generate', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Generating', exact: true })).toBeDisabled();
+  await expect.poll(() => images.generations.length).toBe(1);
+  await page.keyboard.press('Escape');
+  await doubleClickWord(page, 'అవును');
+  await expect(page.getByRole('button', { name: 'Loading', exact: true })).toBeDisabled();
+  images.release();
+  await expect(page.getByRole('img', { name: 'Drawing of the concept of అవును' })).toBeVisible();
+  expect(images.generations).toHaveLength(1);
+  expect(images.images.has('అవును')).toBe(true);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('word profile displays provider errors and permits an explicit retry', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో');
+  const images = await wordImageFixture(page);
+  images.fail('Pollinations account credits are insufficient.');
+  await doubleClickWord(page, 'అవును');
+  await expect(page.getByRole('button', { name: 'Generate', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Pollinations account credits are insufficient.');
+  expect(images.generations).toHaveLength(1);
+  images.fail('');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Drawing of the concept of అవును' })).toBeVisible();
+  expect(images.generations).toHaveLength(2);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('image generation settings require the core word placeholder and persist the prompt', async ({ page }, testInfo) => {
+  const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో');
+  const images = await wordImageFixture(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Display: Image generation', exact: true }).click();
+  const input = page.getByLabel('Image prompt', { exact: true });
+  await expect(input).toHaveValue(DEFAULT_IMAGE_PROMPT);
+  await input.fill('Draw something');
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(input).toHaveAttribute('aria-invalid', 'true');
+  await input.fill('Watercolor of <core word>. No written words.');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('Saved');
+  expect(images.prompt()).toBe('Watercolor of <core word>. No written words.');
+  await page.screenshot({ path: testInfo.outputPath('image-settings.png') });
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Display: Image generation', exact: true }).click();
+  await expect(input).toHaveValue(images.prompt());
+  expect(fixture.errors).toEqual([]);
+});
+
+async function revealControls(page: Page, clockPaused = false) {
   if (!await page.locator('.observation-screen').evaluate(element => element.classList.contains('controls-visible'))) {
     await page.locator('.observation-text').click();
+    if (clockPaused) await page.clock.fastForward(500);
   }
   await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
 }
@@ -236,6 +444,85 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
+test('audio starts with a silent lead-in without consuming the beginning of the clip', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await revealControls(page, true);
+  const audio = page.locator('audio');
+  await audio.evaluate(element => {
+    element.addEventListener('play', () => {
+      element.setAttribute('data-start-time', String((element as HTMLAudioElement).currentTime));
+    });
+  });
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(page.getByTitle('Pause', { exact: true })).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await expect(audio).toHaveJSProperty('currentTime', 0);
+  await expect(audio).not.toHaveAttribute('data-start-time');
+  await page.clock.fastForward(1);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await expect.poll(() => audio.getAttribute('data-start-time')).not.toBeNull();
+  expect(Number(await audio.getAttribute('data-start-time'))).toBeLessThan(0.1);
+  await expect.poll(() => audio.evaluate(element => (element as HTMLAudioElement).currentTime)).toBeGreaterThan(0.1);
+  await page.getByTitle('Pause', { exact: true }).click();
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(audio).toHaveJSProperty('paused', false);
+  await audio.evaluate(element => {
+    const media = element as HTMLAudioElement;
+    media.currentTime = media.duration - 0.05;
+  });
+  await expect(audio).toHaveJSProperty('ended', true);
+  await audio.evaluate(element => element.removeAttribute('data-start-time'));
+  await page.getByTitle('Play', { exact: true }).click();
+  await page.clock.fastForward(499);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await expect(audio).not.toHaveAttribute('data-start-time');
+  await page.clock.fastForward(1);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await expect.poll(() => audio.getAttribute('data-start-time')).not.toBeNull();
+  expect(Number(await audio.getAttribute('data-start-time'))).toBeLessThan(0.1);
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const action of ['pause', 'seek', 'magnifier', 'navigate']) {
+  test(`audio lead-in is cancelled by ${action}`, async ({ page }) => {
+    const fixture = await loadFixture(page);
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await revealControls(page, true);
+    const originalAudio = await page.locator('audio').elementHandle();
+    await page.getByTitle('Play', { exact: true }).click();
+    await page.clock.fastForward(200);
+    if (action === 'pause') await page.getByTitle('Pause', { exact: true }).click();
+    if (action === 'seek') await page.getByRole('slider', { name: 'Audio position', exact: true }).press('ArrowRight');
+    if (action === 'magnifier') {
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      await expect(page.getByRole('slider', { name: 'Precise audio position' })).toBeVisible();
+    }
+    if (action === 'navigate') {
+      await page.locator('.nav-zone-right').dblclick();
+      await expect.poll(fixture.navigationCount).toBe(1);
+      await expect.poll(() => originalAudio!.evaluate(element => element.isConnected)).toBe(false);
+    }
+    await page.clock.fastForward(1000);
+    expect(await originalAudio!.evaluate(element => (element as HTMLAudioElement).paused)).toBe(true);
+    await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+    await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
+    if (action === 'navigate') {
+      await revealControls(page, true);
+      await page.getByTitle('Play', { exact: true }).click();
+      await page.clock.fastForward(499);
+      await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+      await expect(page.locator('audio')).toHaveJSProperty('currentTime', 0);
+      await page.clock.fastForward(1);
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+    }
+    expect(fixture.errors).toEqual([]);
+  });
 }
 
 for (const failure of ['pending', 'rejected', 'unavailable']) {
@@ -575,6 +862,50 @@ test.describe('touch navigation', () => {
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test.describe(`dark settings ${viewport.width}`, () => {
     test.use({ viewport });
+    test('keyboard focus has no outlines and Tab and Space still operate controls', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+      await wordImageFixture(page);
+      const expectNoOutlines = async () => {
+        expect(await page.evaluate(() => [...document.querySelectorAll('*')].filter(element => {
+          const style = getComputedStyle(element);
+          return element.getClientRects().length > 0 && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+        }).map(element => element.className))).toEqual([]);
+      };
+      const focusVisibleControls = async () => {
+        for (const control of await page.locator('button:enabled, input:enabled, textarea:enabled, select:enabled, a[href], [role="slider"]').all()) {
+          if (!await control.isVisible()) continue;
+          await control.focus();
+          await expectNoOutlines();
+        }
+      };
+      await page.locator('.nav-zone-left').focus();
+      await page.keyboard.press('Tab');
+      await expect(page.getByTitle('Play', { exact: true })).toBeFocused();
+      await expectNoOutlines();
+      await page.keyboard.press('Space');
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+      await expectNoOutlines();
+      await page.keyboard.press('Space');
+      await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+      await page.screenshot({ path: testInfo.outputPath('keyboard-player.png') });
+      await focusVisibleControls();
+      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.getByRole('slider', { name: 'Playback speed', exact: true }).focus();
+      await expectNoOutlines();
+      await page.mouse.click(10, 10);
+      await doubleClickWord(page, 'అవును');
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.keyboard.press('Tab');
+      await expectNoOutlines();
+      await page.keyboard.press('Escape');
+      await openSettings(page);
+      await focusVisibleControls();
+      await page.getByRole('button', { name: 'Display: Image generation', exact: true }).click();
+      await page.getByLabel('Image prompt', { exact: true }).focus();
+      await expectNoOutlines();
+      await page.screenshot({ path: testInfo.outputPath('keyboard-settings.png') });
+      expect(fixture.errors).toEqual([]);
+    });
     test('inline fields retain one focus indicator', async ({ page }, testInfo) => {
       await page.addInitScript((appearance) => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), darkAppearance);
       const fixture = await loadFixture(page);
@@ -724,6 +1055,185 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await appearance.click();
         await expect(appearance).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('.settings-header h1')).toHaveText('రూపం');
+      }
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('appearance auto-fade delay persists and controls the idle timer', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page);
+      const openAppearance = async () => {
+        await openSettings(page);
+        await page.getByRole('button', { name: 'Display', exact: true }).click();
+        await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      };
+      await openAppearance();
+      const delay = page.getByRole('slider', { name: 'Auto-fade delay', exact: true });
+      await expect(delay).toHaveValue('15');
+      await delay.press('Home');
+      for (let step = 0; step < 4; step += 1) await delay.press('ArrowRight');
+      await expect(delay).toHaveValue('5');
+      await expect(delay).toHaveAttribute('aria-valuetext', '5 seconds');
+      await withinViewport(delay, page);
+      await expect(delay.locator('..').locator('output')).toHaveText('5 s');
+      await page.screenshot({ path: testInfo.outputPath('appearance-auto-fade.png') });
+      await page.reload();
+      await page.locator('.profile-input').fill('001');
+      await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+      await openAppearance();
+      await expect(delay).toHaveValue('5');
+      await page.locator('.settings-close').click();
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      await revealControls(page, true);
+      const player = page.locator('.audio-player-bar');
+      const settings = page.locator('.settings-trigger');
+      await page.clock.fastForward(4000);
+      await page.mouse.move(120, 120);
+      await page.clock.fastForward(4999);
+      await expect(player).toHaveCSS('opacity', '1');
+      await expect(settings).toHaveCSS('opacity', '1');
+      await page.clock.fastForward(501);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(settings).toHaveCSS('opacity', '0');
+      await revealControls(page, true);
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      const precise = page.getByRole('slider', { name: 'Precise audio position' });
+      await expect(precise).toBeVisible();
+      await page.mouse.move(120, 120);
+      await page.clock.fastForward(20000);
+      await expect(player).toHaveCSS('opacity', '1');
+      await expect(settings).toHaveCSS('opacity', '1');
+      await precise.press('Escape');
+      await page.clock.fastForward(5500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(settings).toHaveCSS('opacity', '0');
+      await revealControls(page, true);
+      await openAppearance();
+      await delay.press('End');
+      await expect(delay).toHaveValue('60');
+      await page.getByRole('button', { name: 'Reset positions', exact: true }).click();
+      await expect(delay).toHaveValue('60');
+      await page.getByRole('button', { name: 'Reset auto-fade delay', exact: true }).click();
+      await expect(delay).toHaveValue('15');
+      await page.locator('.settings-close').click();
+      await revealControls(page, true);
+      await page.clock.fastForward(14999);
+      await expect(player).toHaveCSS('opacity', '1');
+      await page.clock.fastForward(501);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(settings).toHaveCSS('opacity', '0');
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('appearance positions move independently, persist, and place the magnifier on either side', async ({ page }, testInfo) => {
+      await page.addInitScript(appearance => {
+        if (!localStorage.getItem('telugu-now-appearance-v1')) localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance));
+      }, { ...darkAppearance, fontScale: 0 });
+      const fixture = await loadFixture(page, undefined, true, 'అవును');
+      const text = page.locator('.observation-text');
+      const player = page.locator('.audio-player-bar');
+      const initialText = (await text.boundingBox())!;
+      const initialBar = (await player.boundingBox())!;
+      const initialSettings = (await page.locator('.settings-trigger').boundingBox())!;
+      const openAppearance = async () => {
+        await openSettings(page);
+        await page.getByRole('button', { name: 'Display', exact: true }).click();
+        await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      };
+      const setOffset = async (name: string, target: number) => {
+        const slider = page.getByRole('slider', { name, exact: true });
+        const current = Number(await slider.inputValue());
+        for (let step = 0; step < Math.abs(target - current); step += 1) {
+          await slider.press(target > current ? 'ArrowRight' : 'ArrowLeft');
+        }
+        await expect(slider).toHaveValue(String(target));
+      };
+      for (const offset of [20, -20]) {
+        await openAppearance();
+        await setOffset('Text vertical offset', offset);
+        const audioOffset = -Math.sign(offset) * 6;
+        await setOffset('Audio bar vertical offset', audioOffset);
+        await page.locator('.settings-close').click();
+        await expect(text).toHaveCSS('opacity', '1');
+        expect((await text.boundingBox())!.y - initialText.y).toBeCloseTo(offset, 0);
+        expect((await player.boundingBox())!.y - initialBar.y).toBeCloseTo(audioOffset, 0);
+        expect((await page.locator('.settings-trigger').boundingBox())!.y).toBeCloseTo(initialSettings.y, 0);
+        await revealControls(page);
+        const bar = (await player.boundingBox())!;
+        for (const button of await player.locator('button').all()) {
+          const bounds = (await button.boundingBox())!;
+          expect(bounds.y + bounds.height / 2).toBeCloseTo(bar.y + bar.height / 2, 0);
+        }
+        await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+        const magnifier = page.locator('.audio-magnifier');
+        await withinViewport(magnifier, page);
+        const bounds = (await magnifier.boundingBox())!;
+        expect(bounds.y + bounds.height).toBeLessThan(bar.y);
+        await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
+      }
+      await openAppearance();
+      await page.getByRole('radio', { name: 'Below', exact: true }).check();
+      await expect(page.getByRole('radio', { name: 'Below', exact: true })).toBeChecked();
+      await page.locator('.appearance-section').filter({ has: page.getByRole('heading', { name: 'Position', exact: true }) }).evaluate(element => element.scrollIntoView({ block: 'start' }));
+      expect(await page.locator('.settings-page-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath('appearance-positions.png') });
+      await page.locator('.settings-close').click();
+      await revealControls(page);
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      const below = page.locator('.audio-magnifier');
+      await withinViewport(below, page);
+      const bar = (await player.boundingBox())!;
+      expect((await below.boundingBox())!.y).toBeGreaterThan(bar.y + bar.height);
+      const belowBounds = (await below.boundingBox())!;
+      expect(belowBounds.y + belowBounds.height).toBeLessThan(initialSettings.y);
+      await withinViewport(text, page);
+      await page.screenshot({ path: testInfo.outputPath('magnifier-below.png') });
+      await page.reload();
+      await page.locator('.profile-input').fill('001');
+      await expect(text).toHaveCSS('opacity', '1');
+      await openAppearance();
+      await expect(page.getByRole('slider', { name: 'Text vertical offset' })).toHaveValue('-20');
+      await expect(page.getByRole('slider', { name: 'Audio bar vertical offset' })).toHaveValue('6');
+      await expect(page.getByRole('radio', { name: 'Below', exact: true })).toBeChecked();
+      await page.getByRole('button', { name: 'Reset positions', exact: true }).click();
+      await expect(page.getByRole('slider', { name: 'Text vertical offset' })).toHaveValue('0');
+      await expect(page.getByRole('slider', { name: 'Audio bar vertical offset' })).toHaveValue('0');
+      await expect(page.getByRole('radio', { name: 'Above', exact: true })).toBeChecked();
+      await expect(page.getByLabel('Text & icons color', { exact: true })).toHaveValue(darkAppearance.foreground);
+      await page.locator('.settings-close').click();
+      await expect(text).toHaveCSS('opacity', '1');
+      expect((await text.boundingBox())!.y).toBeCloseTo(initialText.y, 0);
+      expect((await player.boundingBox())!.y).toBeCloseTo(initialBar.y, 0);
+      expect(fixture.errors).toEqual([]);
+    });
+
+    test('appearance offset limits keep long text and magnifiers inside the viewport', async ({ page }) => {
+      const fixture = await loadFixture(page, undefined, false);
+      fixture.state.currentObservation!.text = sampleText.repeat(12);
+      for (const [offset, magnifierPosition] of [[-200, 'above'], [200, 'above'], [200, 'below']] as const) {
+        await page.evaluate(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), {
+          ...darkAppearance, fontScale: 100, textOffset: offset, audioOffset: offset, magnifierPosition,
+        });
+        await page.reload();
+        await page.locator('.profile-input').fill('001');
+        const text = page.locator('.observation-text');
+        await expect(text).toHaveCSS('opacity', '1');
+        await withinViewport(text, page);
+        const textBounds = (await text.boundingBox())!;
+        const bar = (await page.locator('.audio-player-bar').boundingBox())!;
+        const settings = (await page.locator('.settings-trigger').boundingBox())!;
+        expect(bar.x + bar.width <= settings.x || bar.y + bar.height <= settings.y).toBe(true);
+        expect(textBounds.y + textBounds.height).toBeLessThan(bar.y);
+        expect(await text.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+        await revealControls(page);
+        await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+        await withinViewport(page.locator('.audio-magnifier'), page);
+        const panel = (await page.locator('.audio-magnifier').boundingBox())!;
+        if (magnifierPosition === 'above') expect(panel.y + panel.height).toBeLessThan(bar.y);
+        else expect(panel.y).toBeGreaterThan(bar.y + bar.height);
+        await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
+        await page.getByTitle('Playback speed', { exact: true }).click();
+        await withinViewport(page.locator('.audio-speed-popover'), page);
       }
       expect(fixture.errors).toEqual([]);
     });
@@ -949,27 +1459,31 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.screenshot({ path: testInfo.outputPath('reader-hidden.png') });
       await page.clock.install();
       await page.clock.pauseAt(new Date());
-      await revealControls(page);
+      await revealControls(page, true);
       for (let step = 0; step < 3; step += 1) {
-        await page.clock.fastForward(2000);
+        await page.clock.fastForward(14000);
         await page.mouse.move(120 + step * 10, 120);
         await expect(player).toHaveCSS('opacity', '1');
         await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
       }
       await page.screenshot({ path: testInfo.outputPath('reader-controls.png') });
-      await page.clock.fastForward(3500);
+      await page.clock.fastForward(14999);
+      await expect(player).toHaveCSS('opacity', '1');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      await page.clock.fastForward(501);
       await expect(player).toHaveCSS('opacity', '0');
       await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
       await page.mouse.move(160, 120);
       await expect(player).toHaveCSS('opacity', '0');
-      await revealControls(page);
+      await revealControls(page, true);
       await page.getByTitle('Play', { exact: true }).click();
+      await page.clock.fastForward(500);
       await expect(page.locator('audio')).toHaveJSProperty('paused', false);
-      await page.mouse.move(160, 120);
-      await page.clock.fastForward(3500);
+      await page.clock.fastForward(15500);
       await expect(player).toHaveCSS('opacity', '0');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
       await expect(page.locator('audio')).toHaveJSProperty('paused', false);
-      await revealControls(page);
+      await revealControls(page, true);
       await page.getByTitle('Pause', { exact: true }).click();
       await page.getByTitle('Playback speed', { exact: true }).click();
       await page.mouse.move(160, 120);
@@ -977,12 +1491,34 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(player).toHaveCSS('opacity', '1');
       await page.mouse.click(10, 10);
       await expect(page.locator('.audio-speed-popover')).toHaveCount(0);
-      await page.clock.fastForward(3500);
+      await page.clock.fastForward(15500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await revealControls(page, true);
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      const precise = page.getByRole('slider', { name: 'Precise audio position' });
+      await expect(precise).toBeVisible();
+      await page.mouse.move(160, 120);
+      await page.clock.fastForward(45000);
+      await expect(player).toHaveCSS('opacity', '1');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      await expect(precise).toBeVisible();
+      await precise.press('Escape');
+      await expect(precise).toHaveCount(0);
+      await page.clock.fastForward(14999);
+      await expect(player).toHaveCSS('opacity', '1');
+      await page.clock.fastForward(501);
       await expect(player).toHaveCSS('opacity', '0');
       await page.locator('.nav-zone-left').focus();
       await page.keyboard.press('Tab');
       await expect(page.getByTitle('Play', { exact: true })).toBeFocused();
       await expect(player).toHaveCSS('opacity', '1');
+      await page.clock.fastForward(15500);
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
+      await page.keyboard.press('Space');
+      await page.clock.fastForward(500);
+      await expect(player).toHaveCSS('opacity', '1');
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
       expect(fixture.errors).toEqual([]);
     });
 

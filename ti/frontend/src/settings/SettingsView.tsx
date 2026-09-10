@@ -11,6 +11,7 @@ import { SettingsIndex } from './pages/SettingsIndex';
 import { SourceWeightsPage } from './pages/SourceWeightsPage';
 import { settingsGroups, settingsPageLabel } from './navigation';
 import { AppearancePage } from './pages/AppearancePage';
+import { ImageGenerationPage } from './pages/ImageGenerationPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -77,6 +78,13 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <AppearancePage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'images') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <ImageGenerationPage language={language} />
       </SettingsShell>
     );
   }

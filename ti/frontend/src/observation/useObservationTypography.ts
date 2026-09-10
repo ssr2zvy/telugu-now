@@ -72,9 +72,12 @@ export function useObservationTypography(
       fittedWidth = containerRect.width;
       fittedHeight = containerRect.height;
       const generation = ++fitGeneration;
+      const audioBounds = container.querySelector('.audio-player-bar')?.getBoundingClientRect();
+      const topLimit = containerRect.top + 24;
+      const bottomLimit = Math.min(containerRect.bottom - 24, audioBounds ? audioBounds.top - 24 : Infinity);
       const availableHeight = Math.max(
         1,
-        containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx,
+        Math.min(containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx, bottomLimit - topLimit),
       );
       const desired = preferredObservationFontSizePx(
         observation.text,
@@ -94,7 +97,10 @@ export function useObservationTypography(
         // The local fallback stack remains usable if a font cannot be loaded.
       }
       if (cancelled || generation !== fitGeneration) return;
-      let low: number = OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
+      element.style.fontSize = `${OBSERVATION_PRESENTATION.fitMinimumFontSizePx}px`;
+      const minimumSize = element.scrollHeight > availableHeight + 1 || element.scrollWidth > element.clientWidth + 1
+        ? 1 : OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
+      let low: number = minimumSize;
       let high: number = desired;
       let best: number = Math.min(low, desired);
       for (
@@ -114,11 +120,15 @@ export function useObservationTypography(
         }
       }
       const finalSize = Math.max(
-        OBSERVATION_PRESENTATION.fitMinimumFontSizePx,
+        minimumSize,
         Math.min(desired, best),
       );
       element.style.fontSize = `${finalSize}px`;
-      element.style.translate = `0 ${Math.min(20, Math.max(0, (availableHeight - element.scrollHeight) / 2 - 24))}px`;
+      element.style.translate = 'none';
+      const textBounds = element.getBoundingClientRect();
+      const baselineOffset = Math.min(20, Math.max(0, (containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx - element.scrollHeight) / 2 - 24));
+      const offset = Math.max(topLimit - textBounds.top, Math.min(bottomLimit - textBounds.bottom, baselineOffset + appearance.textOffset));
+      element.style.translate = `0 ${offset}px`;
       setFontSizePx(finalSize);
       setReady(true);
     };
@@ -136,6 +146,9 @@ export function useObservationTypography(
     observation?.text,
     presentation.fontFamily,
     appearance.fontScale,
+    appearance.textOffset,
+    appearance.audioOffset,
+    appearance.magnifierPosition,
   ]);
   return {
     containerRef,

@@ -1,5 +1,5 @@
-import { appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
-import { RotateCcw, Shuffle } from 'lucide-react';
+import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
+import { ArrowDown, ArrowUp, RotateCcw, Shuffle } from 'lucide-react';
 import { OBSERVATION_FONTS } from '../../presentation';
 import type { CSSProperties } from 'react';
 import type { UiLanguage } from '../types';
@@ -55,6 +55,44 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
         <label className="appearance-scale">
           <input type="range" min={0} max={100} step={1} style={{ '--range-progress': `${appearance.fontScale}%` } as CSSProperties} aria-label={text('Font size scale', 'అక్షరాల పరిమాణ స్థాయి')} value={appearance.fontScale} onChange={(event) => updateAppearance({ fontScale: Number(event.target.value) })} />
           <output>{appearance.fontScale}</output>
+        </label>
+      </section>
+      <section className="appearance-section">
+        <div className="appearance-section-heading">
+          <h2>{text('Position', 'స్థానం')}</h2>
+          <button type="button" className="appearance-icon-action" title={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} aria-label={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} onClick={() => updateAppearance({ textOffset: 0, audioOffset: 0, magnifierPosition: 'above' })}><RotateCcw aria-hidden="true" /></button>
+        </div>
+        {(['textOffset', 'audioOffset'] as const).map(setting => (
+          <div className="appearance-position-field" key={setting}>
+            <label htmlFor={`appearance-${setting}`}>{setting === 'textOffset' ? text('Text vertical offset', 'అక్షరాల నిలువు స్థానం') : text('Audio bar vertical offset', 'ఆడియో బార్ నిలువు స్థానం')}</label>
+            <div className="appearance-scale appearance-offset">
+              <ArrowUp size={16} aria-hidden="true" />
+              <input id={`appearance-${setting}`} type="range" min={-APPEARANCE_OFFSET_LIMIT} max={APPEARANCE_OFFSET_LIMIT} step={1} value={appearance[setting]} style={{ '--range-progress': `${(appearance[setting] + APPEARANCE_OFFSET_LIMIT) / (APPEARANCE_OFFSET_LIMIT * 2) * 100}%` } as CSSProperties} aria-valuetext={`${appearance[setting]} px`} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} />
+              <ArrowDown size={16} aria-hidden="true" />
+              <output htmlFor={`appearance-${setting}`}>{appearance[setting] > 0 ? '+' : ''}{appearance[setting]} px</output>
+            </div>
+          </div>
+        ))}
+        <fieldset className="appearance-magnifier-position">
+          <legend>{text('Magnifier position', 'మాగ్నిఫైయర్ స్థానం')}</legend>
+          <div className="appearance-position-options">
+            {(['above', 'below'] as const).map(position => (
+              <label key={position}>
+                <input type="radio" name="magnifier-position" value={position} checked={appearance.magnifierPosition === position} onChange={() => updateAppearance({ magnifierPosition: position })} />
+                <span>{position === 'above' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'above' ? text('Above', 'పైన') : text('Below', 'కింద')}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </section>
+      <section className="appearance-section">
+        <div className="appearance-section-heading">
+          <h2>{text('Auto-fade', 'స్వయంచాలకంగా దాచడం')}</h2>
+          <button type="button" className="appearance-icon-action" title={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} aria-label={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ autoFadeSeconds: DEFAULT_APPEARANCE.autoFadeSeconds })}><RotateCcw aria-hidden="true" /></button>
+        </div>
+        <label className="appearance-scale">
+          <input type="range" min={AUTO_FADE_SECONDS_LIMITS.min} max={AUTO_FADE_SECONDS_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance.autoFadeSeconds - AUTO_FADE_SECONDS_LIMITS.min) / (AUTO_FADE_SECONDS_LIMITS.max - AUTO_FADE_SECONDS_LIMITS.min) * 100}%` } as CSSProperties} aria-label={text('Auto-fade delay', 'దాచే సమయం')} aria-valuetext={text(`${appearance.autoFadeSeconds} seconds`, `${appearance.autoFadeSeconds} సెకన్లు`)} value={appearance.autoFadeSeconds} onChange={event => updateAppearance({ autoFadeSeconds: Number(event.target.value) })} />
+          <output>{appearance.autoFadeSeconds} s</output>
         </label>
       </section>
       <section className="appearance-section">

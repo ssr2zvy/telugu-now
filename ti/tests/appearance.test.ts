@@ -32,6 +32,38 @@ test('font selection respects exclusions and size scale preserves the content re
   assert.ok(preferredObservationFontSizePx(short, 600, 600, 80) > preferredObservationFontSizePx(short.repeat(20), 600, 600, 80));
 });
 
+test('appearance positions preserve existing baselines and validate persisted offsets', () => {
+  const previous = parseAppearance({ fontScale: 75 });
+  assert.equal(previous.textOffset, 0);
+  assert.equal(previous.audioOffset, 0);
+  assert.equal(previous.magnifierPosition, 'above');
+  const custom = parseAppearance({ textOffset: -35, audioOffset: 60, magnifierPosition: 'below' });
+  assert.equal(custom.textOffset, -35);
+  assert.equal(custom.audioOffset, 60);
+  assert.equal(custom.magnifierPosition, 'below');
+  assert.equal(parseAppearance({ textOffset: -999 }).textOffset, -200);
+  assert.equal(parseAppearance({ audioOffset: 999 }).audioOffset, 200);
+  assert.equal(parseAppearance({ textOffset: 12.6 }).textOffset, 13);
+  for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
+    assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).textOffset, 0);
+    assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
+    assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'above');
+  }
+});
+
+test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
+  assert.equal(parseAppearance({ fontScale: 75 }).autoFadeSeconds, 15);
+  assert.equal(parseAppearance({ autoFadeSeconds: 5 }).autoFadeSeconds, 5);
+  assert.equal(parseAppearance({ autoFadeSeconds: 30 }).autoFadeSeconds, 30);
+  assert.equal(parseAppearance({ autoFadeSeconds: 0 }).autoFadeSeconds, 1);
+  assert.equal(parseAppearance({ autoFadeSeconds: -10 }).autoFadeSeconds, 1);
+  assert.equal(parseAppearance({ autoFadeSeconds: 999 }).autoFadeSeconds, 60);
+  assert.equal(parseAppearance({ autoFadeSeconds: 5.7 }).autoFadeSeconds, 6);
+  for (const invalid of [null, undefined, '5', NaN, Infinity, -Infinity]) {
+    assert.equal(parseAppearance({ autoFadeSeconds: invalid }).autoFadeSeconds, 15);
+  }
+});
+
 test('surface colors remain independent while corner colors adapt to palette and contrast', () => {
   assert.equal(parseAppearance({}).surface, null);
   assert.equal(parseAppearance({ surface: 'url(bad)' }).surface, null);

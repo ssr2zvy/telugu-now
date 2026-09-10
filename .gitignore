@@ -1,8 +1,10 @@
 data-transform/raw/
 data-transform/sample/
 data/corpus/
+data/word-images/
 data/.corpus.prepare-*/
 data/.corpus.backup-*/
 **/__pycache__/
 ti/test-results/
 ti/playwright-report/
+/env

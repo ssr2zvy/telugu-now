@@ -6,6 +6,10 @@ export interface AppearanceSettings {
   foreground: string;
   surface: string | null;
   fontScale: number;
+  textOffset: number;
+  audioOffset: number;
+  magnifierPosition: 'above' | 'below';
+  autoFadeSeconds: number;
   fonts: ObservationFontFamily[];
 }
 
@@ -14,10 +18,18 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   foreground: '#171717',
   surface: null,
   fontScale: 50,
+  textOffset: 0,
+  audioOffset: 0,
+  magnifierPosition: 'above',
+  autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
+export const APPEARANCE_OFFSET_LIMIT = 200;
+export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const storageKey = 'telugu-now-appearance-v1';
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
+  ? Math.round(Math.max(-APPEARANCE_OFFSET_LIMIT, Math.min(APPEARANCE_OFFSET_LIMIT, value))) : 0;
 
 export function parseAppearance(value: unknown): AppearanceSettings {
   const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings>;
@@ -29,6 +41,12 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     surface: isColor(candidate.surface) ? candidate.surface : null,
     fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
+    textOffset: parseOffset(candidate.textOffset),
+    audioOffset: parseOffset(candidate.audioOffset),
+    magnifierPosition: candidate.magnifierPosition === 'below' ? 'below' : 'above',
+    autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
+      ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
+      : DEFAULT_APPEARANCE.autoFadeSeconds,
     fonts: fonts.length ? fonts : [...OBSERVATION_FONTS],
   };
 }
@@ -121,6 +139,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     '--gradient-end': appearance.gradient[2],
     '--foreground': appearance.foreground,
     '--corner-control-color': appearanceCornerColor(appearance),
+    '--audio-offset': `${appearance.audioOffset}px`,
+    '--audio-placement-bottom': appearance.magnifierPosition === 'below'
+      ? 'max(164px, calc(env(safe-area-inset-bottom) + 164px))'
+      : 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
   } as CSSProperties;
   return (
     <AppearanceContext.Provider value={{ appearance, updateAppearance }}>

@@ -49,7 +49,7 @@ export function AudioPlayerBar({
         disabled={player.duration <= 0}
         onSeek={player.seek}
         onMagnifierOpen={() => {
-          player.audioRef.current?.pause();
+          player.pause();
           setSpeedPopoverOpen(false);
         }}
       />
