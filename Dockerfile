@@ -18,6 +18,7 @@ FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
+LABEL org.opencontainers.image.version="0.0.1-initial"
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIRECTORY=/data

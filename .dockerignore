@@ -16,6 +16,7 @@
 !upa/shared/**
 !upa/scripts/
 !upa/scripts/sync-fonts.mjs
+!upa/scripts/write-artifact-versions.mjs
 # The existing typecheck includes test sources.
 !upa/tests/
 !upa/tests/**

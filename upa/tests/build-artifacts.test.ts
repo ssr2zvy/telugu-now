@@ -40,3 +40,48 @@ test('artifact script builds from its own repository and propagates build failur
     assert.equal(fs.existsSync(path.join(root, 'upa/node_modules')), false);
   }
 });
+
+test('artifact metadata preserves independent source versions and rejects invalid requests', t => {
+  const root = path.join(appDirectory, 'test-results', `artifact-versions-${randomUUID()}`);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  const script = path.join(root, 'scripts/write-artifact-versions.mjs');
+  fs.copyFileSync(path.join(appDirectory, 'scripts/write-artifact-versions.mjs'), script);
+  const artifacts = [
+    { name: 'frontend', version: '1.2.3', source: 'frontend/version.json', output: 'dist/client/version.json' },
+    { name: 'backend', version: '4.5.6', source: 'server/version.json', output: 'dist/server/version.json' },
+    { name: 'worker', version: '7.8.9-initial', source: 'server/availability-worker.version.json', output: 'dist/server/availability-worker.version.json' },
+  ];
+  for (const artifact of artifacts) {
+    fs.mkdirSync(path.dirname(path.join(root, artifact.source)), { recursive: true });
+    fs.mkdirSync(path.dirname(path.join(root, artifact.output)), { recursive: true });
+    fs.writeFileSync(path.join(root, artifact.source), JSON.stringify({
+      artifact: artifact.name, version: artifact.version,
+    }));
+  }
+  const run = (...args: string[]) => spawnSync(process.execPath, [script, ...args], {
+    cwd: repositoryDirectory, encoding: 'utf8',
+  });
+  const result = run('frontend', 'backend', 'worker');
+  assert.equal(result.status, 0, result.stderr);
+  for (const artifact of artifacts) {
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, artifact.output), 'utf8')), {
+      artifact: artifact.name, version: artifact.version,
+    });
+  }
+
+  fs.unlinkSync(path.join(root, 'dist/client/version.json'));
+  const unknown = run('frontend', 'unknown');
+  assert.notEqual(unknown.status, 0);
+  assert.match(unknown.stderr, /Unknown artifact: unknown/);
+  assert.equal(fs.existsSync(path.join(root, 'dist/client/version.json')), false);
+  assert.notEqual(run().status, 0);
+
+  const frontendOnly = run('frontend');
+  assert.equal(frontendOnly.status, 0, frontendOnly.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'dist/server/version.json'), 'utf8')).version, '4.5.6');
+  fs.unlinkSync(path.join(root, 'frontend/version.json'));
+  const missingSource = run('frontend');
+  assert.notEqual(missingSource.status, 0);
+  assert.match(missingSource.stderr, /ENOENT/);
+});

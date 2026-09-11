@@ -243,6 +243,17 @@ Docker. It locates `upa/` relative to the script and runs the existing build
 Dependency installation is separate. All outputs remain under the already
 Git-ignored `upa/dist/`; no additional artifact directory is introduced.
 
+The image and all three artifacts initially use `0.0.1-initial`, with independent
+sources of version information. `Dockerfile` defines the image's OCI
+`org.opencontainers.image.version` label. Artifact versions belong to
+`upa/frontend/version.json`, `upa/server/version.json`, and
+`upa/server/availability-worker.version.json`. The npm client/server post-build
+hooks copy these metadata files into the corresponding `dist/client/` or
+`dist/server/` output, including standalone builds. Neither artifact versions
+nor the workspace npm package version are derived from the image label.
+Docker image tagging remains a build/publish action, for example
+`docker build -t telugu-now:0.0.1-initial .`.
+
 The worker is always included alongside the frontend and backend. `fly.toml`
 does not select build outputs: changing the runtime worker flag needs no
 different image. The root multi-stage Dockerfile caches dependency installation,

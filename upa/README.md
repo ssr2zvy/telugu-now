@@ -610,11 +610,29 @@ dependencies or reading `fly.toml`. Outputs stay in the already-ignored
 `upa/dist/client/` and `upa/dist/server/`. The frontend, backend, and availability
 worker are always built together; worker activation is a runtime setting.
 
+Image and artifact versions are independent, initially `0.0.1-initial`:
+
+| Component | Version source | Packaged metadata |
+|---|---|---|
+| Image | `Dockerfile` | OCI label `org.opencontainers.image.version` |
+| Frontend | `upa/frontend/version.json` | `upa/dist/client/version.json` |
+| Backend | `upa/server/version.json` | `upa/dist/server/version.json` |
+| Worker | `upa/server/availability-worker.version.json` | `upa/dist/server/availability-worker.version.json` |
+
+The npm post-build hooks copy each artifact's own version metadata into its
+output, including when building the client or server separately. The workspace
+`package.json` version is not an artifact release version. Update only the
+affected artifact's source file when its version changes; the image label is
+maintained separately in the Dockerfile.
+
 Build the single deployment image using the repository root as the context:
 
 ```bash
-docker build -t telugu-now .
+docker build -t telugu-now:0.0.1-initial .
 ```
+
+Docker tags are supplied by the build/publish command, not set by a Dockerfile
+label. Use the image's version for the release tag; artifact versions may differ.
 
 The multi-stage `Dockerfile` uses Node 22 on Debian Bookworm for both dependency
 installation and runtime, keeping the native SQLite module compatible. It caches

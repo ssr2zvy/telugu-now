@@ -13,6 +13,8 @@
     "build": "npm run typecheck && npm run build:client && npm run build:server",
     "build:client": "vite build --config frontend/vite.config.ts",
     "build:server": "tsup server/src/index.ts server/src/availability-worker.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
+    "postbuild:client": "node scripts/write-artifact-versions.mjs frontend",
+    "postbuild:server": "node scripts/write-artifact-versions.mjs backend worker",
     "typecheck": "tsc --noEmit",
     "start": "NODE_ENV=production node dist/server/index.js",
     "test": "tsx --test tests/*.test.ts",
