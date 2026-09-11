@@ -6,6 +6,6 @@ data/users.sqlite*
 data/.corpus.prepare-*/
 data/.corpus.backup-*/
 **/__pycache__/
-ti/test-results/
-ti/playwright-report/
+upa/test-results/
+upa/playwright-report/
 /env

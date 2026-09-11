@@ -70,7 +70,7 @@ The configured prototype profile code is `001`.
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
-With the development server running, run the isolated UI checks from `ti/`:
+With the development server running, run the isolated UI checks from `upa/`:
 ```bash
 npx playwright install --with-deps chromium
 npx playwright test tests/ui.browser.spec.ts --workers=1
@@ -405,10 +405,10 @@ Default runtime paths are located from the repository root, regardless of the
 working directory. `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, and `CORPUS_OBJECTS_PATH`
 may select locations inside root `data/`; runtime rejects paths outside it and
 rejects using the same file for both databases. With `control.sh`, relative overrides
-are resolved from `ti`. Temporary databases used by tests are test artifacts.
+are resolved from `upa`. Temporary databases used by tests are test artifacts.
 No external-storage mode is implemented; Fly.io/Tigris integration remains deferred.
 
-The old `ti/data/app.sqlite` and its sidecars have been deleted after verifying the
+The old `upa/data/app.sqlite` and its sidecars have been deleted after verifying the
 transfer of all user records and image files. Startup no longer reads or recreates
 that old database. The old image tables have also been removed: their prompt is
 preserved in existing users' settings and their images in global file storage.
@@ -437,7 +437,7 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | --- | --- | --- |
 | Prepared dataset catalog | Global | `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (text and audio metadata), `source_complexity_members` (selection index). |
 | Dataset audio and preparation metadata | Global | `data/corpus/objects/` holds WAV/FLAC audio; `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
-| Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `ti/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
+| Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `upa/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
 | Appearance and language | User | `data/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
 | Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
 | Sampling and playback settings | User | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
@@ -448,11 +448,11 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Transferred older browser data | User | Same user database, `profile_browser_data`: exact prior appearance, language, bookmark and migration values with transfer timestamps, scoped by user code. Current usable values also populate the preference/bookmark tables when missing. Older values are retained here even if they conflict with current settings or cannot be parsed. |
 | Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
 | Provider credentials | Credentials | Root `env` contains the Pollinations API key; deployment may also supply secrets. Never expose them to the browser or commit them. |
-| Runtime configuration | Assets/artifacts | Defaults are application configuration in `ti/server/src/config/config.ts`; `ti/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
+| Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
-| Operational/generated files | Assets/artifacts | `ti/.control/` contains controller logs, process IDs and state; `ti/dist/` is build output; `ti/test-results/` and `ti/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
+| Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
 | Raw and sample inputs | Global | `data/raw/` and `data/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
-| Bundled fonts and application files | Assets/artifacts | `ti/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `ti/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `ti/node_modules/` are generated. |
+| Bundled fonts and application files | Assets/artifacts | `upa/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `upa/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `upa/node_modules/` are generated. |
 | User database sidecars | User | `data/users.sqlite-wal` and `data/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
 | Corpus database sidecars | Global | Any SQLite sidecars remain alongside `data/corpus/corpus.sqlite`. |
 
