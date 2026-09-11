@@ -25,6 +25,9 @@
 **/node_modules
 **/dist
 **/data
+# These are application source modules, not runtime corpus data.
+!upa/server/src/sources/dummy/data/
+!upa/server/src/sources/dummy/data/*.ts
 **/test-results
 **/playwright-report
 **/.control
