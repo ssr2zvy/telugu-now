@@ -29,6 +29,13 @@ export function profilePreferencesStore(database: Database.Database) {
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (profile_code, source_id, source_key)
     );
+    CREATE TABLE IF NOT EXISTS profile_browser_data (
+      profile_code TEXT NOT NULL REFERENCES profiles(code) ON DELETE CASCADE,
+      storage_key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      transferred_at INTEGER NOT NULL,
+      PRIMARY KEY (profile_code, storage_key, value)
+    );
   `);
   const columns = database.prepare('PRAGMA table_info(profile_preferences)').all() as Array<{ name: string }>;
   if (!columns.some(column => column.name === 'allow_image_regeneration')) {
@@ -39,6 +46,11 @@ export function profilePreferencesStore(database: Database.Database) {
     ? (database.prepare('SELECT prompt FROM image_settings WHERE id = 1').get() as { prompt: string } | undefined)?.prompt
     : undefined;
   const initialPrompt = validImagePrompt(legacyPrompt) ? legacyPrompt : DEFAULT_IMAGE_PROMPT;
+  if (legacyTable) database.transaction(() => {
+    database.prepare(`INSERT OR IGNORE INTO profile_preferences (profile_code, image_prompt, updated_at)
+      SELECT code, ?, ? FROM profiles`).run(initialPrompt, Date.now());
+    database.exec('DROP TABLE image_settings');
+  })();
   database.exec(`INSERT OR IGNORE INTO profile_migrations (profile_code, migration_key, completed_at)
     SELECT profile_code, 'settings-v1', updated_at FROM profile_preferences
     WHERE appearance_json IS NOT NULL AND language IS NOT NULL;`);
@@ -46,7 +58,7 @@ export function profilePreferencesStore(database: Database.Database) {
   const markMigrated = (code: string, key: string) => database.prepare('INSERT OR IGNORE INTO profile_migrations VALUES (?, ?, ?)').run(code, key, Date.now());
   const get = (code: string): ProfilePreferences => {
     database.prepare(`INSERT OR IGNORE INTO profile_preferences (profile_code, image_prompt, updated_at) VALUES (?, ?, ?)`)
-      .run(code, initialPrompt, Date.now());
+      .run(code, DEFAULT_IMAGE_PROMPT, Date.now());
     const row = database.prepare('SELECT appearance_json, language, image_prompt, allow_image_regeneration FROM profile_preferences WHERE profile_code = ?')
       .get(code) as { appearance_json: string | null; language: 'en' | 'te' | null; image_prompt: string; allow_image_regeneration: number };
     return { appearance: row.appearance_json === null ? null : parseAppearance(JSON.parse(row.appearance_json)), language: row.language, imagePrompt: row.image_prompt, allowImageRegeneration: row.allow_image_regeneration === 1 };
@@ -85,7 +97,26 @@ export function profilePreferencesStore(database: Database.Database) {
     markMigrated(code, 'bookmarks-v1');
     return true;
   });
-  return { get, update, getBookmarks, saveBookmarks, importBookmarks,
+  const transferBrowserData = database.transaction((code: string, entries: Array<{ key: string; value: string }>) => {
+    const patch: UpdateProfilePreferences = {};
+    for (const entry of entries) {
+      database.prepare('INSERT OR IGNORE INTO profile_browser_data VALUES (?, ?, ?, ?)').run(code, entry.key, entry.value, Date.now());
+      if (entry.key === 'telugu-now-settings-language' && ['en', 'te'].includes(entry.value)) patch.language = entry.value as 'en' | 'te';
+      let parsed: unknown;
+      try { parsed = JSON.parse(entry.value); } catch { continue; }
+      if (entry.key === 'telugu-now-appearance-v1' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        patch.appearance = parseAppearance(parsed);
+      }
+      if (entry.key.startsWith('telugu-now-audio-bookmarks:') && validAudioBookmarks(parsed)) {
+        const [sourceId, sourceKey, extra] = entry.key.slice('telugu-now-audio-bookmarks:'.length).split('\u0000');
+        if (sourceId && sourceKey && sourceId.length <= 1000 && sourceKey.length <= 1000 && extra === undefined) {
+          saveBookmarks(code, { sourceId, sourceKey, bookmarks: parsed }, true);
+        }
+      }
+    }
+    if (Object.keys(patch).length) update(code, patch, true);
+  });
+  return { get, update, getBookmarks, saveBookmarks, importBookmarks, transferBrowserData,
     migrations: (code: string) => ({ settings: migrated(code, 'settings-v1'), bookmarks: migrated(code, 'bookmarks-v1') }),
   };
 }
@@ -94,7 +125,7 @@ export function profilePreferencesRoutes(database: Database.Database, validCode:
   const preferences = profilePreferencesStore(database);
   const app = new Hono();
   app.use('*', bodyLimit({ maxSize: 1024 * 1024, onError: context => context.json({ error: 'request-too-large' }, 413) }));
-  for (const resource of ['preferences', 'migrations', 'bookmarks', 'bookmarks/import']) app.use(`/:code/${resource}`, async (context, next) => {
+  for (const resource of ['preferences', 'migrations', 'bookmarks', 'bookmarks/import', 'browser-data']) app.use(`/:code/${resource}`, async (context, next) => {
     const code = context.req.param('code');
     if (!validCode(code) || !database.prepare('SELECT 1 FROM profiles WHERE code = ?').get(code)) {
       return context.json({ error: 'invalid-profile-code' }, 404);
@@ -108,6 +139,17 @@ export function profilePreferencesRoutes(database: Database.Database, validCode:
     await next();
   });
   app.get('/:code/migrations', context => context.json(preferences.migrations(context.req.param('code'))));
+  app.post('/:code/browser-data', async context => {
+    const body = await context.req.json().catch(() => null);
+    const settings = new Set(['telugu-now-appearance-v1', 'telugu-now-settings-language', 'telugu-now-preferences-migrated']);
+    if (!body || !Array.isArray(body.entries) || body.entries.length > 5000 || body.entries.some((entry: { key: string; value: string }) =>
+      !entry || typeof entry.key !== 'string' || typeof entry.value !== 'string'
+      || (!settings.has(entry.key) && !entry.key.startsWith('telugu-now-audio-bookmarks:')))) {
+      return context.json({ error: 'invalid-user-data' }, 400);
+    }
+    preferences.transferBrowserData(context.req.param('code'), body.entries);
+    return context.json({ saved: true });
+  });
   const validKey = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 1000 && !value.includes('\u0000');
   app.get('/:code/bookmarks', context => {
     const sourceId = context.req.query('sourceId');

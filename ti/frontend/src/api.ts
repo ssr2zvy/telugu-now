@@ -11,15 +11,38 @@ import type {
   UpdateSelectionSettingsRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
-import type { ProfilePreferences, UpdateProfilePreferences, ProfileMigrationState } from '../../shared/appearance';
+import type { ProfilePreferences, UpdateProfilePreferences } from '../../shared/appearance';
 
-export async function getProfileMigrations(code: string): Promise<ProfileMigrationState> {
-  return parseJson<ProfileMigrationState>(await fetch(`/api/profiles/${encodeURIComponent(code)}/migrations`));
+export async function getProfilePreferences(code: string): Promise<ProfilePreferences> {
+  return parseJson<ProfilePreferences>(await fetch(`/api/profiles/${encodeURIComponent(code)}/preferences`));
 }
 
-export async function saveProfilePreferences(code: string, patch: UpdateProfilePreferences, initialize = false): Promise<ProfilePreferences> {
+export async function transferBrowserData(code: string, storage?: Storage): Promise<void> {
+  let browserStorage: Storage;
+  const entries: Array<{ key: string; value: string }> = [];
+  try {
+    browserStorage = storage ?? window.localStorage;
+    const settings = new Set(['telugu-now-appearance-v1', 'telugu-now-settings-language', 'telugu-now-preferences-migrated']);
+    for (let index = 0; index < browserStorage.length; index += 1) {
+      const key = browserStorage.key(index);
+      if (!key || (!settings.has(key) && !key.startsWith('telugu-now-audio-bookmarks:'))) continue;
+      const value = browserStorage.getItem(key);
+      if (value !== null) entries.push({ key, value });
+    }
+  } catch { return; }
+  if (!entries.length) return;
+  const result = await parseJson<{ saved: boolean }>(await fetch(`/api/profiles/${encodeURIComponent(code)}/browser-data`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }),
+  }));
+  if (result.saved !== true) throw new Error('Could not transfer saved user data.');
+  for (const entry of entries) {
+    try { if (browserStorage.getItem(entry.key) === entry.value) browserStorage.removeItem(entry.key); } catch {}
+  }
+}
+
+export async function saveProfilePreferences(code: string, patch: UpdateProfilePreferences): Promise<ProfilePreferences> {
   return parseJson<ProfilePreferences>(await fetch(`/api/profiles/${encodeURIComponent(code)}/preferences`, {
-    method: initialize ? 'POST' : 'PATCH',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
     keepalive: true,

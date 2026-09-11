@@ -1,4 +1,6 @@
 import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
@@ -32,9 +34,26 @@ function parseProfileCodes(value: string | undefined): Set<string> {
   );
 }
 
-const databasePath = process.env.DATABASE_PATH ?? '../data/users.sqlite';
-const corpusDatabasePath = process.env.CORPUS_DATABASE_PATH ?? '../data/corpus/corpus.sqlite';
-const corpusObjectsPath = process.env.CORPUS_OBJECTS_PATH ?? '../data/corpus/objects';
+let repositoryDirectory = path.dirname(fileURLToPath(import.meta.url));
+while (!fs.existsSync(path.join(repositoryDirectory, 'control.sh'))) {
+  const parent = path.dirname(repositoryDirectory);
+  if (parent === repositoryDirectory) throw new Error('Could not locate the repository data directory.');
+  repositoryDirectory = parent;
+}
+const dataDirectory = path.join(repositoryDirectory, 'data');
+
+export function resolveDataPath(value: string | undefined, fallback: string): string {
+  const resolved = value === undefined ? path.join(dataDirectory, fallback) : path.resolve(value);
+  const relative = path.relative(dataDirectory, resolved);
+  if (process.env.NODE_ENV !== 'test' && (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))) {
+    throw new Error('Persistent user and global data must stay under the repository data directory.');
+  }
+  return resolved;
+}
+
+const databasePath = resolveDataPath(process.env.DATABASE_PATH, 'users.sqlite');
+const corpusDatabasePath = resolveDataPath(process.env.CORPUS_DATABASE_PATH, 'corpus/corpus.sqlite');
+const corpusObjectsPath = resolveDataPath(process.env.CORPUS_OBJECTS_PATH, 'corpus/objects');
 const defaultSourceWeights = {
   source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
   source2: parseUnitInterval(process.env.SOURCE2_WEIGHT, 1),
@@ -52,7 +71,6 @@ export const config = {
   port: parseNonNegativeInt(process.env.PORT, 8080),
   devPort: parseNonNegativeInt(process.env.API_DEV_PORT, 8787),
   databasePath: path.resolve(databasePath),
-  legacyDatabasePath: path.resolve(databasePath) === path.resolve('../data/users.sqlite') ? path.resolve('./data/app.sqlite') : null,
   corpusDatabasePath: path.resolve(corpusDatabasePath),
   corpusObjectsPath: path.resolve(corpusObjectsPath),
   profileCodes: parseProfileCodes(process.env.PROFILE_CODES),

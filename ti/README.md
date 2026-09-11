@@ -20,11 +20,11 @@ The explicit data-controller operations are:
 ```
 `samples` transforms source downloads under:
 ```text
-data-transform/raw/
+data/raw/
 ```
 into source-shaped development input under:
 ```text
-data-transform/sample/
+data/sample/
 ```
 `prepare` transforms the current source-shaped input into the canonical local corpus:
 ```text
@@ -394,60 +394,73 @@ There is no separate database per user. The application reads the prepared corpu
 all mutable reading state, settings, cache entries, bookmarks, and migration markers
 go into the shared user database with profile ownership. Images remain global files.
 
-With `control.sh`, the working directory is `ti`. `DATABASE_PATH` defaults to
-`../data/users.sqlite`; corpus overrides are `CORPUS_DATABASE_PATH` and
-`CORPUS_OBJECTS_PATH`. Never point both databases at the same file.
-On first startup with the new default path, an existing `ti/data/app.sqlite` is
-copied using a consistent SQLite snapshot, including committed WAL data. An existing
-destination is never overwritten. The old file remains an inactive recovery copy,
-not a third active store. Custom database paths are used as supplied and are not
-automatically relocated. Stop old app processes before upgrading so they cannot
-continue writing to the recovery copy.
+All persisted user and global data belongs under root `data/`. The only exceptions
+are credentials, downloaded HTML/EPUB files, and assets/artifacts. Assets are bundled
+fonts, licences, icons, static application files and committed test fixtures.
+Artifacts are build output, installed dependencies, test results, and controller
+logs/process files. Corpus files, audio, generated word images and user caches are
+data, not part of that exception.
 
-On profile entry, legacy browser appearance/language and valid audio bookmarks
-are imported once without overwriting saved profile values. Because old browser
-values had no profile owner, they are assigned to the first eligible profile entered
-in that browser. Successful imports retire those keys; failures preserve them.
-Migration completion is recorded per profile in SQLite, not in localStorage.
-Profiles already marked as imported do not merge data from additional browsers.
-Saved settings and bookmarks follow the profile across devices; open devices are
-not live-synchronized. Appearance/language saves are ordered and offer Retry on
-failure; bookmark edits become visible after server confirmation and also offer Retry.
-Unsaved edits and failed bookmark retries are not durable across closing the page.
-Profile codes remain prototype identifiers, not secure authentication.
+Default runtime paths are located from the repository root, regardless of the
+working directory. `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, and `CORPUS_OBJECTS_PATH`
+may select locations inside root `data/`; runtime rejects paths outside it and
+rejects using the same file for both databases. With `control.sh`, relative overrides
+are resolved from `ti`. Temporary databases used by tests are test artifacts.
+No external-storage mode is implemented; Fly.io/Tigris integration remains deferred.
+
+The old `ti/data/app.sqlite` and its sidecars have been deleted after verifying the
+transfer of all user records and image files. Startup no longer reads or recreates
+that old database. The old image tables have also been removed: their prompt is
+preserved in existing users' settings and their images in global file storage.
+
+Older settings and bookmarks still held by a browser are user data. After you enter
+your three-digit code, the app transfers them into that user's database records.
+Current server-saved settings and bookmarks are not overwritten. The exact older
+values are also retained in the user database, including conflicting or unreadable
+values, so deleting an old browser copy cannot discard information. The browser
+removes only values confirmed saved by the server and unchanged during transfer.
+Failed transfers keep the old copies and offer Retry. A browser must open the
+updated app to transfer its data; the server cannot retrieve it from a closed or
+unavailable browser. No normal settings or bookmark saves go to browser storage.
+
+Saved settings and bookmarks follow the user across devices; open devices are not
+live-synchronized. Appearance/language saves are ordered and offer Retry on failure;
+bookmark edits become visible after server confirmation and also offer Retry.
+Unsaved edits are not durable across closing the page. Three-digit codes remain
+prototype identifiers, not secure authentication.
 
 ## Storage inventory
 Paths below are relative to the repository root with normal `control.sh` startup.
-This inventory includes durable data, legacy recovery data, and generated artifacts.
+Every item below has user, global, credentials, downloads, or assets/artifacts scope.
 
 | Information | Scope | Location and contents |
 | --- | --- | --- |
 | Prepared dataset catalog | Global | `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (text and audio metadata), `source_complexity_members` (selection index). |
 | Dataset audio and preparation metadata | Global | `data/corpus/objects/` holds WAV/FLAC audio; `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
-| Built-in fixture datasets | Global | TypeScript fixtures in `ti/server/src/sources/dummy/data/`, not a separate mutable database. |
-| Appearance and language | Profile | `data/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
-| Image-generation settings | Profile | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
-| Sampling and playback settings | Profile | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
-| Reading state and diagnostics | Profile-linked | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |
-| Prepared source-record cache | Profile | Same user database, `source_records`, keyed by profile code, source ID and source key. Stores reusable text, media descriptors and preparation timestamps, not copied audio bytes. |
-| Audio bookmarks | Profile | Same user database, `profile_audio_bookmarks`, keyed by profile code, source ID and source key; sorted playback positions in seconds. Empty lists retain an explicit cleared state. |
-| Migration markers | Profile | Same user database, `profile_migrations`: `settings-v1` and `bookmarks-v1` completion timestamps. |
+| Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `ti/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
+| Appearance and language | User | `data/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
+| Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
+| Sampling and playback settings | User | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
+| Reading state and diagnostics | User | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |
+| Prepared source-record cache | User | Same user database, `source_records`, keyed by user code, source ID and source key. Stores reusable text, media descriptors and preparation timestamps, not copied audio bytes. |
+| Audio bookmarks | User | Same user database, `profile_audio_bookmarks`, keyed by user code, source ID and source key; sorted playback positions in seconds. Empty lists retain an explicit cleared state. |
+| Migration records | User | Same user database, `profile_migrations`: retained `settings-v1` and `bookmarks-v1` completion timestamps. |
+| Transferred older browser data | User | Same user database, `profile_browser_data`: exact prior appearance, language, bookmark and migration values with transfer timestamps, scoped by user code. Current usable values also populate the preference/bookmark tables when missing. Older values are retained here even if they conflict with current settings or cannot be parsed. |
 | Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
-| Legacy image storage | Retained migration data | Existing `word_images` blobs in `data/users.sqlite` are unused by image routes. `image_settings` retains the old global prompt only to seed profile preferences. These historical tables are not active global image storage. |
-| Previous application database | Inactive recovery copy | `ti/data/app.sqlite` and any sidecars remain after automatic relocation. No ongoing writes are sent there under the new default. An explicit old `DATABASE_PATH` override still uses that old location. |
-| Legacy browser data | Import input only | `localStorage`: `telugu-now-appearance-v1`, `telugu-now-settings-language`, `telugu-now-preferences-migrated`, and `telugu-now-audio-bookmarks:<sourceId>\u0000<sourceKey>`. Valid eligible data is retired after successful import; malformed, changed, or ineligible entries may remain. Normal saves no longer write user data or migration markers to localStorage. |
-| Provider credentials and runtime configuration | Server/deployment | Root `env` contains the Pollinations API key. Defaults and path/profile overrides come from `ti/server/src/config/config.ts` and process environment; `ti/.env.example` documents them. Environment configuration is not per-user SQLite state. Never expose credentials to the browser or commit them. |
-| Exports | Downloaded file | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
-| Operational/generated files | Local workspace | `ti/.control/` contains controller logs, process IDs and state; `ti/dist/` is build output; `ti/test-results/` contains test artifacts. These are not the canonical stores for profiles or datasets. |
-| Raw and sample inputs | Offline intermediates | `data-transform/raw/` and `data-transform/sample/`; successful controller operations consume inputs. They are absent in the current prepared workspace. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
-| Bundled fonts and application metadata | Application assets | `ti/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `ti/frontend/font-assets.json` maps families to files. Source code and package/config files remain in the repository, and dependencies under `ti/node_modules/` are generated. |
-| Database sidecars and migration staging | Managed files | `data/users.sqlite-wal` and `data/users.sqlite-shm` support live SQLite transactions; `.users-migration-*` directories under `data/` stage relocation and are cleaned on normal completion/failure. Corpus or legacy databases may also have SQLite sidecars. |
+| Provider credentials | Credentials | Root `env` contains the Pollinations API key; deployment may also supply secrets. Never expose them to the browser or commit them. |
+| Runtime configuration | Assets/artifacts | Defaults are application configuration in `ti/server/src/config/config.ts`; `ti/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
+| Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
+| Operational/generated files | Assets/artifacts | `ti/.control/` contains controller logs, process IDs and state; `ti/dist/` is build output; `ti/test-results/` and `ti/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
+| Raw and sample inputs | Global | `data/raw/` and `data/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
+| Bundled fonts and application files | Assets/artifacts | `ti/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `ti/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `ti/node_modules/` are generated. |
+| User database sidecars | User | `data/users.sqlite-wal` and `data/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
+| Corpus database sidecars | Global | Any SQLite sidecars remain alongside `data/corpus/corpus.sqlite`. |
 
 SQLite WAL files may contain committed changes not yet checkpointed, so do not
 copy only the main database while the app is writing. Use SQLite-aware backups
 or stop the app cleanly before copying. Back up `data/users.sqlite`, the complete
 `data/corpus/`, `data/word-images/`, credentials, and any wanted downloads separately.
-Retain legacy database/browser data until the upgrade and imports are confirmed.
+Include any retained raw/sample inputs when backing up global data.
 User databases, sidecars, image files and corpus data are Git-ignored.
 Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
 current playback position, randomly activated fonts, UI navigation/collapse state,

@@ -1,11 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
-import { getProfileMigrations, saveProfilePreferences } from './api';
-import { migrateLegacyBookmarks } from './observation/audio/audio-bookmarks-storage';
+import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
 export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
-const storageKey = 'telugu-now-appearance-v1';
 
 export function appearanceSurface(appearance: AppearanceSettings): string {
   if (appearance.surface) return appearance.surface;
@@ -79,10 +77,7 @@ const AppearanceContext = createContext<{
 export const useAppearance = () => useContext(AppearanceContext);
 
 export function AppearanceProvider({ children, profileCode = null }: { children: ReactNode; profileCode?: string | null }) {
-  const [appearance, setAppearance] = useState(() => {
-    try { return parseAppearance(JSON.parse(localStorage.getItem(storageKey) ?? 'null')); }
-    catch { return parseAppearance(null); }
-  });
+  const [appearance, setAppearance] = useState(() => parseAppearance(null));
   const [language, setLanguage] = useState<'en' | 'te'>('te');
   const [loaded, setLoaded] = useState(!profileCode);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -93,31 +88,11 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     if (!profileCode) return;
     let cancelled = false;
     setError(false);
-    const load = async () => {
-      const migrations = await getProfileMigrations(profileCode);
-      let legacy: UpdateProfilePreferences = { appearance: parseAppearance(null), language: 'te' };
-      if (!migrations.settings) {
-        try {
-          if (!localStorage.getItem('telugu-now-preferences-migrated')) legacy = {
-            appearance: parseAppearance(JSON.parse(localStorage.getItem(storageKey) ?? 'null')),
-            language: localStorage.getItem('telugu-now-settings-language') === 'en' ? 'en' : 'te',
-          };
-        } catch {}
-      }
-      const preferences = await saveProfilePreferences(profileCode, legacy, true);
-      if (!migrations.bookmarks) await migrateLegacyBookmarks(profileCode);
-      return preferences;
-    };
-    void load().then(preferences => {
+    void transferBrowserData(profileCode).then(() => getProfilePreferences(profileCode)).then(preferences => {
       if (cancelled) return;
       setAppearance(parseAppearance(preferences.appearance));
       setLanguage(preferences.language ?? 'te');
       setLoaded(true);
-      try {
-        localStorage.removeItem('telugu-now-preferences-migrated');
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem('telugu-now-settings-language');
-      } catch {}
     }).catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, [profileCode, loadAttempt]);

@@ -5,7 +5,8 @@ import {
   insertBookmark,
   nearestPriorBookmark,
 } from '../frontend/src/observation/audio/bookmarks';
-import { loadBookmarks, saveBookmarks, migrateLegacyBookmarks } from '../frontend/src/observation/audio/audio-bookmarks-storage';
+import { loadBookmarks, saveBookmarks } from '../frontend/src/observation/audio/audio-bookmarks-storage';
+import { transferBrowserData } from '../frontend/src/api';
 
 test('insertBookmark keeps the list sorted and de-duplicated', () => {
   let bookmarks: number[] = [];
@@ -78,24 +79,34 @@ test('bookmark API writes are ordered per user and source and reads use that use
   assert.deepEqual(await loadBookmarks('002', 'source', 'row with spaces'), [9]);
 });
 
-test('legacy bookmark import preserves browser data on failure and clears only acknowledged entries', async context => {
+test('browser user data is removed only after confirmed transfer, preserving changed and unrelated data', async context => {
   const key = 'telugu-now-audio-bookmarks:source\u0000row';
-  const values = new Map([[key, '[2,8]'], ['unrelated', 'preserve']]);
+  const values = new Map([[key, '[2,8]'], ['unrelated', 'preserve'],
+    ['telugu-now-audio-bookmarks:malformed', 'invalid'], ['telugu-now-appearance-v1', '{}'],
+    ['telugu-now-settings-language', 'en'], ['telugu-now-preferences-migrated', '1']]);
   const storage: Storage = {
     get length() { return values.size; }, key: index => [...values.keys()][index] ?? null,
     getItem: name => values.get(name) ?? null, setItem: (name, value) => { values.set(name, value); },
     removeItem: name => { values.delete(name); }, clear: () => values.clear(),
   };
+  const original = [...values];
   let fail = true;
-  context.mock.method(globalThis, 'fetch', async (input: string, options?: RequestInit) => {
-    assert.equal(input, '/api/profiles/001/bookmarks/import');
-    assert.deepEqual(JSON.parse(String(options?.body)), { records: [{ sourceId: 'source', sourceKey: 'row', bookmarks: [2, 8] }] });
-    return fail ? new Response(null, { status: 503 }) : Response.json({ imported: true });
+  const requests = context.mock.method(globalThis, 'fetch', async (input: string, options?: RequestInit) => {
+    assert.equal(input, '/api/profiles/001/browser-data');
+    const entries = JSON.parse(String(options?.body)).entries;
+    if (values.has('telugu-now-audio-bookmarks:malformed')) assert.ok(entries.some((entry: { value: string }) => entry.value === 'invalid'));
+    if (fail) return new Response(null, { status: 503 });
+    values.set(key, '[9]');
+    return Response.json({ saved: true });
   });
-  await assert.rejects(migrateLegacyBookmarks('001', storage), /Could not import/);
-  assert.equal(storage.getItem(key), '[2,8]');
+  await assert.rejects(transferBrowserData('001', storage));
+  assert.deepEqual([...values], original);
   fail = false;
-  await migrateLegacyBookmarks('001', storage);
-  assert.equal(storage.getItem(key), null);
-  assert.equal(storage.getItem('unrelated'), 'preserve');
+  await transferBrowserData('001', storage);
+  assert.deepEqual([...values], [[key, '[9]'], ['unrelated', 'preserve']]);
+  await transferBrowserData('001', storage);
+  assert.deepEqual([...values], [['unrelated', 'preserve']]);
+  await transferBrowserData('001', storage);
+  assert.equal(requests.mock.callCount(), 3);
+  await assert.doesNotReject(transferBrowserData('001', { ...storage, get length(): number { throw new Error('Storage unavailable'); } }));
 });

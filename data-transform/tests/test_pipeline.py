@@ -42,8 +42,8 @@ class PipelineTests(unittest.TestCase):
         shutil.copy2(REPO / "control.sh", self.root / "control.sh")
         shutil.copytree(SCRIPTS, self.root / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         (self.root / "ti").mkdir()
-        self.raw = self.root / "data-transform" / "raw"
-        self.sample = self.root / "data-transform" / "sample"
+        self.raw = self.root / "data" / "raw"
+        self.sample = self.root / "data" / "sample"
         self.output = self.root / "data" / "corpus"
         fleurs = self.raw / "FLEURS"
         fleurs.mkdir(parents=True)
@@ -144,6 +144,7 @@ class PipelineTests(unittest.TestCase):
     def test_partial_shard_is_bounded_and_not_consumed_until_output_succeeds(self) -> None:
         shard = next((self.raw / "IndicVoices").rglob("*.parquet"))
         original = shard.read_bytes()
+        original_count = pq.read_metadata(shard).num_rows
         with self.assertRaisesRegex(RuntimeError, "write failed"):
             with move_rows(shard, 9, batch_rows=3) as tables:
                 chunks = list(tables)
@@ -154,7 +155,7 @@ class PipelineTests(unittest.TestCase):
         self.assertFalse(shard.with_name(shard.name + ".remainder.tmp").exists())
         with move_rows(shard, 9, batch_rows=3) as tables:
             self.assertEqual(sum(table.num_rows for table in tables), 9)
-        self.assertEqual(pq.read_metadata(shard).num_rows, 55)
+        self.assertEqual(pq.read_metadata(shard).num_rows, original_count - 9)
 
     def test_preparation_readers_bound_batches_without_deleting_inputs(self) -> None:
         for source, module_name, reader_name in [

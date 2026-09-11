@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { MAX_IMAGE_BYTES } from './pollinations-service';
+import type Database from 'better-sqlite3';
 
 const imageFiles = { 'image/png': 'image.png', 'image/jpeg': 'image.jpg', 'image/webp': 'image.webp' } as const;
 type ImageMimeType = keyof typeof imageFiles;
@@ -10,6 +11,26 @@ type ImageMimeType = keyof typeof imageFiles;
 export interface WordImageRecord {
   mimeType: ImageMimeType;
   image: Buffer;
+}
+
+export function migrateLegacyWordImages(database: Database.Database, directory = defaultWordImageDirectory()): void {
+  if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_images'").get()) return;
+  const store = wordImageStore(directory);
+  const records = database.prepare('SELECT root, mime_type, image, created_at FROM word_images').all() as Array<{
+    root: string; mime_type: ImageMimeType; image: Buffer; created_at: number;
+  }>;
+  for (const record of records) {
+    if (imageType(record.image) !== record.mime_type) throw new Error('Could not transfer a saved word image.');
+    const current = store.save(record.root, { image: record.image, mimeType: record.mime_type }, record.created_at);
+    if (!current.image.equals(record.image)) {
+      const folder = path.join(directory, createHash('sha256').update(record.root.normalize('NFC').trim()).digest('hex'));
+      const digest = createHash('sha256').update(record.image).digest('hex');
+      const file = path.join(folder, `image-${digest}.${imageFiles[record.mime_type].split('.')[1]}`);
+      if (!fs.existsSync(file)) fs.writeFileSync(file, record.image, { flag: 'wx' });
+      if (!fs.readFileSync(file).equals(record.image)) throw new Error('Could not verify a transferred word image.');
+    }
+  }
+  database.exec('DROP TABLE word_images');
 }
 
 export function defaultWordImageDirectory(): string {

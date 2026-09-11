@@ -116,12 +116,13 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     legacy.close();
   }
 
+  process.env.NODE_ENV = 'test';
   process.env.DATABASE_PATH = databasePath;
   process.env.PROFILE_CODES = '001';
   process.env.MOCK_DELAY_MIN_MS = '0';
   process.env.MOCK_DELAY_MAX_MS = '0';
 
-  const { db, migrateUserDatabase } = await import('../server/src/db/database');
+  const { db } = await import('../server/src/db/database');
   const settingsService = await import('../server/src/services/selection-settings-service');
   const { config } = await import('../server/src/config/config');
   const { sourceRegistry } = await import('../server/src/services/source-registry');
@@ -208,22 +209,6 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     assert.equal(settings.complexityPercentileTarget, 0.5);
     assert.equal(settings.complexityPercentileSpread, 0.25);
 
-    const oldPath = path.join(directory, 'old-app.sqlite');
-    const newPath = path.join(directory, 'data', 'users.sqlite');
-    const old = new Database(oldPath);
-    try {
-      old.pragma('journal_mode = WAL');
-      old.pragma('wal_autocheckpoint = 0');
-      old.exec('CREATE TABLE saved (value INTEGER); INSERT INTO saved VALUES (73);');
-      migrateUserDatabase(newPath, oldPath);
-      old.exec('UPDATE saved SET value = 99;');
-      migrateUserDatabase(newPath, oldPath);
-      const snapshot = new Database(newPath, { readonly: true });
-      try { assert.equal((snapshot.prepare('SELECT value FROM saved').get() as { value: number }).value, 73); }
-      finally { snapshot.close(); }
-      assert.equal((old.prepare('SELECT value FROM saved').get() as { value: number }).value, 99);
-      assert.ok(fs.existsSync(oldPath));
-    } finally { old.close(); }
   } finally {
     db.close();
     fs.rmSync(directory, { recursive: true, force: true });

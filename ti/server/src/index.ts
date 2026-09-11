@@ -6,6 +6,7 @@ import { config } from './config/config';
 import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
 import { wordImageRoutes } from './services/word-image-service';
+import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
 import {
   InvalidProfileCodeError,
@@ -36,6 +37,7 @@ import type {
 const app = new Hono();
 
 sourceRegistry.assertPreparedSourcesPresent();
+migrateLegacyWordImages(db);
 
 app.get('/api/health', (c) => c.json({ ok: true }));
 

@@ -1,9 +1,8 @@
-data-transform/raw/
-data-transform/sample/
+data/raw/
+data/sample/
 data/corpus/
 data/word-images/
 data/users.sqlite*
-data/.users-migration-*/
 data/.corpus.prepare-*/
 data/.corpus.backup-*/
 **/__pycache__/

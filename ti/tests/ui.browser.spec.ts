@@ -90,6 +90,21 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
       await route.fulfill({ json: { sources: [{ sourceId: 'fixture', displayName: 'Fixture', provider: 'Test', license: 'Test fixture', upstreamUrl: null, catalogVersion: 2, acceptedRows: 12, rejectedRows: 0, complexityMetric: 'grapheme-count', status: 'fixture' }] } });
     } else if (pathname.endsWith('/visibility')) {
       await route.fulfill({ status: 204 });
+    } else if (pathname.endsWith('/browser-data')) {
+      if (failPreferences) { await route.fulfill({ status: 503 }); return; }
+      const code = pathname.split('/')[3]!;
+      const current = preferences.get(code) ?? { appearance: null, language: null, imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false };
+      for (const entry of route.request().postDataJSON().entries) {
+        if (entry.key === 'telugu-now-appearance-v1' && current.appearance === null) current.appearance = parseAppearance(JSON.parse(entry.value));
+        if (entry.key === 'telugu-now-settings-language' && current.language === null) current.language = entry.value;
+        if (entry.key.startsWith('telugu-now-audio-bookmarks:')) {
+          const [sourceId, sourceKey] = entry.key.slice('telugu-now-audio-bookmarks:'.length).split('\u0000');
+          const key = JSON.stringify([code, sourceId, sourceKey]);
+          if (!bookmarks.has(key)) bookmarks.set(key, JSON.parse(entry.value));
+        }
+      }
+      preferences.set(code, current);
+      await route.fulfill({ json: { saved: true } });
     } else if (pathname.endsWith('/migrations')) {
       const code = pathname.split('/')[3]!;
       const current = preferences.get(code);
@@ -116,7 +131,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
       if (failPreferences) { await route.fulfill({ status: 503 }); return; }
       const code = pathname.split('/')[3]!;
       const current = preferences.get(code) ?? { appearance: null, language: null, imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false };
-      const patch = route.request().postDataJSON() as UpdateProfilePreferences;
+      const patch = (route.request().postDataJSON() ?? {}) as UpdateProfilePreferences;
       const initialize = route.request().method() === 'POST';
       const saved = {
         appearance: patch.appearance && (!initialize || current.appearance === null) ? parseAppearance({ ...current.appearance, ...patch.appearance }) : current.appearance,

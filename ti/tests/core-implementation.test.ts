@@ -8,6 +8,7 @@ import type { SelectionSnapshot } from '../shared/contracts';
 import { buildStandaloneExportHtml } from '../frontend/src/export-html';
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-iteration2-core-'));
+process.env.NODE_ENV = 'test';
 process.env.DATABASE_PATH = path.join(temporaryDirectory, 'core.sqlite');
 process.env.PROFILE_CODES = '001';
 process.env.MOCK_DELAY_MIN_MS = '0';

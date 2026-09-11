@@ -14,6 +14,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 3_000): Promise<voi
 
 test('live preparation is sequential, respects queue order, and reuses the shared cache', { concurrency: false }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-preparation-'));
+  process.env.NODE_ENV = 'test';
   process.env.DATABASE_PATH = path.join(directory, 'preparation.sqlite');
   process.env.PROFILE_CODES = '001';
   process.env.MOCK_DELAY_MIN_MS = '1';

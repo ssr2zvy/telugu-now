@@ -6,7 +6,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { Hono } from 'hono';
 import { wordImageRoutes } from '../server/src/services/word-image-service';
-import { wordImageStore } from '../server/src/services/word-image-store';
+import { migrateLegacyWordImages, wordImageStore } from '../server/src/services/word-image-store';
 import { analyzeWord, wordAtOffset, wordDisplayParts } from '../frontend/src/observation/word/word-analysis';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt } from '../shared/image-settings';
 
@@ -16,6 +16,29 @@ function profileDatabase() {
   database.exec("CREATE TABLE profiles (code TEXT PRIMARY KEY); INSERT INTO profiles VALUES ('001'), ('002');");
   return database;
 }
+
+test('legacy image data transfers to global files before its table is removed', context => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'image-transfer-'));
+  const image = Buffer.from([255, 216, 255, 217]);
+  try {
+    database.exec('CREATE TABLE word_images (root TEXT PRIMARY KEY, mime_type TEXT, image BLOB, created_at INTEGER)');
+    database.prepare('INSERT INTO word_images VALUES (?, ?, ?, ?)').run('tree', 'image/jpeg', image, 123);
+    const original = Buffer.from([255, 216, 255, 0, 255, 217]);
+    wordImageStore(directory).save('tree', { image: original, mimeType: 'image/jpeg' });
+    const failure = context.mock.method(fs, 'writeFileSync', () => { throw new Error('Disk failure'); });
+    assert.throws(() => migrateLegacyWordImages(database, directory), /Disk failure/);
+    assert.equal((database.prepare('SELECT COUNT(*) AS count FROM word_images').get() as { count: number }).count, 1);
+    failure.mock.restore();
+    migrateLegacyWordImages(database, directory);
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'word_images'").get(), undefined);
+    assert.deepEqual(wordImageStore(directory).get('tree')?.image, original);
+    const folder = path.join(directory, fs.readdirSync(directory)[0]!);
+    const transferred = fs.readdirSync(folder).find(file => file.startsWith('image-'))!;
+    assert.deepEqual(fs.readFileSync(path.join(folder, transferred)), image);
+    migrateLegacyWordImages(database, directory);
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
 
 test('word profile restores known Telugu noun stems and case suffixes', () => {
   for (const [word, root, suffix] of [

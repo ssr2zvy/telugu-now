@@ -14,11 +14,46 @@ function fixture() {
   return database;
 }
 
+test('browser data transfers into user storage without losing conflicts, malformed values or saved bookmarks', async () => {
+  const database = fixture();
+  try {
+    const app = profilePreferencesRoutes(database, code => code === '001');
+    const store = profilePreferencesStore(database);
+    store.saveBookmarks('001', { sourceId: 'source', sourceKey: 'row', bookmarks: [] });
+    const entries = [
+      { key: 'telugu-now-appearance-v1', value: '{"fontScale":73}' },
+      { key: 'telugu-now-settings-language', value: 'en' },
+      { key: 'telugu-now-audio-bookmarks:source\u0000row', value: '[2,8]' },
+      { key: 'telugu-now-audio-bookmarks:source\u0000other', value: '[9,4]' },
+      { key: 'telugu-now-audio-bookmarks:malformed', value: 'unreadable' },
+    ];
+    const request = (code: string, payload = entries) => app.request(`/${code}/browser-data`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries: payload }),
+    });
+    assert.equal((await request('002')).status, 404);
+    assert.deepEqual(await (await request('001')).json(), { saved: true });
+    assert.equal(store.get('001').appearance?.fontScale, 73);
+    assert.equal(store.get('001').language, 'en');
+    assert.deepEqual(store.getBookmarks('001', 'source', 'row'), []);
+    assert.deepEqual(store.getBookmarks('001', 'source', 'other'), [4, 9]);
+    await request('001');
+    const count = () => (database.prepare('SELECT COUNT(*) AS count FROM profile_browser_data').get() as { count: number }).count;
+    assert.equal(count(), entries.length);
+    await request('001', [{ key: 'telugu-now-appearance-v1', value: '{"fontScale":20}' }]);
+    assert.equal(store.get('001').appearance?.fontScale, 73);
+    assert.equal(count(), entries.length + 1);
+    assert.equal((await request('001', [{ key: 'unrelated', value: 'keep' }])).status, 400);
+    database.prepare("DELETE FROM profiles WHERE code = '001'").run();
+    assert.equal(count(), 0);
+  } finally { database.close(); }
+});
+
 test('profile preferences isolate users, retain legacy prompts and initialize browser settings only once', () => {
   const database = fixture();
   try {
     const store = profilePreferencesStore(database);
     assert.deepEqual(store.get('001'), { appearance: null, language: null, imagePrompt: 'Existing <core word> prompt', allowImageRegeneration: false });
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'image_settings'").get(), undefined);
     store.update('001', { appearance: { fontScale: 75, fonts: ['Mandali'] }, language: 'te' }, true);
     store.update('001', { appearance: { fontScale: 5 }, language: 'en', imagePrompt: DEFAULT_IMAGE_PROMPT }, true);
     assert.equal(store.get('001').appearance?.fontScale, 75);

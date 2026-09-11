@@ -3,27 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../config/config';
 
-export function migrateUserDatabase(destination: string, legacyPath: string | null): void {
-  if (!legacyPath || destination === legacyPath || fs.existsSync(destination) || !fs.existsSync(legacyPath)) return;
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  const temporary = fs.mkdtempSync(path.join(path.dirname(destination), '.users-migration-'));
-  const snapshot = path.join(temporary, 'users.sqlite');
-  const legacy = new Database(legacyPath, { readonly: true, fileMustExist: true });
-  try {
-    legacy.prepare('VACUUM INTO ?').run(snapshot);
-    const verified = new Database(snapshot, { readonly: true, fileMustExist: true });
-    try {
-      if (verified.pragma('quick_check', { simple: true }) !== 'ok') throw new Error('User database snapshot validation failed.');
-    } finally { verified.close(); }
-    fs.linkSync(snapshot, destination);
-  } finally {
-    legacy.close();
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
-}
-
 if (config.databasePath === config.corpusDatabasePath) throw new Error('User and corpus databases must be separate files.');
-migrateUserDatabase(config.databasePath, config.legacyDatabasePath);
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 
 export const db = new Database(config.databasePath);
