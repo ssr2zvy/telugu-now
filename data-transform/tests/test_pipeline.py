@@ -39,9 +39,9 @@ class PipelineTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="telugu-pipeline-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        shutil.copy2(REPO / "control.sh", self.root / "control.sh")
+        shutil.copy2(REPO / "control_local.sh", self.root / "control_local.sh")
         shutil.copytree(SCRIPTS, self.root / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
-        (self.root / "ti").mkdir()
+        (self.root / "upa").mkdir()
         self.raw = self.root / "data" / "raw"
         self.sample = self.root / "data" / "sample"
         self.output = self.root / "data" / "corpus"
@@ -74,7 +74,7 @@ class PipelineTests(unittest.TestCase):
 
     def control(self, *arguments: str, success: bool = True, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
-            ["bash", str(self.root / "control.sh"), "data", *arguments],
+            ["bash", str(self.root / "control_local.sh"), "data", *arguments],
             env={**os.environ, "PYTHON": sys.executable},
             input=input_text, capture_output=True, text=True, timeout=90,
         )

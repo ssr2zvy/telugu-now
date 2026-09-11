@@ -291,6 +291,13 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
     const url = output.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
     assert.ok(url);
     assert.equal((await fetch(`${url}/api/health`)).status, 200);
+    if (production) {
+      const frontend = await fetch(url);
+      assert.equal(frontend.status, 200);
+      assert.match(frontend.headers.get('content-type') ?? '', /text\/html/);
+      assert.match(await frontend.text(), /id="root"/);
+      assert.equal((await fetch(`${url}/fonts/noto-sans-telugu.woff2`, { method: 'HEAD' })).status, 200);
+    }
     async function count(): Promise<number> {
       const response = await fetch(`${url}/api/data-sources`);
       const body = await response.json() as { sources: Array<{ sourceId: string; acceptedRows: number }> };

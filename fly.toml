@@ -1,7 +1,10 @@
 app = "telugu-now"
 
 # Choose primary_region before creating the volume and deploying.
-# A production Dockerfile or prebuilt image is still required.
+# The mounted data directory must be writable by the image's node user (UID/GID 1000).
+
+[build]
+  dockerfile = "Dockerfile"
 
 [env]
   NODE_ENV = "production"

@@ -12,11 +12,11 @@ Implementation and migration notes belong in the existing [iteration 3 document]
 Corpus acquisition and transformation are offline data-engineering operations under `data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
 The explicit data-controller operations are:
 ```bash
-./control.sh data --option samples
-./control.sh data --option prepare
-./control.sh data --option all
-./control.sh data --option samples --rows 500 --batch-rows 20
-./control.sh data --option all --rows all --batch-rows 20
+./control_local.sh data --option samples
+./control_local.sh data --option prepare
+./control_local.sh data --option all
+./control_local.sh data --option samples --rows 500 --batch-rows 20
+./control_local.sh data --option all --rows all --batch-rows 20
 ```
 `samples` transforms source downloads under:
 ```text
@@ -45,11 +45,11 @@ Use Python 3.12 with the declared data dependencies (the current PyArrow constra
 ```bash
 python3.12 -m venv data/.venv
 data/.venv/bin/python -m pip install -r data-transform/requirements.txt
-PYTHON="$PWD/data/.venv/bin/python" ./control.sh data --option all --rows all --batch-rows 20
+PYTHON="$PWD/data/.venv/bin/python" ./control_local.sh data --option all --rows all --batch-rows 20
 data/.venv/bin/python -m unittest discover -s data-transform/tests -v
 ```
 The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
-`./control.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
+`./control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
 startup skips this local-only controller check and lets the runtime validate the
@@ -59,19 +59,20 @@ scripts under `data-transform/`. Its offline data paths remain under repository
 `data/`; runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
-The root `control.sh` is the normal development entry point.
+The root `control_local.sh` is the local development entry point; deployment
+starts the built server directly and does not require this controller.
 Install dependencies on a new checkout:
 ```bash
-./control.sh deps --option install
+./control_local.sh deps --option install
 ```
 Start development:
 ```bash
-./control.sh dev
+./control_local.sh dev
 ```
 By default, startup uses an existing compatible `availability.sqlite` without
 rebuilding it. After preparing a new corpus, explicitly build availability once:
 ```bash
-CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./control.sh dev --option start
+CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./control_local.sh dev --option start
 ```
 Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
 periodic refreshes. These controls apply to both local and Tigris backends.
@@ -79,8 +80,8 @@ The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.
 The configured prototype profile code is `001`.
 ## Build and tests
 ```bash
-./control.sh build --option start
-./control.sh test --option start
+./control_local.sh build --option start
+./control_local.sh test --option start
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
@@ -158,7 +159,7 @@ text, layout and behavior are unchanged.
 Set the lowercase `pollinations_api_key` in the server process environment
 (a same-name Fly secret in deployment). A nonempty value takes precedence over
 the local file; surrounding whitespace is trimmed. For local development, the
-fallback is `env` next to the root `control.sh`:
+fallback is `env` next to the root `control_local.sh`:
 ```dotenv
 pollinations_api_key=
 ```
@@ -167,7 +168,7 @@ file server. Do not put the key in frontend code or a `VITE_` variable. The Node
 server reads the environment first on each generation request, falling back to
 the file when the environment value is missing or blank. Local file key changes
 need no restart. Node 20.12+ is required for the standard dotenv parser.
-Without `control.sh`, local file lookup falls back to the parent of the server's
+Without `control_local.sh`, local file lookup falls back to the parent of the server's
 working directory (`../env`). Deployment secrets require neither local file nor
 controller script; do not package either to supply credentials.
 
@@ -427,12 +428,12 @@ logs/process files. Corpus files, audio, generated word images and user caches a
 data, not part of that exception.
 
 Default runtime paths are located from the repository root, regardless of the
-working directory; no `control.sh` marker is required. An explicit `DATA_DIRECTORY`
+working directory; no `control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
 may be any persistent mount root and does not require locating the repository.
 `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, and
 `CORPUS_OBJECTS_PATH` may select locations inside that root; runtime rejects paths
 outside it and rejects sharing a file between the three databases. Relative
-environment paths resolve against the working directory (`upa` with `control.sh`).
+environment paths resolve against the working directory (`upa` with `control_local.sh`).
 Tests may use isolated database paths outside the data root.
 
 The default layout is:
@@ -556,7 +557,7 @@ Unsaved edits are not durable across closing the page. Three-digit codes remain
 prototype identifiers, not secure authentication.
 
 ## Storage inventory
-Paths below are relative to the repository root with normal `control.sh` startup.
+Paths below are relative to the repository root with normal `control_local.sh` startup.
 Every item below has user, global, credentials, downloads, or assets/artifacts scope.
 
 | Information | Scope | Location and contents |
@@ -594,6 +595,45 @@ User databases, sidecars, image files and corpus data are Git-ignored.
 Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
 current playback position, randomly activated fonts, UI navigation/collapse state,
 active profile session and in-memory export artifacts are not durable storage.
+## Artifact and container builds
+
+From the repository root, install dependencies and produce all artifacts:
+
+```bash
+npm --prefix upa ci
+./ci-cd/make-artifacts.sh
+```
+
+The script resolves paths from its own location, so it also works from another
+working directory. It runs the existing `npm run build` without installing
+dependencies or reading `fly.toml`. Outputs stay in the already-ignored
+`upa/dist/client/` and `upa/dist/server/`. The frontend, backend, and availability
+worker are always built together; worker activation is a runtime setting.
+
+Build the single deployment image using the repository root as the context:
+
+```bash
+docker build -t telugu-now .
+```
+
+The multi-stage `Dockerfile` uses Node 22 on Debian Bookworm for both dependency
+installation and runtime, keeping the native SQLite module compatible. It caches
+dependency installation separately, calls `ci-cd/make-artifacts.sh`, and copies
+only the artifacts, application package metadata, and production dependencies
+into the final image. Build tools, test sources, and the local controller are
+not shipped. `.dockerignore` restricts the context to build inputs and excludes
+local data, credentials, dependencies, and prior build output. Neither Git
+cloning nor build-time corpus access or runtime secrets are required.
+
+The container runs `node dist/server/index.js` from `/app/upa` as the unprivileged
+`node` user (UID/GID 1000), serves the frontend on port 8080, and defaults
+`DATA_DIRECTORY` to `/data`. A mounted data directory and its existing contents
+must be writable by that user; provision or restore volume ownership before
+startup. A mount can hide the image's own `/data` permissions. No corpus,
+availability database, user records, word images, or credentials are baked into
+the image. Without runtime overrides, the application uses local mode and
+requires a compatible prepared corpus and availability snapshot.
+
 ## Fly configuration
 The repository-root `fly.toml` configures `telugu-now` for Tigris audio, SQLite
 under `/data/corpus/`, user data under `/data/user/`, and shared images under
@@ -607,8 +647,10 @@ overriding the application's disabled default. The worker refreshes at startup,
 then waits two hours after each pass; this is
 not a wall-clock schedule.
 
-Before deployment, choose `primary_region`, provision a `telugu_now_data` volume
-in that region, and supply a production Dockerfile or prebuilt image. Start with
+Fly's `[build]` section selects the root Dockerfile; `fly.toml` is deployment
+configuration and is not copied into the image. Before deployment, choose
+`primary_region`, provision a `telugu_now_data` volume in that region, and ensure
+its data is writable by UID/GID 1000. Start with
 one application Machine: these SQLite databases and images are not replicated
 across Machines. Setting the TOML does not provision anything or deploy the app.
 

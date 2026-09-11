@@ -73,7 +73,7 @@ test('availability switches have backend-independent defaults and explicit boole
   }
 });
 
-test('explicit external data mount and backend overrides do not require control.sh', () => {
+test('explicit external data mount and backend overrides do not require control_local.sh', () => {
   const root = path.join(appDirectory, 'test-results/config-external-mount');
   const result = readConfig({
     DATA_DIRECTORY: root,
@@ -153,8 +153,8 @@ test('controller requires local prepared data but never generates a corpus for T
   for (const key of environmentKeys) delete env[key];
   Object.assign(env, { DATA_DIRECTORY: path.join(scratch, 'mount'), PATH: `${scratch}:${process.env.PATH}` });
   fs.mkdirSync(path.join(scratch, 'upa'));
-  const controller = path.join(scratch, 'control.sh');
-  fs.copyFileSync(path.join(repositoryDirectory, 'control.sh'), controller);
+  const controller = path.join(scratch, 'control_local.sh');
+  fs.copyFileSync(path.join(repositoryDirectory, 'control_local.sh'), controller);
   const args = [controller, 'dev', '--option', 'start'];
   const local = spawnSync('bash', args, { env, encoding: 'utf8' });
   assert.notEqual(local.status, 0);

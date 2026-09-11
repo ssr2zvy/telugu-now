@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { generatePollinationsImage, readPollinationsKey, MAX_IMAGE_BYTES } from '../server/src/services/pollinations-service';
 import { IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../shared/image-settings';
 
@@ -31,6 +33,18 @@ test('root env key supports dotenv syntax and can change without restarting', as
     await writeFile(envPath, 'pollinations_api_key=updated-fixture\n');
     assert.equal(readPollinationsKey(envPath), 'updated-fixture');
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('local key discovery uses the renamed controller as its repository marker', t => {
+  const controller = fileURLToPath(new URL('../../control_local.sh', import.meta.url));
+  const envPath = fileURLToPath(new URL('../../env', import.meta.url));
+  t.mock.method(fs, 'existsSync', (file: fs.PathLike) =>
+    String(file) === controller);
+  t.mock.method(fs, 'readFileSync', (file: fs.PathOrFileDescriptor) => {
+    assert.equal(String(file), envPath);
+    return 'pollinations_api_key=discovered-fixture\n';
+  });
+  assert.equal(readPollinationsKey(), 'discovered-fixture');
 });
 
 test('environment key takes precedence and does not require a readable local file', async t => {

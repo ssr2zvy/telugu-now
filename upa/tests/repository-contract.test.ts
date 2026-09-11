@@ -26,7 +26,7 @@ test('runtime user and global storage paths remain under root data from any work
     assert.throws(() => resolveDataPath(path.resolve(root, 'data/app.sqlite'), 'users.sqlite'), /must stay under/);
     assert.throws(() => resolveDataPath('/tmp/outside.sqlite', 'users.sqlite'), /must stay under/);
     assert.equal(resolveDataPath(path.resolve(root, '../data/corpus/corpus.sqlite'), ''), path.resolve(root, '../data/corpus/corpus.sqlite'));
-    const controller = fs.readFileSync(path.resolve(root, '../control.sh'), 'utf8');
+    const controller = fs.readFileSync(path.resolve(root, '../control_local.sh'), 'utf8');
     assert.ok(controller.includes('RAW_DATA_DIR="$REPO_DIR/data/raw"'));
     assert.ok(controller.includes('SAMPLE_DATA_DIR="$REPO_DIR/data/sample"'));
   } finally {
@@ -45,13 +45,13 @@ function read(
   );
 }
 test(
-  'Iteration 2 controller is control.sh with no stale control-project.sh surface',
+  'Iteration 3 local controller is control_local.sh with no obsolete controller names',
   () => {
     const control =
       path.resolve(
         root,
         '..',
-        'control.sh',
+        'control_local.sh',
       );
     assert.equal(
       fs.existsSync(
@@ -69,6 +69,8 @@ test(
       ),
       false,
     );
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'control.sh')), false);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'current.md')), false);
     assert.ok(
       (
         fs.statSync(
@@ -104,7 +106,7 @@ test(
       ),
       false,
     );
-    assert.ok(readme.includes('./control.sh'));
+    assert.ok(readme.includes('./control_local.sh'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('run_data_domain'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('CORPUS_NOT_PREPARED'));
     assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);

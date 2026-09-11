@@ -11,7 +11,7 @@ export const MISSING_POLLINATIONS_KEY_MESSAGE = 'Set pollinations_api_key in the
 function defaultEnvPath(): string {
   let directory = path.dirname(fileURLToPath(import.meta.url));
   while (path.dirname(directory) !== directory) {
-    if (fs.existsSync(path.join(directory, 'control.sh'))) return path.join(directory, 'env');
+    if (fs.existsSync(path.join(directory, 'control_local.sh'))) return path.join(directory, 'env');
     directory = path.dirname(directory);
   }
   return path.resolve('../env');

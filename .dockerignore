@@ -1,0 +1,37 @@
+# Allow only the files needed to build the application.
+**
+!Dockerfile
+!.dockerignore
+!ci-cd/
+!ci-cd/make-artifacts.sh
+!upa/
+!upa/package.json
+!upa/package-lock.json
+!upa/tsconfig.json
+!upa/frontend/
+!upa/frontend/**
+!upa/server/
+!upa/server/**
+!upa/shared/
+!upa/shared/**
+!upa/scripts/
+!upa/scripts/sync-fonts.mjs
+# The existing typecheck includes test sources.
+!upa/tests/
+!upa/tests/**
+
+# Never include local state or credentials, even inside allowed directories.
+**/node_modules
+**/dist
+**/data
+**/test-results
+**/playwright-report
+**/.control
+**/.git
+**/env
+**/.env
+**/.env.*
+**/*.sqlite
+**/*.sqlite-*
+**/*.pem
+**/*.key
