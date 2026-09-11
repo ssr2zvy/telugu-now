@@ -1,6 +1,6 @@
 app = "telugu-now"
+primary_region = "iad"
 
-# Choose primary_region before creating the volume and deploying.
 # The mounted data directory must be writable by the image's node user (UID/GID 1000).
 
 [build]
@@ -34,6 +34,7 @@ app = "telugu-now"
 [[mounts]]
   source = "telugu_now_data"
   destination = "/data"
+  initial_size = "3gb"
 
 [http_service]
   internal_port = 8080

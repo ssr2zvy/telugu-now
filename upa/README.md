@@ -666,9 +666,12 @@ then waits two hours after each pass; this is
 not a wall-clock schedule.
 
 Fly's `[build]` section selects the root Dockerfile; `fly.toml` is deployment
-configuration and is not copied into the image. Before deployment, choose
-`primary_region`, provision a `telugu_now_data` volume in that region, and ensure
-its data is writable by UID/GID 1000. Start with
+configuration and is not copied into the image. The selected primary region is
+`iad` (Ashburn, Virginia), with a 3 GB `telugu_now_data` volume mounted at `/data`.
+`initial_size` sets the size if deployment needs to create a volume; it does not
+resize existing storage. Before deployment, ensure the volume exists in `iad`
+and its data is writable by UID/GID 1000. Billing links and storage costs are in
+[costs.md](../costs.md). Start with
 one application Machine: these SQLite databases and images are not replicated
 across Machines. Setting the TOML does not provision anything or deploy the app.
 

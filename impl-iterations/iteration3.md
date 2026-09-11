@@ -291,8 +291,10 @@ policy; same-name Fly secrets override those settings. The application needs
 read/list access, not corpus write access.
 
 The TOML's `[build]` section selects the root Dockerfile; the TOML itself stays
-outside the image. Deployment still requires choosing `primary_region` and
-provisioning the volume with permissions for UID/GID 1000. Start with one Machine:
+outside the image. The selected primary region is `iad` (Ashburn, Virginia) and
+the initial `telugu_now_data` volume size is 3 GB. Deployment still requires
+the volume to be writable by UID/GID 1000. Billing dashboards and pricing
+references are recorded in [costs.md](../costs.md). Start with one Machine:
 local SQLite, worker coordination, and global image publication are not
 replicated or globally locked across Machines. These source changes do not
 provision infrastructure, upload a corpus, or deploy the service.
