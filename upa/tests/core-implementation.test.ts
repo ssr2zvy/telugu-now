@@ -23,6 +23,13 @@ for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
 }
 corpusFixture.close();
 process.env.CORPUS_DATABASE_PATH = corpusDatabasePath;
+process.env.CORPUS_AVAILABILITY_PATH = path.join(temporaryDirectory, 'availability.sqlite');
+process.env.CORPUS_OBJECTS_PATH = path.join(temporaryDirectory, 'objects');
+for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
+  const file = path.join(process.env.CORPUS_OBJECTS_PATH, `media/${sourceId}/fixture.wav`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, 'audio');
+}
 
 let db: typeof import('../server/src/db/database')['db'];
 let profileService: typeof import('../server/src/services/profile-service');
@@ -51,6 +58,8 @@ let now = 1_000;
 Date.now = () => now;
 
 before(async () => {
+  const { refreshAvailability } = await import('../server/src/services/corpus-availability');
+  await refreshAvailability();
   ({ db } = await import('../server/src/db/database'));
   profileService = await import('../server/src/services/profile-service');
   queueService = await import('../server/src/services/queue-service');

@@ -1,8 +1,11 @@
-data/
-data-transform/
-impl-iterations/
+data/raw/
+data/sample/
+data/corpus/
+data/word-images/
+data/users.sqlite*
+data/.corpus.prepare-*/
+data/.corpus.backup-*/
+**/__pycache__/
 upa/test-results/
 upa/playwright-report/
 /env
-/control.sh
-/current.md

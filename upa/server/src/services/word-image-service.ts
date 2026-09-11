@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../../../shared/image-settings';
-import { generatePollinationsImage, readPollinationsKey } from './pollinations-service';
+import { generatePollinationsImage, readPollinationsKey, MISSING_POLLINATIONS_KEY_MESSAGE } from './pollinations-service';
 import { imageType, wordImageStore, type WordImageRecord } from './word-image-store';
 import { config } from '../config/config';
 import { profilePreferencesStore } from './profile-preferences-service';
@@ -106,7 +106,7 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
         let record = unsaved.get(unsavedKey);
         if (!record) {
           const key = readKey();
-          if (!key) throw new Error('Add pollinations_api_key to the root env file before generating images.');
+          if (!key) throw new Error(MISSING_POLLINATIONS_KEY_MESSAGE);
           const bytes = await generate(prompt, key);
           const mime = imageType(bytes);
           if (!mime) throw new Error('Pollinations did not return a supported image.');

@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../config/config';
+import { migrateUserDatabase } from './migrate-user-database';
 
 if (config.databasePath === config.corpusDatabasePath) throw new Error('User and corpus databases must be separate files.');
+migrateUserDatabase(config.dataDirectory, config.databasePath);
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 
 export const db = new Database(config.databasePath);

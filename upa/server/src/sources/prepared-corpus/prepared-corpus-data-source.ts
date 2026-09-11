@@ -17,6 +17,10 @@ export class PreparedCorpusDataSource implements DataSource {
     private readonly store: PreparedCorpusStore = preparedCorpusStore,
   ) {}
 
+  get generation(): string {
+    return this.store.generation;
+  }
+
   rowCount(): number {
     return this.store.rowCount(this.id);
   }

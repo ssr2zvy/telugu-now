@@ -12,7 +12,7 @@
     "dev:client": "vite --config frontend/vite.config.ts",
     "build": "npm run typecheck && npm run build:client && npm run build:server",
     "build:client": "vite build --config frontend/vite.config.ts",
-    "build:server": "tsup server/src/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
+    "build:server": "tsup server/src/index.ts server/src/availability-worker.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean",
     "typecheck": "tsc --noEmit",
     "start": "NODE_ENV=production node dist/server/index.js",
     "test": "tsx --test tests/*.test.ts",
@@ -21,6 +21,7 @@
     "prebuild:client": "npm run fonts:sync"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1130.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@hono/node-server": "^2.1.1",
     "better-sqlite3": "^12.4.1",

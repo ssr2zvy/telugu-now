@@ -6,6 +6,7 @@ import { IMAGE_MODEL } from '../../../shared/image-settings';
 import { randomInt } from 'node:crypto';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MISSING_POLLINATIONS_KEY_MESSAGE = 'Set pollinations_api_key in the server environment (Fly secret) or the local root env file before generating images.';
 
 function defaultEnvPath(): string {
   let directory = path.dirname(fileURLToPath(import.meta.url));
@@ -16,9 +17,11 @@ function defaultEnvPath(): string {
   return path.resolve('../env');
 }
 
-export function readPollinationsKey(envPath = defaultEnvPath()): string {
+export function readPollinationsKey(envPath?: string): string {
+  const environmentKey = process.env.pollinations_api_key?.trim();
+  if (environmentKey) return environmentKey;
   try {
-    return parseEnv(fs.readFileSync(envPath, 'utf8')).pollinations_api_key?.trim() ?? '';
+    return parseEnv(fs.readFileSync(envPath ?? defaultEnvPath(), 'utf8')).pollinations_api_key?.trim() ?? '';
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
     throw new Error('Could not read the image generation configuration.');
@@ -30,7 +33,7 @@ export async function generatePollinationsImage(
   apiKey: string,
   request: typeof fetch = fetch,
 ): Promise<Buffer> {
-  if (!apiKey) throw new Error('Add pollinations_api_key to the root env file before generating images.');
+  if (!apiKey) throw new Error(MISSING_POLLINATIONS_KEY_MESSAGE);
   const url = new URL(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`);
   url.searchParams.set('model', IMAGE_MODEL);
   url.searchParams.set('seed', String(randomInt(0, 2147483647)));

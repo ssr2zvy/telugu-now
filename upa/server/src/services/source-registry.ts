@@ -14,6 +14,11 @@ const REQUIRED_PREPARED_SOURCE_IDS = [
 
 export class SourceRegistry {
   private readonly sources = new Map<string, DataSource>();
+  private revision = 0;
+
+  get generation(): string {
+    return `${this.revision}:${[...this.sources.values()].map(source => source.generation ?? '').join(':')}`;
+  }
 
   constructor(options: { includePreparedSources?: boolean } = {}) {
     this.register(new DummyDataSource('source1', source1Rows));
@@ -32,6 +37,7 @@ export class SourceRegistry {
   register(source: DataSource): void {
     if (this.sources.has(source.id)) throw new Error(`Duplicate data source id: ${source.id}`);
     this.sources.set(source.id, source);
+    this.revision += 1;
   }
 
   selectableSources(): DataSource[] {

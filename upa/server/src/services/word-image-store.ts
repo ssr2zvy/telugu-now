@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { config } from '../config/config';
 import { MAX_IMAGE_BYTES } from './pollinations-service';
 import type Database from 'better-sqlite3';
 
@@ -34,12 +34,7 @@ export function migrateLegacyWordImages(database: Database.Database, directory =
 }
 
 export function defaultWordImageDirectory(): string {
-  let directory = path.dirname(fileURLToPath(import.meta.url));
-  while (path.dirname(directory) !== directory) {
-    if (fs.existsSync(path.join(directory, 'control.sh'))) return path.join(directory, 'data', 'word-images');
-    directory = path.dirname(directory);
-  }
-  return path.resolve('../data/word-images');
+  return path.join(config.dataDirectory, 'word-images');
 }
 
 export function imageType(bytes: Buffer): ImageMimeType | null {

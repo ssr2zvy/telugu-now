@@ -43,13 +43,20 @@ The controller keeps move semantics: consumed raw files disappear after extracti
 
 Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
 ```bash
-python3.12 -m venv /tmp/telugu-data-venv
-/tmp/telugu-data-venv/bin/python -m pip install -r data-transform/requirements.txt
-PYTHON=/tmp/telugu-data-venv/bin/python ./control.sh data --option all --rows all --batch-rows 20
-/tmp/telugu-data-venv/bin/python -m unittest discover -s data-transform/tests -v
+python3.12 -m venv data/.venv
+data/.venv/bin/python -m pip install -r data-transform/requirements.txt
+PYTHON="$PWD/data/.venv/bin/python" ./control.sh data --option all --rows all --batch-rows 20
+data/.venv/bin/python -m unittest discover -s data-transform/tests -v
 ```
 The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
-`./control.sh dev` never performs data transformation. It requires `manifest.json` and `corpus.sqlite` to already exist under `data/corpus/` and returns `CORPUS_NOT_PREPARED` otherwise.
+`./control.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
+(the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
+catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
+startup skips this local-only controller check and lets the runtime validate the
+catalog and object-store configuration; it never generates a local audio corpus.
+The controller's `data` command runs the tracked extraction and preparation
+scripts under `data-transform/`. Its offline data paths remain under repository
+`data/`; runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
 The root `control.sh` is the normal development entry point.
@@ -61,6 +68,13 @@ Start development:
 ```bash
 ./control.sh dev
 ```
+By default, startup uses an existing compatible `availability.sqlite` without
+rebuilding it. After preparing a new corpus, explicitly build availability once:
+```bash
+CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./control.sh dev --option start
+```
+Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
+periodic refreshes. These controls apply to both local and Tigris backends.
 The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.1:8787`. Vite binds to `0.0.0.0` so development-container/Codespaces forwarding can expose the UI.
 The configured prototype profile code is `001`.
 ## Build and tests
@@ -86,7 +100,7 @@ Iteration 3 has six selectable sources with independently persisted weights:
 5. `shrutilipi-te`: prepared Shrutilipi Telugu rows
 6. `indicvoices-te`: prepared IndicVoices Telugu rows
 The three dummy source rows remain literal development fixtures under `server/src/sources/dummy/data/`.
-The three prepared real-source row counts come from the prepared corpus metadata and are never hardcoded into the application.
+The three prepared real-source selectable row counts come from the shared availability index, not the canonical catalog's full accepted-row totals, and are never hardcoded.
 The current Codespaces sample corpus is only a development input. Replacing it with the complete source datasets changes the prepared source counts without changing the runtime source interface or selection algorithm.
 Dummy-source cache misses retain the existing development-only configurable mock latency. Prepared real-source rows are read from the indexed canonical corpus and do not perform an upstream Hugging Face request.
 ## Source selection
@@ -122,7 +136,7 @@ Selections are independent and with replacement. The same `(source_id, source_ke
 A stable source record and an acquisition are separate concepts:
 - a source record is the underlying source row and normalized retrieved content;
 - an acquisition is one particular probabilistic selection event.
-`source_records` is a profile-owned persistent cache, keyed by `(profile_code, source_id, source_key)` in `data/users.sqlite`. Once that profile's live queue or Export retrieves a source record, later live/export selections for the same profile reuse it. The canonical corpus and audio objects remain global.
+`source_records` is a profile-owned persistent cache, keyed by `(profile_code, source_id, source_key)` in `data/user/users.sqlite`. Once that profile's live queue or Export retrieves a source record, later live/export selections for the same profile reuse it. The canonical corpus and audio objects remain global.
 ## Queue behavior
 The live profile maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the future-queue tail.
 Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
@@ -141,16 +155,21 @@ ambiguous forms are not guaranteed to be analyzed correctly. The original observ
 text, layout and behavior are unchanged.
 
 ### Image generation setup
-Create `env` next to the root `control.sh` (a blank template is provided locally):
+Set the lowercase `pollinations_api_key` in the server process environment
+(a same-name Fly secret in deployment). A nonempty value takes precedence over
+the local file; surrounding whitespace is trimmed. For local development, the
+fallback is `env` next to the root `control.sh`:
 ```dotenv
 pollinations_api_key=
 ```
 Enter the Pollinations key after `=`. The file is Git-ignored and blocked by Vite's
 file server. Do not put the key in frontend code or a `VITE_` variable. The Node
-server reads it on each generation request, so key changes need no restart.
-Node 20.12+ is required for the standard dotenv parser. In a packaged deployment,
-keep `control.sh` at the repository root or put `env` in the parent of the server's
-working directory (`../env` fallback).
+server reads the environment first on each generation request, falling back to
+the file when the environment value is missing or blank. Local file key changes
+need no restart. Node 20.12+ is required for the standard dotenv parser.
+Without `control.sh`, local file lookup falls back to the parent of the server's
+working directory (`../env`). Deployment secrets require neither local file nor
+controller script; do not package either to supply credentials.
 
 In **Settings > Display > Image generation**, save a prompt containing the literal
 placeholder `<core word>`. The default is:
@@ -383,18 +402,24 @@ FLEURS uses its raw transcription as canonical text and preserves WAV audio.
 Shrutilipi uses `text` as canonical text and preserves FLAC audio.
 IndicVoices uses `text` as canonical text and preserves FLAC audio. Its verbatim, normalized, unsanitized, speaker, scenario, task, demographic, verification, and other available source metadata remain in source metadata rather than being discarded.
 At runtime, canonical rows expose one `TextMedia` item and one `AudioMedia` item. The profile-owned `source_records` cache persists those media descriptors, and the reader plays available audio with profile-owned bookmarks.
-Runtime resolves canonical object keys against `data/corpus/objects/`. Fly.io/Tigris integration is deferred; there is no storage-backend toggle or cloud connection.
+With `CORPUS_BACKEND=local`, runtime resolves canonical object keys against
+`CORPUS_OBJECTS_PATH` (default `data/corpus/objects/`). With `CORPUS_BACKEND=tigris`,
+it reads objects from the configured S3-compatible bucket and key prefix.
 ## Persistence and migration
-There are two active database files, with paths relative to the repository root:
+There are three separate database files, with default paths relative to the repository root:
 ```text
-data/corpus/corpus.sqlite   Global prepared corpus
-data/users.sqlite           All user data, scoped by profile_code
+data/corpus/corpus.sqlite       Global prepared corpus
+data/corpus/availability.sqlite Shared object availability
+data/user/users.sqlite         All user data, scoped by profile_code
 ```
 There is no separate database per user. The application reads the prepared corpus;
 all mutable reading state, settings, cache entries, bookmarks, and migration markers
-go into the shared user database with profile ownership. Images remain global files.
+go into the shared user database with profile ownership. Corpus availability and
+images remain global rather than profile-owned.
 
-All persisted user and global data belongs under root `data/`. The only exceptions
+All persisted local user and global data belongs under `DATA_DIRECTORY` (default:
+repository-root `data/`); Tigris audio objects live in the configured bucket.
+The only other exceptions
 are credentials, downloaded HTML/EPUB files, and assets/artifacts. Assets are bundled
 fonts, licences, icons, static application files and committed test fixtures.
 Artifacts are build output, installed dependencies, test results, and controller
@@ -402,11 +427,112 @@ logs/process files. Corpus files, audio, generated word images and user caches a
 data, not part of that exception.
 
 Default runtime paths are located from the repository root, regardless of the
-working directory. `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, and `CORPUS_OBJECTS_PATH`
-may select locations inside root `data/`; runtime rejects paths outside it and
-rejects using the same file for both databases. With `control.sh`, relative overrides
-are resolved from `upa`. Temporary databases used by tests are test artifacts.
-No external-storage mode is implemented; Fly.io/Tigris integration remains deferred.
+working directory; no `control.sh` marker is required. An explicit `DATA_DIRECTORY`
+may be any persistent mount root and does not require locating the repository.
+`DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, and
+`CORPUS_OBJECTS_PATH` may select locations inside that root; runtime rejects paths
+outside it and rejects sharing a file between the three databases. Relative
+environment paths resolve against the working directory (`upa` with `control.sh`).
+Tests may use isolated database paths outside the data root.
+
+The default layout is:
+```text
+data/                         # or DATA_DIRECTORY
+├── corpus/
+│   ├── corpus.sqlite         # canonical global catalog
+│   ├── availability.sqlite   # shared object-availability state
+│   ├── objects/              # local backend audio objects
+│   ├── manifest.json
+│   └── reports/
+├── user/
+│   └── users.sqlite          # all profile-owned records and caches
+└── word-images/              # shared generated images, never per-user
+```
+
+On first startup with the **default** database path, an existing
+`DATA_DIRECTORY/users.sqlite` is copied into `user/users.sqlite` through SQLite's
+consistent snapshot mechanism, including committed transactions still in its WAL.
+The verified snapshot is published atomically without replacing any existing
+target. An explicit `DATABASE_PATH` disables this migration, even if it names the
+default target. The original database is retained for recovery, never deleted.
+Stop old application processes before upgrading so they cannot keep writing to
+the old database after the snapshot. After verifying the new database and your
+backup, archive the old database and its sidecars together. Existing targets are
+authoritative and are not automatically merged with legacy files.
+Legacy `word_images` table migration still transfers all images into the shared
+`DATA_DIRECTORY/word-images/` directory before dropping the old table.
+
+### Local and Tigris corpus backends
+Set `CORPUS_BACKEND=local` for filesystem audio or `CORPUS_BACKEND=tigris` for
+S3-compatible object storage. No automatic backend guessing is performed.
+Keep the prepared catalog and shared availability database on the persistent
+mount in either mode. Tigris uses `BUCKET_NAME`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`
+(default `auto`), and standard AWS credential-provider environment variables.
+Supply credentials through deployment secrets, not source files or browser code.
+`CORPUS_OBJECTS_PREFIX` defaults to `corpus/objects/`; it is a bucket key prefix,
+not a filesystem path. `CORPUS_AVAILABILITY_REFRESH_MS` applies to the worker in either backend,
+defaults to `7200000` (two hours), and
+must be an integer from 1 to 2147483647 milliseconds (the Node timer limit).
+Availability is global corpus
+state, not a user's source-record cache. Local mode does not require S3 credentials.
+Changing these settings does not create buckets, upload audio, or provision infrastructure.
+
+On the first Tigris startup, a missing `corpus/corpus.sqlite` is streamed from that
+bucket key into a sibling staging file, checked for SQLite integrity and the
+canonical schema, then published atomically. A failed download leaves no partial
+catalog. An existing catalog is never downloaded again or rewritten by runtime.
+Tigris needs only the two SQLite files under `corpus/` on the mount; local audio,
+`manifest.json`, and `reports/` are not required in this mode. The application
+does not download an audio mirror.
+
+Both modes build `availability.sqlite` from the same canonical rows. Eligible
+audio must be a nonempty local file or a nonzero-size object in a fully completed,
+paginated S3 inventory. Multiple canonical rows sharing one audio object remain
+separate rows; runtime never deduplicates or edits the corpus. Dense zero-based
+indexes per source/grapheme-count class and stored class/source totals drive the
+same source-weight, complexity, and random-row algorithm in both modes.
+
+Availability startup behavior is independent of the backend:
+
+| Worker enabled | Rebuild on startup | Behavior |
+|---|---|---|
+| `false` (default) | `false` (default) | Use the existing compatible `availability.sqlite`; fail startup if missing, invalid, or incompatible. No inventory scan or rebuild. |
+| `false` | `true` | Rebuild once before serving, even if a snapshot exists; fail startup if rebuilding fails. No worker or timer. |
+| `true` | Either (ignored) | Start immediate and periodic background refreshes. |
+
+Set these with `CORPUS_AVAILABILITY_WORKER_ENABLED` and
+`CORPUS_AVAILABILITY_REBUILD_ON_STARTUP`; both accept only `true` or `false`.
+Tigris catalog downloads and audio access are unchanged by these settings.
+With the worker disabled, audio inventory changes are not reflected until an
+explicit rebuild and application restart.
+
+When enabled, the worker thread inventories audio immediately and waits
+the configured refresh interval after each pass completes before starting again.
+It builds a complete sibling snapshot before atomically
+replacing `availability.sqlite`. Failed scans, malformed or interrupted
+pagination, and failed builds are logged and leave the previous complete pool
+in service; retry occurs after the interval. The first launch waits if no matching
+snapshot exists and fails safely if that initial build fails. Existing compatible
+snapshots allow serving immediately while refresh runs. Allow disk space for the
+old snapshot and its replacement. Each API process with the worker enabled manages its own refresh
+worker. Publication notifies the backend to reload the snapshot without restarting
+the service; the UI continues using the same API and does not contact the worker.
+
+Snapshot metadata records its generation, eligible-pool hash, canonical file
+identity, and backend location. Unchanged inventories do not publish a new
+generation. Publication swaps the reader and invalidates the selection engine's
+complexity reference before the next selection, so source totals, class counts,
+and dense indexes always agree. New queue acquisitions and exports see the new
+pool; already selected queue entries and immutable history snapshots are not
+resampled. Keep published content-addressed audio available for those older
+acquisitions and exports. Replacing the canonical catalog requires an app restart.
+
+Both the live player and offline export packaging use `/api/audio/...`. Tigris
+GET responses are streamed through the server, with HEAD, byte ranges,
+conditional requests, ETag/Last-Modified, MIME metadata, and 404/416 handling.
+Unsafe keys are rejected before filesystem or S3 access, and upstream error
+details are not exposed to clients. Credentials use the official AWS SDK default
+provider chain; `.env.example` only documents variables and is not loaded automatically.
 
 The old `upa/data/app.sqlite` and its sidecars have been deleted after verifying the
 transfer of all user records and image files. Startup no longer reads or recreates
@@ -435,10 +561,11 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 
 | Information | Scope | Location and contents |
 | --- | --- | --- |
-| Prepared dataset catalog | Global | `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (text and audio metadata), `source_complexity_members` (selection index). |
-| Dataset audio and preparation metadata | Global | `data/corpus/objects/` holds WAV/FLAC audio; `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
+| Prepared dataset catalog | Global | Read-only `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (canonical text and audio metadata), and the original offline `source_complexity_members` index, which runtime selection does not use. |
+| Dataset audio and preparation metadata | Global | Local mode uses `data/corpus/objects/` for WAV/FLAC audio; Tigris uses `BUCKET_NAME` and `CORPUS_OBJECTS_PREFIX`. `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
 | Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `upa/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
-| Appearance and language | User | `data/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
+| Corpus availability | Global | `data/corpus/availability.sqlite`: `metadata` (generation, identity, pool hash), `source_counts`, `complexity_counts`, and dense eligible `source_complexity_members`; shared by all profiles, separate from canonical content. |
+| Appearance and language | User | `data/user/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, auto-fade delay, Settings language. |
 | Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
 | Sampling and playback settings | User | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
 | Reading state and diagnostics | User | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |
@@ -447,30 +574,71 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Migration records | User | Same user database, `profile_migrations`: retained `settings-v1` and `bookmarks-v1` completion timestamps. |
 | Transferred older browser data | User | Same user database, `profile_browser_data`: exact prior appearance, language, bookmark and migration values with transfer timestamps, scoped by user code. Current usable values also populate the preference/bookmark tables when missing. Older values are retained here even if they conflict with current settings or cannot be parsed. |
 | Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
-| Provider credentials | Credentials | Root `env` contains the Pollinations API key; deployment may also supply secrets. Never expose them to the browser or commit them. |
+| Provider credentials | Credentials | Server environment `pollinations_api_key` takes precedence over the local root `env` fallback. Use a same-name Fly secret in deployment. Never expose credentials to the browser or commit them. |
 | Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
 | Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
 | Raw and sample inputs | Global | `data/raw/` and `data/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
 | Bundled fonts and application files | Assets/artifacts | `upa/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `upa/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `upa/node_modules/` are generated. |
-| User database sidecars | User | `data/users.sqlite-wal` and `data/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
+| User database sidecars | User | `data/user/users.sqlite-wal` and `data/user/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
 | Corpus database sidecars | Global | Any SQLite sidecars remain alongside `data/corpus/corpus.sqlite`. |
 
 SQLite WAL files may contain committed changes not yet checkpointed, so do not
 copy only the main database while the app is writing. Use SQLite-aware backups
-or stop the app cleanly before copying. Back up `data/users.sqlite`, the complete
+or stop the app cleanly before copying. Back up `data/user/users.sqlite`, the complete
 `data/corpus/`, `data/word-images/`, credentials, and any wanted downloads separately.
-Include any retained raw/sample inputs when backing up global data.
+Include any retained raw/sample inputs and legacy user database when backing up
+global/user data, respectively. With Tigris, back up or retain/version the bucket's
+audio objects separately; a volume backup does not contain remote audio bytes.
 User databases, sidecars, image files and corpus data are Git-ignored.
 Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
 current playback position, randomly activated fonts, UI navigation/collapse state,
 active profile session and in-memory export artifacts are not durable storage.
+## Fly configuration
+The repository-root `fly.toml` configures `telugu-now` for Tigris audio, SQLite
+under `/data/corpus/`, user data under `/data/user/`, and shared images under
+`/data/word-images/`. It specifies one shared CPU with 1 GB RAM, HTTPS, and an
+API health check with Fly's maximum one-minute startup grace period. The initial
+corpus download may take longer; allow a longer deployment wait timeout, such as
+`--wait-timeout 5m`, when deploying. Autostop is disabled so the background worker
+continues without traffic.
+This deployment explicitly sets `CORPUS_AVAILABILITY_WORKER_ENABLED=true`,
+overriding the application's disabled default. The worker refreshes at startup,
+then waits two hours after each pass; this is
+not a wall-clock schedule.
+
+Before deployment, choose `primary_region`, provision a `telugu_now_data` volume
+in that region, and supply a production Dockerfile or prebuilt image. Start with
+one application Machine: these SQLite databases and images are not replicated
+across Machines. Setting the TOML does not provision anything or deploy the app.
+
+Supply `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` through Fly secrets
+(and `AWS_SESSION_TOKEN` only when using temporary credentials). Use credentials
+with bucket-list access for `corpus/objects/` and read access to the corpus SQLite
+and audio objects; the runtime does not require write access. Do not put
+credentials in `fly.toml`, build arguments, or the container image. Backend,
+paths, bucket, endpoint, region, and refresh delay are non-secret `[env]` settings;
+avoid conflicting same-name Fly secrets, which override `[env]`.
+
+For image generation, supply the lowercase `pollinations_api_key` through a
+same-name Fly secret. `readPollinationsKey` reads the server environment first,
+with the root `env` file retained only as a local fallback. Do not package the
+local credential file.
+
 ## Environment defaults
 See `.env.example`.
 ```text
-DATABASE_PATH=../data/users.sqlite
-CORPUS_DATABASE_PATH=../data/corpus/corpus.sqlite
-CORPUS_OBJECTS_PATH=../data/corpus/objects
+DATA_DIRECTORY=<repository-root>/data
+DATABASE_PATH=<DATA_DIRECTORY>/user/users.sqlite
+CORPUS_DATABASE_PATH=<DATA_DIRECTORY>/corpus/corpus.sqlite
+CORPUS_AVAILABILITY_PATH=<DATA_DIRECTORY>/corpus/availability.sqlite
+CORPUS_OBJECTS_PATH=<DATA_DIRECTORY>/corpus/objects
+CORPUS_BACKEND=local
+CORPUS_AVAILABILITY_WORKER_ENABLED=false
+CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false
+CORPUS_AVAILABILITY_REFRESH_MS=7200000
+CORPUS_OBJECTS_PREFIX=corpus/objects/
+AWS_REGION=auto
 SOURCE1_WEIGHT=1
 SOURCE2_WEIGHT=1
 SOURCE3_WEIGHT=1

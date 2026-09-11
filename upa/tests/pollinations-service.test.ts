@@ -6,6 +6,16 @@ import path from 'node:path';
 import { generatePollinationsImage, readPollinationsKey, MAX_IMAGE_BYTES } from '../server/src/services/pollinations-service';
 import { IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../shared/image-settings';
 
+let originalEnvironmentKey: string | undefined;
+test.beforeEach(() => {
+  originalEnvironmentKey = process.env.pollinations_api_key;
+  delete process.env.pollinations_api_key;
+});
+test.afterEach(() => {
+  if (originalEnvironmentKey === undefined) delete process.env.pollinations_api_key;
+  else process.env.pollinations_api_key = originalEnvironmentKey;
+});
+
 test('image prompt requires the placeholder and replaces every occurrence literally', () => {
   for (const value of ['', 'Draw a word', null, '<core word>'.repeat(201)]) assert.equal(validImagePrompt(value), false);
   assert.equal(renderImagePrompt('Draw <core word>, not the text <core word>.', 'అవును'), 'Draw అవును, not the text అవును.');
@@ -21,6 +31,33 @@ test('root env key supports dotenv syntax and can change without restarting', as
     await writeFile(envPath, 'pollinations_api_key=updated-fixture\n');
     assert.equal(readPollinationsKey(envPath), 'updated-fixture');
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('environment key takes precedence and does not require a readable local file', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'image-env-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const envPath = path.join(directory, 'env');
+  await writeFile(envPath, 'pollinations_api_key=local-fixture\n');
+  process.env.pollinations_api_key = '  deployment-fixture  ';
+  assert.equal(readPollinationsKey(envPath), 'deployment-fixture');
+  assert.equal(readPollinationsKey(path.join(directory, 'missing')), 'deployment-fixture');
+  assert.equal(readPollinationsKey(directory), 'deployment-fixture');
+  assert.equal(readPollinationsKey(), 'deployment-fixture');
+  process.env.pollinations_api_key = 'updated-deployment-fixture';
+  assert.equal(readPollinationsKey(envPath), 'updated-deployment-fixture');
+});
+
+test('empty environment keys use the local fallback and file errors remain explicit', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'image-env-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const envPath = path.join(directory, 'env');
+  await writeFile(envPath, 'pollinations_api_key=local-fixture\n');
+  for (const value of ['', '   ']) {
+    process.env.pollinations_api_key = value;
+    assert.equal(readPollinationsKey(envPath), 'local-fixture');
+    assert.equal(readPollinationsKey(path.join(directory, 'missing')), '');
+    assert.throws(() => readPollinationsKey(directory), /Could not read the image generation configuration/);
+  }
 });
 
 test('Pollinations uses the exact model and keeps the key out of the URL', async () => {
@@ -46,7 +83,7 @@ test('provider failures never expose credentials or upstream response bodies', a
       return true;
     });
   }
-  await assert.rejects(generatePollinationsImage('word', ''), /root env file/);
+  await assert.rejects(generatePollinationsImage('word', ''), /server environment \(Fly secret\) or the local root env file/);
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => { throw new Error('fixture-secret'); }), /could not be reached/);
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => new Response('large', { headers: { 'content-length': String(MAX_IMAGE_BYTES + 1) } })), /oversized/);
 });

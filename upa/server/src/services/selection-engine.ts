@@ -97,16 +97,22 @@ function weightedPick<T>(
 }
 
 export class SelectionEngine {
-  private readonly classes: ComplexityClass[];
-  private readonly totalRows: number;
+  private classes: ComplexityClass[] = [];
+  private totalRows = 0;
+  private generation = '';
 
   constructor(
     private readonly registry: SourceRegistry = sourceRegistry,
     private readonly random: () => number = () => Math.random(),
   ) {
+    this.refreshReference();
+  }
+
+  private refreshReference(): void {
+    if (this.generation === this.registry.generation) return;
     const counts = new Map<number, number>();
 
-    for (const source of registry.selectableSources()) {
+    for (const source of this.registry.selectableSources()) {
       const sourceClasses = source.complexityClasses();
       const seenValues = new Set<number>();
       let classRowCount = 0;
@@ -137,9 +143,11 @@ export class SelectionEngine {
           percentileEnd: cumulative / this.totalRows,
         };
       });
+    this.generation = this.registry.generation;
   }
 
   describeReference(): ComplexityReferenceDescription {
+    this.refreshReference();
     return {
       version: COMPLEXITY_REFERENCE_VERSION,
       totalRows: this.totalRows,
@@ -165,6 +173,7 @@ export class SelectionEngine {
   }
 
   select(settings: ProfileSelectionSettings): SelectionResult {
+    this.refreshReference();
     if (!SUPPORTED_REFERENCE_VERSIONS.has(settings.complexityReferenceVersion)) {
       throw new Error(`Unsupported complexity reference version ${settings.complexityReferenceVersion}.`);
     }
