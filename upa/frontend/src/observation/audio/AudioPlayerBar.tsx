@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
 import {
   BookmarkIcon,
@@ -10,7 +10,7 @@ import { AudioScrubber } from './AudioScrubber';
 import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
-import { useAppearance } from '../../appearance';
+import { appearanceAudioGlass, useAppearance } from '../../appearance';
 import { useClickOutsideToClose } from './useClickOutsideToClose';
 
 interface AudioPlayerBarProps {
@@ -33,6 +33,8 @@ export function AudioPlayerBar({
   const [magnifierOpen, setMagnifierOpen] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
   const { appearance } = useAppearance();
+  const paintId = `audio-glass-${useId().replace(/:/g, '')}`;
+  const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   useClickOutsideToClose(magnifierOpen, [playerRef], () => setMagnifierOpen(false));
   useEffect(() => {
     if (!controlsVisible) {
@@ -46,9 +48,21 @@ export function AudioPlayerBar({
       ref={playerRef}
       className="audio-player-bar"
       data-magnifier-position={appearance.magnifierPosition}
+      style={{
+        '--audio-icon-paint': `url(#${paintId})`,
+        '--audio-glass-gradient': glass.gradient,
+        '--audio-glass-edge': glass.edge,
+      } as CSSProperties}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
+      <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
+            {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
+          </linearGradient>
+        </defs>
+      </svg>
       <audio ref={player.audioRef} src={audio.url} preload="metadata" />
       <button
         className="audio-transport-button audio-play-button"
