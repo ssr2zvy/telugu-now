@@ -104,12 +104,12 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const positions = [0, 0.5, 1];
   // Edge stops stay close to their source gradient color/lightness and are drawn
   // near-transparent so controls melt into the surrounding backdrop at their
-  // borders; the center stop leans further toward the accent lightness at much
-  // higher opacity so the glass reads as distinctly "lit" through the middle
-  // instead of one flat tint end to end.
+  // borders; the center stop leans a little further toward the accent lightness
+  // at moderately higher opacity so the glass reads as gently "lit" through the
+  // middle while still coordinating with (not clashing against) the page gradient.
   const centerWeight = (position: number) => 1 - Math.abs(position - 0.5) * 2;
-  const blendAt = (position: number) => 0.16 + 0.62 * centerWeight(position);
-  const opacityAt = (position: number) => 0.2 + 0.56 * centerWeight(position);
+  const blendAt = (position: number) => 0.16 + 0.3 * centerWeight(position);
+  const opacityAt = (position: number) => 0.2 + 0.32 * centerWeight(position);
   const shades = palette.map(([hue, saturation, lightness], index) =>
     hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;

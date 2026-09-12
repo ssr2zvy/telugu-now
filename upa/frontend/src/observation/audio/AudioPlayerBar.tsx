@@ -72,7 +72,7 @@ export function AudioPlayerBar({
           </linearGradient>
         </defs>
       </svg>
-      <audio ref={player.audioRef} src={audio.url} preload="metadata" />
+      <audio ref={player.audioRef} src={audio.url} preload="auto" />
       <button
         className="audio-transport-button audio-play-button"
         type="button"
