@@ -44,6 +44,7 @@ export function ObservationView({
   ] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [precisionInteraction, setPrecisionInteraction] = useState(0);
+  const [audioLoading, setAudioLoading] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
   const [taps] = useState(() => new ReaderTaps(() => setControlsVisible(visible => !visible)));
@@ -178,7 +179,11 @@ export function ObservationView({
       }}
       onDoubleClick={(event) => event.preventDefault()}
     >
-      {navigationEvent ? (
+      {audioLoading ? (
+        <div className="navigation-feedback audio-loading-indicator" role="status" aria-label="Loading audio">
+          <span aria-hidden="true">...</span>
+        </div>
+      ) : navigationEvent ? (
         <div
           key={navigationEvent.sequence}
           className="navigation-feedback"
@@ -246,6 +251,7 @@ export function ObservationView({
             sourceKey={observation.sourceKey}
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
             controlsVisible={controlsVisible}
+            onLoadingChange={setAudioLoading}
             onPrecisionInteraction={() => {
               taps.cancel();
               setControlsVisible(true);

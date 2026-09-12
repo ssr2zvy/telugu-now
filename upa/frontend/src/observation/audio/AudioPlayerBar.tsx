@@ -16,6 +16,7 @@ interface AudioPlayerBarProps {
   defaultPlaybackRate: number;
   controlsVisible: boolean;
   onPrecisionInteraction?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export function AudioPlayerBar({
@@ -25,8 +26,13 @@ export function AudioPlayerBar({
   defaultPlaybackRate,
   controlsVisible,
   onPrecisionInteraction,
+  onLoadingChange,
 }: AudioPlayerBarProps) {
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
+  useEffect(() => {
+    onLoadingChange?.(player.loading);
+    return () => onLoadingChange?.(false);
+  }, [player.loading, onLoadingChange]);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
   const magnifierOpen = precisionMode !== 'closed';
   const speedPopoverOpen = precisionMode === 'speed';
@@ -115,13 +121,13 @@ export function AudioPlayerBar({
             >
               <AudioGlassIcon name="bookmark" />
             </button>
-          </div>
           {speedPopoverOpen ? <PlaybackSpeedPopover
             playbackRate={player.playbackRate}
             onChange={player.setPlaybackRate}
             onClose={closeSpeed}
             controlsRef={precisionActionsRef}
           /> : null}
+          </div>
         </>}
         onMagnifierOpen={() => {
           onPrecisionInteraction?.();
@@ -135,7 +141,7 @@ export function AudioPlayerBar({
           dispatchPrecision('close-speed');
         }}
       />
-      {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-error" role="status">
+      {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
         {player.playbackStatus}
       </div> : null}
       {bookmarkError || player.playbackError ? <div className="audio-playback-error" role="alert">

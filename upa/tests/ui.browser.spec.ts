@@ -847,11 +847,14 @@ test('prepared audio cold click waits visibly and requires a fresh gesture inste
   await page.locator('.profile-input').fill('001');
   await revealControls(page);
   await page.getByTitle('Play', { exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Preparing audio');
+  await expect(page.getByRole('status', { name: 'Loading audio' })).toBeVisible();
+  await expect(page.locator('.audio-playback-status')).toContainText('Preparing audio');
+  await expect(page.locator('.audio-playback-error')).toHaveCount(0);
   await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
   await expect(page.locator('audio')).toHaveJSProperty('paused', true);
   release();
-  await expect(page.getByRole('status')).toHaveText('Audio ready. Tap Play.');
+  await expect(page.getByRole('status', { name: 'Loading audio' })).toHaveCount(0);
+  await expect(page.locator('.audio-playback-status')).toHaveText('Audio ready. Tap Play.');
   await expect(page.locator('audio')).toHaveJSProperty('paused', true);
   await page.getByTitle('Play', { exact: true }).click();
   await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.6);
