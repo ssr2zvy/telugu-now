@@ -176,6 +176,7 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
 }
 
 test('reader tap playback autoplays invisibly and separates bottom-third controls', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify({ scrollMode: false })));
   const fixture = await loadFixture(page);
   const audio = page.locator('audio');
   const bar = page.locator('.audio-player-bar');
@@ -596,12 +597,48 @@ test('profile preferences show load and save failures and retry without losing e
 
 async function revealControls(page: Page, clockPaused = false) {
   if (!await page.locator('.observation-screen').evaluate(element => element.classList.contains('controls-visible'))) {
-    await page.locator('.observation-text').click();
+    if (await page.locator('.observation-screen').getAttribute('data-scroll-mode') === 'true') {
+      await page.mouse.move(20, 20);
+      await page.mouse.wheel(80, 0);
+    } else {
+      await page.mouse.click(20, page.viewportSize()!.height - 24);
+    }
     if (clockPaused) await page.clock.fastForward(500);
   }
 
   await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
 }
+
+async function swipeReader(page: Page, direction: -1 | 1) {
+  const center = page.viewportSize()!.width / 2;
+  await page.mouse.move(center - direction * 60, 20);
+  await page.mouse.down();
+  await page.mouse.move(center + direction * 60, 20, { steps: 8 });
+  await page.mouse.up();
+}
+
+test('scroll mode setting defaults on, persists opt-out, and restores legacy tap zones', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Display', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const scrollMode = page.getByRole('switch', { name: 'Scroll mode', exact: true });
+  await expect(scrollMode).toBeChecked();
+  await scrollMode.uncheck();
+  await expect.poll(() => fixture.preferences.get('001')?.appearance?.scrollMode).toBe(false);
+  await page.reload();
+  await page.locator('.profile-input').fill('001');
+  const screen = page.locator('.observation-screen');
+  const bar = page.locator('.audio-player-bar');
+  await expect(screen).toHaveAttribute('data-scroll-mode', 'false');
+  await swipeReader(page, 1);
+  await expect(bar).toHaveCSS('opacity', '0');
+  await page.mouse.click(20, page.viewportSize()!.height - 24);
+  await expect(bar).toHaveCSS('opacity', '1');
+  await page.mouse.click(20, page.viewportSize()!.height - 24);
+  await expect(bar).toHaveCSS('opacity', '0');
+  expect(fixture.errors).toEqual([]);
+});
 
 async function revealSettings(page: Page) {
   const center = (await page.locator('.observation-center').boundingBox())!;
@@ -1377,6 +1414,37 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
 
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('scroll mode touch swipes reveal and reverse-hide without a playback tap', async ({ page }) => {
+    const fixture = await loadFixture(page);
+    const bar = page.locator('.audio-player-bar');
+    const audio = page.locator('audio');
+    const client = await page.context().newCDPSession(page);
+    const swipe = async (direction: -1 | 1) => {
+      const start = direction === 1 ? 100 : 270;
+      await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start, y: 20 }] });
+      for (let step = 1; step <= 6; step++) {
+        await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start + direction * step * 20, y: 20 }] });
+      }
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    await expect(audio).toHaveJSProperty('paused', false);
+    await swipe(1);
+    await expect(bar).toHaveCSS('opacity', '1');
+    await expect(page.locator('.audio-magnifier')).toHaveCount(0);
+    await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+    await expect(page.locator('.audio-magnifier')).toBeVisible();
+    await swipe(-1);
+    await expect(bar).toHaveCSS('opacity', '0');
+    await expect(page.locator('.audio-magnifier')).toHaveCount(0);
+    await page.waitForTimeout(450);
+    await expect(audio).toHaveJSProperty('paused', false);
+    await page.touchscreen.tap(20, 820);
+    await expect(audio).toHaveJSProperty('paused', true);
+    await expect(bar).toHaveCSS('opacity', '0');
+    expect(fixture.navigationCount()).toBe(0);
+    expect(fixture.errors).toEqual([]);
+    await client.detach();
+  });
   test('delayed profile preferences keep the existing text-free loading spinner', async ({ page }) => {
     const fixture = await loadFixture(page, undefined, false);
     let release = () => {};
@@ -1926,6 +1994,60 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(fixture.errors).toEqual([]);
     });
 
+    test('scroll mode reveals only the bar, preserves doubles, and hides precision on reversal', async ({ page }) => {
+      const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+      await wordImageFixture(page);
+      const audio = page.locator('audio');
+      const bar = page.locator('.audio-player-bar');
+      const magnifier = page.locator('.audio-magnifier');
+      const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+      await expect(page.locator('.observation-screen')).toHaveAttribute('data-scroll-mode', 'true');
+      await expect(audio).toHaveJSProperty('paused', false);
+      await page.mouse.click(20, viewport.height - 24);
+      await expect(audio).toHaveJSProperty('paused', true);
+      await expect(bar).toHaveCSS('opacity', '0');
+      await page.mouse.click(20, 20);
+      await expect(audio).toHaveJSProperty('paused', false);
+      await swipeReader(page, -1);
+      await expect(bar).toHaveCSS('opacity', '1');
+      await expect(magnifier).toHaveCount(0);
+      await expect(page.locator('.audio-precision-actions')).toHaveCount(0);
+      await swipeReader(page, -1);
+      await expect(bar).toHaveCSS('opacity', '1');
+      await scrubber.press('Enter');
+      await expect(magnifier).toBeVisible();
+      await page.mouse.click(20, 20);
+      await expect(magnifier).toHaveCount(0);
+      await expect(bar).toHaveCSS('opacity', '1');
+      await expect(audio).toHaveJSProperty('paused', false);
+      await scrubber.press('Enter');
+      await page.getByTitle('Playback speed', { exact: true }).click();
+      await expect(page.locator('.audio-speed-popover')).toBeVisible();
+      await swipeReader(page, 1);
+      await expect(bar).toHaveCSS('opacity', '0');
+      await expect(magnifier).toHaveCount(0);
+      await expect(page.locator('.audio-speed-popover')).toHaveCount(0);
+      await swipeReader(page, 1);
+      await expect(bar).toHaveCSS('opacity', '1');
+      await expect(magnifier).toHaveCount(0);
+      const rail = (await scrubber.boundingBox())!;
+      await page.mouse.move(rail.x + rail.width / 2, rail.y + rail.height / 2);
+      await page.mouse.wheel(-80, 0);
+      await page.mouse.wheel(-100, 0);
+      await expect(bar).toHaveCSS('opacity', '0');
+      await page.waitForTimeout(450);
+      await expect(audio).toHaveJSProperty('paused', false);
+      await page.mouse.dblclick(viewport.width / 2, 20, { delay: 80 });
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      await expect(bar).toHaveCSS('opacity', '0');
+      await doubleClickWord(page, 'అవును', 80);
+      await expect(page.getByRole('dialog', { name: 'అవును' })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await page.mouse.dblclick(viewport.width * 5 / 6, 20, { delay: 80 });
+      await expect.poll(fixture.navigationCount).toBe(1);
+      expect(fixture.errors).toEqual([]);
+    });
+
     for (const magnifierPosition of ['below', 'above'] as const) {
       test(`continuous magnifier glass stays compact ${magnifierPosition}`, async ({ page }, testInfo) => {
         const preferences = new Map<string, ProfilePreferences>([['001', {
@@ -1937,7 +2059,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         }]]);
         const fixture = await loadFixture(page, undefined, true, sampleText, preferences);
         await page.emulateMedia({ reducedMotion: 'reduce' });
-        await page.mouse.click(20, viewport.height - 24);
+        await revealControls(page);
         const player = page.locator('.audio-player-bar');
         await expect(player).toHaveCSS('opacity', '1');
         const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
@@ -1955,8 +2077,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         const waveform = (await page.locator('.audio-magnifier-track').boundingBox())!;
         const time = (await page.locator('.audio-magnifier-time').boundingBox())!;
         expect(coarse.y).toBeCloseTo(closed.y);
-        expect(enlarged.height).toBe(72);
-        expect(time.y - (waveform.y + waveform.height)).toBeCloseTo(2);
+        expect(enlarged.height).toBe(magnifierPosition === 'below' ? 72 : 64);
+        expect(time.y - (waveform.y + waveform.height)).toBeCloseTo(magnifierPosition === 'below' ? 10 : 6);
         expect(time.y + time.height).toBeLessThanOrEqual(buttons.y);
         expect(buttons.y - (enlarged.y + enlarged.height)).toBeCloseTo(0);
         expect(buttons.height).toBe(44);
@@ -1977,11 +2099,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
           };
         });
         expect(surface.background).toContain('linear-gradient');
-        expect(surface.color).toBe('rgba(0, 0, 0, 0)');
+        expect(surface.color).toBe('rgba(0, 0, 0, 0.16)');
         expect(surface.lensBackground).toBe('rgba(0, 0, 0, 0)');
         expect(surface.separateLens).toBe('none');
         expect(surface.top).toBe(magnifierPosition === 'below' ? -31 : 0);
-        expect(surface.height).toBe(magnifierPosition === 'below' ? 103 : 147);
+        expect(surface.height).toBe(magnifierPosition === 'below' ? 103 : 139);
         const panel = (await page.locator('.audio-precision-panel').boundingBox())!;
         const neckTop = panel.y + surface.top + (magnifierPosition === 'below' ? 0 : surface.height - 14);
         expect(neckTop).toBeCloseTo(coarse.y + coarse.height / 2 - 7);

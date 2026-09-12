@@ -108,13 +108,27 @@ test('glass controls use broad palette transitions without a repeated specular s
     assert.ok(glass.gradient.includes(`${stop.color}${Math.round(stop.opacity * 255).toString(16)}`));
   }
   assert.equal(glass.stops[0]!.opacity, glass.stops[2]!.opacity);
-  assert.ok(glass.stops[0]!.opacity <= 0.22, 'edges must let the page gradient show through');
-  assert.ok(glass.stops[1]!.opacity > glass.stops[0]!.opacity * 2.5, 'center must remain distinguishable');
-  assert.ok(glass.stops[1]!.opacity - glass.stops[0]!.opacity < 0.4, 'gradient contrast must stay restrained');
+  assert.equal(glass.stops[0]!.opacity, 0.30, 'edges remain translucent without washing out the controls');
+  assert.equal(glass.stops[1]!.opacity, 0.495);
+  assert.ok(Math.abs((glass.stops[1]!.opacity - glass.stops[0]!.opacity) / (0.59 - 0.20) - 0.5) < 1e-12,
+    'edge-to-center opacity contrast must be half the previous gradient');
   assert.ok(glass.stops.every(stop => stop.opacity < 0.7));
   assert.match(glass.edge, /^#[0-9a-f]{8}$/);
+  assert.ok(glass.edge.endsWith('20'), 'the specular edge must also be half as strong');
   assert.deepEqual(appearanceAudioGlass(parseAppearance({ ...palette, foreground: '#ff0000', surface: '#000000' })), glass);
   assert.notDeepEqual(appearanceAudioGlass(DEFAULT_APPEARANCE), glass);
+});
+
+test('glass lightness variation is halved around the previous blend midpoint', () => {
+  const appearance = parseAppearance({ gradient: ['#808080', '#808080', '#808080'] });
+  const target = parseInt(appearanceAudioColor(appearance).slice(1, 3), 16);
+  const glass = appearanceAudioGlass(appearance);
+  const previousBlendMidpoint = (0.16 + 0.62) / 2;
+  const previousBlendSpread = 0.62 - 0.16;
+  glass.stops.forEach((stop, index) => {
+    const blend = previousBlendMidpoint + (index === 1 ? 1 : -1) * previousBlendSpread / 4;
+    assert.equal(parseInt(stop.color.slice(1, 3), 16), Math.round(128 + (target - 128) * blend));
+  });
 });
 
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
