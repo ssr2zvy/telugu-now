@@ -38,6 +38,7 @@ export function PlaybackSpeedPage({
         </span>
         <input
           type="number"
+          inputMode="decimal"
           min={AUDIO_PLAYER_PRESENTATION.playbackRateMin}
           max={AUDIO_PLAYER_PRESENTATION.playbackRateMax}
           step={AUDIO_PLAYER_PRESENTATION.playbackRateStep}

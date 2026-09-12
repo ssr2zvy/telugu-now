@@ -44,6 +44,66 @@ function read(
     'utf8',
   );
 }
+test('Settings fields use a single rounded focus surface and compact accessible percent units', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { ComplexityPage } = await import('../frontend/src/settings/pages/ComplexityPage');
+  const { SourceWeightsPage } = await import('../frontend/src/settings/pages/SourceWeightsPage');
+  const { PlaybackSpeedPage } = await import('../frontend/src/settings/pages/PlaybackSpeedPage');
+  const props = {
+    language: 'en' as const, draft: { targetPercent: '50', spreadPercent: '25', sourceWeights: { 'fleurs-te': '1' } },
+    saving: false, error: false, onDraftChange: () => {}, onClearError: () => {}, onSave: () => {},
+  };
+  const complexity = renderToStaticMarkup(createElement(ComplexityPage, props));
+  assert.equal((complexity.match(/class="field-value"/g) ?? []).length, 2);
+  assert.equal((complexity.match(/inputMode="decimal"/g) ?? []).length, 2);
+  assert.equal((complexity.match(/aria-description="Percent"/g) ?? []).length, 2);
+  assert.equal((complexity.match(/class="field-unit" aria-hidden="true">%/g) ?? []).length, 2);
+  assert.match(complexity, /aria-label="Target"/);
+  assert.match(complexity, /aria-label="Spread"/);
+  assert.match(renderToStaticMarkup(createElement(SourceWeightsPage, props)), /inputMode="decimal"/);
+  assert.match(renderToStaticMarkup(createElement(PlaybackSpeedPage, {
+    language: 'en', rate: '1', saving: false, error: false, onRateChange: () => {}, onClearError: () => {}, onSave: () => {},
+  })), /inputMode="decimal"/);
+  const css = read('frontend/src/styles/settings-layout.css');
+  assert.match(css, /\.settings-form \.field-value \{[^}]*height: 44px;[^}]*gap: 3px;[^}]*border-radius: 6px/);
+  assert.match(css, /\.field-value \.field-unit \{[^}]*font-size: 11px/);
+  assert.match(css, /\.settings-form \.field-value:focus-within,[^{]+\{[^}]*box-shadow: 0 0 0 2px/);
+  assert.match(css, /\.settings-form \.field-value input \{[^}]*background: transparent; box-shadow: none/);
+  assert.doesNotMatch(css, /border-bottom-color/);
+});
+test('Settings editable controls retain a real 16px font floor without disabling zoom or keyboard access', () => {
+  const css = read('frontend/src/styles/settings-layout.css');
+  assert.match(css, /\.settings-screen input, \.settings-screen textarea, \.settings-screen select \{ font-size: max\(16px, 1rem\); scroll-margin-block: 24px/);
+  assert.match(css, /\.settings-screen \.image-generation-settings textarea \{[^}]*font-size: max\(16px, 1rem\)/);
+  assert.match(css, /\.settings-page-content \{[^}]*min-width: 0;[^}]*overflow-x: hidden; overflow-y: auto/);
+  assert.match(css, /scrollbar-gutter: stable; scroll-padding-block: 24px/);
+  const shell = read('frontend/src/settings/SettingsShell.tsx');
+  assert.match(shell, /window\.visualViewport/);
+  assert.match(shell, /container\.contains\(element\)/);
+  assert.match(shell, /Math\.abs\(viewport\.scale - 1\) > 0\.01/);
+  assert.match(shell, /style\.setProperty\('--settings-viewport-height', `\$\{viewport\.height\}px`\)/);
+  assert.match(shell, /style\.setProperty\('--settings-viewport-top', `\$\{viewport\.offsetTop\}px`\)/);
+  assert.match(shell, /container\.scrollBy\(\{ top:/);
+  for (const event of ['resize', 'scroll']) {
+    assert.ok(shell.includes(`viewport.removeEventListener('${event}', updateViewport)`));
+  }
+  for (const event of ['focusin', 'focusout']) {
+    assert.ok(shell.includes(`document.removeEventListener('${event}', updateViewport)`));
+  }
+  assert.doesNotMatch(shell, /preventDefault|\.blur\(|scrollIntoView|scrollTo\([^0]/);
+  assert.doesNotMatch(read('frontend/index.html'), /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/);
+});
+test('Settings secondary labels and inset dividers preserve localized hierarchy', () => {
+  const css = read('frontend/src/styles/settings-layout.css');
+  assert.match(css, /--muted: color-mix\(in srgb, var\(--foreground\) 74%, var\(--surface\)\)/);
+  assert.match(css, /--line: color-mix\(in srgb, var\(--foreground\) 7%, transparent\)/);
+  assert.match(css, /\.settings-context \{[^}]*font-weight: 600/);
+  assert.match(css, /\.settings-screen\[lang='en'\] \.settings-context \{ letter-spacing: \.035em/);
+  assert.match(css, /\.settings-entry-meta \{[^}]*font-weight: 500/);
+  assert.match(css, /\.settings-rail-child \{[^}]*font-weight: 500/);
+  assert.match(css, /\.settings-index button:not\(:last-child\)::after \{[^}]*inset-inline: 54px 12px;[^}]*height: 1px/);
+});
 test(
   'Iteration 3 local controller is control_local.sh with no obsolete controller names',
   () => {

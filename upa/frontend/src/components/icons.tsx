@@ -1,10 +1,22 @@
+import { useId, useMemo } from 'react';
+import { appearanceAudioGlass, useAppearance } from '../appearance';
+
 export function SettingsIcon() {
+  const { appearance } = useAppearance();
+  const paintId = `settings-glass-${useId().replace(/:/g, '')}`;
+  const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   return (
     <svg
       className="control-icon"
       viewBox="0 0 24 24"
       aria-hidden="true"
+      style={{ stroke: `url(#${paintId})` }}
     >
+      <defs>
+        <linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
+          {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
+        </linearGradient>
+      </defs>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .62 1.7 1.7 0 0 0-.4 1.08V21h-4v-.1a1.7 1.7 0 0 0-.4-1.08 1.7 1.7 0 0 0-1-.62 1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.62-1A1.7 1.7 0 0 0 2.9 13.6H3v-4h-.1a1.7 1.7 0 0 0 1.08-.4 1.7 1.7 0 0 0 .62-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06L7.06 3.4l.06.06A1.7 1.7 0 0 0 9 3.8a1.7 1.7 0 0 0 1-.62A1.7 1.7 0 0 0 10.4 2.1V2h4v.1a1.7 1.7 0 0 0 .4 1.08 1.7 1.7 0 0 0 1 .62 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8a1.7 1.7 0 0 0 .62 1 1.7 1.7 0 0 0 1.08.4h.1v4h-.1a1.7 1.7 0 0 0-1.08.4 1.7 1.7 0 0 0-.62 1Z" />
     </svg>

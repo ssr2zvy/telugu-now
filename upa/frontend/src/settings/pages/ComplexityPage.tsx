@@ -45,6 +45,7 @@ export function ComplexityPage({
         <div className="field-value">
           <input
           type="number"
+          inputMode="decimal"
           min="0"
           aria-label={t(language, 'target')}
           aria-description={language === 'en' ? 'Percent' : 'శాతం'}
@@ -78,6 +79,7 @@ export function ComplexityPage({
         <div className="field-value">
           <input
           type="number"
+          inputMode="decimal"
           min="0.000001"
           aria-label={t(language, 'spread')}
           aria-description={language === 'en' ? 'Percent' : 'శాతం'}
