@@ -175,7 +175,6 @@ export function AudioScrubber({
         aria-valuenow={currentTime}
       >
         <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
-        {magnifierOpen ? <div className="audio-scrubber-window" aria-hidden="true" /> : null}
         {bookmarks.map((bookmark) => (
           <span
             key={bookmark}
@@ -188,7 +187,6 @@ export function AudioScrubber({
       {magnifierOpen ? (
         <div className="audio-precision-panel">
         <div className="audio-magnifier">
-          <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
           <div
             className="audio-magnifier-track"
             role="slider"
@@ -231,6 +229,7 @@ export function AudioScrubber({
               }}
             />
           </div>
+          <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
         </div>
         {precisionControls}
         </div>

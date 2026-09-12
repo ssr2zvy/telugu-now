@@ -27,9 +27,9 @@
 .audio-transport-button .control-icon-fill { fill: var(--audio-icon-paint); stroke: none; }
 .audio-precision-panel { position: relative; isolation: isolate; grid-row: 2; grid-column: 1 / -1; display: grid; grid-template-rows: 72px 44px; justify-items: center; margin-inline: 6px; min-width: 0; }
 .audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-row: 1; }
-/* A single painted surface joins the selected rail segment to the lens without a seam. */
-.audio-precision-panel::before { content: ''; position: absolute; z-index: -1; top: -24px; left: 0; right: 0; height: 96px; background: var(--audio-glass-gradient); opacity: .22; clip-path: polygon(var(--audio-window-start) 0, var(--audio-window-end) 0, 100% 24px, 100% 100%, 0 100%, 0 24px); -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent); pointer-events: none; }
-.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel::before { top: 0; height: 140px; clip-path: polygon(0 0, 100% 0, 100% 72px, var(--audio-window-end) 100%, var(--audio-window-start) 100%, 0 72px); -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 12px), transparent); }
+/* The 14px neck highlights the rail inside the same paint layer as the connector and lens. */
+.audio-precision-panel::before { content: ''; position: absolute; z-index: -1; top: -31px; left: 0; right: 0; height: 103px; background: var(--audio-glass-gradient); opacity: .22; clip-path: polygon(var(--audio-window-start) 0, var(--audio-window-end) 0, var(--audio-window-end) 14px, 100% 31px, 100% 100%, 0 100%, 0 31px, var(--audio-window-start) 14px); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 7px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 7px, #000 calc(100% - 12px), transparent); pointer-events: none; }
+.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel::before { top: 0; height: 147px; clip-path: polygon(0 0, 100% 0, 100% 72px, var(--audio-window-end) calc(100% - 14px), var(--audio-window-end) 100%, var(--audio-window-start) 100%, var(--audio-window-start) calc(100% - 14px), 0 72px); -webkit-mask-image: linear-gradient(to top, transparent, #000 7px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to top, transparent, #000 7px, #000 calc(100% - 12px), transparent); }
 .audio-precision-actions { position: relative; grid-row: 2; display: grid; grid-template-columns: repeat(2, 48px); justify-items: center; align-items: center; width: 96px; }
 .audio-precision-actions .audio-transport-button { height: 44px; }
 .audio-playback-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -44,9 +44,8 @@
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
 .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
 .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
-.audio-scrubber-window { position: absolute; left: var(--audio-window-start); right: calc(100% - var(--audio-window-end)); top: 17px; bottom: 17px; border-radius: 8px; background: var(--audio-glass-gradient); opacity: .4; box-shadow: inset 0 1px 0 var(--audio-glass-edge); pointer-events: none; }
 .audio-magnifier { position: relative; grid-row: 1; width: 100%; min-width: 0; padding: 4px 12px; background: transparent; color: inherit; }
-.audio-magnifier-time { margin-bottom: 2px; font-family: ui-monospace, monospace; font-size: .75rem; font-variant-numeric: tabular-nums; text-align: center; }
+.audio-magnifier-time { margin-top: 2px; font-family: ui-monospace, monospace; font-size: .75rem; font-variant-numeric: tabular-nums; text-align: center; }
 .audio-magnifier-track { position: relative; display: flex; align-items: center; gap: 1px; height: 44px; touch-action: none; cursor: ew-resize; }
 .audio-magnifier-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); border-radius: 2px; pointer-events: none; }
 .audio-magnifier-bar { flex: 1 1 0; min-width: 0; border-radius: 1px; background: currentColor; }

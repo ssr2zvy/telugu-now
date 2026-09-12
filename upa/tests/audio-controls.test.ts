@@ -67,12 +67,15 @@ test('precision actions mount and unmount in the same branch as the magnifier', 
     }));
     assert.equal(markup.includes('class="audio-magnifier"'), open);
     assert.equal(markup.includes('class="audio-precision-panel"'), open);
-    assert.equal(markup.includes('class="audio-scrubber-window"'), open);
+    assert.doesNotMatch(markup, /class="audio-scrubber-window"/);
     assert.equal(markup.includes('class="audio-precision-actions"'), open);
     assert.equal(markup.includes('aria-label="Playback speed"'), open);
     assert.equal(markup.includes('aria-label="Bookmarks"'), open);
     assert.match(markup, /aria-label="Audio position"/);
-    if (open) assert.ok(markup.indexOf('class="audio-magnifier"') < markup.indexOf('class="audio-precision-actions"'));
+    if (open) {
+      assert.ok(markup.indexOf('class="audio-magnifier-track"') < markup.indexOf('class="audio-magnifier-time"'));
+      assert.ok(markup.indexOf('class="audio-magnifier-time"') < markup.indexOf('class="audio-precision-actions"'));
+    }
   }
 });
 
@@ -126,8 +129,9 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
   assert.doesNotMatch(css, /\.audio-magnifier::before/);
   assert.match(css, /\.audio-magnifier \{[^}]*padding: 4px 12px; background: transparent/);
-  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -24px;[^}]*height: 96px; background: var\(--audio-glass-gradient\);[^}]*clip-path: polygon\(var\(--audio-window-start\)/);
-  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 140px;[^}]*var\(--audio-window-end\) 100%/);
+  assert.doesNotMatch(css, /\.audio-scrubber-window/);
+  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -31px;[^}]*height: 103px; background: var\(--audio-glass-gradient\);[^}]*var\(--audio-window-end\) 14px/);
+  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 147px;[^}]*var\(--audio-window-end\) calc\(100% - 14px\)/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);

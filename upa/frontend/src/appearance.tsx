@@ -104,8 +104,8 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const positions = [0, 0.5, 1];
   // Keep translucent edges and a lit center, with a restrained contrast spread.
   const centerWeight = (position: number) => 1 - Math.abs(position - 0.5) * 2;
-  const blendAt = (position: number) => 0.12 + 0.54 * centerWeight(position);
-  const opacityAt = (position: number) => 0.16 + 0.47 * centerWeight(position);
+  const blendAt = (position: number) => 0.16 + 0.46 * centerWeight(position);
+  const opacityAt = (position: number) => 0.20 + 0.39 * centerWeight(position);
   const shades = palette.map(([hue, saturation, lightness], index) =>
     hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;
