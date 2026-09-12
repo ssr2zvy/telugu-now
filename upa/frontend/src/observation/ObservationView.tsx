@@ -204,7 +204,12 @@ export function ObservationView({
           else if (region.double === 'back' ? canBack : canNext) void move(region.double);
         }, () => {
           if (appearance.scrollMode) {
-            if (!playerRef.current?.dismissPrecision()) playerRef.current?.togglePlay();
+            // Only the bottom third closes the magnifier; elsewhere, tapping keeps its normal play/pause behavior.
+            if (region.single === 'controls') {
+              if (!playerRef.current?.dismissPrecision()) playerRef.current?.togglePlay();
+            } else {
+              playerRef.current?.togglePlay();
+            }
           } else if (region.single === 'playback') playerRef.current?.togglePlay();
           else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
         });
