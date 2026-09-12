@@ -272,6 +272,23 @@ Appearance preferences are saved in server-side SQLite for the active profile, a
 
 Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the defaults, from -200 to +200 pixels. Negative values move up; positive values move down. The bottom inset is 16 pixels plus the device safe area. **Audio control order** offers **Bar above / magnifier below** (default) and **Bar below / magnifier above**. There is no Play button. The bar, thumb, and precision controls share the same softly graded translucent glass. The magnifier connector and lens use one continuous painted surface instead of a separate background box, highlighting the selected bar section and repeating its rail inside the enlarged waveform. The compact lens and action rows lower the default bar by 20 pixels while preserving 44-pixel button hit targets and the safe-area inset. Speed and bookmarks sit directly below the lens in either order. Space is reserved so opening precision controls does not shift the bar under the pointer. Routine audio preparation appears as top-right dots; genuine playback errors remain visible even with the bar hidden. Saved offsets and magnifier order remain intact. **Reset positions** restores both offsets to zero and Bar above / magnifier below.
 Settings uses compact rows, grouped numeric values with small unit suffixes, and checkmark Save actions. Numeric values and their units share one subtle rounded focus treatment without separate underlines. Secondary labels and inset dividers preserve the page hierarchy. Editable controls use at least 16px text to avoid mobile focus auto-zoom without disabling pinch zoom; keyboard-aware vertical scrolling keeps the focused field accessible. On narrow screens, the language globe has its own bottom row rather than overlaying scrollable settings.
+
+**Settings > Eons** marks named periods of use for each profile. Enter a name (up to 80 characters) and choose **Start eon**; only one eon can be active at a time. Starting includes the current observation. Subsequent views, including already prepared observations and history revisits, belong to the active eon until **Stop eon**. Eons survive reloads and show their start/stop times and distinct observation counts. The same observation can belong to multiple eons without overwriting its original acquisition diagnostics.
+
+Eon API: `GET /api/profiles/:code/eons`, `POST /api/profiles/:code/eons` with `{ "name": "Practice" }`, and `POST /api/profiles/:code/eons/:eonId/stop`. Start/stop results include the active eon and newest-first history. Failed changes are shown explicitly; reload checks the server state before retrying.
+
+SQLite diagnostics retain first-consumption history/timing in `history_entries` and original generation-time selection parameters in `observation_acquisitions.selection_snapshot_json`, including complexity target/spread, source weights, and selection probabilities. `profile_eons` stores named boundaries, while `observation_views` records subsequent server-accepted load, visible-resume, back, forward, and next operations, plus the current-observation marker when an eon starts. These are presentation operations, not client-render acknowledgments or audio/tap telemetry. Polling and preloading do not create views. Timestamps are Unix epoch milliseconds; detailed revisit events begin with this feature and are not fabricated for older history.
+
+```sql
+SELECT v.viewed_at, v.kind, e.name AS eon, v.observation_id,
+       v.history_position, a.selection_snapshot_json
+FROM observation_views AS v
+LEFT JOIN profile_eons AS e ON e.id = v.eon_id
+LEFT JOIN observation_acquisitions AS a
+  ON a.observation_id = v.observation_id AND a.profile_code = v.profile_code
+WHERE v.profile_code = '001'
+ORDER BY v.id;
+```
 Appearance exposes three explicit color roles:
 - Background: the three colors used by the reader gradient.
 - Text & icons: the foreground for reader and settings text and icons. Borders and muted states derive from this color.
@@ -644,6 +661,7 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `upa/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
 | Corpus availability | Global | `data/corpus/availability.sqlite`: `metadata` (generation, identity, pool hash), `source_counts`, `complexity_counts`, and dense eligible `source_complexity_members`; shared by all profiles, separate from canonical content. |
 | Appearance and language | User | `data/user/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, scroll mode, auto-fade delay, Settings language. |
+| Eons and view history | User | `data/user/users.sqlite`, `profile_eons` and `observation_views`: named usage periods and timestamped observation/eon links, including revisits. Original selection snapshots remain in `observation_acquisitions`. |
 | Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
 | Sampling and playback settings | User | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
 | Reading state and diagnostics | User | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |

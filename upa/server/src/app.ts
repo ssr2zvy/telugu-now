@@ -8,6 +8,7 @@ import { serveExportAudio } from './services/export-audio-service';
 import { wordImageRoutes } from './services/word-image-service';
 import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
+import { profileEonsRoutes } from './services/eon-service';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
@@ -49,6 +50,7 @@ app.on(['GET', 'HEAD'], '/api/audio/*', serveAudio());
 app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
+app.route('/api/profiles', profileEonsRoutes(db, code => config.profileCodes.has(code)));
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

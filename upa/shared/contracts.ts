@@ -3,6 +3,19 @@ export type AcquisitionTriggerKind = 'initial-fill' | 'observation-consumed';
 export type ObservationStatus = 'pending' | 'preparing' | 'ready';
 export type ComplexityMetric = 'word-count' | 'grapheme-count';
 
+export interface ProfileEon {
+  id: string;
+  name: string;
+  startedAt: number;
+  stoppedAt: number | null;
+  observationCount: number;
+}
+
+export interface ProfileEonsResponse {
+  activeEon: ProfileEon | null;
+  eons: ProfileEon[];
+}
+
 export interface ProfileSelectionSettings {
   sourceWeights: Record<string, number>;
   complexityPercentileTarget: number;

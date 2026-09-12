@@ -18,6 +18,7 @@ import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
 import { getDisplayRepeat, recordFirstDisplay } from './repeat-service';
+import { recordCurrentObservationView } from './eon-service';
 
 interface ProfileRow {
   code: string;
@@ -366,15 +367,16 @@ function timingSummary(code: string, now: number): TimingSummary | null {
 export function loadProfile(code: string, visible: boolean): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
-  const now = Date.now();
-
-  // If the previous browser vanished without a final visibility event, cap the old
-  // visible interval at its last heartbeat rather than counting the whole absence.
-  closeStaleVisibleInterval(code, now);
-
-  preparationService.checkQueue(code, true);
-  ensureLaunchQueue(code);
-  setTailVisibility(code, visible, now);
+  db.transaction(() => {
+    const now = Date.now();
+    // If the previous browser vanished without a final visibility event, cap the old
+    // visible interval at its last heartbeat rather than counting the whole absence.
+    closeStaleVisibleInterval(code, now);
+    preparationService.checkQueue(code, true);
+    ensureLaunchQueue(code);
+    setTailVisibility(code, visible, now);
+    recordCurrentObservationView(db, code, 'load', now);
+  }).immediate();
   preparationService.kick();
   return getProfileState(code, visible);
 }
@@ -418,7 +420,11 @@ export function setProfileVisibility(code: string, visible: boolean): void {
     preparationService.checkQueue(code, true);
     preparationService.kick();
   }
-  setTailVisibility(code, visible, Date.now());
+  db.transaction(() => {
+    const now = Date.now();
+    setTailVisibility(code, visible, now);
+    if (visible) recordCurrentObservationView(db, code, 'resume', now);
+  }).immediate();
 }
 
 // Discards every queued (not-yet-displayed) observation and refills the queue from
@@ -448,23 +454,26 @@ export function updateSelectionSettingsAndResetQueue(
 export function navigateBack(code: string, visible: boolean): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
-  const profile = profileRow(code);
-  const previousPosition = adjacentHistoryPosition(code, profile.current_position, 'back');
-  if (previousPosition === null) {
-    throw new NavigationUnavailableError('Back is unavailable.');
-  }
+  db.transaction(() => {
+    const profile = profileRow(code);
+    const previousPosition = adjacentHistoryPosition(code, profile.current_position, 'back');
+    if (previousPosition === null) {
+      throw new NavigationUnavailableError('Back is unavailable.');
+    }
 
-  const now = Date.now();
-  const tailPosition = historyTailPosition(code);
-  if (profile.current_position === tailPosition) pauseTailVisible(code, now);
+    const now = Date.now();
+    const tailPosition = historyTailPosition(code);
+    if (profile.current_position === tailPosition) pauseTailVisible(code, now);
 
-  db.prepare(`
-    UPDATE profiles
-    SET current_position = ?,
-        last_client_seen_at = ?,
-        updated_at = ?
-    WHERE code = ?
-  `).run(previousPosition, now, now, code);
+    db.prepare(`
+      UPDATE profiles
+      SET current_position = ?,
+          last_client_seen_at = ?,
+          updated_at = ?
+      WHERE code = ?
+    `).run(previousPosition, now, now, code);
+    recordCurrentObservationView(db, code, 'back', now);
+  }).immediate();
 
   return getProfileState(code, visible);
 }
@@ -472,35 +481,36 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
 export function navigateNext(code: string, visible: boolean): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
-  const now = Date.now();
-  const profile = profileRow(code);
-  const tailPosition = historyTailPosition(code);
-
-  // History mode: walk right through already-seen entries and do not consume queue.
-  if (
-    profile.current_position !== null
-    && tailPosition !== null
-    && profile.current_position < tailPosition
-  ) {
-    const nextPosition = adjacentHistoryPosition(code, profile.current_position, 'next')!;
-    db.prepare(`
-      UPDATE profiles
-      SET current_position = ?, last_client_seen_at = ?, updated_at = ?
-      WHERE code = ?
-    `).run(nextPosition, now, now, code);
-
-    if (nextPosition === tailPosition) resumeTailVisible(code, visible, now);
-    return getProfileState(code, visible);
-  }
-
   preparationService.checkQueue(code);
-  const queued = nextQueueItem(code);
-  if (!queued || queued.status !== 'ready') {
-    throw new NavigationUnavailableError('Next observation is not ready.');
-  }
+  db.transaction(() => {
+    const now = Date.now();
+    const profile = profileRow(code);
+    const tailPosition = historyTailPosition(code);
 
-  const newHistoryPosition = (tailPosition ?? -1) + 1;
-  const consumeTransaction = db.transaction(() => {
+    // History mode: walk right through already-seen entries and do not consume queue.
+    if (
+      profile.current_position !== null
+      && tailPosition !== null
+      && profile.current_position < tailPosition
+    ) {
+      const nextPosition = adjacentHistoryPosition(code, profile.current_position, 'next')!;
+      db.prepare(`
+        UPDATE profiles
+        SET current_position = ?, last_client_seen_at = ?, updated_at = ?
+        WHERE code = ?
+      `).run(nextPosition, now, now, code);
+
+      if (nextPosition === tailPosition) resumeTailVisible(code, visible, now);
+      recordCurrentObservationView(db, code, 'forward', now);
+      return;
+    }
+
+    const queued = nextQueueItem(code);
+    if (!queued || queued.status !== 'ready') {
+      throw new NavigationUnavailableError('Next observation is not ready.');
+    }
+
+    const newHistoryPosition = (tailPosition ?? -1) + 1;
     if (tailPosition !== null) finalizeTail(code, now);
 
     db.prepare(`
@@ -523,13 +533,12 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
           updated_at = ?
       WHERE code = ?
     `).run(newHistoryPosition, now, now, code);
+    recordCurrentObservationView(db, code, 'next', now);
 
     // First-time display consumes one future slot. Reserve its replacement in this
     // same transaction so consumption cannot commit without one-for-one replacement.
     appendConsumptionReplacement(code, queued.observation_id, newHistoryPosition, now);
-  });
-
-  consumeTransaction();
+  }).immediate();
   preparationService.kick();
   return getProfileState(code, visible);
 }

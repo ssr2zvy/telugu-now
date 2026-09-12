@@ -43,6 +43,7 @@ export function SettingsIndex({
       ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
       : t(language, 'unavailable'),
     display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
+    eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     export: 'EPUB / HTML',
     reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
   } : {};

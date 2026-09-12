@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
+import type { ProfileEon, ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL } from '../shared/image-settings';
 import { parseAppearance, type ProfilePreferences, type UpdateProfilePreferences } from '../shared/appearance';
 
@@ -616,6 +616,98 @@ async function swipeReader(page: Page, direction: -1 | 1) {
   await page.mouse.move(center + direction * 60, 20, { steps: 8 });
   await page.mouse.up();
 }
+
+async function eonsFixture(page: Page) {
+  const profiles = new Map<string, ProfileEon[]>();
+  let failure: number | null = null;
+  let sequence = 0;
+  await page.route(/\/api\/profiles\/[^/]+\/eons(?:\/[^/]+\/stop)?$/, async route => {
+    if (failure !== null) {
+      const status = failure;
+      failure = null;
+      await route.fulfill({ status, json: { error: 'eon-fixture-error' } });
+      return;
+    }
+    const parts = new URL(route.request().url()).pathname.split('/');
+    const code = parts[3]!;
+    const eons = profiles.get(code) ?? [];
+    profiles.set(code, eons);
+    if (route.request().method() === 'POST') {
+      if (parts.at(-1) === 'stop') {
+        const active = eons.find(eon => eon.id === parts[5] && eon.stoppedAt === null);
+        if (!active) { await route.fulfill({ status: 409, json: { error: 'eon-not-active' } }); return; }
+        active.stoppedAt = Date.now();
+      } else {
+        if (eons.some(eon => eon.stoppedAt === null)) { await route.fulfill({ status: 409, json: { error: 'eon-already-active' } }); return; }
+        eons.unshift({ id: `eon-${++sequence}`, name: route.request().postDataJSON().name,
+          startedAt: Date.now(), stoppedAt: null, observationCount: 1 });
+      }
+    }
+    await route.fulfill({ json: { activeEon: eons.find(eon => eon.stoppedAt === null) ?? null, eons } });
+  });
+  return { profiles, failNext: (status: number) => { failure = status; } };
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`named eons start, persist, stop, and keep past periods at ${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const fixture = await loadFixture(page);
+    const eons = await eonsFixture(page);
+    const openEons = async () => {
+      await openSettings(page);
+      await page.getByRole('button', { name: 'Eons', exact: true }).click();
+    };
+    await openEons();
+    const name = page.getByLabel('Eon name', { exact: true });
+    await name.fill('   ');
+    await expect(page.getByRole('button', { name: 'Start eon', exact: true })).toBeDisabled();
+    await name.fill('Morning practice');
+    await page.getByRole('button', { name: 'Start eon', exact: true }).click();
+    const active = page.getByRole('region', { name: 'Active eon', exact: true });
+    await expect(active).toContainText('Morning practice');
+    await expect(active).toContainText('1 observation');
+    expect(eons.profiles.get('001')?.[0]?.name).toBe('Morning practice');
+    await page.reload();
+    await page.locator('.profile-input').fill('001');
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await openEons();
+    await expect(active).toContainText('Morning practice');
+    await page.getByRole('button', { name: 'Stop eon', exact: true }).click();
+    await expect(active).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Past eons', exact: true })).toContainText('Morning practice');
+    await name.fill('Evening review');
+    await page.getByRole('button', { name: 'Start eon', exact: true }).click();
+    await expect(active).toContainText('Evening review');
+    await expect(page.getByRole('region', { name: 'Past eons', exact: true })).toContainText('Morning practice');
+    await withinViewport(page.locator('.language-toggle'), page);
+    await page.screenshot({ path: testInfo.outputPath('named-eons.png') });
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('named eons surface load and update failures without pretending changes succeeded', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  const eons = await eonsFixture(page);
+  eons.failNext(503);
+  await openSettings(page);
+  await page.getByRole('button', { name: 'Eons', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not load eons.');
+  await page.getByRole('button', { name: 'Reload', exact: true }).click();
+  const name = page.getByLabel('Eon name', { exact: true });
+  await name.fill('Keep this name');
+  eons.failNext(503);
+  await page.getByRole('button', { name: 'Start eon', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not update the eon.');
+  await expect(name).toHaveValue('Keep this name');
+  await expect(page.getByRole('region', { name: 'Active eon', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Reload', exact: true }).click();
+  await page.getByRole('button', { name: 'Start eon', exact: true }).click();
+  eons.failNext(409);
+  await page.getByRole('button', { name: 'Stop eon', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('The active eon changed.');
+  await expect(page.getByRole('region', { name: 'Active eon', exact: true })).toContainText('Keep this name');
+  expect(fixture.errors).toEqual([]);
+});
 
 test('scroll mode setting defaults on, persists opt-out, and restores legacy tap zones', async ({ page }) => {
   const fixture = await loadFixture(page);
