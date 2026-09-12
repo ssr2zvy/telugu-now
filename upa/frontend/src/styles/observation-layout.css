@@ -19,9 +19,17 @@
 .audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px 116px; align-items: center; gap: 0; width: min(416px, calc(100vw - 48px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
 .audio-player-bar[data-has-audio="false"] { display: none; }
 .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
-.observation-screen[data-scroll-mode="true"] .audio-player-bar { clip-path: inset(0 50%); transition: opacity 180ms ease, clip-path 180ms ease; }
+.observation-screen[data-scroll-mode="true"] .audio-player-bar { clip-path: inset(0 50%); transition: opacity var(--audio-slide-duration) ease, clip-path var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
 .observation-screen[data-scroll-mode="true"].controls-visible .audio-player-bar { clip-path: inset(0); }
-@media (prefers-reduced-motion: reduce) { .observation-screen[data-scroll-mode="true"] .audio-player-bar { transition: none; } }
+.observation-screen[data-scroll-mode="true"] .audio-scrubber,
+.observation-screen[data-scroll-mode="true"] .audio-precision-panel { transform: translateX(-56px); transition: transform var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
+.observation-screen[data-scroll-mode="true"].controls-visible .audio-scrubber,
+.observation-screen[data-scroll-mode="true"].controls-visible .audio-precision-panel { transform: translateX(0); }
+@media (prefers-reduced-motion: reduce) {
+  .observation-screen[data-scroll-mode="true"] .audio-player-bar,
+  .observation-screen[data-scroll-mode="true"] .audio-scrubber,
+  .observation-screen[data-scroll-mode="true"] .audio-precision-panel { transition: none; }
+}
 .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: 116px 48px; }
 .audio-transport-button { display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; touch-action: manipulation; }
 .audio-transport-button .control-icon { width: 17px; height: 17px; }
@@ -45,7 +53,7 @@
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
 .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
 .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
-.audio-scrubber-window { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; opacity: .4; }
+.audio-scrubber-window { position: absolute; top: 8px; bottom: 8px; border-radius: 4px; opacity: .4; }
 .audio-magnifier { position: relative; grid-row: 1; width: 100%; min-width: 0; padding: 0 12px; background: transparent; color: inherit; }
 .audio-magnifier-time { margin-top: 10px; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { margin-top: 6px; line-height: 14px; }
@@ -53,12 +61,13 @@
 .audio-magnifier-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); border-radius: 2px; pointer-events: none; }
 .audio-magnifier-bar { flex: 1 1 0; min-width: 0; border-radius: 1px; background: currentColor; }
 .audio-magnifier-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: currentColor; transform: translateX(-1px); }
-.audio-speed-popover { position: absolute; z-index: 8; right: calc(100% + 8px); bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 48px; padding: 0; border: 0; background: transparent; color: inherit; }
-.audio-speed-track { position: relative; width: 44px; height: 56px; touch-action: none; cursor: ns-resize; }
-.audio-speed-track::before { content: ''; position: absolute; top: 0; bottom: 0; left: 21px; width: 1px; border-radius: 2px; background: currentColor; }
-.audio-speed-fill { position: absolute; left: 20px; width: 3px; bottom: 0; border-radius: 2px; background: currentColor; }
-.audio-speed-thumb { position: absolute; left: 21.5px; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, 50%); }
-.audio-speed-readout { font-family: ui-monospace, monospace; font-size: .72rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.audio-speed-popover { position: relative; grid-row: 1; width: 100%; min-width: 0; padding: 0 12px; border: 0; background: transparent; color: inherit; }
+.audio-speed-track { position: relative; width: 100%; height: 44px; touch-action: none; cursor: ew-resize; }
+.audio-speed-track::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
+.audio-speed-fill { position: absolute; left: 0; top: 50%; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); pointer-events: none; }
+.audio-speed-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); pointer-events: none; }
+.audio-speed-readout { margin-top: 10px; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.audio-player-bar[data-magnifier-position="above"] .audio-speed-readout { margin-top: 6px; line-height: 14px; }
 .audio-scrubber::before, .audio-scrubber-progress, .audio-magnifier-track::before,
 .audio-scrubber-thumb, .audio-scrubber-bookmark, .audio-scrubber-window, .audio-magnifier-bar, .audio-magnifier-playhead, .audio-speed-track::before, .audio-speed-fill, .audio-speed-thumb { background: var(--audio-glass-gradient); box-shadow: inset 0 .5px 0 var(--audio-glass-edge); }
 .audio-magnifier-time, .audio-speed-readout { background: var(--audio-glass-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -68,4 +77,3 @@
   .audio-glass-icon > svg { opacity: 0; }
 }
 @media (max-width: 600px) { .observation-screen { --nav-width: 13vw; } }
-@media (max-height: 440px) { .audio-speed-track { height: 64px; } }

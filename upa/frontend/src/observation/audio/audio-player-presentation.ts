@@ -4,6 +4,7 @@ export const AUDIO_PLAYER_PRESENTATION = {
   playbackRateMin: AUDIO_PLAYBACK_RATE_MIN,
   playbackRateMax: AUDIO_PLAYBACK_RATE_MAX,
   playbackRateStep: 0.05,
+  controlsSlideMs: 320,
   // Milliseconds a press must be held before the precision magnifier engages.
   magnifierHoldMs: 300,
   magnifierPressureThreshold: 0.75,

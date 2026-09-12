@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AudioScrubber } from '../frontend/src/observation/audio/AudioScrubber';
 import { AudioPlayerBar } from '../frontend/src/observation/audio/AudioPlayerBar';
+import { PlaybackSpeedPopover } from '../frontend/src/observation/audio/PlaybackSpeedPopover';
 import { AudioGlassIcon } from '../frontend/src/observation/audio/AudioGlassIcon';
 import { AUDIO_ICON_SHAPES } from '../frontend/src/components/icons';
 import { precisionControls } from '../frontend/src/observation/audio/precision-controls';
@@ -49,6 +50,7 @@ test('normal player has no play button and keeps precision-only actions hidden',
   assert.match(markup, /aria-label="Audio position"/);
   assert.match(markup, /--audio-icon-paint:url\(#audio-glass-/);
   assert.match(markup, /--audio-glass-gradient:linear-gradient/);
+  assert.ok(markup.includes(`--audio-slide-duration:${AUDIO_PLAYER_PRESENTATION.controlsSlideMs}ms`));
   assert.match(markup, /<linearGradient id="audio-glass-/);
   assert.equal((markup.match(/<stop /g) ?? []).length, 3);
   const opacities = [...markup.matchAll(/stop-opacity="([^"]+)"/g)].map(match => Number(match[1]));
@@ -75,6 +77,32 @@ test('precision actions mount and unmount in the same branch as the magnifier', 
     if (open) {
       assert.ok(markup.indexOf('class="audio-magnifier-track"') < markup.indexOf('class="audio-magnifier-time"'));
       assert.ok(markup.indexOf('class="audio-magnifier-time"') < markup.indexOf('class="audio-precision-actions"'));
+    }
+  }
+});
+
+test('speed replaces the waveform and highlight until toggled back', () => {
+  const speedControls = createElement(PlaybackSpeedPopover, {
+    playbackRate: 0.8, onChange: () => {}, onClose: () => {}, dismissOnOutside: false,
+  });
+  let mode = precisionControls('closed', 'open');
+  for (const action of ['toggle-speed', 'toggle-speed', 'toggle-speed', 'close'] as const) {
+    mode = precisionControls(mode, action);
+    const markup = renderToStaticMarkup(createElement(AudioScrubber, {
+      ...scrubberProps, magnifierOpen: mode !== 'closed',
+      speedControls: mode === 'speed' ? speedControls : undefined,
+    }));
+    assert.equal(markup.includes('class="audio-speed-popover"'), mode === 'speed');
+    assert.equal(markup.includes('class="audio-magnifier"'), mode === 'magnifier');
+    assert.equal(markup.includes('class="audio-scrubber-window"'), mode === 'magnifier');
+    assert.match(markup, /aria-label="Audio position"/);
+    if (mode === 'speed') {
+      assert.match(markup, /aria-orientation="horizontal"/);
+      const width = Number(markup.match(/class="audio-speed-fill" style="width:([\d.]+)%"/)?.[1]);
+      const left = Number(markup.match(/class="audio-speed-thumb" style="left:([\d.]+)%"/)?.[1]);
+      assert.ok(Math.abs(width - 50) < 1e-9);
+      assert.ok(Math.abs(left - 50) < 1e-9);
+      assert.match(markup, /0\.80x/);
     }
   }
 });
@@ -130,7 +158,7 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.doesNotMatch(css, /\.audio-magnifier::before/);
   assert.match(css, /\.audio-magnifier \{[^}]*padding: 0 12px; background: transparent/);
   assert.doesNotMatch(css, /\.audio-precision-panel::before/);
-  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 4px; bottom: 4px; border-radius: 4px; opacity: \.4; \}/);
+  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 8px; bottom: 8px; border-radius: 4px; opacity: \.4; \}/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);
@@ -146,6 +174,8 @@ test('precision spacing moves the waveform toward the rail and time toward actio
   const above = '.audio-player-bar[data-magnifier-position="above"]';
   const trackHeight = pixels(rule('.audio-magnifier-track'), 'height');
   assert.equal(trackHeight, 44);
+  assert.equal(pixels(rule('.audio-speed-track'), 'height'), trackHeight);
+  assert.match(rule('.audio-speed-popover'), /grid-row: 1; width: 100%/);
   assert.equal(pixels(rule('.audio-scrubber'), 'height'), 48);
   assert.equal(pixels(rule('.audio-precision-actions .audio-transport-button'), 'height'), 44);
   assert.equal(pixels(rule('.audio-transport-button'), 'width'), 48);
@@ -161,6 +191,9 @@ test('precision spacing moves the waveform toward the rail and time toward actio
     const railCenter = isAbove ? 116 + 24 : 24;
     const waveformCenter: number = panelTop + trackHeight / 2;
     const timeRule = rule(isAbove ? `${above} .audio-magnifier-time` : '.audio-magnifier-time');
+    const speedReadout = rule(isAbove ? `${above} .audio-speed-readout` : '.audio-speed-readout');
+    assert.equal(pixels(speedReadout, 'margin-top'), pixels(timeRule, 'margin-top'));
+    assert.equal(pixels(speedReadout, 'line-height'), pixels(timeRule, 'line-height'));
     const timeTop = panelTop + trackHeight + pixels(timeRule, 'margin-top');
     const timeBottom = timeTop + pixels(timeRule, 'line-height');
     const actionsTop = panelTop + panelRows[0]!;
@@ -175,4 +208,12 @@ test('precision spacing moves the waveform toward the rail and time toward actio
     assert.ok(actionsCenter - (timeTop + timeBottom) / 2 < actionsCenter - previousTimeCenter);
     assert.ok(actionsTop + 44 <= 164, 'all touch targets fit the unchanged reserved player height');
   }
+});
+
+test('scroll controls translate through the slit together and respect reduced motion', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /clip-path: inset\(0 50%\); transition: opacity var\(--audio-slide-duration\)/);
+  assert.match(css, /\.audio-scrubber,\n[^{}]*\.audio-precision-panel \{ transform: translateX\(-56px\); transition: transform var\(--audio-slide-duration\)/);
+  assert.match(css, /\.controls-visible \.audio-precision-panel \{ transform: translateX\(0\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*\.audio-player-bar,[^}]*\.audio-scrubber,[^}]*\.audio-precision-panel \{ transition: none;/);
 });

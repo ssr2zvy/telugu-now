@@ -2206,8 +2206,74 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(fixture.errors).toEqual([]);
     });
 
+    test('slit reveal and exit translate the bar and either precision view together', async ({ page }) => {
+      const fixture = await loadFixture(page);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      const bar = page.locator('.audio-player-bar');
+      const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+      await expect(scrubber).toHaveAttribute('aria-disabled', 'false');
+      const sampleSlide = (deltaX: number) => page.locator('.observation-screen').evaluate(async (screen, delta) => {
+        screen.dispatchEvent(new WheelEvent('wheel', { deltaX: delta, bubbles: true, cancelable: true }));
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        const bar = screen.querySelector('.audio-player-bar')!;
+        const scrubber = screen.querySelector('.audio-scrubber')!;
+        const panel = screen.querySelector('.audio-precision-panel');
+        const animations = [bar, scrubber, ...(panel ? [panel] : [])].flatMap(element => element.getAnimations());
+        for (const animation of animations) {
+          animation.pause();
+          animation.currentTime = 120;
+        }
+        const result = {
+          transforms: animations.filter(animation => animation instanceof CSSTransition && animation.transitionProperty === 'transform').length,
+          x: new DOMMatrix(getComputedStyle(scrubber).transform).m41,
+          panelX: panel ? new DOMMatrix(getComputedStyle(panel).transform).m41 : null,
+          opacity: Number(getComputedStyle(bar).opacity),
+          clip: getComputedStyle(bar).clipPath,
+          speed: Boolean(screen.querySelector('.audio-speed-popover')),
+          waveform: Boolean(screen.querySelector('.audio-magnifier')),
+          actions: Boolean(screen.querySelector('.audio-precision-actions')),
+        };
+        for (const animation of animations) animation.finish();
+        return result;
+      }, deltaX);
+      const entering = await sampleSlide(100);
+      expect(entering.transforms).toBe(1);
+      expect(entering.x).toBeGreaterThan(-56);
+      expect(entering.x).toBeLessThan(0);
+      expect(entering.opacity).toBeGreaterThan(0);
+      expect(entering.opacity).toBeLessThan(1);
+      expect(entering.clip).not.toBe('inset(0px)');
+      expect(entering.clip).not.toBe('inset(0px 50%)');
+      expect(entering.actions).toBe(false);
+      for (const mode of ['magnifier', 'speed']) {
+        await expect(bar).toHaveCSS('opacity', '1');
+        await scrubber.press('Enter');
+        await expect(page.locator('.audio-magnifier')).toBeVisible();
+        if (mode === 'speed') await page.getByTitle('Playback speed', { exact: true }).click();
+        const exiting = await sampleSlide(-100);
+        expect(exiting.transforms).toBe(2);
+        expect(exiting.x).toBeGreaterThan(-56);
+        expect(exiting.x).toBeLessThan(0);
+        expect(exiting.panelX).toBeCloseTo(exiting.x);
+        expect(exiting.opacity).toBeGreaterThan(0);
+        expect(exiting.opacity).toBeLessThan(1);
+        expect(exiting.actions).toBe(true);
+        expect(exiting.speed).toBe(mode === 'speed');
+        expect(exiting.waveform).toBe(mode === 'magnifier');
+        await expect(page.locator('.audio-precision-panel')).toHaveCount(0);
+        const revealed = await sampleSlide(100);
+        expect(revealed.actions).toBe(false);
+        expect(revealed.speed).toBe(false);
+        expect(revealed.waveform).toBe(false);
+      }
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(scrubber).toHaveCSS('transition-duration', '0s');
+      await expect(bar).toHaveCSS('transition-duration', '0s');
+      expect(fixture.errors).toEqual([]);
+    });
+
     for (const magnifierPosition of ['below', 'above'] as const) {
-      test(`continuous magnifier glass stays compact ${magnifierPosition}`, async ({ page }, testInfo) => {
+      test(`magnifier and speed swap in place ${magnifierPosition}`, async ({ page }, testInfo) => {
         const preferences = new Map<string, ProfilePreferences>([['001', {
           appearance: parseAppearance({
             gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c',
@@ -2256,8 +2322,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         expect(surface.background).toBe('rgba(0, 0, 0, 0)');
         expect(surface.lensBackground).toBe('rgba(0, 0, 0, 0)');
         const highlight = (await page.locator('.audio-scrubber-window').boundingBox())!;
-        expect(highlight.y).toBeCloseTo(coarse.y + 4);
-        expect(highlight.height).toBeCloseTo(coarse.height - 8);
+        expect(highlight.y).toBeCloseTo(coarse.y + 8);
+        expect(highlight.height).toBeCloseTo(coarse.height - 16);
         expect(highlight.x).toBeGreaterThanOrEqual(coarse.x);
         expect(highlight.x + highlight.width).toBeLessThanOrEqual(coarse.x + coarse.width + 1);
         await scrubber.click({ position: { x: coarse.width / 2, y: coarse.height / 2 } });
@@ -2265,6 +2331,29 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });
         await page.getByTitle('Playback speed', { exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
+        await expect(lens).toHaveCount(0);
+        await expect(page.locator('.audio-scrubber-window')).toHaveCount(0);
+        const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
+        await expect(speed).toHaveAttribute('aria-orientation', 'horizontal');
+        const speedBox = (await speed.boundingBox())!;
+        expect(speedBox.y).toBeCloseTo(waveform.y);
+        expect(speedBox.width).toBeCloseTo(waveform.width);
+        expect((await actions.boundingBox())!.y).toBeCloseTo(buttons.y);
+        expect((await scrubber.boundingBox())!.y).toBeCloseTo(coarse.y);
+        await speed.press('Home');
+        await speed.press('ArrowRight');
+        await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.15);
+        await speed.click({ position: { x: speedBox.width / 2, y: speedBox.height / 2 } });
+        await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.8);
+        await page.getByTitle('Playback speed', { exact: true }).click();
+        await expect(speed).toHaveCount(0);
+        await expect(lens).toBeVisible();
+        await expect(page.locator('.audio-scrubber-window')).toBeVisible();
+        expect((await actions.boundingBox())!.y).toBeCloseTo(buttons.y);
+        await page.getByTitle('Playback speed', { exact: true }).click();
+        await speed.press('Escape');
+        await expect(lens).toBeVisible();
+        await expect(page.getByTitle('Playback speed', { exact: true })).toBeFocused();
         expect(fixture.errors).toEqual([]);
       });
     }

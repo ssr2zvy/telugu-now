@@ -16,6 +16,7 @@ interface AudioScrubberProps {
   disabled: boolean;
   magnifierOpen: boolean;
   precisionControls?: ReactNode;
+  speedControls?: ReactNode;
   onMagnifierOpen: () => void;
   onMagnifierClose: () => void;
   onSeek: (time: number) => void;
@@ -49,6 +50,7 @@ export function AudioScrubber({
   disabled,
   magnifierOpen,
   precisionControls,
+  speedControls,
   onMagnifierOpen,
   onMagnifierClose,
   onSeek,
@@ -172,7 +174,7 @@ export function AudioScrubber({
         aria-valuemax={duration}
         aria-valuenow={currentTime}
       >
-        {magnifierOpen ? (
+        {magnifierOpen && !speedControls ? (
           <div
             className="audio-scrubber-window"
             style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
@@ -190,7 +192,7 @@ export function AudioScrubber({
       </div>
       {magnifierOpen ? (
         <div className="audio-precision-panel">
-        <div className="audio-magnifier">
+        {speedControls ?? <div className="audio-magnifier">
           <div
             className="audio-magnifier-track"
             role="slider"
@@ -234,7 +236,7 @@ export function AudioScrubber({
             />
           </div>
           <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
-        </div>
+        </div>}
         {precisionControls}
         </div>
       ) : null}

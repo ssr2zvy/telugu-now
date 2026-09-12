@@ -7,6 +7,7 @@ import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
 import { precisionControls } from './precision-controls';
+import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio | null;
@@ -78,8 +79,8 @@ export function AudioPlayerBar({
       dispatchPrecision('close');
       return;
     }
-    // Keep precision mounted for the bar's fade-out, but never restore it on reveal.
-    const timer = window.setTimeout(() => dispatchPrecision('close'), 180);
+    // Keep either precision view mounted through the slide-out, never on the next reveal.
+    const timer = window.setTimeout(() => dispatchPrecision('close'), AUDIO_PLAYER_PRESENTATION.controlsSlideMs);
     return () => window.clearTimeout(timer);
   }, [controlsVisible, appearance.scrollMode]);
   useEffect(() => { dispatchPrecision('close'); }, [observationId]);
@@ -96,6 +97,7 @@ export function AudioPlayerBar({
         '--audio-icon-paint': `url(#${paintId})`,
         '--audio-glass-gradient': glass.gradient,
         '--audio-glass-edge': glass.edge,
+        '--audio-slide-duration': `${AUDIO_PLAYER_PRESENTATION.controlsSlideMs}ms`,
       } as CSSProperties}
       onClick={(event) => {
         if (event.target instanceof Element && event.target.closest('[role="slider"], button, .audio-magnifier, .audio-speed-popover')) event.stopPropagation();
@@ -123,6 +125,13 @@ export function AudioPlayerBar({
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
         magnifierOpen={magnifierOpen}
+        speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
+          playbackRate={player.playbackRate}
+          onChange={player.setPlaybackRate}
+          onClose={closeSpeed}
+          controlsRef={precisionActionsRef}
+          dismissOnOutside={false}
+        /> : undefined}
         precisionControls={<>
           <div ref={precisionActionsRef} className="audio-precision-actions">
             <button
@@ -145,13 +154,6 @@ export function AudioPlayerBar({
             >
               <AudioGlassIcon name="bookmark" />
             </button>
-          {speedPopoverOpen ? <PlaybackSpeedPopover
-            playbackRate={player.playbackRate}
-            onChange={player.setPlaybackRate}
-            onClose={closeSpeed}
-            controlsRef={precisionActionsRef}
-            dismissOnOutside={false}
-          /> : null}
           </div>
         </>}
         onMagnifierOpen={() => {
