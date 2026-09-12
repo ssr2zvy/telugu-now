@@ -12,6 +12,7 @@ import { SourceWeightsPage } from './pages/SourceWeightsPage';
 import { settingsGroups, settingsPageLabel } from './navigation';
 import { AppearancePage } from './pages/AppearancePage';
 import { ImageGenerationPage } from './pages/ImageGenerationPage';
+import { EonsPage } from './pages/EonsPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -78,6 +79,13 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <AppearancePage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'eons') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <EonsPage key={state.profileCode} profileCode={state.profileCode} language={language} />
       </SettingsShell>
     );
   }

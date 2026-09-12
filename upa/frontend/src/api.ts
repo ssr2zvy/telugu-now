@@ -7,6 +7,7 @@ import type {
   ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
+  ProfileEonsResponse,
   UpdateAudioSettingsRequest,
   UpdateSelectionSettingsRequest,
   VisibilityRequest,
@@ -15,6 +16,22 @@ import type { ProfilePreferences, UpdateProfilePreferences } from '../../shared/
 
 export async function getProfilePreferences(code: string): Promise<ProfilePreferences> {
   return parseJson<ProfilePreferences>(await fetch(`/api/profiles/${encodeURIComponent(code)}/preferences`));
+}
+
+export async function getProfileEons(code: string, signal?: AbortSignal): Promise<ProfileEonsResponse> {
+  return parseJson<ProfileEonsResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/eons`, signal ? { signal } : {}));
+}
+
+export async function startProfileEon(code: string, name: string): Promise<ProfileEonsResponse> {
+  return parseJson<ProfileEonsResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/eons`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+  }));
+}
+
+export async function stopProfileEon(code: string, eonId: string): Promise<ProfileEonsResponse> {
+  return parseJson<ProfileEonsResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/eons/${encodeURIComponent(eonId)}/stop`, {
+    method: 'POST',
+  }));
 }
 
 export async function transferBrowserData(code: string, storage?: Storage): Promise<void> {

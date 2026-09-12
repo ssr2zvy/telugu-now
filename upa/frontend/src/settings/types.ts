@@ -4,6 +4,7 @@ export type SettingsPage =
   | 'display'
   | 'appearance'
   | 'images'
+  | 'eons'
   | 'reset'
   | 'trigger'
   | 'source'

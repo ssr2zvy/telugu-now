@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../config/config';
 import { migrateUserDatabase } from './migrate-user-database';
+import { initializeEonSchema } from './eons';
 
 if (config.databasePath === config.corpusDatabasePath) throw new Error('User and corpus databases must be separate files.');
 migrateUserDatabase(config.dataDirectory, config.databasePath);
@@ -369,6 +370,9 @@ db.prepare(`
         AND json_extract(media.value, '$.kind') = 'audio'
     ))
 `).run();
+
+// View events begin with this version; historical acquisitions are not fabricated views.
+initializeEonSchema(db);
 
 const foreignKeyProblems = db.pragma('foreign_key_check') as unknown[];
 if (foreignKeyProblems.length > 0) {
