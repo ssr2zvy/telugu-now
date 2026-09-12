@@ -62,8 +62,8 @@ export class CorpusObjectStore {
       abortSignal ? { abortSignal } : {});
   }
 
-  headObject(relativeKey: string, input: Omit<GetObjectCommandInput, 'Bucket' | 'Key'> = {}) {
-    return this.client.send(new HeadObjectCommand({ ...input, Bucket: this.bucket, Key: this.key(relativeKey) }));
+  headObject(relativeKey: string, input: Omit<GetObjectCommandInput, 'Bucket' | 'Key'> = {}, signal?: AbortSignal) {
+    return this.client.send(new HeadObjectCommand({ ...input, Bucket: this.bucket, Key: this.key(relativeKey) }), signal ? { abortSignal: signal } : undefined);
   }
 
   async *inventory(): AsyncIterable<CorpusObject> {

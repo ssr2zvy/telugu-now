@@ -268,19 +268,19 @@ At desktop widths (960px and above), a navigation rail also provides direct acce
 The settings interface uses locally bundled Manrope variable type for Latin text, with the existing Noto Sans Telugu fallback. Appearance includes a live gradient and Telugu type sample that responds to color, font-pool, and size changes; the reader continues to choose from the enabled font pool.
 Appearance preferences are saved in server-side SQLite for the active profile, alongside its sampling and playback settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
 
-Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. The audio controls move together, while the Settings button stays in its corner. **Magnifier position** swaps the two rows around the main seek bar: Below (default) puts the precision bar below and the large Play button, speed and bookmark controls above; Above reverses these rows. Explicit saved positions are preserved. Positions are constrained to the viewport, and long text is refitted to avoid overlapping the audio controls. **Reset positions** restores both offsets to zero and the magnifier to Below without changing colors, type size or fonts.
+Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. **Magnifier position** swaps Play and the precision bar around the main seek bar: Below (default) puts Play above and the precision bar below when opened; Above reverses them. Playback speed and bookmark buttons remain beside the main seek bar. Space is reserved for precision seeking so opening it does not shift the main bar under the pointer. Explicit saved positions are preserved. Positions are constrained to the viewport, and long text is refitted to avoid overlapping audio controls. **Reset positions** restores both offsets to zero and the magnifier to Below.
 Settings uses compact rows, inline numeric values with understated unit suffixes, and checkmark Save actions. Numeric fields use one underline focus indicator instead of an outer focus ring; keyboard focus remains visible.
 Appearance exposes three explicit color roles:
 - Background: the three colors used by the reader gradient.
 - Text & icons: the foreground for reader and settings text and icons. Borders and muted states derive from this color.
-- Settings & popovers: the surface behind Settings and export dialogs. Automatic selects a light neutral for dark text or a dark neutral for light text. Audio controls instead share a gradient-derived contrasting color and an opaque mix of the first and middle gradient colors, independent of the settings surface swatch.
+- Settings & popovers: the surface behind Settings and export dialogs. Automatic selects a light neutral for dark text or a dark neutral for light text. Audio icons, main/precision tracks and speed slider have transparent backgrounds and share a lighter or darker shade derived from the gradient. Colored gradients retain a palette hue even when opposing colors average to gray; an entirely neutral gradient remains neutral. The settings surface swatch does not change the audio colors.
 Color swatches show their hex values. Randomize chooses a coordinated palette and restores Automatic surface. Reset colors restores the default colors without changing font size or font exclusions. Custom text/surface pairs should be chosen with sufficient contrast.
 The settings refinement references [Google's Material 3 Expressive research](https://design.google/library/expressive-material-design-google-research), [Apple's materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), and [Linear's UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui), consulted September 2026: stronger typography and hierarchy, a distinct navigation layer, restrained interaction states, and consistent alignment. Form surfaces remain opaque and use the selected appearance colors, rather than applying glass effects to content.
 Playback speed supports 0.1x-1.5x. Play has an 80 by 64 pixel hit box; speed and bookmarks have 48 pixel targets. The precision scrubber moves one millisecond per pointer pixel. The speed popover stays within the player footprint and consumes its outside-dismissal click without navigating.
-The precision bar is always part of the audio controls, with no hold-to-open or dismissal gesture. Pointer interaction or arrow keys pause playback for fine seeking; playback resumes only through Play.
+The precision bar starts hidden. A 300 ms hold on the main seek bar, or a pressure-sensitive hard press, opens it and pauses playback. A normal click only seeks. Enter/Space on the main bar provides keyboard access; Escape, an outside click, or fading the controls dismisses precision seeking. Pointer interaction or arrow keys pause playback for fine seeking; playback resumes only through Play. All icon hit boxes remain large but have no visible squares, fills or borders.
 The desktop settings rail has independent collapse controls for Sampling, Diagnostic, and Display. Group navigation and child links remain available without resetting the current page.
 Every Play or resume starts with 500 ms of zero-valued PCM silence at 1x speed on the same native audio element, initiated within the user gesture. No looping noise or nonzero priming signal is emitted. Silence uses unity gain and is excluded from source loudness analysis. The original recording then resumes at its saved position and selected speed; no recorded samples are intentionally muted or skipped, and original files, exports, seek times and bookmarks remain unchanged. Loading the original recording can add further waiting time. Pause, seeking, precision interaction and navigation cancel a pending start. The scrubbers follow the native media clock on animation frames rather than relying on sparse mobile timeupdate events. Media loading and playback failures appear above the bar; Play retries.
-The audio controls and Settings icon start hidden. Single-clicking the reading area toggles audio only. Double-clicking or double-tapping blank space in the center reveals only the Settings icon; click that icon to enter Settings. Edge double taps still navigate and word double taps still open word profiles. Keyboard focus can reveal either control group for accessibility. **Display > Appearance > Auto-fade** sets the shared inactivity delay from 1 to 60 seconds (default 15). Movement and keyboard activity reset the timer but do not reveal hidden controls. The fixed precision bar fades with the audio controls; active dragging postpones fading until release. Hiding controls does not stop playback. Navigation hides both groups. Profile preference loading uses the same text-free spinner as sign-in instead of flashing a loading sentence.
+The audio controls and Settings icon start hidden. Single-clicking the reading area toggles audio immediately, without waiting for a double-click timeout. Double-clicking or double-tapping blank center space toggles the Settings icon; the second click restores the audio visibility from before the first click. Click the icon to enter Settings. Double-clicks suppress native text selection, while ordinary cursor/drag selection remains available. Edge double taps still navigate and word double taps still open word profiles. Keyboard focus can reveal either control group for accessibility. **Display > Appearance > Auto-fade** sets the shared inactivity delay from 1 to 60 seconds (default 15). Movement and keyboard activity reset the timer but do not reveal hidden controls. Active dragging postpones fading until release. Hiding controls does not stop playback. Navigation hides both groups. Profile preference loading uses the same text-free spinner as sign-in instead of flashing a loading sentence.
 Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
 Scrubbers prevent native text dragging, selection, and touch callouts while retaining keyboard focus. Pointer capture keeps fine seeking active outside the track and resets after cancellation so the next drag can begin normally.
 Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
@@ -288,6 +288,54 @@ A monochrome language control remains bottom-right throughout Settings and switc
 The Data sources page exposes the current source catalog and attribution information. For FLEURS, Shrutilipi, and IndicVoices it shows the provider, CC BY 4.0 license, upstream Hugging Face repository, catalog version, accepted and rejected row counts, complexity metric, and deployed source status. The dummy sources are explicitly identified as development fixtures.
 ## Diagnostic
 Diagnostic groups its two-column mapping tables into child pages for trigger/acquisition, source, complexity, and global fields. Together these contain the accepted trigger/preparation fields and the complete persisted selection snapshot, including complexity metric, grapheme complexity value, reference version, source mass, source probability, conditional row probability, and overall probability.
+
+**Trigger & acquisition** also reports whether this recording was previously
+displayed, its occurrence number, and its previous display time. Separate rows
+report previous displays of the same text from other recordings. These are
+per-profile first-display counts: selecting a queued candidate, reopening the
+app, or revisiting the same history entry does not increment them. A snapshot is
+saved when an observation first enters history; later history visits retain that
+snapshot. Aggregates live in `recording_displays` in the user database and survive
+history pruning and restarts. Existing profiles are backfilled from retained
+history only, so lifetime totals that cannot be reconstructed are labeled
+unknown, with known counts shown separately.
+
+Relaunch restores the saved history cursor and queued candidates; it does not
+start a seeded sequence over or automatically skip to the newest entry.
+Navigation skips gaps left by history pruning rather than stepping onto missing
+positions. New selections still use weighted random sampling with replacement:
+legitimate repeats remain possible, particularly with concentrated complexity
+settings or multiple recordings of the same text.
+
+### Audio validation before queue readiness
+
+Queued reservations are not displayable until their audio has passed bounded
+FFmpeg decoding and, when supplied by the corpus, SHA-256 verification. Cached
+source metadata does not bypass validation. Successful decode results are reused
+only when the current object identity still matches (remote ETag/version or local
+file identity, plus the expected checksum). Existing ready reservations are
+revalidated on server restart, profile load and browser visibility resume.
+
+The separate `AUDIO_VALIDATION_PATH` SQLite report defaults to
+`audio-validation.sqlite` beside `CORPUS_AVAILABILITY_PATH`, which is
+`/data/corpus/audio-validation.sqlite` on Fly. It stores object keys, validation
+status, reason and timestamp, scoped to the storage backend/bucket/root.
+Missing, malformed or checksum-mismatched recordings are quarantined persistently;
+the read-only canonical corpus is never edited. Quarantine exclusions update
+effective source counts, complexity classes and selection probabilities without
+requiring a background availability worker. An invalid queued reservation is
+replaced transactionally, preserving its queue slot and trigger.
+
+Network/authentication failures, unavailable FFmpeg, timeouts and operational
+size/duration limits do not permanently blacklist a recording. Preparation makes
+at most three attempts, with one- and five-second retry delays, then exposes the
+error in diagnostics instead of retrying forever. Correct the underlying problem
+and reset the queue to retry exhausted preparation. Validation uses the bounded
+conversion path: two concurrent jobs per validator, 32 MiB input, five minutes of
+audio and a 30-second timeout. Quarantines require deliberate maintenance after
+repair; replacing an object or rebuilding availability does not silently clear
+them. Validation cannot prevent a later network failure or guarantee every
+device's native codec support.
 If there is no current acquisition, the Diagnostic page displays `...`.
 ## Export selection semantics
 Export is not a history export and does not simulate repeated Next presses.

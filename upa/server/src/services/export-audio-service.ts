@@ -15,7 +15,7 @@ export class ExportAudioError extends Error {
   }
 }
 
-interface AudioSource { body: Readable; size?: number | undefined }
+export interface AudioSource { body: Readable; size?: number | undefined }
 interface ConversionLimits {
   concurrency: number;
   inputBytes: number;
@@ -75,7 +75,7 @@ export class Mp3AudioConverter {
       if (source.size !== undefined && source.size > this.limits.inputBytes) {
         throw new ExportAudioError('audio-conversion-too-large', 413);
       }
-      return await this.encode(source.body, format, controller);
+      return await this.encode(source.body, format, controller, source.size);
     } finally {
       source?.body.destroy();
       clearTimeout(timeout);
@@ -84,9 +84,10 @@ export class Mp3AudioConverter {
     }
   }
 
-  private async encode(source: Readable, format: 'wav' | 'flac', controller: AbortController): Promise<Buffer> {
+  private async encode(source: Readable, format: 'wav' | 'flac', controller: AbortController, expectedInputBytes?: number): Promise<Buffer> {
     const child = spawn('ffmpeg', [
       '-nostdin', '-hide_banner', '-loglevel', 'error',
+      '-xerror', '-err_detect', 'explode',
       '-max_alloc', String(32 * 1024 * 1024),
       '-protocol_whitelist', 'pipe', '-threads', '1', '-f', format, '-i', 'pipe:0',
       '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1',
@@ -95,7 +96,7 @@ export class Mp3AudioConverter {
       // Decode a little past the limit so oversized recordings fail rather than silently truncate.
       '-t', String(this.limits.durationSeconds + 1),
       '-progress', 'pipe:3', '-f', 'mp3', 'pipe:1',
-    ], { shell: false, stdio: ['pipe', 'pipe', 'ignore', 'pipe'] });
+    ], { shell: false, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
     const abort = () => {
       source.destroy();
       child.stdin!.destroy();
@@ -104,28 +105,43 @@ export class Mp3AudioConverter {
     controller.signal.addEventListener('abort', abort, { once: true });
     if (controller.signal.aborted) abort();
     let inputBytes = 0;
+    let sourceEnded = false;
+    source.once('end', () => { sourceEnded = true; });
     let outputBytes = 0;
     const chunks: Buffer[] = [];
+    let decoderError = '';
+    child.stderr!.on('data', (chunk: Buffer) => {
+      if (decoderError.length < 16_384) decoderError += chunk.toString().slice(0, 16_384 - decoderError.length);
+    });
     const fail = (code: string, status: 413 | 422 | 502 | 503) => controller.abort(new ExportAudioError(code, status));
     child.on('error', (error: NodeJS.ErrnoException) =>
-      fail(error.code === 'ENOENT' ? 'audio-converter-unavailable' : 'audio-conversion-failed', error.code === 'ENOENT' ? 503 : 422));
+      fail('audio-converter-unavailable', 503));
     child.stdout!.on('data', (chunk: Buffer) => {
       outputBytes += chunk.length;
       if (outputBytes > this.limits.outputBytes) fail('audio-conversion-too-large', 413);
       else chunks.push(chunk);
     });
     let progress = '';
+    let decodedTimeUs = 0;
     (child.stdio[3] as Readable).setEncoding('utf8').on('data', (chunk: string) => {
       progress += chunk;
       const lines = progress.split('\n');
       progress = lines.pop()!;
       for (const line of lines) {
+        if (line.startsWith('out_time_us=')) decodedTimeUs = Math.max(decodedTimeUs, Number(line.slice(12)) || 0);
         if (line.startsWith('out_time_us=') && Number(line.slice(12)) > (this.limits.durationSeconds + 0.1) * 1_000_000) {
           fail('audio-conversion-too-long', 413);
         }
       }
     });
-    source.once('error', () => fail('audio-upstream-error', 502));
+    let decoderInputClosed = false;
+    child.stdin!.once('error', () => { decoderInputClosed = true; });
+    child.stdin!.once('close', () => { decoderInputClosed = true; });
+    source.once('error', () => {
+      // pipeline also destroys the source when ffmpeg rejects input early. Do
+      // not misclassify that propagated pipe error as a transient network error.
+      if (!decoderInputClosed) fail('audio-upstream-error', 502);
+    });
     const input = pipeline(source, new Transform({
       transform: (chunk: Buffer, _encoding, callback) => {
         inputBytes += chunk.length;
@@ -135,14 +151,21 @@ export class Mp3AudioConverter {
         } else callback(null, chunk);
       },
     }), child.stdin!).catch(() => {
-      if (!controller.signal.aborted) fail('audio-conversion-failed', 422);
+      // ffmpeg may close stdin before reporting a malformed file. Its exit status
+      // distinguishes that from unavailable codecs; source errors are handled above.
     });
     try {
       const code = await new Promise<number | null>(resolve => child.once('close', resolve));
       source.destroy();
       await input;
       controller.signal.throwIfAborted();
-      if (code !== 0 || outputBytes === 0) throw new ExportAudioError('audio-conversion-failed', 422);
+      if (sourceEnded && expectedInputBytes !== undefined && inputBytes !== expectedInputBytes) {
+        throw new ExportAudioError('audio-upstream-error', 502);
+      }
+      if (code === null || /Unknown (encoder|decoder)|Unknown (input|output) format|(encoder|decoder|demuxer|muxer).*not found|no (encoder|decoder) found|Cannot allocate memory|Memory allocation failed|Resource temporarily unavailable/i.test(decoderError)) {
+        throw new ExportAudioError('audio-converter-unavailable', 503);
+      }
+      if (code !== 0 || outputBytes === 0 || decodedTimeUs <= 0) throw new ExportAudioError('audio-conversion-failed', 422);
       return Buffer.concat(chunks);
     } finally {
       controller.signal.removeEventListener('abort', abort);

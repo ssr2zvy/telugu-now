@@ -6,6 +6,8 @@ import test, { after, before } from 'node:test';
 import Database from 'better-sqlite3';
 import type { SelectionSnapshot } from '../shared/contracts';
 import { buildStandaloneExportHtml } from '../frontend/src/export-html';
+import { wavFixture } from './helpers/audio-fixture';
+import { buildDiagnosticSections } from '../frontend/src/settings/diagnostic';
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-iteration2-core-'));
 process.env.NODE_ENV = 'test';
@@ -28,7 +30,7 @@ process.env.CORPUS_OBJECTS_PATH = path.join(temporaryDirectory, 'objects');
 for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
   const file = path.join(process.env.CORPUS_OBJECTS_PATH, `media/${sourceId}/fixture.wav`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, 'audio');
+  fs.writeFileSync(file, wavFixture());
 }
 
 let db: typeof import('../server/src/db/database')['db'];
@@ -332,6 +334,60 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(replacement.trigger_observation_id, first.observation_id);
     assert.equal(replacement.trigger_history_position, 0);
     assert.equal(replacement.waiting_ahead_at_trigger, 9);
+  });
+
+  await suite.test('counts only first displays, distinguishes same text, and restores the persisted cursor on relaunch', () => {
+    resetDatabase();
+    const ids = seedQueue(['ready', 'ready', 'ready'], ['తెలుగు', 'తెలుగు', 'తెలుగు']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[2]);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM recording_displays').get() as { count: number }).count, 0);
+    const first = profileService.navigateNext('001', true);
+    assert.deepEqual(first.currentObservation!.diagnostic.repeat?.recording, {
+      isRepeat: false, occurrenceCount: 1, knownOccurrenceCount: 1, previousSeenAt: null,
+    });
+    now = 2_000;
+    const counterpart = profileService.navigateNext('001', true);
+    assert.equal(counterpart.currentObservation!.diagnostic.repeat?.recording.isRepeat, false);
+    assert.deepEqual(counterpart.currentObservation!.diagnostic.repeat?.sameTextOtherRecordings, {
+      seenBefore: true, previousDisplayCount: 1, knownPreviousDisplayCount: 1, previousSeenAt: 1_000,
+    });
+    now = 3_000;
+    const repeat = profileService.navigateNext('001', true);
+    assert.deepEqual(repeat.currentObservation!.diagnostic.repeat?.recording, {
+      isRepeat: true, occurrenceCount: 2, knownOccurrenceCount: 2, previousSeenAt: 1_000,
+    });
+    profileService.navigateBack('001', true);
+    const resumed = profileService.loadProfile('001', true);
+    assert.equal(resumed.currentObservation!.id, counterpart.currentObservation!.id);
+    assert.equal(resumed.currentPosition, 1);
+    const forward = profileService.navigateNext('001', true);
+    assert.deepEqual(forward.currentObservation!.diagnostic.repeat, repeat.currentObservation!.diagnostic.repeat);
+    assert.equal((db.prepare('SELECT SUM(occurrence_count) AS count FROM recording_displays').get() as { count: number }).count, 3);
+    const rows = buildDiagnosticSections(forward, 'en')![0]!.rows;
+    assert.equal(rows.find(row => row.key === 'recordingOccurrence')?.value, '2');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherCount')?.value, '1');
+  });
+
+  await suite.test('repeat totals outlive pruning and navigation skips missing history positions', () => {
+    resetDatabase();
+    const ids = seedQueue(['ready', 'ready', 'ready', 'ready']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[3]);
+    profileService.navigateNext('001', false);
+    now = 2_000;
+    profileService.navigateNext('001', false);
+    now = 3_000;
+    profileService.navigateNext('001', false);
+    db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 1").run();
+    assert.equal(profileService.navigateBack('001', false).currentPosition, 0);
+    assert.equal(profileService.navigateNext('001', false).currentPosition, 2);
+    db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 0").run();
+    assert.equal(profileService.getProfileState('001', false).canBack, false);
+    now = 4_000;
+    const repeated = profileService.navigateNext('001', false).currentObservation!.diagnostic.repeat;
+    assert.equal(repeated?.recording.occurrenceCount, 2);
+    assert.equal(repeated?.recording.previousSeenAt, 1_000);
   });
 });
 

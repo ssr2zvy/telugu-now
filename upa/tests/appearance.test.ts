@@ -59,6 +59,22 @@ test('audio controls derive their shared color from the gradient, not text or se
   assert.notEqual(appearanceAudioColor(parseAppearance(randomAppearanceColors(() => 0.6))), color);
 });
 
+test('audio shades retain palette color even when complementary gradient colors average to gray', () => {
+  for (const gradient of [
+    ['#cc5577', '#55cc77', '#7755cc'],
+    ['#ff0000', '#00ff00', '#0000ff'],
+    ['#344a44', '#56515e', '#354452'],
+  ]) {
+    const color = appearanceAudioColor(parseAppearance({ gradient }));
+    const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16));
+    assert.ok(Math.max(...channels) - Math.min(...channels) > 2, `${color} must retain a gradient hue`);
+    assert.ok(!gradient.includes(color), `${color} must be a distinct shade`);
+  }
+  const neutral = appearanceAudioColor(DEFAULT_APPEARANCE);
+  assert.equal(neutral.slice(1, 3), neutral.slice(3, 5));
+  assert.equal(neutral.slice(3, 5), neutral.slice(5, 7));
+});
+
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
   assert.equal(parseAppearance({ fontScale: 75 }).autoFadeSeconds, 15);
   assert.equal(parseAppearance({ autoFadeSeconds: 5 }).autoFadeSeconds, 5);

@@ -85,9 +85,13 @@ if (!Number.isSafeInteger(corpusAvailabilityRefreshMs) || corpusAvailabilityRefr
 const databasePath = resolveDataPath(process.env.DATABASE_PATH, 'user/users.sqlite');
 const corpusDatabasePath = resolveDataPath(process.env.CORPUS_DATABASE_PATH, 'corpus/corpus.sqlite');
 const corpusAvailabilityPath = resolveDataPath(process.env.CORPUS_AVAILABILITY_PATH, 'corpus/availability.sqlite');
+const audioValidationPath = resolveDataPath(
+  process.env.AUDIO_VALIDATION_PATH ?? path.join(path.dirname(corpusAvailabilityPath), 'audio-validation.sqlite'),
+  'corpus/audio-validation.sqlite',
+);
 const corpusObjectsPath = resolveDataPath(process.env.CORPUS_OBJECTS_PATH, 'corpus/objects');
-if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath]).size !== 3) {
-  throw new Error('User, corpus, and corpus availability databases must be separate files.');
+if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioValidationPath]).size !== 4) {
+  throw new Error('User, corpus, availability, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
   source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
@@ -110,6 +114,7 @@ export const config = {
   databasePath: path.resolve(databasePath),
   corpusDatabasePath: path.resolve(corpusDatabasePath),
   corpusAvailabilityPath: path.resolve(corpusAvailabilityPath),
+  audioValidationPath: path.resolve(audioValidationPath),
   corpusObjectsPath: path.resolve(corpusObjectsPath),
   corpusObjectsPrefix: process.env.CORPUS_OBJECTS_PREFIX ?? 'corpus/objects/',
   bucketName: process.env.BUCKET_NAME,

@@ -28,7 +28,13 @@ export function DiagnosticPage({
   if (!sections) {
     return (
       <div className="diagnostic-empty">
-        ...
+        {state.queue.preparationError
+          ? `${state.queue.preparationError.code} (${state.queue.preparationError.attempts}/3). ${
+            state.queue.preparationError.retryAt
+              ? language === 'te' ? 'మళ్లీ ప్రయత్నిస్తుంది.' : 'Retry scheduled.'
+              : language === 'te' ? 'సిద్ధీకరణ ఆగిపోయింది. మూల లభ్యతను తనిఖీ చేసి క్యూ రీసెట్ చేయండి.' : 'Preparation stopped. Check source availability and reset the queue to retry.'
+          }`
+          : '...'}
       </div>
     );
   }

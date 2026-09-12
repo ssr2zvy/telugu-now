@@ -17,6 +17,7 @@ import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue } from './q
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
+import { recordFirstDisplay } from './repeat-service';
 
 interface ProfileRow {
   code: string;
@@ -52,6 +53,7 @@ interface ObservationRow {
   cache_hit: number | null;
   selection_snapshot_json: string;
   media_json: string | null;
+  repeat_snapshot_json: string | null;
 }
 
 interface CountRow { count: number }
@@ -70,8 +72,8 @@ export function ensureProfileRow(code: string): void {
   assertValidProfileCode(code);
   const now = Date.now();
   db.prepare(`
-    INSERT INTO profiles (code, current_position, created_at, updated_at)
-    VALUES (?, NULL, ?, ?)
+    INSERT INTO profiles (code, current_position, created_at, updated_at, repeat_tracking_complete)
+    VALUES (?, NULL, ?, ?, 1)
     ON CONFLICT(code) DO NOTHING
   `).run(code, now, now);
   // Selection defaults are lazily persisted for both new and upgraded profiles.
@@ -100,6 +102,14 @@ function historyTailPosition(code: string): number | null {
     FROM history_entries WHERE profile_code = ?
   `).get(code) as MaxRow;
   return row.max_position;
+}
+
+function adjacentHistoryPosition(code: string, current: number | null, direction: 'back' | 'next'): number | null {
+  if (current === null) return null;
+  return (db.prepare(`
+    SELECT ${direction === 'back' ? 'MAX' : 'MIN'}(history_position) AS position FROM history_entries
+    WHERE profile_code = ? AND history_position ${direction === 'back' ? '<' : '>'} ?
+  `).get(code, current) as { position: number | null }).position;
 }
 
 function tailRow(code: string): TailRow | undefined {
@@ -243,7 +253,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
            a.preparation_in_flight_at_trigger,
            a.selection_snapshot_json,
            o.request_started_at, o.request_completed_at, o.request_duration_ms,
-           o.cache_hit, sr.media_json
+           o.cache_hit, sr.media_json, o.repeat_snapshot_json
     FROM history_entries h
     JOIN observations o ON o.id = h.observation_id
     JOIN observation_acquisitions a ON a.observation_id = o.id
@@ -273,6 +283,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
       requestDurationMs: row.request_duration_ms,
       cacheHit: row.cache_hit === null ? null : row.cache_hit === 1,
       selection: parseSelectionSnapshot(row.selection_snapshot_json),
+      repeat: row.repeat_snapshot_json ? JSON.parse(row.repeat_snapshot_json) : null,
     },
   };
 }
@@ -298,6 +309,13 @@ function queueSummary(code: string): QueueSummary {
     if (row.status === 'preparing') summary.preparingCount = row.count;
     if (row.status === 'pending') summary.pendingCount = row.count;
   }
+  const error = db.prepare(`
+    SELECT o.preparation_error AS code, o.preparation_attempts AS attempts, o.preparation_retry_at AS retryAt
+    FROM queue_items q JOIN observations o ON o.id = q.observation_id
+    WHERE q.profile_code = ? AND o.preparation_error IS NOT NULL AND o.status != 'ready'
+    ORDER BY q.queue_position LIMIT 1
+  `).get(code) as NonNullable<QueueSummary['preparationError']> | undefined;
+  summary.preparationError = error ?? null;
   return summary;
 }
 
@@ -331,6 +349,7 @@ export function loadProfile(code: string, visible: boolean): ProfileStateRespons
   // visible interval at its last heartbeat rather than counting the whole absence.
   closeStaleVisibleInterval(code, now);
 
+  preparationService.checkQueue(code, true);
   ensureLaunchQueue(code);
   setTailVisibility(code, visible, now);
   preparationService.kick();
@@ -341,6 +360,8 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   assertValidProfileCode(code);
   ensureProfileRow(code);
   const now = Date.now();
+  preparationService.checkQueue(code);
+  preparationService.kick();
   setTailVisibility(code, visible, now);
 
   const profile = profileRow(code);
@@ -356,7 +377,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     currentPosition: profile.current_position,
     historyLength: length,
     currentObservation: currentObservation(code, profile.current_position),
-    canBack: profile.current_position !== null && profile.current_position > 0,
+    canBack: adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
     canNext: inHistoricalForwardPath || nextQueue?.status === 'ready',
     nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),
     queue: queueSummary(code),
@@ -369,6 +390,10 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
 export function setProfileVisibility(code: string, visible: boolean): void {
   assertValidProfileCode(code);
   ensureProfileRow(code);
+  if (visible) {
+    preparationService.checkQueue(code, true);
+    preparationService.kick();
+  }
   setTailVisibility(code, visible, Date.now());
 }
 
@@ -400,7 +425,8 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
   assertValidProfileCode(code);
   ensureProfileRow(code);
   const profile = profileRow(code);
-  if (profile.current_position === null || profile.current_position <= 0) {
+  const previousPosition = adjacentHistoryPosition(code, profile.current_position, 'back');
+  if (previousPosition === null) {
     throw new NavigationUnavailableError('Back is unavailable.');
   }
 
@@ -410,11 +436,11 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
 
   db.prepare(`
     UPDATE profiles
-    SET current_position = current_position - 1,
+    SET current_position = ?,
         last_client_seen_at = ?,
         updated_at = ?
     WHERE code = ?
-  `).run(now, now, code);
+  `).run(previousPosition, now, now, code);
 
   return getProfileState(code, visible);
 }
@@ -432,7 +458,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     && tailPosition !== null
     && profile.current_position < tailPosition
   ) {
-    const nextPosition = profile.current_position + 1;
+    const nextPosition = adjacentHistoryPosition(code, profile.current_position, 'next')!;
     db.prepare(`
       UPDATE profiles
       SET current_position = ?, last_client_seen_at = ?, updated_at = ?
@@ -443,6 +469,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     return getProfileState(code, visible);
   }
 
+  preparationService.checkQueue(code);
   const queued = nextQueueItem(code);
   if (!queued || queued.status !== 'ready') {
     throw new NavigationUnavailableError('Next observation is not ready.');
@@ -458,6 +485,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
         absolute_started_at, visible_started_at
       ) VALUES (?, ?, ?, ?, ?)
     `).run(code, newHistoryPosition, queued.observation_id, now, visible ? now : null);
+    recordFirstDisplay(code, queued.observation_id, now);
 
     db.prepare(`
       DELETE FROM queue_items

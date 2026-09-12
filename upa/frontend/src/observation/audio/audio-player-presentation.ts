@@ -6,6 +6,7 @@ export const AUDIO_PLAYER_PRESENTATION = {
   playbackRateStep: 0.05,
   // Milliseconds a press must be held before the precision magnifier engages.
   magnifierHoldMs: 300,
+  magnifierPressureThreshold: 0.75,
   // The magnifier zooms into a window this fraction of the total duration,
   // clamped to a sensible absolute range regardless of clip length.
   magnifierWindowFraction: 0.02,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
 import {
   BookmarkIcon,
@@ -11,12 +11,14 @@ import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
 import { useAppearance } from '../../appearance';
+import { useClickOutsideToClose } from './useClickOutsideToClose';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio;
   sourceId: string;
   sourceKey: string;
   defaultPlaybackRate: number;
+  controlsVisible: boolean;
 }
 
 export function AudioPlayerBar({
@@ -24,20 +26,30 @@ export function AudioPlayerBar({
   sourceId,
   sourceKey,
   defaultPlaybackRate,
+  controlsVisible,
 }: AudioPlayerBarProps) {
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
   const [speedPopoverOpen, setSpeedPopoverOpen] = useState(false);
+  const [magnifierOpen, setMagnifierOpen] = useState(false);
+  const playerRef = useRef<HTMLDivElement>(null);
   const { appearance } = useAppearance();
+  useClickOutsideToClose(magnifierOpen, [playerRef], () => setMagnifierOpen(false));
+  useEffect(() => {
+    if (!controlsVisible) {
+      setMagnifierOpen(false);
+      setSpeedPopoverOpen(false);
+    }
+  }, [controlsVisible]);
 
   return (
     <div
+      ref={playerRef}
       className="audio-player-bar"
       data-magnifier-position={appearance.magnifierPosition}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
       <audio ref={player.audioRef} src={audio.url} preload="metadata" />
-      <div className="audio-primary-controls">
       <button
         className="audio-transport-button audio-play-button"
         type="button"
@@ -48,12 +60,15 @@ export function AudioPlayerBar({
         {player.playing ? <PauseIcon /> : <PlayIcon />}
       </button>
       <button
-        className="audio-transport-button"
+        className="audio-transport-button audio-speed-button"
         type="button"
         aria-label="ప్లేబ్యాక్ వేగం"
         title="Playback speed"
         aria-expanded={speedPopoverOpen}
-        onClick={() => setSpeedPopoverOpen(true)}
+        onClick={() => {
+          setMagnifierOpen(false);
+          setSpeedPopoverOpen(true);
+        }}
       >
         <SpeedIcon />
       </button>
@@ -67,13 +82,19 @@ export function AudioPlayerBar({
       >
         <BookmarkIcon />
       </button>
-      </div>
       <AudioScrubber
         currentTime={player.currentTime}
         duration={player.duration}
         waveformPeaks={player.waveformPeaks}
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
+        magnifierOpen={magnifierOpen}
+        onMagnifierOpen={() => {
+          player.pause();
+          setSpeedPopoverOpen(false);
+          setMagnifierOpen(true);
+        }}
+        onMagnifierClose={() => setMagnifierOpen(false)}
         onSeek={player.seek}
         onPrecisionSeek={() => {
           player.pause();

@@ -2,6 +2,8 @@ import type { MediaItem } from '../../../shared/contracts';
 import { db } from '../db/database';
 import { sourceRegistry } from './source-registry';
 import { LegacyIteration1MockDataSource } from '../sources/mock/mock-data-source';
+import { audioValidationService } from './audio-validation-service';
+import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
 
 export interface ResolvedSourceRecord {
   sourceId: string;
@@ -44,12 +46,39 @@ class SourceRecordService {
   }
 
   async resolve(profileCode: string, sourceId: string, sourceKey: string): Promise<ResolvedSourceRecord> {
+    const record = await this.resolveMetadata(profileCode, sourceId, sourceKey);
+    await audioValidationService.validate(record.media);
+    return record;
+  }
+
+  private async resolveMetadata(profileCode: string, sourceId: string, sourceKey: string): Promise<ResolvedSourceRecord> {
     if (!db.prepare('SELECT 1 FROM profiles WHERE code = ?').get(profileCode)) throw new Error('Unknown cache profile.');
     const existing = this.cached(profileCode, sourceId, sourceKey);
+    const preparedSource = preparedCorpusStore.hasSource(sourceId);
+    const expectsAudio = preparedSource
+      || ['fleurs-te', 'shrutilipi-te', 'indicvoices-te'].includes(sourceId);
+    let parsed: MediaItem[] = [];
+    let cacheMatchesCorpus = true;
     if (existing) {
-      const parsed = JSON.parse(
-        existing.media_json,
-      ) as MediaItem[];
+      try {
+        const value: unknown = JSON.parse(existing.media_json);
+        if (Array.isArray(value)) parsed = value as MediaItem[];
+      } catch { /* A malformed legacy cache is refreshed from its source. */ }
+      if (preparedSource) {
+        // Cached metadata is not an immutable identity: republishing a canonical
+        // row can change its object key. Rejecting the old cached object would
+        // otherwise repeatedly reselect this still-eligible canonical row.
+        const current = preparedCorpusStore.row(sourceId, sourceKey);
+        const currentMedia: MediaItem[] = [
+          { kind: 'text', language: 'te', text: current.text },
+          { kind: 'audio', objectKey: current.audio_object_key, mimeType: current.audio_mime_type,
+            durationSeconds: current.duration_seconds, sha256: current.audio_sha256 },
+        ];
+        cacheMatchesCorpus = existing.text === current.text
+          && JSON.stringify(parsed) === JSON.stringify(currentMedia);
+      }
+    }
+    if (existing && cacheMatchesCorpus && !(expectsAudio && !parsed.some(item => item?.kind === 'audio'))) {
       const media = parsed.length > 0
         ? parsed
         : [
