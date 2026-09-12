@@ -1952,8 +1952,12 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         const coarse = (await scrubber.boundingBox())!;
         const enlarged = (await lens.boundingBox())!;
         const buttons = (await actions.boundingBox())!;
+        const waveform = (await page.locator('.audio-magnifier-track').boundingBox())!;
+        const time = (await page.locator('.audio-magnifier-time').boundingBox())!;
         expect(coarse.y).toBeCloseTo(closed.y);
         expect(enlarged.height).toBe(72);
+        expect(time.y - (waveform.y + waveform.height)).toBeCloseTo(2);
+        expect(time.y + time.height).toBeLessThanOrEqual(buttons.y);
         expect(buttons.y - (enlarged.y + enlarged.height)).toBeCloseTo(0);
         expect(buttons.height).toBe(44);
         if (magnifierPosition === 'below') {
@@ -1976,8 +1980,14 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         expect(surface.color).toBe('rgba(0, 0, 0, 0)');
         expect(surface.lensBackground).toBe('rgba(0, 0, 0, 0)');
         expect(surface.separateLens).toBe('none');
-        expect(surface.top).toBe(magnifierPosition === 'below' ? -24 : 0);
-        expect(surface.height).toBe(magnifierPosition === 'below' ? 96 : 140);
+        expect(surface.top).toBe(magnifierPosition === 'below' ? -31 : 0);
+        expect(surface.height).toBe(magnifierPosition === 'below' ? 103 : 147);
+        const panel = (await page.locator('.audio-precision-panel').boundingBox())!;
+        const neckTop = panel.y + surface.top + (magnifierPosition === 'below' ? 0 : surface.height - 14);
+        expect(neckTop).toBeCloseTo(coarse.y + coarse.height / 2 - 7);
+        await expect(page.locator('.audio-scrubber-window')).toHaveCount(0);
+        await scrubber.click({ position: { x: coarse.width / 2, y: coarse.height / 2 } });
+        await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
         await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });
         await page.getByTitle('Playback speed', { exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
