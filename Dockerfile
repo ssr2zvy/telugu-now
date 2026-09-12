@@ -24,11 +24,16 @@ ENV NODE_ENV=production \
     DATA_DIRECTORY=/data
 WORKDIR /app/upa
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists
+
 COPY upa/package.json ./
 COPY --from=production-dependencies /app/upa/node_modules ./node_modules
 COPY --from=build /app/upa/dist ./dist
+COPY container-scripts/entrypoint.sh /usr/local/bin/telugu-now-entrypoint
 
-RUN mkdir -p /data && chown node:node /data
-USER node
+RUN chmod 755 /usr/local/bin/telugu-now-entrypoint
 EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/telugu-now-entrypoint"]
 CMD ["node", "dist/server/index.js"]

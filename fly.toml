@@ -1,7 +1,7 @@
 app = "telugu-now"
 primary_region = "iad"
 
-# The mounted data directory must be writable by the image's node user (UID/GID 1000).
+# The container entrypoint prepares mounted directories, then runs as node (UID/GID 1000).
 
 [build]
   dockerfile = "Dockerfile"

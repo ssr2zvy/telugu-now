@@ -643,11 +643,19 @@ not shipped. `.dockerignore` restricts the context to build inputs and excludes
 local data, credentials, dependencies, and prior build output. Neither Git
 cloning nor build-time corpus access or runtime secrets are required.
 
-The container runs `node dist/server/index.js` from `/app/upa` as the unprivileged
-`node` user (UID/GID 1000), serves the frontend on port 8080, and defaults
-`DATA_DIRECTORY` to `/data`. A mounted data directory and its existing contents
-must be writable by that user; provision or restore volume ownership before
-startup. A mount can hide the image's own `/data` permissions. No corpus,
+The container entrypoint, `container-scripts/entrypoint.sh`, starts as root
+after the volume is mounted. It creates `DATA_DIRECTORY` (default `/data`) and
+its `corpus/`, `user/`, and `word-images/` directories and assigns just those
+directories to `node:node`. It then uses `gosu` to recheck access as the
+unprivileged `node` user (UID/GID 1000) and execute `node dist/server/index.js`
+from `/app/upa`. The backend and worker run non-root and serve port 8080.
+
+Initialization is idempotent, does not recursively change existing files or
+subdirectories, and fails explicitly for empty/root paths, symbolic links in
+managed paths, non-directory entries, or permission errors. Existing restored
+files and custom nested paths must already have suitable permissions. Starting
+with an explicit non-root container user skips ownership changes and requires
+that user to be able to create/access the managed directories. No corpus,
 availability database, user records, word images, or credentials are baked into
 the image. Without runtime overrides, the application uses local mode and
 requires a compatible prepared corpus and availability snapshot.
@@ -669,8 +677,9 @@ Fly's `[build]` section selects the root Dockerfile; `fly.toml` is deployment
 configuration and is not copied into the image. The selected primary region is
 `iad` (Ashburn, Virginia), with a 3 GB `telugu_now_data` volume mounted at `/data`.
 `initial_size` sets the size if deployment needs to create a volume; it does not
-resize existing storage. Before deployment, ensure the volume exists in `iad`
-and its data is writable by UID/GID 1000. Billing links and storage costs are in
+resize existing storage. Before deployment, ensure the volume exists in `iad`;
+the entrypoint initializes its top-level application directories at startup.
+Restored files must already be accessible to UID/GID 1000. Billing links and storage costs are in
 [costs.md](../costs.md). Start with
 one application Machine: these SQLite databases and images are not replicated
 across Machines. Setting the TOML does not provision anything or deploy the app.

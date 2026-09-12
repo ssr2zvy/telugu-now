@@ -4,6 +4,8 @@
 !.dockerignore
 !ci-cd/
 !ci-cd/make-artifacts.sh
+!container-scripts/
+!container-scripts/entrypoint.sh
 !upa/
 !upa/package.json
 !upa/package-lock.json

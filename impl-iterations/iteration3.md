@@ -264,12 +264,24 @@ or compilation tools. The `.dockerignore` allowlist keeps credentials, runtime
 data, local dependencies, previous artifacts, and unrelated repository files
 out of the build context.
 
-The image runs the backend directly as the unprivileged `node` user (UID/GID
-1000), with `/app/upa` as the working directory, port 8080, and `/data` as the
-persistent root. Volume provisioning must make that root and existing state
-writable by UID/GID 1000; mounting a volume can replace the mountpoint ownership
-from the image. Corpus data and secrets are supplied only at runtime. Building
-the image requires neither a Git clone inside Docker nor a live corpus.
+The image's `container-scripts/entrypoint.sh` runs after the volume is mounted.
+It briefly runs as root to create the persistent root (`DATA_DIRECTORY`,
+default `/data`) and its `corpus/`, `user/`, and `word-images/` directories,
+assigning only these directories to `node:node`. `gosu` then drops privileges,
+reruns access checks as UID/GID 1000, and replaces the entrypoint with the
+backend command. The backend and worker run non-root with `/app/upa` as the
+working directory and port 8080.
+
+Initialization is repeatable without recursively changing existing files or
+nested directories. It rejects empty/filesystem-root paths, symlinks in managed
+paths, non-directory entries, and inaccessible directories before serving.
+Permission/ownership and application exit failures propagate rather than being
+ignored. Explicit non-root container starts skip ownership changes and require
+suitable existing access. Restored files and custom nested paths must already
+be accessible to the application user. This happens at runtime, not in a Fly
+release command, because release-command Machines do not mount the volume.
+Corpus data and secrets are supplied only at runtime. Building the image
+requires neither a Git clone inside Docker nor a live corpus.
 
 ## Fly deployment configuration
 
@@ -292,8 +304,9 @@ read/list access, not corpus write access.
 
 The TOML's `[build]` section selects the root Dockerfile; the TOML itself stays
 outside the image. The selected primary region is `iad` (Ashburn, Virginia) and
-the initial `telugu_now_data` volume size is 3 GB. Deployment still requires
-the volume to be writable by UID/GID 1000. Billing dashboards and pricing
+the initial `telugu_now_data` volume size is 3 GB. The runtime entrypoint
+prepares its application directories for UID/GID 1000; restored files need
+appropriate existing permissions. Billing dashboards and pricing
 references are recorded in [costs.md](../costs.md). Start with one Machine:
 local SQLite, worker coordination, and global image publication are not
 replicated or globally locked across Machines. These source changes do not
@@ -312,6 +325,8 @@ requests, cancellation, and safe error handling with mocked providers.
 Pollinations tests cover environment precedence, blank-value file fallback,
 local reloads, file errors, and provider failures without credential exposure.
 
+Entrypoint tests cover directory-only initialization, privilege switching,
+unsafe paths, non-root starts, and error propagation.
 Controller/repository contracts use `control_local.sh`. Pipeline tests use a
 temporary `upa/` application directory and raw/sample fixtures under the
 temporary repository's `data/` directory. TypeScript checks, the existing Node
