@@ -309,6 +309,7 @@ function queueSummary(code: string): QueueSummary {
     if (row.status === 'preparing') summary.preparingCount = row.count;
     if (row.status === 'pending') summary.pendingCount = row.count;
   }
+
   const error = db.prepare(`
     SELECT o.preparation_error AS code, o.preparation_attempts AS attempts, o.preparation_retry_at AS retryAt
     FROM queue_items q JOIN observations o ON o.id = q.observation_id
@@ -317,6 +318,28 @@ function queueSummary(code: string): QueueSummary {
   `).get(code) as NonNullable<QueueSummary['preparationError']> | undefined;
   summary.preparationError = error ?? null;
   return summary;
+}
+
+function upcomingAudio(code: string, position: number | null): ObservationAudio[] {
+  const rows = db.prepare(`
+    SELECT sr.media_json
+    FROM (
+      SELECT h.observation_id, 0 AS kind, h.history_position AS position
+      FROM history_entries h WHERE h.profile_code = ? AND h.history_position > ?
+      UNION ALL
+      SELECT q.observation_id, 1 AS kind, q.queue_position AS position
+      FROM queue_items q JOIN observations o ON o.id = q.observation_id
+      WHERE q.profile_code = ? AND o.status = 'ready'
+    ) upcoming
+    JOIN observations o ON o.id = upcoming.observation_id
+    LEFT JOIN source_records sr ON sr.profile_code = ? AND sr.source_id = o.source_id AND sr.source_key = o.source_key
+    ORDER BY upcoming.kind, upcoming.position
+    LIMIT 3
+  `).all(code, position ?? -1, code, code) as Array<{ media_json: string | null }>;
+  return rows.flatMap(row => {
+    const audio = parseObservationAudio(row.media_json);
+    return audio ? [audio] : [];
+  });
 }
 
 function timingSummary(code: string, now: number): TimingSummary | null {
@@ -377,6 +400,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     currentPosition: profile.current_position,
     historyLength: length,
     currentObservation: currentObservation(code, profile.current_position),
+    upcomingAudio: upcomingAudio(code, profile.current_position),
     canBack: adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
     canNext: inHistoricalForwardPath || nextQueue?.status === 'ready',
     nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),

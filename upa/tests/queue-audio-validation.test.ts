@@ -88,6 +88,12 @@ test('real corpus quarantine replaces reservations, survives restart and recheck
     assert.equal(audioValidationStore.invalidReason('obsolete-object.wav'), null, 'outdated metadata is refreshed, not repeatedly rejected');
     assert.equal((db.prepare("SELECT text FROM source_records WHERE source_id = 'fleurs-te' AND source_key = 'b'").get() as { text: string }).text, 'తెలుగు');
     assert.equal((db.prepare('SELECT COUNT(*) AS count FROM recording_displays').get() as { count: number }).count, 0);
+    const beforeHints = queued();
+    const hints = profile.getProfileState('001', true);
+    assert.equal(hints.upcomingAudio?.length, 3);
+    assert.ok(hints.upcomingAudio?.every(audio => audio.url === '/api/audio/b.wav?v=2'));
+    assert.deepEqual(queued(), beforeHints, 'audio hints must not consume or reorder queue reservations');
+    assert.equal(hints.historyLength, 0);
 
     const first = profile.navigateNext('001', true);
     const second = profile.navigateNext('001', true);
@@ -99,6 +105,10 @@ test('real corpus quarantine replaces reservations, survives restart and recheck
     const restored = profile.loadProfile('001', true);
     assert.equal(restored.currentObservation!.id, first.currentObservation!.id);
     assert.equal(restored.currentPosition, 0, 'relaunch restores the saved historical cursor, not a new selection');
+    assert.equal(restored.upcomingAudio?.[0]?.url, second.currentObservation!.audio!.url);
+    assert.equal(restored.upcomingAudio?.length, 1, 'revalidation withholds queued audio but preserves forward history');
+    await waitFor(() => queued().every(row => row.status === 'ready'));
+    assert.equal(profile.getProfileState('001', true).upcomingAudio?.length, 3);
     assert.equal(profile.navigateNext('001', true).currentObservation!.id, second.currentObservation!.id);
     await waitFor(() => queued().every(row => row.status === 'ready'));
 

@@ -50,7 +50,9 @@ test('normal player shows only Play and the seek bar, without precision-only act
   assert.match(markup, /--audio-glass-gradient:linear-gradient/);
   assert.match(markup, /<linearGradient id="audio-glass-/);
   assert.equal((markup.match(/<stop /g) ?? []).length, 3);
-  assert.match(markup, /stop-opacity="0\.62"/);
+  const opacities = [...markup.matchAll(/stop-opacity="([^"]+)"/g)].map(match => Number(match[1]));
+  assert.equal(opacities.length, 3);
+  assert.ok(opacities[0]! < opacities[1]! && opacities[2]! < opacities[1]!, 'glass edges fade more than the center');
   assert.doesNotMatch(markup, /audio-primary-controls|class="audio-magnifier"/);
 });
 
@@ -99,17 +101,24 @@ test('glass icon masks reuse the SVG geometry, including the stroked speed icon'
   }
 });
 
-test('Play stays page-centered, all audio shapes use glass paint, and the default bottom inset is lowered', () => {
+test('Play stays centered, the dot shares icon glass, and the bar fades without an opaque base', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   const play = css.match(/^\.audio-play-button \{([^}]+)\}/m)?.[1];
   assert.match(play ?? '', /grid-column: 1 \/ -1/);
   assert.match(play ?? '', /justify-self: center/);
   assert.match(play ?? '', /grid-row: 1/);
-  const paint = css.match(/(\.audio-scrubber::before,[^{]+)\{ background: var\(--audio-glass-gradient\);/);
-  for (const selector of ['audio-scrubber-progress', 'audio-scrubber-thumb', 'audio-scrubber-bookmark',
+  const bar = css.match(/^\.audio-scrubber::before, \.audio-scrubber-progress \{([^}]+)\}/m)?.[1] ?? '';
+  assert.match(bar, /background: linear-gradient\(90deg,/);
+  assert.match(bar, /currentColor 20%, transparent/);
+  assert.match(bar, /currentColor 85%, transparent\) 50%/);
+  assert.doesNotMatch(bar, /,\s*currentColor\s*;/);
+  assert.doesNotMatch(bar, /box-shadow/);
+  const paint = css.match(/(\.audio-scrubber-thumb,[^{]+)\{ background: var\(--audio-glass-gradient\);/);
+  for (const selector of ['audio-scrubber-thumb', 'audio-scrubber-bookmark',
     'audio-magnifier-bar', 'audio-magnifier-playhead', 'audio-speed-track::before', 'audio-speed-fill', 'audio-speed-thumb']) {
     assert.ok(paint?.[1]?.includes(`.${selector}`), `${selector} must share the glass gradient`);
   }
+  assert.match(css, /\.audio-glass-icon \{ background: var\(--audio-glass-gradient\);/);
   assert.match(css, /\.audio-transport-button svg \{ stroke: var\(--audio-icon-paint\)/);
   assert.match(css, /\.audio-transport-button \.control-icon-fill \{ fill: var\(--audio-icon-paint\); stroke: none/);
   assert.match(css, /--audio-base-bottom: var\(--audio-placement-bottom\)/);

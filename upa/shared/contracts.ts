@@ -156,6 +156,8 @@ export interface ProfileStateResponse {
   currentPosition: number | null;
   historyLength: number;
   currentObservation: DisplayObservation | null;
+  /** Ordered forward-history/ready-queue audio hints; never consumes a reservation. */
+  upcomingAudio?: ObservationAudio[];
   canBack: boolean;
   canNext: boolean;
   nextStatus: ObservationStatus | null;

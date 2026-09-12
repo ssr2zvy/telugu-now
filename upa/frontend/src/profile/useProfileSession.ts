@@ -11,6 +11,7 @@ import {
   navigate,
   setVisibility,
 } from '../api';
+import { useAudioPrewarm } from '../observation/audio/useAudioPrewarm';
 export interface ProfileSession {
   profileCode: string | null;
   state: ProfileStateResponse | null;
@@ -29,6 +30,7 @@ export interface ProfileSession {
 export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const [profileCode, setProfileCode] = useState<string | null>(null);
   const [state, setState] = useState<ProfileStateResponse | null>(null);
+  useAudioPrewarm(state);
   const [invalidCode, setInvalidCode] = useState(false);
   const [loadUnavailable, setLoadUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
