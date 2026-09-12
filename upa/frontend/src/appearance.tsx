@@ -102,15 +102,10 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const palette = appearance.gradient.map(color => rgbToHsl(colorChannels(color)));
   const hex = (channels: number[]) => `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
   const positions = [0, 0.5, 1];
-  // Edge stops hug their source gradient color/lightness and are drawn almost
-  // fully transparent so controls fade seamlessly into the surrounding backdrop
-  // right at their borders; the center stop leans much further toward the
-  // accent lightness at high opacity so the glass reads as distinctly "lit"
-  // through the middle. Exaggerating that spread (very faint edges, vivid
-  // center) is what sells the glass illusion instead of a flat tinted shape.
+  // Keep translucent edges and a lit center, with a restrained contrast spread.
   const centerWeight = (position: number) => 1 - Math.abs(position - 0.5) * 2;
-  const blendAt = (position: number) => 0.08 + 0.62 * centerWeight(position);
-  const opacityAt = (position: number) => 0.12 + 0.55 * centerWeight(position);
+  const blendAt = (position: number) => 0.12 + 0.54 * centerWeight(position);
+  const opacityAt = (position: number) => 0.16 + 0.47 * centerWeight(position);
   const shades = palette.map(([hue, saturation, lightness], index) =>
     hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;
