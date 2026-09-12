@@ -13,6 +13,7 @@ import {
 } from '../components/icons';
 import {
   AudioPlayerBar,
+  type AudioPlayerBarHandle,
 } from './audio/AudioPlayerBar';
 import {
   useObservationTypography,
@@ -20,7 +21,7 @@ import {
 import { WordProfile } from './word/WordProfile';
 import { wordAtOffset } from './word/word-analysis';
 import { useAppearance } from '../appearance';
-import { ReaderTaps } from './reader-taps';
+import { ReaderTaps, readerTapRegions } from './reader-taps';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -45,9 +46,11 @@ export function ObservationView({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [precisionInteraction, setPrecisionInteraction] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
-  const [taps] = useState(() => new ReaderTaps(() => setControlsVisible(visible => !visible)));
+  const playerRef = useRef<AudioPlayerBarHandle>(null);
+  const [taps] = useState(() => new ReaderTaps());
   const toggleSettings = () => {
     window.getSelection()?.removeAllRanges();
     setSettingsVisible(visible => !visible);
@@ -79,7 +82,11 @@ export function ObservationView({
   }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
-  useEffect(() => () => taps.cancel(), [taps, observation?.id]);
+  useEffect(() => {
+    taps.cancel();
+    setControlsVisible(false);
+    return () => taps.cancel();
+  }, [taps, observation?.id]);
   const typography =
     useObservationTypography(
       observation,
@@ -100,12 +107,10 @@ export function ObservationView({
       setSettingsVisible(false);
     }
   };
-  const centerDoubleTap = (event: MouseEvent<HTMLElement>) => {
-    window.getSelection()?.removeAllRanges();
+  const wordAtPoint = (event: MouseEvent<HTMLElement>): string | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) {
-      toggleSettings();
-      return;
+      return null;
     }
     const browserDocument = document as Document & {
       caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
@@ -116,26 +121,19 @@ export function ObservationView({
     const node = position?.offsetNode ?? range?.startContainer;
     const offset = position?.offset ?? range?.startOffset;
     if (!node || node !== element.firstChild || offset === undefined) {
-      toggleSettings();
-      return;
+      return null;
     }
     const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
     const segment = word ? [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
       .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length) : null;
     if (!segment || !word) {
-      toggleSettings();
-      return;
+      return null;
     }
     const hit = document.createRange();
     hit.setStart(node, segment.index);
     hit.setEnd(node, segment.index + segment.segment.length);
     const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
-    if (inside) {
-      setControlsVisible(false);
-      setSelectedWord({ word, observationId: observation.id });
-    } else {
-      toggleSettings();
-    }
+    return inside ? word : null;
   };
   return (
     <main
@@ -154,22 +152,38 @@ export function ObservationView({
         }
       }}
       onKeyDownCapture={(event) => {
+        if (event.target === event.currentTarget && (event.key === ' ' || event.key === 'Enter')) {
+          event.preventDefault();
+          if (!event.repeat) playerRef.current?.togglePlay();
+          return;
+        }
         if (event.target instanceof Element) {
           if (event.target.closest('.audio-player-bar')) setControlsVisible(true);
           if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
+      tabIndex={0}
+      aria-label="Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls."
       onClick={(event) => {
-        const center = typography.containerRef.current?.getBoundingClientRect();
-        if (!center) return;
-        const region = event.clientX < center.left ? 'back' : event.clientX > center.right ? 'next' : 'center';
-        if (!window.getSelection()?.isCollapsed && !taps.matches(region, event.clientX, event.clientY)) {
+        const bounds = screenRef.current?.getBoundingClientRect();
+        if (!bounds) return;
+        const region = readerTapRegions(event.clientX, event.clientY, bounds);
+        const word = wordAtPoint(event);
+        const doubleRegion = word ? `word:${word}` : region.double;
+        if (!window.getSelection()?.isCollapsed && !taps.matches(doubleRegion, event.clientX, event.clientY)) {
           taps.cancel();
           return;
         }
-        taps.tap(region, event.clientX, event.clientY, () => {
-          if (region === 'center') centerDoubleTap(event);
-          else if (region === 'back' ? canBack : canNext) void move(region);
+        taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+          window.getSelection()?.removeAllRanges();
+          if (word && observation) {
+            setControlsVisible(false);
+            setSelectedWord({ word, observationId: observation.id });
+          } else if (region.double === 'center') toggleSettings();
+          else if (region.double === 'back' ? canBack : canNext) void move(region.double);
+        }, () => {
+          if (region.single === 'playback') playerRef.current?.togglePlay();
+          else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
         });
       }}
       onMouseDownCapture={(event) => {
@@ -243,22 +257,22 @@ export function ObservationView({
             ...
           </div>
         )}
-        {observation?.audio ? (
           <AudioPlayerBar
-            key={observation.id}
-            audio={observation.audio}
-            sourceId={observation.sourceId}
-            sourceKey={observation.sourceKey}
+            ref={playerRef}
+            observationId={observation?.id ?? null}
+            audio={observation?.audio ?? null}
+            sourceId={observation?.sourceId ?? null}
+            sourceKey={observation?.sourceKey ?? null}
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
             controlsVisible={controlsVisible}
             onLoadingChange={setAudioLoading}
+            onPlaybackErrorChange={setAudioError}
             onPrecisionInteraction={() => {
               taps.cancel();
               setControlsVisible(true);
               setPrecisionInteraction(value => value + 1);
             }}
           />
-        ) : null}
       </section>
       <div className="nav-region">
         <button
@@ -292,6 +306,7 @@ export function ObservationView({
       >
         <SettingsIcon />
       </button>
+      {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />
       ) : null}

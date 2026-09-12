@@ -34,6 +34,7 @@ export function useAudioPlayer(
   sourceId: string | null,
   sourceKey: string | null,
   defaultPlaybackRate: number,
+  observationId?: string | null,
 ): AudioPlayerState {
   const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -42,7 +43,7 @@ export function useAudioPlayer(
   const bookmarkClickTimerRef = useRef<number | null>(null);
   const playRequestRef = useRef(0);
   const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
-  const coldClickRef = useRef(false);
+  const wantsPlaybackRef = useRef(true);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -63,6 +64,27 @@ export function useAudioPlayer(
   const bookmarkVersion = useRef(0);
   const pendingBookmarks = useRef<number[] | null>(null);
   const bookmarkWriteInFlight = useRef(false);
+
+  const requestPlayback = (element: HTMLAudioElement) => {
+    wantsPlaybackRef.current = true;
+    setPlaybackError(null);
+    setMediaError(null);
+    setPlaybackStatus('Loading audio…');
+    if (element.error) element.load();
+    if (element.ended) element.currentTime = 0;
+    const request = ++playRequestRef.current;
+    const source = element.src;
+    void element.play().catch((error: unknown) => {
+      if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;
+      wantsPlaybackRef.current = false;
+      element.pause();
+      setPlaying(false);
+      setPlaybackStatus(null);
+      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Tap above the bottom third to start audio, or allow sound for this site.'
+        : 'This audio file could not be played. Tap above the bottom third to retry.');
+    });
+  };
 
   useEffect(() => {
     const version = ++bookmarkVersion.current;
@@ -92,7 +114,7 @@ export function useAudioPlayer(
     if (!element) return;
     let disposed = false;
     playRequestRef.current++;
-    coldClickRef.current = false;
+    wantsPlaybackRef.current = true;
     element.pause();
     element.removeAttribute('src');
     element.load();
@@ -122,7 +144,8 @@ export function useAudioPlayer(
       setDuration(clip.duration);
       setWaveformPeaks(clip.waveformPeaks);
       setLoading(false);
-      setPlaybackStatus(coldClickRef.current ? 'Audio ready. Tap Play.' : null);
+      setPlaybackStatus(null);
+      if (wantsPlaybackRef.current) requestPlayback(element);
     };
     const cached = lease.value();
     if (cached) attach(cached);
@@ -130,7 +153,7 @@ export function useAudioPlayer(
       if (disposed) return;
       setLoading(false);
       setPlaybackStatus(null);
-      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap Play to retry.`);
+      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap above the bottom third to retry.`);
     });
     return () => {
       disposed = true;
@@ -144,7 +167,7 @@ export function useAudioPlayer(
     };
     // Settings seed a new clip, not an already active transport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audio?.url, sourceId, sourceKey, attempt]);
+  }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
   useEffect(() => {
     const element = audioRef.current;
@@ -196,7 +219,7 @@ export function useAudioPlayer(
       element.removeEventListener('seeked', sync);
       element.removeEventListener('ended', onPause);
     };
-  }, [audio?.url, sourceId, sourceKey, attempt]);
+  }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
   useEffect(() => {
     if (!playing) return;
@@ -210,6 +233,7 @@ export function useAudioPlayer(
   }, [playing]);
 
   const pause = () => {
+    wantsPlaybackRef.current = false;
     playRequestRef.current++;
     audioRef.current?.pause();
     setCurrentTime(audioRef.current?.currentTime ?? 0);
@@ -223,31 +247,16 @@ export function useAudioPlayer(
     if (!element.paused) { pause(); return; }
     if (!leaseRef.current?.value()) {
       if (loading) {
-        coldClickRef.current = true;
-        setPlaybackStatus('Preparing audio… Tap Play when ready.');
+        wantsPlaybackRef.current = !wantsPlaybackRef.current;
+        setPlaybackStatus(wantsPlaybackRef.current ? 'Preparing audio…' : null);
       } else {
         retryPreparationRef.current = true;
         setAttempt(value => value + 1);
       }
       return;
     }
-    setPlaybackError(null);
-    setMediaError(null);
-    setPlaybackStatus('Loading audio…');
-    if (element.error) element.load();
     if (element.ended || (duration > 0 && element.currentTime >= duration)) element.currentTime = 0;
-    const request = ++playRequestRef.current;
-    const source = element.src;
-    // No await, source swap, context resume, or synthetic priming: keep the tap.
-    void element.play().catch((error: unknown) => {
-      if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;
-      element.pause();
-      setPlaying(false);
-      setPlaybackStatus(null);
-      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-        ? 'Playback was blocked. Tap Play to retry or allow sound for this site.'
-        : 'This audio file could not be played. Tap Play to retry.');
-    });
+    requestPlayback(element);
   };
 
   const seek = (time: number) => {

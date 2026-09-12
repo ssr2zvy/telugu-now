@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useReducer, useRef, type CSSProperties } from 'react';
+import { useEffect, useId, useImperativeHandle, useMemo, useReducer, useRef, type CSSProperties, type Ref } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
 import { AudioGlassIcon } from './AudioGlassIcon';
 import { AudioScrubber } from './AudioScrubber';
@@ -6,33 +6,44 @@ import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
-import { useClickOutsideToClose } from './useClickOutsideToClose';
 import { precisionControls } from './precision-controls';
 
 interface AudioPlayerBarProps {
-  audio: ObservationAudio;
-  sourceId: string;
-  sourceKey: string;
+  audio: ObservationAudio | null;
+  sourceId: string | null;
+  sourceKey: string | null;
+  observationId?: string | null;
+  ref?: Ref<AudioPlayerBarHandle>;
   defaultPlaybackRate: number;
   controlsVisible: boolean;
   onPrecisionInteraction?: () => void;
   onLoadingChange?: (loading: boolean) => void;
+  onPlaybackErrorChange?: (error: string | null) => void;
+}
+
+export interface AudioPlayerBarHandle {
+  togglePlay: () => void;
+  dismissPrecision: () => boolean;
 }
 
 export function AudioPlayerBar({
   audio,
   sourceId,
   sourceKey,
+  observationId,
+  ref,
   defaultPlaybackRate,
   controlsVisible,
   onPrecisionInteraction,
   onLoadingChange,
+  onPlaybackErrorChange,
 }: AudioPlayerBarProps) {
-  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
+  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId);
   useEffect(() => {
     onLoadingChange?.(player.loading);
     return () => onLoadingChange?.(false);
   }, [player.loading, onLoadingChange]);
+  useEffect(() => { onPlaybackErrorChange?.(player.playbackError); }, [player.playbackError, onPlaybackErrorChange]);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
   const magnifierOpen = precisionMode !== 'closed';
   const speedPopoverOpen = precisionMode === 'speed';
@@ -54,10 +65,18 @@ export function AudioPlayerBar({
     }
     dispatchPrecision('close-speed');
   };
-  useClickOutsideToClose(magnifierOpen, [playerRef], closePrecision);
+  useImperativeHandle(ref, () => ({
+    togglePlay: player.togglePlay,
+    dismissPrecision: () => {
+      if (!magnifierOpen) return false;
+      closePrecision();
+      return true;
+    },
+  }));
   useEffect(() => {
     if (!controlsVisible) dispatchPrecision('close');
   }, [controlsVisible]);
+  useEffect(() => { dispatchPrecision('close'); }, [observationId]);
   const bookmarkError = magnifierOpen ? player.bookmarkError : null;
 
   return (
@@ -66,12 +85,21 @@ export function AudioPlayerBar({
       className="audio-player-bar"
       data-magnifier-position={appearance.magnifierPosition}
       data-speed-open={speedPopoverOpen}
+      data-has-audio={Boolean(audio)}
       style={{
         '--audio-icon-paint': `url(#${paintId})`,
         '--audio-glass-gradient': glass.gradient,
         '--audio-glass-edge': glass.edge,
       } as CSSProperties}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest('[role="slider"], button, .audio-magnifier, .audio-speed-popover')) event.stopPropagation();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          closePrecision();
+        }
+      }}
       onDoubleClick={(event) => event.stopPropagation()}
     >
       <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
@@ -82,16 +110,6 @@ export function AudioPlayerBar({
         </defs>
       </svg>
       <audio ref={player.audioRef} preload="auto" />
-      <button
-        className="audio-transport-button audio-play-button"
-        type="button"
-        aria-label={player.playing ? 'పాజ్' : 'ప్లే'}
-        title={player.playing ? 'Pause' : 'Play'}
-        aria-busy={player.loading}
-        onClick={player.togglePlay}
-      >
-        <AudioGlassIcon name={player.playing ? 'pause' : 'play'} />
-      </button>
       <AudioScrubber
         currentTime={player.currentTime}
         duration={player.duration}
@@ -126,12 +144,12 @@ export function AudioPlayerBar({
             onChange={player.setPlaybackRate}
             onClose={closeSpeed}
             controlsRef={precisionActionsRef}
+            dismissOnOutside={false}
           /> : null}
           </div>
         </>}
         onMagnifierOpen={() => {
           onPrecisionInteraction?.();
-          player.pause();
           dispatchPrecision('open');
         }}
         onMagnifierClose={closePrecision}
@@ -144,7 +162,7 @@ export function AudioPlayerBar({
       {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
         {player.playbackStatus}
       </div> : null}
-      {bookmarkError || player.playbackError ? <div className="audio-playback-error" role="alert">
+      {bookmarkError || (!onPlaybackErrorChange && player.playbackError) ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
         {bookmarkError ? <button type="button" className="audio-transport-button" title="Retry bookmarks" aria-label="Retry bookmarks"
           disabled={player.bookmarksBusy} onClick={player.retryBookmarks}><RotateCw size={16} aria-hidden="true" /></button> : null}

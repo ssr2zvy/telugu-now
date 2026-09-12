@@ -69,7 +69,7 @@ export function useObservationTypography(
     let resizeObserver: ResizeObserver | null = null;
     const fit = async () => {
       const containerRect = container.getBoundingClientRect();
-      const audioBounds = container.querySelector('.audio-player-bar')?.getBoundingClientRect();
+      const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
       const audioTop = audioBounds?.top ?? Infinity;
       if (containerRect.width === fittedWidth && containerRect.height === fittedHeight && audioTop === fittedAudioTop) return;
       fittedWidth = containerRect.width;

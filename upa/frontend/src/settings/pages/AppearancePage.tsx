@@ -79,7 +79,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             {(['above', 'below'] as const).map(position => (
               <label key={position}>
                 <input type="radio" name="magnifier-position" value={position} checked={appearance.magnifierPosition === position} onChange={() => updateAppearance({ magnifierPosition: position })} />
-                <span>{position === 'below' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'below' ? text('Play above / magnifier below', 'ప్లే పైన / మాగ్నిఫైయర్ కింద') : text('Play below / magnifier above', 'ప్లే కింద / మాగ్నిఫైయర్ పైన')}</span>
+                <span>{position === 'below' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'below' ? text('Bar above / magnifier below', 'బార్ పైన / మాగ్నిఫైయర్ కింద') : text('Bar below / magnifier above', 'బార్ కింద / మాగ్నిఫైయర్ పైన')}</span>
               </label>
             ))}
           </div>
