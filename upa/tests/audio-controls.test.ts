@@ -67,7 +67,7 @@ test('precision actions mount and unmount in the same branch as the magnifier', 
     }));
     assert.equal(markup.includes('class="audio-magnifier"'), open);
     assert.equal(markup.includes('class="audio-precision-panel"'), open);
-    assert.doesNotMatch(markup, /class="audio-scrubber-window"/);
+    assert.equal(markup.includes('class="audio-scrubber-window"'), open);
     assert.equal(markup.includes('class="audio-precision-actions"'), open);
     assert.equal(markup.includes('aria-label="Playback speed"'), open);
     assert.equal(markup.includes('aria-label="Bookmarks"'), open);
@@ -112,7 +112,7 @@ test('the bar and dot share icon glass with no play-button row', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /\.audio-play-button/);
   const paint = css.match(/(\.audio-scrubber::before,[^{]+)\{ background: var\(--audio-glass-gradient\);/);
-  for (const selector of ['audio-scrubber-progress', 'audio-scrubber-thumb', 'audio-scrubber-bookmark',
+  for (const selector of ['audio-scrubber-progress', 'audio-scrubber-thumb', 'audio-scrubber-bookmark', 'audio-scrubber-window',
     'audio-magnifier-bar', 'audio-magnifier-playhead', 'audio-speed-track::before', 'audio-speed-fill', 'audio-speed-thumb']) {
     assert.ok(paint?.[1]?.includes(`.${selector}`), `${selector} must share the glass gradient`);
   }
@@ -129,9 +129,8 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
   assert.doesNotMatch(css, /\.audio-magnifier::before/);
   assert.match(css, /\.audio-magnifier \{[^}]*padding: 0 12px; background: transparent/);
-  assert.doesNotMatch(css, /\.audio-scrubber-window/);
-  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -31px;[^}]*height: 103px; background: var\(--audio-glass-gradient\) rgb\(0 0 0 \/ \.16\); opacity: \.4;[^}]*var\(--audio-window-end\) 14px/);
-  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 139px;[^}]*var\(--audio-window-end\) calc\(100% - 14px\)/);
+  assert.doesNotMatch(css, /\.audio-precision-panel::before/);
+  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 4px; bottom: 4px; border-radius: 4px; opacity: \.4; \}/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);
@@ -175,8 +174,5 @@ test('precision spacing moves the waveform toward the rail and time toward actio
     assert.ok(timeBottom <= actionsTop, 'time must not overlap the action targets');
     assert.ok(actionsCenter - (timeTop + timeBottom) / 2 < actionsCenter - previousTimeCenter);
     assert.ok(actionsTop + 44 <= 164, 'all touch targets fit the unchanged reserved player height');
-    const surface = rule(isAbove ? `${above} .audio-precision-panel::before` : '.audio-precision-panel::before');
-    const neckTop = panelTop + pixels(surface, 'top') + (isAbove ? pixels(surface, 'height') - 14 : 0);
-    assert.equal(neckTop, railCenter - 7, 'the shared 14px neck stays centered on the source rail');
   }
 });

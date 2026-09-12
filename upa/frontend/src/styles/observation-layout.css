@@ -29,18 +29,15 @@
 .audio-paint-definitions { position: absolute; pointer-events: none; }
 .audio-transport-button svg { stroke: var(--audio-icon-paint); filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)); }
 .audio-transport-button .control-icon-fill { fill: var(--audio-icon-paint); stroke: none; }
-.audio-precision-panel { position: relative; isolation: isolate; grid-row: 2; grid-column: 1 / -1; display: grid; grid-template-rows: 72px 44px; justify-items: center; margin-inline: 6px; min-width: 0; }
+.audio-precision-panel { position: relative; grid-row: 2; grid-column: 1 / -1; display: grid; grid-template-rows: 72px 44px; justify-items: center; margin-inline: 6px; min-width: 0; }
 .audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-row: 1; grid-template-rows: 64px 44px; align-self: end; }
-/* The 14px neck highlights the rail inside the same paint layer as the connector and lens. */
-.audio-precision-panel::before { content: ''; position: absolute; z-index: -1; top: -31px; left: 0; right: 0; height: 103px; background: var(--audio-glass-gradient) rgb(0 0 0 / .16); opacity: .4; clip-path: var(--audio-precision-clip-below); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 7px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 7px, #000 calc(100% - 12px), transparent); pointer-events: none; }
-.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel::before { top: 0; height: 139px; clip-path: var(--audio-precision-clip-above); -webkit-mask-image: linear-gradient(to top, transparent, #000 7px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to top, transparent, #000 7px, #000 calc(100% - 12px), transparent); }
 .audio-precision-actions { position: relative; grid-row: 2; display: grid; grid-template-columns: repeat(2, 48px); justify-items: center; align-items: center; width: 96px; }
 .audio-precision-actions .audio-transport-button { height: 44px; }
 .audio-playback-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .audio-playback-error { grid-row: 3; grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; text-align: left; }
 .audio-reader-error { position: absolute; z-index: 7; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(416px, calc(100vw - 80px)); padding: 8px 10px; border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; text-align: center; }
 .audio-scrubber-wrap, .audio-magnifier, .audio-speed-popover { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.audio-scrubber-thumb, .audio-scrubber-progress, .audio-scrubber-bookmark, .audio-magnifier-bar, .audio-magnifier-playhead { pointer-events: none; }
+.audio-scrubber-thumb, .audio-scrubber-progress, .audio-scrubber-bookmark, .audio-scrubber-window, .audio-magnifier-bar, .audio-magnifier-playhead { pointer-events: none; }
 .audio-scrubber-wrap { display: contents; }
 .audio-scrubber { grid-row: 1; grid-column: 1 / -1; position: relative; display: flex; align-items: center; height: 48px; margin-inline: 6px; touch-action: none; cursor: pointer; }
 .audio-player-bar[data-magnifier-position="above"] .audio-scrubber { grid-row: 2; }
@@ -48,6 +45,7 @@
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
 .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
 .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
+.audio-scrubber-window { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; opacity: .4; }
 .audio-magnifier { position: relative; grid-row: 1; width: 100%; min-width: 0; padding: 0 12px; background: transparent; color: inherit; }
 .audio-magnifier-time { margin-top: 10px; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { margin-top: 6px; line-height: 14px; }
@@ -62,7 +60,7 @@
 .audio-speed-thumb { position: absolute; left: 21.5px; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, 50%); }
 .audio-speed-readout { font-family: ui-monospace, monospace; font-size: .72rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .audio-scrubber::before, .audio-scrubber-progress, .audio-magnifier-track::before,
-.audio-scrubber-thumb, .audio-scrubber-bookmark, .audio-magnifier-bar, .audio-magnifier-playhead, .audio-speed-track::before, .audio-speed-fill, .audio-speed-thumb { background: var(--audio-glass-gradient); box-shadow: inset 0 .5px 0 var(--audio-glass-edge); }
+.audio-scrubber-thumb, .audio-scrubber-bookmark, .audio-scrubber-window, .audio-magnifier-bar, .audio-magnifier-playhead, .audio-speed-track::before, .audio-speed-fill, .audio-speed-thumb { background: var(--audio-glass-gradient); box-shadow: inset 0 .5px 0 var(--audio-glass-edge); }
 .audio-magnifier-time, .audio-speed-readout { background: var(--audio-glass-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
 @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
