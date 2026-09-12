@@ -20,6 +20,7 @@ export interface AppearanceSettings {
   textOffset: number;
   audioOffset: number;
   magnifierPosition: 'above' | 'below';
+  scrollMode: boolean;
   autoFadeSeconds: number;
   fonts: ObservationFontFamily[];
 }
@@ -32,6 +33,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   textOffset: 0,
   audioOffset: 0,
   magnifierPosition: 'below',
+  scrollMode: true,
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
@@ -55,6 +57,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     audioOffset: parseOffset(candidate.audioOffset),
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
+    scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,
     autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
       ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
       : DEFAULT_APPEARANCE.autoFadeSeconds,

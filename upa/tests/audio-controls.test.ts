@@ -128,12 +128,55 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /\.audio-precision-actions \{[^}]*grid-row: 2;[^}]*grid-template-columns: repeat\(2, 48px\)/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
   assert.doesNotMatch(css, /\.audio-magnifier::before/);
-  assert.match(css, /\.audio-magnifier \{[^}]*padding: 4px 12px; background: transparent/);
+  assert.match(css, /\.audio-magnifier \{[^}]*padding: 0 12px; background: transparent/);
   assert.doesNotMatch(css, /\.audio-scrubber-window/);
-  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -31px;[^}]*height: 103px; background: var\(--audio-glass-gradient\);[^}]*var\(--audio-window-end\) 14px/);
-  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 147px;[^}]*var\(--audio-window-end\) calc\(100% - 14px\)/);
+  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -31px;[^}]*height: 103px; background: var\(--audio-glass-gradient\) rgb\(0 0 0 \/ \.16\); opacity: \.4;[^}]*var\(--audio-window-end\) 14px/);
+  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 139px;[^}]*var\(--audio-window-end\) calc\(100% - 14px\)/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);
   assert.match(css, /\.audio-glass-icon \{[^}]*mask-image: var\(--audio-icon-mask\)[^}]*backdrop-filter: blur\(5px\)/);
+});
+
+test('precision spacing moves the waveform toward the rail and time toward actions without moving the player', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  const rule = (selector: string) => css.split(`\n${selector} {`)[1]!.split('}')[0]!;
+  const pixels = (body: string, property: string) =>
+    Number(body.match(new RegExp(`(?:^|;)\\s*${property}: (-?\\d+)(?:px)?;`))?.[1]);
+  const rows = (selector: string) => rule(selector).match(/grid-template-rows: (\d+)px (\d+)px/)!.slice(1).map(Number);
+  const above = '.audio-player-bar[data-magnifier-position="above"]';
+  const trackHeight = pixels(rule('.audio-magnifier-track'), 'height');
+  assert.equal(trackHeight, 44);
+  assert.equal(pixels(rule('.audio-scrubber'), 'height'), 48);
+  assert.equal(pixels(rule('.audio-precision-actions .audio-transport-button'), 'height'), 44);
+  assert.equal(pixels(rule('.audio-transport-button'), 'width'), 48);
+  assert.match(rule('.audio-magnifier'), /padding: 0 12px/);
+  assert.match(rule(`${above} .audio-precision-panel`), /align-self: end/);
+  for (const position of ['below', 'above'] as const) {
+    const isAbove = position === 'above';
+    const playerRows = rows(isAbove ? above : '.audio-player-bar');
+    const panelRows = rows(isAbove ? `${above} .audio-precision-panel` : '.audio-precision-panel');
+    assert.deepEqual(playerRows, isAbove ? [116, 48] : [48, 116]);
+    assert.deepEqual(panelRows, isAbove ? [64, 44] : [72, 44]);
+    const panelTop = isAbove ? playerRows[0]! - panelRows[0]! - panelRows[1]! : playerRows[0]!;
+    const railCenter = isAbove ? 116 + 24 : 24;
+    const waveformCenter: number = panelTop + trackHeight / 2;
+    const timeRule = rule(isAbove ? `${above} .audio-magnifier-time` : '.audio-magnifier-time');
+    const timeTop = panelTop + trackHeight + pixels(timeRule, 'margin-top');
+    const timeBottom = timeTop + pixels(timeRule, 'line-height');
+    const actionsTop = panelTop + panelRows[0]!;
+    const actionsCenter = actionsTop + 22;
+    const previousWaveformCenter = isAbove ? 26 : 74;
+    const previousTimeTop = isAbove ? 50 : 98;
+    const previousTimeCenter = previousTimeTop + 9;
+    assert.equal(Math.abs(railCenter - waveformCenter), Math.abs(railCenter - previousWaveformCenter) - 4);
+    assert.ok(timeTop > previousTimeTop);
+    assert.ok(timeTop - (panelTop + trackHeight) > 2);
+    assert.ok(timeBottom <= actionsTop, 'time must not overlap the action targets');
+    assert.ok(actionsCenter - (timeTop + timeBottom) / 2 < actionsCenter - previousTimeCenter);
+    assert.ok(actionsTop + 44 <= 164, 'all touch targets fit the unchanged reserved player height');
+    const surface = rule(isAbove ? `${above} .audio-precision-panel::before` : '.audio-precision-panel::before');
+    const neckTop = panelTop + pixels(surface, 'top') + (isAbove ? pixels(surface, 'height') - 14 : 0);
+    assert.equal(neckTop, railCenter - 7, 'the shared 14px neck stays centered on the source rail');
+  }
 });

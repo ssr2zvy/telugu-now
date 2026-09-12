@@ -93,6 +93,21 @@ test('profile preference routes validate profiles and payloads and preserve save
   } finally { database.close(); }
 });
 
+test('scroll mode defaults on for old profiles and opt-out survives unrelated preference updates', () => {
+  const database = fixture();
+  try {
+    const store = profilePreferencesStore(database);
+    store.update('001', { appearance: { fontScale: 65 } });
+    assert.equal(store.get('001').appearance?.scrollMode, true);
+    store.update('001', { appearance: { scrollMode: false } });
+    store.update('001', { appearance: { audioOffset: -20 } });
+    const saved = profilePreferencesStore(database).get('001').appearance;
+    assert.equal(saved?.scrollMode, false);
+    assert.equal(saved?.fontScale, 65);
+    assert.equal(saved?.audioOffset, -20);
+  } finally { database.close(); }
+});
+
 test('regeneration migration defaults off and preserves existing profile preferences', () => {
   const database = fixture();
   try {

@@ -68,14 +68,20 @@ export function AudioPlayerBar({
   useImperativeHandle(ref, () => ({
     togglePlay: player.togglePlay,
     dismissPrecision: () => {
-      if (!magnifierOpen) return false;
+      if (!controlsVisible || !magnifierOpen) return false;
       closePrecision();
       return true;
     },
   }));
   useEffect(() => {
-    if (!controlsVisible) dispatchPrecision('close');
-  }, [controlsVisible]);
+    if (controlsVisible || !appearance.scrollMode) {
+      dispatchPrecision('close');
+      return;
+    }
+    // Keep precision mounted for the bar's fade-out, but never restore it on reveal.
+    const timer = window.setTimeout(() => dispatchPrecision('close'), 180);
+    return () => window.clearTimeout(timer);
+  }, [controlsVisible, appearance.scrollMode]);
   useEffect(() => { dispatchPrecision('close'); }, [observationId]);
   const bookmarkError = magnifierOpen ? player.bookmarkError : null;
 

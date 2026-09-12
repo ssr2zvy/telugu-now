@@ -86,6 +86,15 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
         </fieldset>
       </section>
       <section className="appearance-section">
+        <h2>{text('Audio controls', 'ఆడియో నియంత్రణలు')}</h2>
+        <label className="appearance-surface-auto">
+          <span>{text('Scroll mode', 'స్క్రోల్ మోడ్')}</span>
+          <input type="checkbox" role="switch" checked={appearance.scrollMode} onChange={event => updateAppearance({ scrollMode: event.target.checked })} />
+        </label>
+        <p>{text('Swipe left or right to reveal the audio bar; reverse direction to hide it. Tap anywhere to play or pause. An outside tap dismisses an open magnifier first. Double-tap controls stay the same.',
+          'ఆడియో బార్ కోసం ఎడమకు లేదా కుడికి స్వైప్ చేయండి; దాచడానికి వ్యతిరేక దిశలో స్వైప్ చేయండి. ప్లే లేదా పాజ్ కోసం ఎక్కడైనా తాకండి. మాగ్నిఫైయర్ తెరిచి ఉంటే బయట తాకడం ముందు దానిని మూసివేస్తుంది. రెండుసార్లు తాకే నియంత్రణలు మారవు.')}</p>
+      </section>
+      <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Auto-fade', 'స్వయంచాలకంగా దాచడం')}</h2>
           <button type="button" className="appearance-icon-action" title={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} aria-label={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ autoFadeSeconds: DEFAULT_APPEARANCE.autoFadeSeconds })}><RotateCcw aria-hidden="true" /></button>

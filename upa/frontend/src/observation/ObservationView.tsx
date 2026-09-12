@@ -22,6 +22,8 @@ import { WordProfile } from './word/WordProfile';
 import { wordAtOffset } from './word/word-analysis';
 import { useAppearance } from '../appearance';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
+import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
+import { useReaderScroll } from './useReaderScroll';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -51,6 +53,14 @@ export function ObservationView({
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
+  const revealedBy = useRef<ScrollDirection | null>(null);
+  const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
+    taps.cancel();
+    const visible = scrollControlsVisible(controlsVisible, revealedBy.current, direction);
+    if (!controlsVisible) revealedBy.current = direction;
+    setControlsVisible(visible);
+    setPrecisionInteraction(value => value + 1);
+  }, () => taps.cancel());
   const toggleSettings = () => {
     window.getSelection()?.removeAllRanges();
     setSettingsVisible(visible => !visible);
@@ -85,8 +95,9 @@ export function ObservationView({
   useEffect(() => {
     taps.cancel();
     setControlsVisible(false);
+    revealedBy.current = null;
     return () => taps.cancel();
-  }, [taps, observation?.id]);
+  }, [taps, observation?.id, appearance.scrollMode]);
   const typography =
     useObservationTypography(
       observation,
@@ -138,6 +149,8 @@ export function ObservationView({
   return (
     <main
       ref={screenRef}
+      {...scrollHandlers}
+      data-scroll-mode={appearance.scrollMode}
       className={
         `app-shell observation-screen ${
           controlsVisible
@@ -147,7 +160,10 @@ export function ObservationView({
       }
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
-          if (event.target.closest('.audio-player-bar')) setControlsVisible(true);
+          if (event.target.closest('.audio-player-bar')) {
+            if (!controlsVisible) revealedBy.current = null;
+            setControlsVisible(true);
+          }
           if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
@@ -158,12 +174,17 @@ export function ObservationView({
           return;
         }
         if (event.target instanceof Element) {
-          if (event.target.closest('.audio-player-bar')) setControlsVisible(true);
+          if (event.target.closest('.audio-player-bar')) {
+            if (!controlsVisible) revealedBy.current = null;
+            setControlsVisible(true);
+          }
           if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       tabIndex={0}
-      aria-label="Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls."
+      aria-label={appearance.scrollMode
+        ? 'Reader. Tap to play or pause. Swipe left or right to reveal audio controls; reverse to hide them.'
+        : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onClick={(event) => {
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
@@ -182,7 +203,9 @@ export function ObservationView({
           } else if (region.double === 'center') toggleSettings();
           else if (region.double === 'back' ? canBack : canNext) void move(region.double);
         }, () => {
-          if (region.single === 'playback') playerRef.current?.togglePlay();
+          if (appearance.scrollMode) {
+            if (!playerRef.current?.dismissPrecision()) playerRef.current?.togglePlay();
+          } else if (region.single === 'playback') playerRef.current?.togglePlay();
           else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
         });
       }}

@@ -102,10 +102,10 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const palette = appearance.gradient.map(color => rgbToHsl(colorChannels(color)));
   const hex = (channels: number[]) => `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
   const positions = [0, 0.5, 1];
-  // Keep translucent edges and a lit center, with a restrained contrast spread.
+  // Halve the edge-to-center contrast without washing out the whole control.
   const centerWeight = (position: number) => 1 - Math.abs(position - 0.5) * 2;
-  const blendAt = (position: number) => 0.16 + 0.46 * centerWeight(position);
-  const opacityAt = (position: number) => 0.20 + 0.39 * centerWeight(position);
+  const blendAt = (position: number) => 0.275 + 0.23 * centerWeight(position);
+  const opacityAt = (position: number) => 0.30 + 0.195 * centerWeight(position);
   const shades = palette.map(([hue, saturation, lightness], index) =>
     hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;
@@ -115,7 +115,7 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
     stops,
     gradient: `linear-gradient(135deg, ${stops.map(stop =>
       `${stop.color}${Math.round(stop.opacity * 255).toString(16).padStart(2, '0')} ${stop.offset * 100}%`).join(', ')})`,
-    edge: `${highlight}40`,
+    edge: `${highlight}20`,
   };
 }
 
