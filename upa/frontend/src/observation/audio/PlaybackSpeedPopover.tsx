@@ -30,11 +30,10 @@ export function PlaybackSpeedPopover({
 
   useClickOutsideToClose(dismissOnOutside, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
 
-  const rateFromClientY = (clientY: number): number => {
+  const rateFromClientX = (clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect || rect.height <= 0) return playbackRate;
-    // The track reads bottom-to-top: its bottom edge is the minimum speed.
-    const ratio = clamp(0, 1, (rect.bottom - clientY) / rect.height);
+    if (!rect || rect.width <= 0) return playbackRate;
+    const ratio = clamp(0, 1, (clientX - rect.left) / rect.width);
     const { playbackRateMin, playbackRateMax, playbackRateStep } = AUDIO_PLAYER_PRESENTATION;
     const raw = playbackRateMin + ratio * (playbackRateMax - playbackRateMin);
     const stepped = Math.round(raw / playbackRateStep) * playbackRateStep;
@@ -52,11 +51,11 @@ export function PlaybackSpeedPopover({
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    onChange(rateFromClientY(event.clientY));
+    onChange(rateFromClientX(event.clientX));
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onChange(rateFromClientY(event.clientY));
+    onChange(rateFromClientX(event.clientX));
   };
 
   const fraction = clamp(
@@ -80,12 +79,17 @@ export function PlaybackSpeedPopover({
         className="audio-speed-track"
         role="slider"
         tabIndex={0}
-        aria-orientation="vertical"
+        aria-orientation="horizontal"
         onKeyDown={(event) => {
-          if (event.key === 'Escape') onClose();
-          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          if (event.key === 'Escape') {
             event.preventDefault();
-            onChange(clamp(AUDIO_PLAYER_PRESENTATION.playbackRateMin, AUDIO_PLAYER_PRESENTATION.playbackRateMax, Number((playbackRate + (event.key === 'ArrowUp' ? 0.05 : -0.05)).toFixed(2))));
+            event.stopPropagation();
+            onClose();
+          }
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            event.preventDefault();
+            const increase = event.key === 'ArrowRight' || event.key === 'ArrowUp';
+            onChange(clamp(AUDIO_PLAYER_PRESENTATION.playbackRateMin, AUDIO_PLAYER_PRESENTATION.playbackRateMax, Number((playbackRate + (increase ? 0.05 : -0.05)).toFixed(2))));
           }
           if (event.key === 'Home' || event.key === 'End') {
             event.preventDefault();
@@ -101,8 +105,8 @@ export function PlaybackSpeedPopover({
         onPointerUp={releaseCapture}
         onPointerCancel={releaseCapture}
       >
-        <div className="audio-speed-fill" style={{ height: `${fraction * 100}%` }} />
-        <div className="audio-speed-thumb" style={{ bottom: `${fraction * 100}%` }} />
+        <div className="audio-speed-fill" style={{ width: `${fraction * 100}%` }} />
+        <div className="audio-speed-thumb" style={{ left: `${fraction * 100}%` }} />
       </div>
       <div className="audio-speed-readout">{playbackRate.toFixed(2)}x</div>
     </div>
