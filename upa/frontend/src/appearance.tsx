@@ -74,28 +74,49 @@ export function randomAppearanceColors(random = Math.random): Pick<AppearanceSet
 
 export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
   const backgrounds = appearance.gradient.map(colorChannels);
-  const chroma = (channels: number[]) => Math.max(...channels) - Math.min(...channels);
-  const average = [0, 1, 2].map(channel => backgrounds.reduce((sum, color) => sum + color[channel]!, 0) / backgrounds.length);
-  const mostColorful = backgrounds.reduce((best, color) => chroma(color) > chroma(best) ? color : best);
-  // Opposing gradient hues can average to gray. Keep a palette hue instead of
-  // losing all color, then shade it only toward black or white for visibility.
-  const base = chroma(average) < chroma(mostColorful) / 2 ? mostColorful : average;
-  const backgroundLevels = [...backgrounds, average].map(luminance);
-  let bestColor = base;
-  let bestContrast = 0;
-  for (let step = 12; step <= 85; step += 1) {
-    for (const target of [0, 255]) {
-      const shade = base.map(channel => Math.round(channel + (target - channel) * step / 100));
+  const levels = backgrounds.map(luminance);
+  const colored = backgrounds.filter(color => Math.max(...color) > Math.min(...color));
+  const endpoints = [...(colored.length ? colored : backgrounds)].sort((a, b) => luminance(a) - luminance(b));
+  // Shading RGB directly desaturates pale colors. Change HSL lightness instead,
+  // retaining an actual gradient endpoint's hue and saturation beyond its range.
+  const candidates = [endpoints[0]!, endpoints.at(-1)!].map((base, index) => {
+    const [hue, saturation, lightness] = rgbToHsl(base);
+    let best = base;
+    let bestContrast = 0;
+    for (let step = 0.12; step <= 1; step += 0.01) {
+      const shade = hslToRgb(hue, saturation, Math.max(0.02, Math.min(0.98, lightness + (index ? step : -step))));
       const level = luminance(shade);
-      const contrast = Math.min(...backgroundLevels.map(background => contrastRatio(level, background)));
-      if (contrast > bestContrast) {
-        bestColor = shade;
-        bestContrast = contrast;
-      }
-      if (contrast >= 2.4) return `#${shade.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+      if (index ? level <= Math.max(...levels) : level >= Math.min(...levels)) continue;
+      const contrast = Math.min(...levels.map(background => contrastRatio(level, background)));
+      if (contrast > bestContrast) { best = shade; bestContrast = contrast; }
+      if (contrast >= 2.4) break;
     }
-  }
-  return `#${bestColor.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+    return { color: best, contrast: bestContrast };
+  });
+  const best = candidates.sort((a, b) => b.contrast - a.contrast)[0]!;
+  return `#${best.color.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function rgbToHsl(channels: number[]): [number, number, number] {
+  const red = channels[0]! / 255;
+  const green = channels[1]! / 255;
+  const blue = channels[2]! / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+  if (!delta) return [0, 0, lightness];
+  const hue = max === red ? (green - blue) / delta + (green < blue ? 6 : 0)
+    : max === green ? (blue - red) / delta + 2 : (red - green) / delta + 4;
+  return [hue / 6, delta / (1 - Math.abs(2 * lightness - 1)), lightness];
+}
+
+function hslToRgb(hue: number, saturation: number, lightness: number): number[] {
+  const amplitude = saturation * Math.min(lightness, 1 - lightness);
+  return [0, 8, 4].map(offset => {
+    const phase = (offset + hue * 12) % 12;
+    return Math.round(255 * (lightness - amplitude * Math.max(-1, Math.min(phase - 3, 9 - phase, 1))));
+  });
 }
 
 const AppearanceContext = createContext<{

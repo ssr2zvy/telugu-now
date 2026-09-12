@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AudioScrubber } from '../frontend/src/observation/audio/AudioScrubber';
@@ -42,4 +43,17 @@ test('player starts with Play above and separate inline speed and bookmark contr
   assert.match(markup, /audio-speed-button/);
   assert.match(markup, /audio-bookmark-button/);
   assert.doesNotMatch(markup, /audio-primary-controls|class="audio-magnifier"/);
+});
+
+test('Play is centered over the full player and tracks do not wash their palette color out', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  const play = css.match(/^\.audio-play-button \{([^}]+)\}/m)?.[1];
+  assert.match(play ?? '', /grid-column: 1 \/ -1/);
+  assert.match(play ?? '', /justify-self: center/);
+  assert.match(play ?? '', /grid-row: 1/);
+  for (const selector of ['audio-scrubber::before', 'audio-magnifier-bar', 'audio-speed-track::before']) {
+    const rule = css.split('\n').find(line => line.startsWith(`.${selector} {`));
+    assert.match(rule ?? '', /background: currentColor/);
+    assert.doesNotMatch(rule ?? '', /opacity:/);
+  }
 });

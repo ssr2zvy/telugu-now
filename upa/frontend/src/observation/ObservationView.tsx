@@ -20,6 +20,7 @@ import {
 import { WordProfile } from './word/WordProfile';
 import { wordAtOffset } from './word/word-analysis';
 import { useAppearance } from '../appearance';
+import { ReaderTaps } from './reader-taps';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -44,10 +45,9 @@ export function ObservationView({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
-  const controlsBeforeClick = useRef(false);
+  const [taps] = useState(() => new ReaderTaps(() => setControlsVisible(visible => !visible)));
   const toggleSettings = () => {
     window.getSelection()?.removeAllRanges();
-    setControlsVisible(controlsBeforeClick.current);
     setSettingsVisible(visible => !visible);
   };
   useEffect(() => {
@@ -77,6 +77,7 @@ export function ObservationView({
   }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds]);
   const observation =
     state?.currentObservation ?? null;
+  useEffect(() => () => taps.cancel(), [taps, observation?.id]);
   const typography =
     useObservationTypography(
       observation,
@@ -95,6 +96,43 @@ export function ObservationView({
     if (moved) {
       setControlsVisible(false);
       setSettingsVisible(false);
+    }
+  };
+  const centerDoubleTap = (event: MouseEvent<HTMLElement>) => {
+    window.getSelection()?.removeAllRanges();
+    const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
+    if (!element || !observation) {
+      toggleSettings();
+      return;
+    }
+    const browserDocument = document as Document & {
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    const position = browserDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
+    const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
+    const node = position?.offsetNode ?? range?.startContainer;
+    const offset = position?.offset ?? range?.startOffset;
+    if (!node || node !== element.firstChild || offset === undefined) {
+      toggleSettings();
+      return;
+    }
+    const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
+    const segment = word ? [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
+      .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length) : null;
+    if (!segment || !word) {
+      toggleSettings();
+      return;
+    }
+    const hit = document.createRange();
+    hit.setStart(node, segment.index);
+    hit.setEnd(node, segment.index + segment.segment.length);
+    const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+    if (inside) {
+      setControlsVisible(false);
+      setSelectedWord({ word, observationId: observation.id });
+    } else {
+      toggleSettings();
     }
   };
   return (
@@ -120,26 +158,24 @@ export function ObservationView({
         }
       }}
       onClick={(event) => {
-        if (event.detail > 1) {
-          setControlsVisible(controlsBeforeClick.current);
+        const center = typography.containerRef.current?.getBoundingClientRect();
+        if (!center) return;
+        const region = event.clientX < center.left ? 'back' : event.clientX > center.right ? 'next' : 'center';
+        if (!window.getSelection()?.isCollapsed && !taps.matches(region, event.clientX, event.clientY)) {
+          taps.cancel();
           return;
         }
-        if (!window.getSelection()?.isCollapsed) return;
-        controlsBeforeClick.current = controlsVisible;
-        setControlsVisible((visible) => !visible);
+        taps.tap(region, event.clientX, event.clientY, () => {
+          if (region === 'center') centerDoubleTap(event);
+          else if (region === 'back' ? canBack : canNext) void move(region);
+        });
       }}
       onMouseDownCapture={(event) => {
         if (event.button !== 0 || event.detail < 2) return;
         if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile')) return;
         event.preventDefault();
       }}
-      onDoubleClick={(event) => {
-        const center = screenRef.current?.querySelector('.observation-center')?.getBoundingClientRect();
-        if (center && event.clientX >= center.left && event.clientX <= center.right) {
-          event.preventDefault();
-          toggleSettings();
-        }
-      }}
+      onDoubleClick={(event) => event.preventDefault()}
     >
       {navigationEvent ? (
         <div
@@ -168,66 +204,17 @@ export function ObservationView({
               if (canBack) void move('back');
             }
           }}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            if (canBack) void move('back');
-          }}
         />
       </div>
       <section
         ref={typography.containerRef}
         className="observation-center"
-        onDoubleClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          toggleSettings();
-        }}
       >
         {observation ? (
           <div
             ref={typography.textRef}
             className="observation-text"
             style={typography.style}
-            onDoubleClick={event => {
-              event.preventDefault();
-              event.stopPropagation();
-              window.getSelection()?.removeAllRanges();
-              const element = event.currentTarget;
-              const browserDocument = document as Document & {
-                caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-                caretRangeFromPoint?: (x: number, y: number) => Range | null;
-              };
-              const position = browserDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
-              const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
-              const node = position?.offsetNode ?? range?.startContainer;
-              const offset = position?.offset ?? range?.startOffset;
-              if (!node || node !== element.firstChild || offset === undefined) {
-                toggleSettings();
-                return;
-              }
-              const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
-              if (!word) {
-                toggleSettings();
-                return;
-              }
-              const segment = [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
-                .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length);
-              if (!segment) {
-                toggleSettings();
-                return;
-              }
-              const hit = document.createRange();
-              hit.setStart(node, segment.index);
-              hit.setEnd(node, segment.index + segment.segment.length);
-              const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
-              if (inside) {
-                window.getSelection()?.removeAllRanges();
-                setControlsVisible(false);
-                setSelectedWord({ word, observationId: observation.id });
-              } else {
-                toggleSettings();
-              }
-            }}
           >
             {observation.text}
           </div>
@@ -276,10 +263,6 @@ export function ObservationView({
               event.stopPropagation();
               if (canNext) void move('next');
             }
-          }}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            if (canNext) void move('next');
           }}
         />
       </div>
