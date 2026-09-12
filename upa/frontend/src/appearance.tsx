@@ -101,20 +101,25 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const targetLightness = rgbToHsl(colorChannels(appearanceAudioColor(appearance)))[2];
   const palette = appearance.gradient.map(color => rgbToHsl(colorChannels(color)));
   const hex = (channels: number[]) => `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
-  const shades = palette.map(([hue, saturation, lightness]) =>
-    hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * 0.72)));
+  const positions = [0, 0.5, 1];
+  // Edge stops stay close to their source gradient color/lightness and are drawn
+  // near-transparent so controls melt into the surrounding backdrop at their
+  // borders; the center stop leans further toward the accent lightness at much
+  // higher opacity so the glass reads as distinctly "lit" through the middle
+  // instead of one flat tint end to end.
+  const centerWeight = (position: number) => 1 - Math.abs(position - 0.5) * 2;
+  const blendAt = (position: number) => 0.16 + 0.62 * centerWeight(position);
+  const opacityAt = (position: number) => 0.2 + 0.56 * centerWeight(position);
+  const shades = palette.map(([hue, saturation, lightness], index) =>
+    hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;
-  const highlight = hex(hslToRgb(hue, saturation, Math.min(0.96, Math.max(lightness, targetLightness) + 0.08)));
-  const stops = [
-    { offset: 0, color: shades[0]!, opacity: 0.62 },
-    { offset: 0.5, color: shades[1]!, opacity: 0.62 },
-    { offset: 1, color: shades[2]!, opacity: 0.62 },
-  ];
+  const highlight = hex(hslToRgb(hue, saturation, Math.min(0.96, Math.max(lightness, targetLightness) + 0.14)));
+  const stops = positions.map((offset, index) => ({ offset, color: shades[index]!, opacity: opacityAt(offset) }));
   return {
     stops,
     gradient: `linear-gradient(135deg, ${stops.map(stop =>
       `${stop.color}${Math.round(stop.opacity * 255).toString(16).padStart(2, '0')} ${stop.offset * 100}%`).join(', ')})`,
-    edge: `${highlight}33`,
+    edge: `${highlight}40`,
   };
 }
 
