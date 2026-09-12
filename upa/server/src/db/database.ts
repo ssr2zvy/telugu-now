@@ -198,6 +198,40 @@ if (!columnExists('observations', 'cache_hit')) {
   `);
 }
 
+for (const [column, definition] of [
+  ['audio_validated_at', 'INTEGER'],
+  ['preparation_attempts', 'INTEGER NOT NULL DEFAULT 0'],
+  ['preparation_retry_at', 'INTEGER'],
+  ['preparation_error', 'TEXT'],
+  ['repeat_snapshot_json', 'TEXT'],
+] as const) {
+  if (!columnExists('observations', column)) db.exec(`ALTER TABLE observations ADD COLUMN ${column} ${definition}`);
+}
+
+if (!columnExists('profiles', 'repeat_tracking_complete')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN repeat_tracking_complete INTEGER NOT NULL DEFAULT 0');
+}
+
+if (!tableSql('recording_displays')) {
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE recording_displays (
+        profile_code TEXT NOT NULL REFERENCES profiles(code) ON DELETE CASCADE,
+        source_id TEXT NOT NULL, source_key TEXT NOT NULL, text TEXT NOT NULL,
+        occurrence_count INTEGER NOT NULL, last_seen_at INTEGER NOT NULL,
+        PRIMARY KEY (profile_code, source_id, source_key, text)
+      ) WITHOUT ROWID;
+      INSERT INTO recording_displays
+        SELECT h.profile_code, o.source_id, o.source_key, o.text,
+               COUNT(DISTINCT o.id), MAX(h.absolute_started_at)
+        FROM history_entries h JOIN observations o ON o.id = h.observation_id
+        WHERE o.text IS NOT NULL
+        GROUP BY h.profile_code, o.source_id, o.source_key, o.text;
+    `);
+  })();
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_recording_displays_text ON recording_displays(profile_code, text)');
+
 if (!columnExists('observation_acquisitions', 'selection_snapshot_json')) {
   db.exec(`
     ALTER TABLE observation_acquisitions
@@ -321,6 +355,19 @@ db.prepare(`
       request_duration_ms = NULL,
       cache_hit = NULL
   WHERE status = 'preparing'
+`).run();
+
+// Ready queue entries survive restarts, but their objects may not. Recheck metadata
+// (and reuse only identity-matched decode results) before exposing them as ready.
+db.prepare(`
+  UPDATE observations SET status = 'pending', audio_validated_at = NULL,
+    preparation_attempts = 0, preparation_retry_at = NULL
+  WHERE status = 'ready' AND id IN (SELECT observation_id FROM queue_items)
+    AND (source_id IN ('fleurs-te', 'shrutilipi-te', 'indicvoices-te') OR EXISTS (
+      SELECT 1 FROM source_records sr, json_each(sr.media_json) media
+      WHERE sr.source_id = observations.source_id AND sr.source_key = observations.source_key
+        AND json_extract(media.value, '$.kind') = 'audio'
+    ))
 `).run();
 
 const foreignKeyProblems = db.pragma('foreign_key_check') as unknown[];

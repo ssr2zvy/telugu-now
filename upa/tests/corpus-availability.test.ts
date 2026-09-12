@@ -14,6 +14,7 @@ import { SourceRegistry } from '../server/src/services/source-registry';
 import { SelectionEngine } from '../server/src/services/selection-engine';
 import type { ProfileSelectionSettings } from '../shared/contracts';
 import { CorpusObjectStore, type CorpusObject, type CorpusS3Client } from '../server/src/services/corpus-object-store';
+import { AudioValidationStore, audioStorageIdentity } from '../server/src/services/audio-validation-store';
 
 function fixture(t: { after: (fn: () => void) => void }): AvailabilityOptions {
   const root = path.join(process.cwd(), 'test-results', `availability-${randomUUID()}`);
@@ -75,6 +76,45 @@ test('local availability indexes only nonempty audio, densely, without mutating 
   assert.equal(store.sourceKeyAt('fleurs-te', 2, 1), 'd');
   assert.throws(() => store.sourceKeyAt('fleurs-te', 2, 2), /KEY_MISSING/);
   assert.equal(store.row('fleurs-te', 'c').text, 'తెలుగు');
+  assert.deepEqual(fs.readFileSync(options.corpusDatabasePath), original);
+});
+
+test('persistent quarantine removes every row sharing invalid audio and updates generation, counts and exact probabilities', async t => {
+  const options = fixture(t);
+  fs.writeFileSync(path.join(options.corpusObjectsPath, 'b.wav'), 'b');
+  fs.writeFileSync(path.join(options.corpusObjectsPath, 'c.wav'), 'c');
+  await refreshAvailability(options);
+  const original = fs.readFileSync(options.corpusDatabasePath);
+  const report = new AudioValidationStore(path.join(path.dirname(options.corpusAvailabilityPath), 'audio-validation.sqlite'), audioStorageIdentity(options));
+  const store = new PreparedCorpusStore(options.corpusDatabasePath, options);
+  const selector = engine(store);
+  const generation = store.generation;
+  const before = selector.describeReference().totalRows;
+  assert.equal(store.rowCount('fleurs-te'), 4);
+  report.quarantine('a.wav', 'audio-conversion-failed');
+  assert.notEqual(store.generation, generation);
+  assert.equal(store.rowCount('fleurs-te'), 2);
+  assert.equal(store.sourceInfo('fleurs-te').acceptedRows, 2);
+  assert.equal(selector.describeReference().totalRows, before - 2);
+  assert.equal(store.sourceKeyAt('fleurs-te', 2, 0), 'b');
+  assert.throws(() => store.sourceKeyAt('fleurs-te', 2, 1), /KEY_MISSING/);
+  let totalProbability = 0;
+  for (const random of [0, 1 - Number.EPSILON]) {
+    const selected = engine(store, () => random).select(settings);
+    assert.equal(selected.snapshot.sourceRowCount, 2);
+    assert.ok(['b', 'c'].includes(selected.sourceKey));
+    totalProbability += selected.snapshot.overallProbability;
+  }
+  assert.ok(Math.abs(totalProbability - 1) < 1e-12);
+  await refreshAvailability(options);
+  store.reloadAvailability();
+  assert.equal(store.rowCount('fleurs-te'), 2);
+  store.close();
+  report.close();
+  const restarted = new PreparedCorpusStore(options.corpusDatabasePath, options);
+  assert.equal(restarted.rowCount('fleurs-te'), 2);
+  assert.equal(restarted.sourceKeyAt('fleurs-te', 2, 0), 'b');
+  restarted.close();
   assert.deepEqual(fs.readFileSync(options.corpusDatabasePath), original);
 });
 

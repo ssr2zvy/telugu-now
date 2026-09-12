@@ -102,6 +102,23 @@ export interface ObservationDiagnostic {
   requestDurationMs: number | null;
   cacheHit: boolean | null;
   selection: SelectionSnapshot | null;
+  repeat?: DisplayRepeatDiagnostic | null;
+}
+
+export interface DisplayRepeatDiagnostic {
+  firstDisplayedAt: number;
+  recording: {
+    isRepeat: boolean | null;
+    occurrenceCount: number | null;
+    knownOccurrenceCount: number;
+    previousSeenAt: number | null;
+  };
+  sameTextOtherRecordings: {
+    seenBefore: boolean | null;
+    previousDisplayCount: number | null;
+    knownPreviousDisplayCount: number;
+    previousSeenAt: number | null;
+  };
 }
 
 export interface ObservationAudio {
@@ -124,6 +141,7 @@ export interface QueueSummary {
   readyCount: number;
   preparingCount: number;
   pendingCount: number;
+  preparationError?: { code: string; attempts: number; retryAt: number | null } | null;
 }
 
 export interface TimingSummary {

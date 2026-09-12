@@ -83,12 +83,16 @@ const insertAcquisition = db.prepare(`
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-function appendSelectedObservation(profileCode: string, context: SelectionContext): string {
+function appendSelectedObservation(
+  profileCode: string,
+  context: SelectionContext,
+  reserved?: { acquisitionNumber: number; queuePosition: number },
+): string {
   const settings = getProfileSelectionSettings(profileCode);
   const selected = selectionEngine.select(settings);
   const observationId = randomUUID();
-  const acquisitionNumber = nextAcquisitionNumber(profileCode);
-  const queuePosition = nextQueuePosition(profileCode);
+  const acquisitionNumber = reserved?.acquisitionNumber ?? nextAcquisitionNumber(profileCode);
+  const queuePosition = reserved?.queuePosition ?? nextQueuePosition(profileCode);
   const waitingAhead = waitingPreparationCount();
   const inFlight = preparationInFlight();
 
@@ -188,5 +192,30 @@ export function clearQueue(profileCode: string): void {
   db.transaction(() => {
     deleteQueueItemsForProfile.run(profileCode);
     for (const row of queued) deleteObservationById.run(row.observation_id);
+  })();
+}
+
+export function replaceRejectedQueuedObservation(observationId: string): void {
+  db.transaction(() => {
+    const row = db.prepare(`
+      SELECT q.profile_code, q.queue_position AS queuePosition,
+        a.acquisition_number AS acquisitionNumber, a.trigger_kind AS triggerKind,
+        a.trigger_observation_id AS triggeredByObservationId, a.trigger_history_position AS triggeredByHistoryPosition,
+        a.triggered_at AS triggeredAt, o.group_id AS legacyGroupId, o.group_kind AS legacyGroupKind,
+        o.group_size AS legacyGroupSize, o.group_position AS legacyGroupPosition
+      FROM queue_items q JOIN observations o ON o.id = q.observation_id
+      JOIN observation_acquisitions a ON a.observation_id = o.id
+      WHERE o.id = ?
+    `).get(observationId) as (SelectionContext & { profile_code: string; queuePosition: number; acquisitionNumber: number }) | undefined;
+    if (!row) {
+      if (db.prepare('SELECT 1 FROM queue_items WHERE observation_id = ?').get(observationId)) {
+        throw new Error('Queued observation has no acquisition.');
+      }
+      return;
+    }
+    deleteObservationById.run(observationId);
+    // A rejected reservation never became a display/acquisition. Its successor
+    // gets a fresh ID/snapshot but retains the slot, trigger and acquisition number.
+    appendSelectedObservation(row.profile_code, row, row);
   })();
 }

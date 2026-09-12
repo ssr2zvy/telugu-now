@@ -73,7 +73,29 @@ export function randomAppearanceColors(random = Math.random): Pick<AppearanceSet
 }
 
 export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
-  return contrastingPaletteColor({ gradient: appearance.gradient, foreground: appearance.gradient[1] });
+  const backgrounds = appearance.gradient.map(colorChannels);
+  const chroma = (channels: number[]) => Math.max(...channels) - Math.min(...channels);
+  const average = [0, 1, 2].map(channel => backgrounds.reduce((sum, color) => sum + color[channel]!, 0) / backgrounds.length);
+  const mostColorful = backgrounds.reduce((best, color) => chroma(color) > chroma(best) ? color : best);
+  // Opposing gradient hues can average to gray. Keep a palette hue instead of
+  // losing all color, then shade it only toward black or white for visibility.
+  const base = chroma(average) < chroma(mostColorful) / 2 ? mostColorful : average;
+  const backgroundLevels = [...backgrounds, average].map(luminance);
+  let bestColor = base;
+  let bestContrast = 0;
+  for (let step = 12; step <= 85; step += 1) {
+    for (const target of [0, 255]) {
+      const shade = base.map(channel => Math.round(channel + (target - channel) * step / 100));
+      const level = luminance(shade);
+      const contrast = Math.min(...backgroundLevels.map(background => contrastRatio(level, background)));
+      if (contrast > bestContrast) {
+        bestColor = shade;
+        bestContrast = contrast;
+      }
+      if (contrast >= 2.4) return `#${shade.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+    }
+  }
+  return `#${bestColor.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
 }
 
 const AppearanceContext = createContext<{
@@ -150,7 +172,6 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   };
   const style = {
     '--surface': appearanceSurface(appearance),
-    '--audio-surface': 'color-mix(in srgb, var(--gradient-start) 35%, var(--gradient-middle))',
     '--audio-control-color': appearanceAudioColor(appearance),
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],

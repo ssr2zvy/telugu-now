@@ -8,6 +8,8 @@ const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
 
+export class SelectionUnavailableError extends Error {}
+
 interface ComplexityClass {
   complexityValue: number;
   globalCount: number;
@@ -128,7 +130,7 @@ export class SelectionEngine {
     }
 
     this.totalRows = [...counts.values()].reduce((sum, count) => sum + count, 0);
-    if (this.totalRows <= 0) throw new Error('Global complexity reference is empty.');
+    if (this.totalRows <= 0) throw new SelectionUnavailableError('Global complexity reference is empty.');
 
     let cumulative = 0;
     this.classes = [...counts.entries()]
@@ -191,7 +193,7 @@ export class SelectionEngine {
       };
     });
     const totalSourceMass = sourceEntries.reduce((sum, entry) => sum + entry.sourceMass, 0);
-    if (!(totalSourceMass > 0)) throw new Error('Source selection has zero total mass.');
+    if (!(totalSourceMass > 0)) throw new SelectionUnavailableError('Source selection has zero total mass.');
 
     const selectedSourceEntry = weightedPick(sourceEntries, (entry) => entry.sourceMass, this.random);
     const sourceProbability = selectedSourceEntry.sourceMass / totalSourceMass;

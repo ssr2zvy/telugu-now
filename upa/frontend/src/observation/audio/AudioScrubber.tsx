@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   type PointerEvent as ReactPointerEvent,
@@ -12,6 +13,9 @@ interface AudioScrubberProps {
   waveformPeaks: number[];
   bookmarks: number[];
   disabled: boolean;
+  magnifierOpen: boolean;
+  onMagnifierOpen: () => void;
+  onMagnifierClose: () => void;
   onSeek: (time: number) => void;
   onPrecisionSeek: () => void;
 }
@@ -41,11 +45,29 @@ export function AudioScrubber({
   waveformPeaks,
   bookmarks,
   disabled,
+  magnifierOpen,
+  onMagnifierOpen,
+  onMagnifierClose,
   onSeek,
   onPrecisionSeek,
 }: AudioScrubberProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const fineDrag = useRef<{ clientX: number; time: number } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
+  const openMagnifier = () => {
+    clearHold();
+    onMagnifierOpen();
+  };
+  useEffect(() => clearHold, []);
+  useEffect(() => {
+    if (disabled) clearHold();
+  }, [disabled]);
 
   const timeFromClientX = (clientX: number): number => {
     const rect = barRef.current?.getBoundingClientRect();
@@ -60,14 +82,21 @@ export function AudioScrubber({
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     onSeek(timeFromClientX(event.clientX));
+    clearHold();
+    if (!magnifierOpen) {
+      holdTimer.current = setTimeout(openMagnifier, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
+      if (event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
+    }
   };
 
   const handleBarPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     onSeek(timeFromClientX(event.clientX));
+    if (!magnifierOpen && event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
   };
 
   const releaseBarCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    clearHold();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -115,11 +144,18 @@ export function AudioScrubber({
         onPointerMove={handleBarPointerMove}
         onPointerUp={releaseBarCapture}
         onPointerCancel={releaseBarCapture}
+        onLostPointerCapture={clearHold}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
+        aria-expanded={magnifierOpen}
         onKeyDown={(event) => {
           if (disabled || duration <= 0) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (magnifierOpen) onMagnifierClose();
+            else openMagnifier();
+          }
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
             onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));
@@ -140,6 +176,7 @@ export function AudioScrubber({
         ))}
         <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
       </div>
+      {magnifierOpen ? (
         <div className="audio-magnifier">
           <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
           <div
@@ -152,6 +189,11 @@ export function AudioScrubber({
             aria-valuemax={duration}
             aria-valuenow={currentTime}
             onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                onMagnifierClose();
+                barRef.current?.focus({ preventScroll: true });
+              }
               if (disabled || duration <= 0) return;
               if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                 event.preventDefault();
@@ -180,6 +222,7 @@ export function AudioScrubber({
             />
           </div>
         </div>
+      ) : null}
     </div>
   );
 }

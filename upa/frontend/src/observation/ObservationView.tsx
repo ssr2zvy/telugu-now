@@ -44,10 +44,11 @@ export function ObservationView({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
-  const controlsClickTimer = useRef<number | undefined>(undefined);
-  const cancelControlsClick = () => {
-    window.clearTimeout(controlsClickTimer.current);
-    controlsClickTimer.current = undefined;
+  const controlsBeforeClick = useRef(false);
+  const toggleSettings = () => {
+    window.getSelection()?.removeAllRanges();
+    setControlsVisible(controlsBeforeClick.current);
+    setSettingsVisible(visible => !visible);
   };
   useEffect(() => {
     const screen = screenRef.current;
@@ -76,10 +77,6 @@ export function ObservationView({
   }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds]);
   const observation =
     state?.currentObservation ?? null;
-  useEffect(() => () => {
-    window.clearTimeout(controlsClickTimer.current);
-    controlsClickTimer.current = undefined;
-  }, [observation?.id]);
   const typography =
     useObservationTypography(
       observation,
@@ -123,24 +120,24 @@ export function ObservationView({
         }
       }}
       onClick={(event) => {
-        cancelControlsClick();
-        if (event.detail > 1) return;
-        const center = screenRef.current?.querySelector('.observation-center')?.getBoundingClientRect();
-        if (center && event.clientX >= center.left && event.clientX <= center.right) {
-          if (!window.getSelection()?.isCollapsed) return;
-          controlsClickTimer.current = window.setTimeout(() => {
-            controlsClickTimer.current = undefined;
-            if (window.getSelection()?.isCollapsed) setControlsVisible((visible) => !visible);
-          }, 500);
+        if (event.detail > 1) {
+          setControlsVisible(controlsBeforeClick.current);
           return;
         }
+        if (!window.getSelection()?.isCollapsed) return;
+        controlsBeforeClick.current = controlsVisible;
         setControlsVisible((visible) => !visible);
+      }}
+      onMouseDownCapture={(event) => {
+        if (event.button !== 0 || event.detail < 2) return;
+        if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile')) return;
+        event.preventDefault();
       }}
       onDoubleClick={(event) => {
         const center = screenRef.current?.querySelector('.observation-center')?.getBoundingClientRect();
         if (center && event.clientX >= center.left && event.clientX <= center.right) {
-          cancelControlsClick();
-          setSettingsVisible(true);
+          event.preventDefault();
+          toggleSettings();
         }
       }}
     >
@@ -181,9 +178,9 @@ export function ObservationView({
         ref={typography.containerRef}
         className="observation-center"
         onDoubleClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
-          cancelControlsClick();
-          setSettingsVisible(true);
+          toggleSettings();
         }}
       >
         {observation ? (
@@ -191,14 +188,10 @@ export function ObservationView({
             ref={typography.textRef}
             className="observation-text"
             style={typography.style}
-            onMouseDown={event => {
-              cancelControlsClick();
-              if (event.button === 0 && event.detail > 1) event.preventDefault();
-            }}
             onDoubleClick={event => {
               event.preventDefault();
               event.stopPropagation();
-              cancelControlsClick();
+              window.getSelection()?.removeAllRanges();
               const element = event.currentTarget;
               const browserDocument = document as Document & {
                 caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
@@ -209,18 +202,18 @@ export function ObservationView({
               const node = position?.offsetNode ?? range?.startContainer;
               const offset = position?.offset ?? range?.startOffset;
               if (!node || node !== element.firstChild || offset === undefined) {
-                setSettingsVisible(true);
+                toggleSettings();
                 return;
               }
               const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
               if (!word) {
-                setSettingsVisible(true);
+                toggleSettings();
                 return;
               }
               const segment = [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
                 .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length);
               if (!segment) {
-                setSettingsVisible(true);
+                toggleSettings();
                 return;
               }
               const hit = document.createRange();
@@ -232,7 +225,7 @@ export function ObservationView({
                 setControlsVisible(false);
                 setSelectedWord({ word, observationId: observation.id });
               } else {
-                setSettingsVisible(true);
+                toggleSettings();
               }
             }}
           >
@@ -264,6 +257,7 @@ export function ObservationView({
             sourceId={observation.sourceId}
             sourceKey={observation.sourceKey}
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
+            controlsVisible={controlsVisible}
           />
         ) : null}
       </section>
