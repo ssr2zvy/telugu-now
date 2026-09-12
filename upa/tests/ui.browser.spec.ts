@@ -175,6 +175,60 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
   return { errors, state, preferences, failPreferences: (fail: boolean) => { failPreferences = fail; }, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
 }
 
+test('reader tap playback autoplays invisibly and separates bottom-third controls', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  const audio = page.locator('audio');
+  const bar = page.locator('.audio-player-bar');
+  const viewport = page.viewportSize()!;
+  await expect(page.locator('.audio-play-button')).toHaveCount(0);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await expect(bar).toHaveCSS('opacity', '0');
+  await audio.evaluate(element => element.setAttribute('data-persistent-test', 'same-element'));
+  await page.mouse.click(20, 20);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await expect(bar).toHaveCSS('opacity', '0');
+  await page.mouse.click(20, viewport.height - 24);
+  await expect(bar).toHaveCSS('opacity', '1');
+  await expect(audio).toHaveJSProperty('paused', true);
+  await page.mouse.click(20, 20);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+  await expect(page.locator('.audio-magnifier')).toBeVisible();
+  await expect(audio).toHaveJSProperty('paused', false);
+  await page.mouse.click(20, viewport.height - 24);
+  await expect(page.locator('.audio-magnifier')).toHaveCount(0);
+  await expect(bar).toHaveCSS('opacity', '1');
+  await expect(audio).toHaveJSProperty('paused', false);
+  await page.mouse.click(20, viewport.height - 24);
+  await expect(bar).toHaveCSS('opacity', '0');
+  await expect(audio).toHaveJSProperty('paused', false);
+  await page.mouse.dblclick(viewport.width * 5 / 6, 20, { delay: 100 });
+  await expect.poll(() => fixture.navigationCount()).toBe(1);
+  await expect(audio).toHaveAttribute('data-persistent-test', 'same-element');
+  await expect(audio).toHaveJSProperty('paused', false);
+  await expect(bar).toHaveCSS('opacity', '0');
+  expect(fixture.errors).toEqual([]);
+});
+
+test('reader tap playback repeated center doubles never toggle playback or controls', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  const audio = page.locator('audio');
+  const bar = page.locator('.audio-player-bar');
+  const viewport = page.viewportSize()!;
+  const x = viewport.width / 2;
+  const y = viewport.height - 24;
+  await expect(audio).toHaveJSProperty('paused', false);
+  for (const opacity of ['1', '0']) {
+    await page.mouse.dblclick(x, y, { delay: 100 });
+    await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', opacity);
+    await page.waitForTimeout(450);
+    await expect(bar).toHaveCSS('opacity', '0');
+    await expect(audio).toHaveJSProperty('paused', false);
+  }
+  expect(fixture.navigationCount()).toBe(0);
+  expect(fixture.errors).toEqual([]);
+});
+
 async function doubleClickWord(page: Page, word: string, delay = 0) {
   const bounds = await page.locator('.observation-text').evaluate((element, selected) => {
     const start = element.textContent!.indexOf(selected);

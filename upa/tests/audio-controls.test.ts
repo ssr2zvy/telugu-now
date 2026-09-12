@@ -36,15 +36,16 @@ test('normal audio controls do not render precision until explicitly opened', ()
   assert.ok(AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold > 0.5);
 });
 
-test('normal player shows only Play and the seek bar, without precision-only actions', () => {
+test('normal player has no play button and keeps precision-only actions hidden', () => {
   const markup = renderToStaticMarkup(createElement(AudioPlayerBar, {
     audio: { url: '/api/audio/fixture.wav', mimeType: 'audio/wav', durationSeconds: 10 },
     sourceId: 'fixture', sourceKey: 'one', defaultPlaybackRate: 1, controlsVisible: true,
   }));
   assert.match(markup, /data-magnifier-position="below"/);
-  assert.match(markup, /audio-play-button/);
+  assert.doesNotMatch(markup, /audio-play-button/);
   assert.doesNotMatch(markup, /audio-speed-button|audio-bookmark-button|audio-precision-actions|audio-speed-popover/);
-  assert.equal((markup.match(/<button /g) ?? []).length, 1);
+  assert.equal((markup.match(/<button /g) ?? []).length, 0);
+  assert.match(markup, /<audio[^>]*preload="auto"/);
   assert.match(markup, /aria-label="Audio position"/);
   assert.match(markup, /--audio-icon-paint:url\(#audio-glass-/);
   assert.match(markup, /--audio-glass-gradient:linear-gradient/);
@@ -104,20 +105,11 @@ test('glass icon masks reuse the SVG geometry, including the stroked speed icon'
   }
 });
 
-test('Play stays centered, the dot shares icon glass, and the bar fades without an opaque base', () => {
+test('the bar and dot share icon glass with no play-button row', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
-  const play = css.match(/^\.audio-play-button \{([^}]+)\}/m)?.[1];
-  assert.match(play ?? '', /grid-column: 1 \/ -1/);
-  assert.match(play ?? '', /justify-self: center/);
-  assert.match(play ?? '', /grid-row: 1/);
-  const bar = css.match(/^\.audio-scrubber::before, \.audio-scrubber-progress, \.audio-magnifier-track::before \{([^}]+)\}/m)?.[1] ?? '';
-  assert.match(bar, /background: linear-gradient\(90deg,/);
-  assert.match(bar, /currentColor 20%, transparent/);
-  assert.match(bar, /currentColor 85%, transparent\) 50%/);
-  assert.doesNotMatch(bar, /,\s*currentColor\s*;/);
-  assert.doesNotMatch(bar, /box-shadow/);
-  const paint = css.match(/(\.audio-scrubber-thumb,[^{]+)\{ background: var\(--audio-glass-gradient\);/);
-  for (const selector of ['audio-scrubber-thumb', 'audio-scrubber-bookmark',
+  assert.doesNotMatch(css, /\.audio-play-button/);
+  const paint = css.match(/(\.audio-scrubber::before,[^{]+)\{ background: var\(--audio-glass-gradient\);/);
+  for (const selector of ['audio-scrubber-progress', 'audio-scrubber-thumb', 'audio-scrubber-bookmark',
     'audio-magnifier-bar', 'audio-magnifier-playhead', 'audio-speed-track::before', 'audio-speed-fill', 'audio-speed-thumb']) {
     assert.ok(paint?.[1]?.includes(`.${selector}`), `${selector} must share the glass gradient`);
   }
@@ -128,13 +120,13 @@ test('Play stays centered, the dot shares icon glass, and the bar fades without 
   assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 3;[^}]*grid-template-rows: 88px 44px/);
+  assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*grid-template-rows: 88px 44px/);
   assert.match(css, /\.audio-precision-actions \{[^}]*grid-row: 2;[^}]*grid-template-columns: repeat\(2, 48px\)/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
   assert.match(css, /\.audio-magnifier::before \{[^}]*backdrop-filter: blur\(12px\)[^}]*mask-image: linear-gradient/);
   assert.match(css, /\.audio-precision-panel::before \{[^}]*clip-path: polygon\(var\(--audio-window-start\)/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
-  assert.match(css, /\.audio-scrubber \{ grid-row: 2; grid-column: 1 \/ -1/);
+  assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);
   assert.match(css, /\.audio-glass-icon \{[^}]*mask-image: var\(--audio-icon-mask\)[^}]*backdrop-filter: blur\(5px\)/);
 });

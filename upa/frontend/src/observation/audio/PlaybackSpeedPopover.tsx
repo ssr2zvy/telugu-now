@@ -11,6 +11,7 @@ interface PlaybackSpeedPopoverProps {
   onChange: (rate: number) => void;
   onClose: () => void;
   controlsRef?: RefObject<HTMLElement | null>;
+  dismissOnOutside?: boolean;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -22,11 +23,12 @@ export function PlaybackSpeedPopover({
   onChange,
   onClose,
   controlsRef,
+  dismissOnOutside = true,
 }: PlaybackSpeedPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
 
-  useClickOutsideToClose(true, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
+  useClickOutsideToClose(dismissOnOutside, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
 
   const rateFromClientY = (clientY: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();
