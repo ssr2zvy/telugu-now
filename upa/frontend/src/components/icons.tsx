@@ -22,48 +22,35 @@ export function LanguageIcon() {
     </svg>
   );
 }
-export function PlayIcon() {
+export const AUDIO_ICON_SHAPES = {
+  play: { filled: true, paths: ['M7 4.5v15l14-7.5z'] },
+  pause: { filled: true, paths: ['M6 4.5h4v15H6zM14 4.5h4v15h-4z'] },
+  speed: { filled: false, paths: ['M4 16a8 8 0 0 1 16 0', 'M12 16 14.5 11.6'] },
+  bookmark: { filled: true, paths: ['M6 3h12v18l-6-4.2L6 21z'] },
+} as const;
+export type AudioIconName = keyof typeof AUDIO_ICON_SHAPES;
+
+export function AudioIcon({ name }: { name: AudioIconName }) {
+  const shape = AUDIO_ICON_SHAPES[name];
   return (
     <svg
-      className="control-icon control-icon-fill"
+      className={`control-icon${shape.filled ? ' control-icon-fill' : ''}`}
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path d="M7 4.5v15l14-7.5z" />
+      {shape.paths.map(d => <path key={d} d={d} />)}
     </svg>
   );
+}
+export function PlayIcon() {
+  return <AudioIcon name="play" />;
 }
 export function PauseIcon() {
-  return (
-    <svg
-      className="control-icon control-icon-fill"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z" />
-    </svg>
-  );
+  return <AudioIcon name="pause" />;
 }
 export function SpeedIcon() {
-  return (
-    <svg
-      className="control-icon"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="M4 16a8 8 0 0 1 16 0" />
-      <path d="M12 16 14.5 11.6" />
-    </svg>
-  );
+  return <AudioIcon name="speed" />;
 }
 export function BookmarkIcon() {
-  return (
-    <svg
-      className="control-icon control-icon-fill"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="M6 3h12v18l-6-4.2L6 21z" />
-    </svg>
-  );
+  return <AudioIcon name="bookmark" />;
 }

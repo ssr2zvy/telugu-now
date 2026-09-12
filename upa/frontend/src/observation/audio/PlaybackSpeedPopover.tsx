@@ -1,5 +1,6 @@
 import {
   useRef,
+  type RefObject,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
@@ -9,6 +10,7 @@ interface PlaybackSpeedPopoverProps {
   playbackRate: number;
   onChange: (rate: number) => void;
   onClose: () => void;
+  controlsRef?: RefObject<HTMLElement | null>;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -19,11 +21,12 @@ export function PlaybackSpeedPopover({
   playbackRate,
   onChange,
   onClose,
+  controlsRef,
 }: PlaybackSpeedPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
 
-  useClickOutsideToClose(true, [popoverRef], onClose);
+  useClickOutsideToClose(true, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
 
   const rateFromClientY = (clientY: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();

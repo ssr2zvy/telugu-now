@@ -2,6 +2,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
@@ -14,6 +15,7 @@ interface AudioScrubberProps {
   bookmarks: number[];
   disabled: boolean;
   magnifierOpen: boolean;
+  precisionControls?: ReactNode;
   onMagnifierOpen: () => void;
   onMagnifierClose: () => void;
   onSeek: (time: number) => void;
@@ -46,6 +48,7 @@ export function AudioScrubber({
   bookmarks,
   disabled,
   magnifierOpen,
+  precisionControls,
   onMagnifierOpen,
   onMagnifierClose,
   onSeek,
@@ -177,6 +180,7 @@ export function AudioScrubber({
         <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
       </div>
       {magnifierOpen ? (
+        <>
         <div className="audio-magnifier">
           <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
           <div
@@ -222,6 +226,8 @@ export function AudioScrubber({
             />
           </div>
         </div>
+        {precisionControls}
+        </>
       ) : null}
     </div>
   );
