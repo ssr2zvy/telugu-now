@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceAudioColor, appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
+import { appearanceAudioColor, appearanceAudioGlass, appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
 import { chooseRandomObservationFont, preferredObservationFontSizePx, OBSERVATION_FONTS } from '../frontend/src/presentation';
 import { parentSettingsPage, settingsGroups } from '../frontend/src/settings/navigation';
 
@@ -94,6 +94,23 @@ test('pastel controls retain endpoint saturation and lie beyond the gradient lum
     const value = luminance(appearanceAudioColor(parseAppearance({ gradient: palette })));
     assert.ok(value < Math.min(...palette.map(luminance)) || value > Math.max(...palette.map(luminance)));
   }
+});
+
+test('glass controls share a translucent multicolor paint with a narrow palette-tinted highlight', () => {
+  const palette = parseAppearance({ gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'] });
+  const glass = appearanceAudioGlass(palette);
+  assert.equal(glass.stops.length, 5);
+  assert.ok(new Set(glass.stops.map(stop => stop.color)).size >= 3);
+  assert.deepEqual(glass.stops.map(stop => stop.offset), [0, 0.4, 0.5, 0.6, 1]);
+  for (const stop of glass.stops) {
+    assert.match(stop.color, /^#[0-9a-f]{6}$/);
+    assert.ok(stop.opacity > 0 && stop.opacity < 1);
+    assert.ok(glass.gradient.includes(`${stop.color}${Math.round(stop.opacity * 255).toString(16)}`));
+  }
+  assert.ok(glass.stops[2]!.opacity < glass.stops[0]!.opacity);
+  assert.match(glass.edge, /^#[0-9a-f]{8}$/);
+  assert.deepEqual(appearanceAudioGlass(parseAppearance({ ...palette, foreground: '#ff0000', surface: '#000000' })), glass);
+  assert.notDeepEqual(appearanceAudioGlass(DEFAULT_APPEARANCE), glass);
 });
 
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {

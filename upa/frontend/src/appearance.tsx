@@ -97,6 +97,29 @@ export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradi
   return `#${best.color.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
 }
 
+export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradient'>) {
+  const targetLightness = rgbToHsl(colorChannels(appearanceAudioColor(appearance)))[2];
+  const palette = appearance.gradient.map(color => rgbToHsl(colorChannels(color)));
+  const hex = (channels: number[]) => `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+  const shades = palette.map(([hue, saturation, lightness]) =>
+    hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * 0.72)));
+  const [hue, saturation, lightness] = palette[1]!;
+  const highlight = hex(hslToRgb(hue, saturation, Math.min(0.96, Math.max(lightness, targetLightness) + 0.08)));
+  const stops = [
+    { offset: 0, color: shades[0]!, opacity: 0.82 },
+    { offset: 0.4, color: shades[1]!, opacity: 0.74 },
+    { offset: 0.5, color: highlight, opacity: 0.42 },
+    { offset: 0.6, color: shades[1]!, opacity: 0.74 },
+    { offset: 1, color: shades[2]!, opacity: 0.82 },
+  ];
+  return {
+    stops,
+    gradient: `linear-gradient(120deg, ${stops.map(stop =>
+      `${stop.color}${Math.round(stop.opacity * 255).toString(16).padStart(2, '0')} ${stop.offset * 100}%`).join(', ')})`,
+    edge: `${highlight}66`,
+  };
+}
+
 function rgbToHsl(channels: number[]): [number, number, number] {
   const red = channels[0]! / 255;
   const green = channels[1]! / 255;

@@ -21,6 +21,7 @@ import {
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
 import { silentLeadInUrl } from './silent-lead-in';
+import { observePlaybackFeedback } from './playback-feedback';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
@@ -81,6 +82,7 @@ export function useAudioPlayer(
 
   const [playing, setPlaying] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(audio?.durationSeconds ?? 0);
   const [playbackRate, setPlaybackRateState] = useState(defaultPlaybackRate);
@@ -154,6 +156,7 @@ export function useAudioPlayer(
     playRequestRef.current += 1;
     setPlaying(false);
     setPlaybackError(null);
+    setMediaError(null);
     setCurrentTime(0);
     setWaveformPeaks([]);
     setDuration(audio?.durationSeconds ?? 0);
@@ -208,17 +211,20 @@ export function useAudioPlayer(
   useEffect(() => {
     const element = audioRef.current;
     if (!element) return;
+    const stopFeedback = observePlaybackFeedback(element, message => {
+      setMediaError(message);
+      setPlaying(false);
+    }, actuallyPlaying => {
+      setMediaError(null);
+      if (actuallyPlaying) {
+        setPlaying(true);
+        setPlaybackError(null);
+      }
+    });
     const onPlay = () => { setPlaying(true); setPlaybackError(null); };
     const onPause = () => {
       if (leadInRef.current) return;
       setPlaying(false);
-    };
-    const onError = () => {
-      playRequestRef.current += 1;
-      setPlaying(false);
-      setPlaybackError(element.error?.code === MediaError.MEDIA_ERR_NETWORK
-        ? 'Audio could not be loaded. Check your connection and retry.'
-        : 'This audio file could not be played.');
     };
     const onLoadedMetadata = () => {
       if (leadInRef.current?.phase === 'silence') return;
@@ -247,15 +253,14 @@ export function useAudioPlayer(
     };
     element.addEventListener('play', onPlay);
     element.addEventListener('pause', onPause);
-    element.addEventListener('error', onError);
     element.addEventListener('loadedmetadata', onLoadedMetadata);
     element.addEventListener('timeupdate', onTimeUpdate);
     element.addEventListener('seeked', onTimeUpdate);
     element.addEventListener('ended', onEnded);
     return () => {
+      stopFeedback();
       element.removeEventListener('play', onPlay);
       element.removeEventListener('pause', onPause);
-      element.removeEventListener('error', onError);
       element.removeEventListener('loadedmetadata', onLoadedMetadata);
       element.removeEventListener('timeupdate', onTimeUpdate);
       element.removeEventListener('seeked', onTimeUpdate);
@@ -292,8 +297,9 @@ export function useAudioPlayer(
   };
 
   const playElement = (element: HTMLAudioElement, request: number) => {
+    const source = element.src;
     void element.play().catch((error: unknown) => {
-      if (playRequestRef.current !== request || audioRef.current !== element || !element.isConnected) return;
+      if (playRequestRef.current !== request || audioRef.current !== element || !element.isConnected || element.src !== source) return;
       pause();
       setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Playback was blocked. Allow sound for this site and retry.'
@@ -309,6 +315,7 @@ export function useAudioPlayer(
       return;
     }
     setPlaybackError(null);
+    setMediaError(null);
     const request = ++playRequestRef.current;
     const time = leadInRef.current?.time ?? (element.ended ? 0 : element.currentTime);
     leadInRef.current = { time, phase: 'silence' };
@@ -392,7 +399,7 @@ export function useAudioPlayer(
   return {
     audioRef,
     playing,
-    playbackError,
+    playbackError: mediaError ?? playbackError,
     currentTime,
     duration,
     playbackRate,
