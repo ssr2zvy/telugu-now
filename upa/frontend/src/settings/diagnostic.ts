@@ -48,12 +48,12 @@ export function diagnosticSectionLabel(
   ][language];
 }
 const DIAGNOSTIC_LABELS = {
-  recordingRepeat: { en: 'Repeat at first display (same recording)?', te: 'మొదటి ప్రదర్శనలో రికార్డింగ్ పునరావృతమా?' },
-  recordingOccurrence: { en: 'Recording occurrence (first displays)', te: 'రికార్డింగ్ ప్రదర్శన సంఖ్య' },
-  recordingPreviousSeen: { en: 'Recording previously displayed', te: 'రికార్డింగ్ గత ప్రదర్శన' },
-  sameTextOtherRecordings: { en: 'Same text in other recordings?', te: 'ఇతర రికార్డింగ్‌లలో అదే వచనమా?' },
-  sameTextOtherCount: { en: 'Previous displays of other recordings with this exact text', te: 'అదే వచనం ఉన్న ఇతర రికార్డింగ్‌ల గత ప్రదర్శనలు' },
-  sameTextOtherSeen: { en: 'Same text / other recording last displayed', te: 'అదే వచనం / ఇతర రికార్డింగ్ గత ప్రదర్శన' },
+  recordingRepeat: { en: 'Repeat recording?', te: 'రికార్డింగ్ పునరావృతమా?' },
+  recordingOccurrence: { en: 'Times shown (recorded)', te: 'నమోదైన ప్రదర్శనల సంఖ్య' },
+  recordingPreviousSeen: { en: 'Previously shown', te: 'గత ప్రదర్శన' },
+  sameTextOtherRecordings: { en: 'Same text in another recording?', te: 'అదే వచనం మరో రికార్డింగ్‌లో వచ్చిందా?' },
+  sameTextOtherCount: { en: 'Other-recording appearances', te: 'ఇతర రికార్డింగ్‌ల ప్రదర్శనలు' },
+  sameTextOtherSeen: { en: 'Other recording last shown', te: 'ఇతర రికార్డింగ్ గత ప్రదర్శన' },
   preparationError: { en: 'Queue preparation error', te: 'క్యూ సిద్ధీకరణ లోపం' },
   observationId: {
     en: 'Observation ID',
@@ -592,19 +592,14 @@ export function buildDiagnosticSections(
     },
   ];
   const repeat = diagnostic.repeat;
-  const unknown = language === 'te' ? 'తెలియదు (పాత చరిత్ర అసంపూర్ణం)' : 'Unknown (legacy history incomplete)';
-  const yesNo = (value: boolean | null | undefined) => value == null ? unknown : t(language, value ? 'yes' : 'no');
   const date = (value: number | null | undefined) => value == null ? '—' : new Date(value).toLocaleString();
-  const count = (value: number | null | undefined, known?: number) => value == null
-    ? `${unknown}${known === undefined ? '' : ` · ${known} ${language === 'te' ? 'నమోదైనవి' : 'known'}`}`
-    : String(value);
-  triggerRows.splice(1, 0,
-    { key: 'recordingRepeat', value: yesNo(repeat?.recording.isRepeat) },
-    { key: 'recordingOccurrence', value: count(repeat?.recording.occurrenceCount, repeat?.recording.knownOccurrenceCount) },
-    { key: 'recordingPreviousSeen', value: date(repeat?.recording.previousSeenAt) },
-    { key: 'sameTextOtherRecordings', value: yesNo(repeat?.sameTextOtherRecordings.seenBefore) },
-    { key: 'sameTextOtherCount', value: count(repeat?.sameTextOtherRecordings.previousDisplayCount, repeat?.sameTextOtherRecordings.knownPreviousDisplayCount) },
-    { key: 'sameTextOtherSeen', value: date(repeat?.sameTextOtherRecordings.previousSeenAt) },
+  if (repeat) triggerRows.splice(1, 0,
+    { key: 'recordingRepeat', value: t(language, repeat.recording.knownOccurrenceCount > 1 ? 'yes' : 'no') },
+    { key: 'recordingOccurrence', value: String(repeat.recording.knownOccurrenceCount) },
+    { key: 'recordingPreviousSeen', value: date(repeat.recording.previousSeenAt) },
+    { key: 'sameTextOtherRecordings', value: t(language, repeat.sameTextOtherRecordings.knownPreviousDisplayCount > 0 ? 'yes' : 'no') },
+    { key: 'sameTextOtherCount', value: String(repeat.sameTextOtherRecordings.knownPreviousDisplayCount) },
+    { key: 'sameTextOtherSeen', value: date(repeat.sameTextOtherRecordings.previousSeenAt) },
   );
   if (state.queue.preparationError) triggerRows.push({
     key: 'preparationError',

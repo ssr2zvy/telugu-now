@@ -74,12 +74,12 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
           </div>
         ))}
         <fieldset className="appearance-magnifier-position">
-          <legend>{text('Magnifier position', 'మాగ్నిఫైయర్ స్థానం')}</legend>
+          <legend>{text('Audio control order', 'ఆడియో నియంత్రణల క్రమం')}</legend>
           <div className="appearance-position-options">
             {(['above', 'below'] as const).map(position => (
               <label key={position}>
                 <input type="radio" name="magnifier-position" value={position} checked={appearance.magnifierPosition === position} onChange={() => updateAppearance({ magnifierPosition: position })} />
-                <span>{position === 'above' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'above' ? text('Above', 'పైన') : text('Below', 'కింద')}</span>
+                <span>{position === 'below' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'below' ? text('Play above / magnifier below', 'ప్లే పైన / మాగ్నిఫైయర్ కింద') : text('Play below / magnifier above', 'ప్లే కింద / మాగ్నిఫైయర్ పైన')}</span>
               </label>
             ))}
           </div>

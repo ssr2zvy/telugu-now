@@ -17,7 +17,7 @@ import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue } from './q
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
-import { recordFirstDisplay } from './repeat-service';
+import { getDisplayRepeat, recordFirstDisplay } from './repeat-service';
 
 interface ProfileRow {
   code: string;
@@ -283,7 +283,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
       requestDurationMs: row.request_duration_ms,
       cacheHit: row.cache_hit === null ? null : row.cache_hit === 1,
       selection: parseSelectionSnapshot(row.selection_snapshot_json),
-      repeat: row.repeat_snapshot_json ? JSON.parse(row.repeat_snapshot_json) : null,
+      repeat: getDisplayRepeat(code, row.id, row.repeat_snapshot_json),
     },
   };
 }

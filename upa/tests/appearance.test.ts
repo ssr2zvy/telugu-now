@@ -75,6 +75,27 @@ test('audio shades retain palette color even when complementary gradient colors 
   assert.equal(neutral.slice(3, 5), neutral.slice(5, 7));
 });
 
+test('pastel controls retain endpoint saturation and lie beyond the gradient luminance extremes', () => {
+  const gradient = ['#dfe5f2', '#c1c9e0', '#c2dcd0'];
+  const channels = (color: string) => [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255);
+  const saturation = (color: string) => {
+    const rgb = channels(color);
+    const max = Math.max(...rgb);
+    const min = Math.min(...rgb);
+    return (max - min) / (1 - Math.abs(max + min - 1));
+  };
+  const luminance = (color: string) => channels(color)
+    .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const shade = appearanceAudioColor(parseAppearance({ gradient }));
+  assert.ok(Math.abs(saturation(shade) - saturation('#c1c9e0')) < 0.02, `${shade} must not desaturate the blue endpoint`);
+  assert.ok(Math.max(...channels(shade)) - Math.min(...channels(shade)) > 0.2, `${shade} should be visibly colored`);
+  for (const palette of [gradient, ...Array.from({ length: 5 }, (_, index) => randomAppearanceColors(() => index / 5).gradient)]) {
+    const value = luminance(appearanceAudioColor(parseAppearance({ gradient: palette })));
+    assert.ok(value < Math.min(...palette.map(luminance)) || value > Math.max(...palette.map(luminance)));
+  }
+});
+
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
   assert.equal(parseAppearance({ fontScale: 75 }).autoFadeSeconds, 15);
   assert.equal(parseAppearance({ autoFadeSeconds: 5 }).autoFadeSeconds, 5);

@@ -224,7 +224,7 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
       recordFirstDisplay('001', 'repeat-observation', 1400);
     })();
     const snapshot = JSON.parse((db.prepare("SELECT repeat_snapshot_json FROM observations WHERE id = 'repeat-observation'").get() as { repeat_snapshot_json: string }).repeat_snapshot_json);
-    assert.deepEqual(snapshot.recording, { isRepeat: true, occurrenceCount: null, knownOccurrenceCount: 2, previousSeenAt: 1100 });
+    assert.deepEqual(snapshot.recording, { isRepeat: true, occurrenceCount: 2, knownOccurrenceCount: 2, previousSeenAt: 1100 });
     db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 0").run();
     const restart = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
       const { db } = await import('./server/src/db/database.ts');

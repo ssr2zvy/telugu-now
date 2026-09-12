@@ -369,6 +369,39 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(rows.find(row => row.key === 'sameTextOtherCount')?.value, '1');
   });
 
+  await suite.test('existing profiles get concrete counts and old history snapshots exclude future appearances', () => {
+    resetDatabase();
+    db.prepare("UPDATE profiles SET repeat_tracking_complete = 0 WHERE code = '001'").run();
+    const ids = seedQueue(['ready', 'ready'], ['తెలుగు', 'తెలుగు']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[1]);
+    const first = profileService.navigateNext('001', false);
+    assert.equal(first.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 1);
+    assert.equal(first.currentObservation!.diagnostic.repeat!.recording.isRepeat, false);
+    now = 2_000;
+    const second = profileService.navigateNext('001', false);
+    const oldSnapshot = second.currentObservation!.diagnostic.repeat!;
+    oldSnapshot.recording.occurrenceCount = null;
+    oldSnapshot.recording.isRepeat = null;
+    oldSnapshot.sameTextOtherRecordings.previousDisplayCount = null;
+    oldSnapshot.sameTextOtherRecordings.seenBefore = null;
+    db.prepare('UPDATE observations SET repeat_snapshot_json = ? WHERE id = ?').run(JSON.stringify(oldSnapshot), ids[1]);
+    db.prepare('UPDATE observations SET repeat_snapshot_json = NULL WHERE id = ?').run(ids[0]);
+    const historical = profileService.navigateBack('001', false);
+    assert.equal(historical.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 1);
+    assert.equal(historical.currentObservation!.diagnostic.repeat!.recording.previousSeenAt, null);
+    const restored = profileService.navigateNext('001', false);
+    assert.equal(restored.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 2);
+    assert.equal(restored.currentObservation!.diagnostic.repeat!.recording.previousSeenAt, 1_000);
+    const rows = buildDiagnosticSections(restored, 'en')![0]!.rows;
+    assert.equal(rows.find(row => row.key === 'recordingRepeat')?.value, 'Yes');
+    assert.equal(rows.find(row => row.key === 'recordingOccurrence')?.value, '2');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherRecordings')?.value, 'No');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherCount')?.value, '0');
+    assert.ok(rows.every(row => !row.value.includes('Unknown')));
+    assert.equal((db.prepare('SELECT SUM(occurrence_count) AS count FROM recording_displays').get() as { count: number }).count, 2);
+  });
+
   await suite.test('repeat totals outlive pruning and navigation skips missing history positions', () => {
     resetDatabase();
     const ids = seedQueue(['ready', 'ready', 'ready', 'ready']);
