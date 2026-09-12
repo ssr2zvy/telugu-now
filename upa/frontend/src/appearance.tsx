@@ -106,17 +106,15 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
   const [hue, saturation, lightness] = palette[1]!;
   const highlight = hex(hslToRgb(hue, saturation, Math.min(0.96, Math.max(lightness, targetLightness) + 0.08)));
   const stops = [
-    { offset: 0, color: shades[0]!, opacity: 0.82 },
-    { offset: 0.4, color: shades[1]!, opacity: 0.74 },
-    { offset: 0.5, color: highlight, opacity: 0.42 },
-    { offset: 0.6, color: shades[1]!, opacity: 0.74 },
-    { offset: 1, color: shades[2]!, opacity: 0.82 },
+    { offset: 0, color: shades[0]!, opacity: 0.62 },
+    { offset: 0.5, color: shades[1]!, opacity: 0.62 },
+    { offset: 1, color: shades[2]!, opacity: 0.62 },
   ];
   return {
     stops,
-    gradient: `linear-gradient(120deg, ${stops.map(stop =>
+    gradient: `linear-gradient(135deg, ${stops.map(stop =>
       `${stop.color}${Math.round(stop.opacity * 255).toString(16).padStart(2, '0')} ${stop.offset * 100}%`).join(', ')})`,
-    edge: `${highlight}66`,
+    edge: `${highlight}33`,
   };
 }
 
