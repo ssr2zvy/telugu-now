@@ -39,6 +39,7 @@ export function SettingsShell({
   const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>({});
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
+  const shell = useRef<HTMLElement>(null);
   const parent = parentSettingsPage(page);
   const railToggleLabel = language === 'en'
     ? (railCollapsed ? 'Show settings menu' : 'Hide settings menu')
@@ -47,6 +48,47 @@ export function SettingsShell({
     content.current?.scrollTo(0, 0);
     heading.current?.focus({ preventScroll: true });
   }, [page]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    let frame = 0;
+    const updateViewport = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const element = document.activeElement;
+        const container = content.current;
+        const style = shell.current?.style;
+        if (!style || !container) return;
+        const editing = element instanceof HTMLElement && container.contains(element)
+          && element.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, select');
+        // Follow the keyboard's visible area, but leave deliberate pinch zoom to the browser.
+        if (!editing || Math.abs(viewport.scale - 1) > 0.01) {
+          style.removeProperty('--settings-viewport-height');
+          style.removeProperty('--settings-viewport-top');
+          return;
+        }
+        style.setProperty('--settings-viewport-height', `${viewport.height}px`);
+        style.setProperty('--settings-viewport-top', `${viewport.offsetTop}px`);
+        const field = element.getBoundingClientRect();
+        const bounds = container.getBoundingClientRect();
+        const top = bounds.top + 24;
+        const bottom = bounds.bottom - 24;
+        if (field.top < top) container.scrollBy({ top: field.top - top });
+        else if (field.bottom > bottom) container.scrollBy({ top: Math.min(field.bottom - bottom, field.top - top) });
+      });
+    };
+    viewport.addEventListener('resize', updateViewport);
+    viewport.addEventListener('scroll', updateViewport);
+    document.addEventListener('focusin', updateViewport);
+    document.addEventListener('focusout', updateViewport);
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener('resize', updateViewport);
+      viewport.removeEventListener('scroll', updateViewport);
+      document.removeEventListener('focusin', updateViewport);
+      document.removeEventListener('focusout', updateViewport);
+    };
+  }, []);
 
   const navigationButton = (destination: SettingsPage, nested = false) => {
     const Icon = settingsPageIcons[destination];
@@ -71,7 +113,7 @@ export function SettingsShell({
     );
   };
   return (
-    <main className={`app-shell settings-screen${railCollapsed ? ' settings-rail-collapsed' : ''}`} lang={language}>
+    <main ref={shell} className={`app-shell settings-screen${railCollapsed ? ' settings-rail-collapsed' : ''}`} lang={language}>
       <button
         className="settings-rail-toggle"
         type="button"

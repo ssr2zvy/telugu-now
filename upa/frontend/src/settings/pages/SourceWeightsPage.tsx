@@ -51,6 +51,7 @@ export function SourceWeightsPage({
             </span>
             <input
               type="number"
+              inputMode="decimal"
               min="0"
               max="1"
               step="0.01"

@@ -1445,6 +1445,44 @@ test.describe('touch navigation', () => {
     expect(fixture.errors).toEqual([]);
     await client.detach();
   });
+  test('settings mobile inputs avoid focus zoom and horizontal layout shifts', async ({ page }, testInfo) => {
+    const fixture = await loadFixture(page);
+    await openSettings(page);
+    await page.getByRole('button', { name: 'Sampling', exact: true }).click();
+    await page.getByRole('button', { name: 'Complexity', exact: true }).click();
+    for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const content = (await page.locator('.settings-page-content').boundingBox())!;
+      const globe = (await page.locator('.language-toggle').boundingBox())!;
+      expect(content.y + content.height).toBeLessThanOrEqual(globe.y);
+      await withinViewport(page.locator('.language-toggle'), page);
+      for (const label of ['Target', 'Spread']) {
+        const input = page.getByLabel(label, { exact: true });
+        await input.scrollIntoViewIfNeeded();
+        const before = (await input.boundingBox())!;
+        const scale = await page.evaluate(() => window.visualViewport?.scale);
+        await input.click();
+        expect(await input.evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+        await expect(input).toHaveCSS('border-bottom-width', '0px');
+        const after = (await input.boundingBox())!;
+        expect(after.x).toBeCloseTo(before.x);
+        expect(after.width).toBeCloseTo(before.width);
+        expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(scale);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+        await withinViewport(input, page);
+      }
+      expect(await page.locator('.field-unit').first().evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(12);
+      await page.screenshot({ path: testInfo.outputPath(`settings-mobile-inputs-${viewport.width}.png`) });
+    }
+    await page.getByLabel('Target', { exact: true }).fill('65');
+    await page.getByLabel('Spread', { exact: true }).fill('30');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(() => fixture.state.selectionSettings.complexityPercentileTarget).toBe(0.65);
+    await expect.poll(() => fixture.state.selectionSettings.complexityPercentileSpread).toBe(0.3);
+    const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
+    expect(viewportMeta).not.toMatch(/user-scalable=no|maximum-scale=1/);
+    expect(fixture.errors).toEqual([]);
+  });
   test('delayed profile preferences keep the existing text-free loading spinner', async ({ page }) => {
     const fixture = await loadFixture(page, undefined, false);
     let release = () => {};
@@ -1652,9 +1690,37 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const spread = page.getByLabel('Spread', { exact: true });
       await expect(spread).toBeFocused();
       await expect(spread).toHaveCSS('outline-style', 'none');
-      await expect(spread).toHaveCSS('border-bottom-style', 'solid');
+      await expect(spread).toHaveCSS('border-bottom-width', '0px');
+      await expect(spread).toHaveCSS('box-shadow', 'none');
+      await expect(spread.locator('..')).not.toHaveCSS('box-shadow', 'none');
       await withinViewport(spread, page);
       await page.screenshot({ path: testInfo.outputPath('dark-complexity.png') });
+      expect(fixture.errors).toEqual([]);
+    });
+    test('settings icon follows the audio gradient when the palette changes', async ({ page }, testInfo) => {
+      await page.addInitScript(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), darkAppearance);
+      const fixture = await loadFixture(page);
+      await revealSettings(page);
+      const icon = page.locator('.settings-trigger svg');
+      const readStops = (locator: Locator) => locator.locator('stop').evaluateAll(stops =>
+        stops.map(stop => [stop.getAttribute('offset'), stop.getAttribute('stop-color'), stop.getAttribute('stop-opacity')]));
+      const before = await readStops(icon);
+      expect(before).toHaveLength(3);
+      expect(before).toEqual(await readStops(page.locator('.audio-paint-definitions')));
+      expect(await icon.evaluate(element => getComputedStyle(element).stroke)).toContain('settings-glass-');
+      await page.locator('.settings-trigger').click();
+      if (await page.locator('.settings-header h1').textContent() !== 'Settings') await page.locator('.language-toggle').click();
+      await page.getByRole('button', { name: 'Display', exact: true }).click();
+      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      for (const [index, color] of ['#e4f0eb', '#a8c5b8', '#e1b9c4'].entries()) {
+        await page.getByLabel(`Gradient color ${index + 1}`, { exact: true }).fill(color);
+      }
+      await page.locator('.settings-close').click();
+      await revealSettings(page);
+      const after = await readStops(icon);
+      expect(after).not.toEqual(before);
+      expect(after).toEqual(await readStops(page.locator('.audio-paint-definitions')));
+      await page.screenshot({ path: testInfo.outputPath('gradient-settings-icon.png') });
       expect(fixture.errors).toEqual([]);
     });
   });
