@@ -2247,25 +2247,19 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
           expect(coarse.y - (buttons.y + buttons.height)).toBeCloseTo(0);
         }
         const surface = await page.locator('.audio-precision-panel').evaluate(element => {
-          const paint = getComputedStyle(element, '::before');
           const lens = element.querySelector('.audio-magnifier')!;
           return {
-            background: paint.backgroundImage, color: paint.backgroundColor,
-            top: parseFloat(paint.top), height: parseFloat(paint.height),
-            separateLens: getComputedStyle(lens, '::before').content,
+            background: getComputedStyle(element).backgroundColor,
             lensBackground: getComputedStyle(lens).backgroundColor,
           };
         });
-        expect(surface.background).toContain('linear-gradient');
-        expect(surface.color).toBe('rgba(0, 0, 0, 0.16)');
+        expect(surface.background).toBe('rgba(0, 0, 0, 0)');
         expect(surface.lensBackground).toBe('rgba(0, 0, 0, 0)');
-        expect(surface.separateLens).toBe('none');
-        expect(surface.top).toBe(magnifierPosition === 'below' ? -31 : 0);
-        expect(surface.height).toBe(magnifierPosition === 'below' ? 103 : 139);
-        const panel = (await page.locator('.audio-precision-panel').boundingBox())!;
-        const neckTop = panel.y + surface.top + (magnifierPosition === 'below' ? 0 : surface.height - 14);
-        expect(neckTop).toBeCloseTo(coarse.y + coarse.height / 2 - 7);
-        await expect(page.locator('.audio-scrubber-window')).toHaveCount(0);
+        const highlight = (await page.locator('.audio-scrubber-window').boundingBox())!;
+        expect(highlight.y).toBeCloseTo(coarse.y + 4);
+        expect(highlight.height).toBeCloseTo(coarse.height - 8);
+        expect(highlight.x).toBeGreaterThanOrEqual(coarse.x);
+        expect(highlight.x + highlight.width).toBeLessThanOrEqual(coarse.x + coarse.width + 1);
         await scrubber.click({ position: { x: coarse.width / 2, y: coarse.height / 2 } });
         await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
         await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });

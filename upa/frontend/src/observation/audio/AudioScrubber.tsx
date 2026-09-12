@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   type ReactNode,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
@@ -25,64 +24,6 @@ interface AudioScrubberProps {
 
 function clamp(minimum: number, maximum: number, value: number): number {
   return Math.min(maximum, Math.max(minimum, value));
-}
-
-const NECK_CURVE_STEPS = 6;
-
-// Samples a quadratic bezier so the neck connecting the scrubber window to the
-// magnifier flares in a smooth curve instead of the old right-angled kink.
-function neckCurvePoints(
-  p0: readonly [number, number],
-  control: readonly [number, number],
-  p2: readonly [number, number],
-): [number, number][] {
-  const points: [number, number][] = [];
-  for (let step = 1; step <= NECK_CURVE_STEPS; step += 1) {
-    const t = step / NECK_CURVE_STEPS;
-    const inverse = 1 - t;
-    points.push([
-      inverse * inverse * p0[0] + 2 * inverse * t * control[0] + t * t * p2[0],
-      inverse * inverse * p0[1] + 2 * inverse * t * control[1] + t * t * p2[1],
-    ]);
-  }
-  return points;
-}
-
-function pointToken(x: number, y: number): string {
-  return `${x}% ${y}px`;
-}
-
-// Below-magnifier layout: the window sits on top (y=0) and rounds down into the
-// full-width panel at `depth`.
-function precisionClipBelow(windowStartPct: number, windowEndPct: number, depth: number): string {
-  const rightCurve = neckCurvePoints([windowEndPct, 0], [windowEndPct, depth], [100, depth]);
-  const leftCurve = neckCurvePoints([0, depth], [windowStartPct, depth], [windowStartPct, 0]);
-  const points = [
-    pointToken(windowStartPct, 0),
-    pointToken(windowEndPct, 0),
-    ...rightCurve.map(([x, y]) => pointToken(x, y)),
-    pointToken(100, 100),
-    pointToken(0, 100),
-    pointToken(0, depth),
-    ...leftCurve.map(([x, y]) => pointToken(x, y)),
-  ];
-  return `polygon(${points.join(', ')})`;
-}
-
-// Above-magnifier layout: the mirror image, with the full-width panel on top
-// and the window rounding up from the bottom at `topDepth`.
-function precisionClipAbove(windowStartPct: number, windowEndPct: number, topDepth: number, totalHeight: number): string {
-  const rightCurve = neckCurvePoints([100, topDepth], [windowEndPct, topDepth], [windowEndPct, totalHeight]);
-  const leftCurve = neckCurvePoints([windowStartPct, totalHeight], [windowStartPct, topDepth], [0, topDepth]);
-  const points = [
-    pointToken(0, 0),
-    pointToken(100, 0),
-    pointToken(100, topDepth),
-    ...rightCurve.map(([x, y]) => pointToken(x, y)),
-    pointToken(windowStartPct, totalHeight),
-    ...leftCurve.map(([x, y]) => pointToken(x, y)),
-  ];
-  return `polygon(${points.join(', ')})`;
 }
 
 function magnifierWindowSeconds(duration: number): number {
@@ -175,14 +116,6 @@ export function AudioScrubber({
 
   const windowStartPct = duration > 0 ? (windowStart / duration) * 100 : 0;
   const windowEndPct = duration > 0 ? (windowEnd / duration) * 100 : 100;
-  const precisionClipBelowValue = useMemo(
-    () => precisionClipBelow(windowStartPct, windowEndPct, 31),
-    [windowStartPct, windowEndPct],
-  );
-  const precisionClipAboveValue = useMemo(
-    () => precisionClipAbove(windowStartPct, windowEndPct, 64, 139),
-    [windowStartPct, windowEndPct],
-  );
 
   const handleMagnifierPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled || duration <= 0 || event.button !== 0 || !event.isPrimary) return;
@@ -206,12 +139,6 @@ export function AudioScrubber({
   return (
     <div
       className="audio-scrubber-wrap"
-      style={{
-        '--audio-window-start': `${windowStartPct}%`,
-        '--audio-window-end': `${windowEndPct}%`,
-        '--audio-precision-clip-below': precisionClipBelowValue,
-        '--audio-precision-clip-above': precisionClipAboveValue,
-      } as CSSProperties}
       draggable={false}
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
@@ -245,6 +172,12 @@ export function AudioScrubber({
         aria-valuemax={duration}
         aria-valuenow={currentTime}
       >
+        {magnifierOpen ? (
+          <div
+            className="audio-scrubber-window"
+            style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
+          />
+        ) : null}
         <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
         {bookmarks.map((bookmark) => (
           <span
