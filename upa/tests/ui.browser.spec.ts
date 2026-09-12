@@ -1926,6 +1926,65 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(fixture.errors).toEqual([]);
     });
 
+    for (const magnifierPosition of ['below', 'above'] as const) {
+      test(`continuous magnifier glass stays compact ${magnifierPosition}`, async ({ page }, testInfo) => {
+        const preferences = new Map<string, ProfilePreferences>([['001', {
+          appearance: parseAppearance({
+            gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c',
+            magnifierPosition, autoFadeSeconds: 60,
+          }),
+          language: 'en', imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
+        }]]);
+        const fixture = await loadFixture(page, undefined, true, sampleText, preferences);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.mouse.click(20, viewport.height - 24);
+        const player = page.locator('.audio-player-bar');
+        await expect(player).toHaveCSS('opacity', '1');
+        const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+        await expect(scrubber).toHaveAttribute('aria-disabled', 'false');
+        const closed = (await scrubber.boundingBox())!;
+        await scrubber.press('Enter');
+        const lens = page.locator('.audio-magnifier');
+        const actions = page.locator('.audio-precision-actions');
+        await withinViewport(player, page);
+        await withinViewport(lens, page);
+        await withinViewport(actions, page);
+        const coarse = (await scrubber.boundingBox())!;
+        const enlarged = (await lens.boundingBox())!;
+        const buttons = (await actions.boundingBox())!;
+        expect(coarse.y).toBeCloseTo(closed.y);
+        expect(enlarged.height).toBe(72);
+        expect(buttons.y - (enlarged.y + enlarged.height)).toBeCloseTo(0);
+        expect(buttons.height).toBe(44);
+        if (magnifierPosition === 'below') {
+          expect(enlarged.y - (coarse.y + coarse.height)).toBeCloseTo(0);
+          expect(viewport.height - (coarse.y + coarse.height / 2)).toBeCloseTo(156);
+        } else {
+          expect(coarse.y - (buttons.y + buttons.height)).toBeCloseTo(0);
+        }
+        const surface = await page.locator('.audio-precision-panel').evaluate(element => {
+          const paint = getComputedStyle(element, '::before');
+          const lens = element.querySelector('.audio-magnifier')!;
+          return {
+            background: paint.backgroundImage, color: paint.backgroundColor,
+            top: parseFloat(paint.top), height: parseFloat(paint.height),
+            separateLens: getComputedStyle(lens, '::before').content,
+            lensBackground: getComputedStyle(lens).backgroundColor,
+          };
+        });
+        expect(surface.background).toContain('linear-gradient');
+        expect(surface.color).toBe('rgba(0, 0, 0, 0)');
+        expect(surface.lensBackground).toBe('rgba(0, 0, 0, 0)');
+        expect(surface.separateLens).toBe('none');
+        expect(surface.top).toBe(magnifierPosition === 'below' ? -24 : 0);
+        expect(surface.height).toBe(magnifierPosition === 'below' ? 96 : 140);
+        await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });
+        await page.getByTitle('Playback speed', { exact: true }).click();
+        await withinViewport(page.locator('.audio-speed-popover'), page);
+        expect(fixture.errors).toEqual([]);
+      });
+    }
+
     test('corner controls use a distinct theme-aware color from audio', async ({ page }, testInfo) => {
       if (viewport.width === 390 || viewport.width === 844) {
         await page.addInitScript(appearance => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify(appearance)), darkAppearance);

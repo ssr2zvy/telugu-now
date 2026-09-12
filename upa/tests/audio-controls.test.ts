@@ -120,11 +120,14 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*grid-template-rows: 88px 44px/);
+  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: 48px 116px;[^}]*gap: 0;/);
+  assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*grid-template-rows: 72px 44px/);
   assert.match(css, /\.audio-precision-actions \{[^}]*grid-row: 2;[^}]*grid-template-columns: repeat\(2, 48px\)/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
-  assert.match(css, /\.audio-magnifier::before \{[^}]*backdrop-filter: blur\(12px\)[^}]*mask-image: linear-gradient/);
-  assert.match(css, /\.audio-precision-panel::before \{[^}]*clip-path: polygon\(var\(--audio-window-start\)/);
+  assert.doesNotMatch(css, /\.audio-magnifier::before/);
+  assert.match(css, /\.audio-magnifier \{[^}]*padding: 4px 12px; background: transparent/);
+  assert.match(css, /\.audio-precision-panel::before \{[^}]*top: -24px;[^}]*height: 96px; background: var\(--audio-glass-gradient\);[^}]*clip-path: polygon\(var\(--audio-window-start\)/);
+  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel::before \{ top: 0; height: 140px;[^}]*var\(--audio-window-end\) 100%/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 1; grid-column: 1 \/ -1/);
