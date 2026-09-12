@@ -16,11 +16,20 @@ export async function prepareExportAudio(result: ExportResponse, format: ExportF
   const urls = new Map<string, string>();
   for (const entry of result.entries) {
     if (!entry.audio || urls.has(entry.audio.url)) continue;
-    const response = await fetch(entry.audio.url);
-    if (!response.ok) throw new Error(`Failed to load export audio: ${response.status}`);
+    if (format === 'epub' && !entry.audio.url.startsWith('/api/audio/')) {
+      throw new Error('EPUB audio must reference a corpus audio object');
+    }
+    const url = format === 'epub' ? entry.audio.url.replace('/api/audio/', '/api/export-audio/') : entry.audio.url;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to ${format === 'epub' ? 'convert EPUB' : 'load export'} audio: ${response.status}`);
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.length === 0) throw new Error('Export audio is empty');
-    const mimeType = entry.audio.mimeType;
+    const mimeType = format === 'epub' ? 'audio/mpeg' : entry.audio.mimeType;
+    if (format === 'epub' && response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== mimeType) {
+      throw new Error('EPUB audio conversion did not return MP3 audio');
+    }
     const extensions: Record<string, string> = {
       'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/flac': 'flac',
       'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/webm': 'webm',
@@ -36,7 +45,10 @@ export async function prepareExportAudio(result: ExportResponse, format: ExportF
       ...result,
       entries: result.entries.map(entry => ({
         ...entry,
-        audio: entry.audio ? { ...entry.audio, url: urls.get(entry.audio.url)! } : null,
+        audio: entry.audio ? {
+          ...entry.audio, url: urls.get(entry.audio.url)!,
+          mimeType: format === 'epub' ? 'audio/mpeg' : entry.audio.mimeType,
+        } : null,
       })),
     },
     assets,

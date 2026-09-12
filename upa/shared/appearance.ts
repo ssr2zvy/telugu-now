@@ -31,7 +31,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   fontScale: 50,
   textOffset: 0,
   audioOffset: 0,
-  magnifierPosition: 'above',
+  magnifierPosition: 'below',
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
@@ -53,7 +53,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
-    magnifierPosition: candidate.magnifierPosition === 'below' ? 'below' : 'above',
+    magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
+      ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
       ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
       : DEFAULT_APPEARANCE.autoFadeSeconds,

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { config } from './config/config';
 import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
+import { serveExportAudio } from './services/export-audio-service';
 import { wordImageRoutes } from './services/word-image-service';
 import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
@@ -45,6 +46,7 @@ app.get('/api/data-sources', (c) =>
 );
 
 app.on(['GET', 'HEAD'], '/api/audio/*', serveAudio());
+app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
 

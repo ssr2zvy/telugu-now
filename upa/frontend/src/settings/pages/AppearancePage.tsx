@@ -60,7 +60,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Position', 'స్థానం')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} aria-label={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} onClick={() => updateAppearance({ textOffset: 0, audioOffset: 0, magnifierPosition: 'above' })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" title={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} aria-label={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} onClick={() => updateAppearance({ textOffset: 0, audioOffset: 0, magnifierPosition: DEFAULT_APPEARANCE.magnifierPosition })}><RotateCcw aria-hidden="true" /></button>
         </div>
         {(['textOffset', 'audioOffset'] as const).map(setting => (
           <div className="appearance-position-field" key={setting}>

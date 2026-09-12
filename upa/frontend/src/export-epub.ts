@@ -48,7 +48,7 @@ function buildContainerXml(): string {
   </rootfiles>
 </container>`;
 }
-function buildNavXhtml(): string {
+function buildNavXhtml(hasAudio: boolean): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="te" xml:lang="te">
@@ -60,19 +60,20 @@ function buildNavXhtml(): string {
   <nav epub:type="toc" id="toc">
     <h1>తెలుగు</h1>
     <ol>
+${hasAudio ? '      <li><a href="audio.xhtml">Text and audio (no scripting required)</a></li>' : ''}
       <li><a href="viewer.xhtml">తెలుగు</a></li>
     </ol>
   </nav>
   <nav epub:type="landmarks">
     <h2>Landmarks</h2>
     <ol>
-      <li><a epub:type="bodymatter" href="viewer.xhtml">తెలుగు</a></li>
+      <li><a epub:type="bodymatter" href="${hasAudio ? 'audio.xhtml' : 'viewer.xhtml'}">తెలుగు</a></li>
     </ol>
   </nav>
 </body>
 </html>`;
 }
-function buildViewerXhtml(): string {
+function buildViewerXhtml(hasAudio: boolean): string {
   const markup =
     buildStandaloneViewerMarkup();
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -85,8 +86,47 @@ function buildViewerXhtml(): string {
   <link rel="stylesheet" type="text/css" href="viewer.css" />
 </head>
 <body>
+${hasAudio ? '<a href="audio.xhtml" style="position:absolute;top:1rem;left:1rem;z-index:4" lang="en">Text and audio / playback help</a>' : ''}
 ${markup}
 <script type="text/javascript" src="viewer.js"></script>
+</body>
+</html>`;
+}
+function buildAudioXhtml(result: ExportResponse): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="te" xml:lang="te">
+<head>
+  <meta charset="utf-8" />
+  <title>Text and audio</title>
+</head>
+<body>
+  <h1 lang="en">Text and audio</h1>
+  <p lang="en">These controls do not require JavaScript. Playback and opening audio files depend on your EPUB reader. <a href="audio-help.xhtml">Playback help</a></p>
+  <p lang="en"><a href="viewer.xhtml">Interactive viewer (requires scripting)</a></p>
+  <ol>
+${result.entries.map(entry => `    <li>
+      <p>${xmlEscape(entry.text)}</p>
+${entry.audio ? `      <audio controls="controls" preload="none">
+        <source src="${xmlEscape(entry.audio.url)}" type="${xmlEscape(entry.audio.mimeType)}" />
+      </audio>
+      <p lang="en"><a href="${xmlEscape(entry.audio.url)}">Open audio file (MP3)</a></p>` : ''}
+    </li>`).join('\n')}
+  </ol>
+</body>
+</html>`;
+}
+function buildAudioHelpXhtml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head><meta charset="utf-8" /><title>Audio playback help</title></head>
+<body>
+  <h1>Audio playback help</h1>
+  <p>Not every EPUB reader supports inline audio or scripting. The text and audio page works without scripting, but playback still requires support for the packaged audio format.</p>
+  <p>This EPUB contains MP3 copies of the recordings, an EPUB 3 core audio format supported by Apple Books. The original corpus recordings and HTML exports are unchanged.</p>
+  <p>If playback fails, try the Open audio file link. Some readers cannot open these links either. You can instead extract the audio folder from the EPUB with a ZIP utility and play the MP3 files, or use the HTML export in a browser. Playback and scripting behavior still vary by reader and device; MP3 does not enable scripting in readers that disable it.</p>
+  <p><a href="audio.xhtml">Return to text and audio</a></p>
 </body>
 </html>`;
 }
@@ -95,6 +135,7 @@ function buildPackageOpf(
   modified: string,
   fontBundle: ObservationFontBundle,
   audioAssets: ExportAudioAsset[],
+  hasAudio: boolean,
 ): string {
   const fontItems =
     fontBundle.fonts
@@ -122,6 +163,7 @@ function buildPackageOpf(
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="viewer" href="viewer.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+${hasAudio ? '    <item id="audio-page" href="audio.xhtml" media-type="application/xhtml+xml"/>\n    <item id="audio-help" href="audio-help.xhtml" media-type="application/xhtml+xml"/>' : ''}
     <item id="viewer-css" href="viewer.css" media-type="text/css"/>
     <item id="viewer-js" href="viewer.js" media-type="application/javascript"/>
     <item id="export-data" href="data.json" media-type="application/json"/>
@@ -130,7 +172,9 @@ ${licenseItems}
 ${audioAssets.map((asset, index) => `    <item id="audio-${index + 1}" href="${xmlEscape(asset.path)}" media-type="${xmlEscape(asset.mimeType)}"/>`).join('\n')}
   </manifest>
   <spine>
-    <itemref idref="viewer"/>
+${hasAudio ? '    <itemref idref="audio-page"/>' : ''}
+    <itemref idref="viewer"${hasAudio ? ' linear="no"' : ''}/>
+${hasAudio ? '    <itemref idref="audio-help" linear="no"/>' : ''}
   </spine>
 </package>`;
 }
@@ -175,16 +219,18 @@ export function buildEpubBytes(
     buildStandaloneViewerScript(
       result,
     );
+  const hasAudio = result.entries.some(entry => Boolean(entry.audio));
   const viewerXhtml =
-    buildViewerXhtml();
+    buildViewerXhtml(hasAudio);
   const navXhtml =
-    buildNavXhtml();
+    buildNavXhtml(hasAudio);
   const packageOpf =
     buildPackageOpf(
       identifier,
       modified,
       fontBundle,
       options.audioAssets ?? [],
+      hasAudio,
     );
   const entries:
     StoredZipEntry[] = [
@@ -228,6 +274,12 @@ export function buildEpubBytes(
           JSON.stringify(result),
       },
     ];
+  if (hasAudio) {
+    entries.push(
+      { name: 'EPUB/audio.xhtml', data: buildAudioXhtml(result) },
+      { name: 'EPUB/audio-help.xhtml', data: buildAudioHelpXhtml() },
+    );
+  }
   for (
     const font
     of fontBundle.fonts

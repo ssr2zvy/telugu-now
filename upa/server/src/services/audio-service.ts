@@ -14,7 +14,7 @@ const AUDIO_MIME_TYPES_BY_EXTENSION: Record<string, string> = {
 
 export class InvalidAudioObjectKeyError extends Error {}
 
-function decodeAudioObjectKey(objectKey: string): string {
+export function decodeAudioObjectKey(objectKey: string): string {
   let segments: string[];
   try { segments = objectKey.split('/').map(segment => decodeURIComponent(segment)); }
   catch { throw new InvalidAudioObjectKeyError('Invalid audio object key.'); }
