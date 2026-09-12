@@ -65,14 +65,17 @@ export function useObservationTypography(
     let fitGeneration = 0;
     let fittedWidth = -1;
     let fittedHeight = -1;
+    let fittedAudioTop = -1;
     let resizeObserver: ResizeObserver | null = null;
     const fit = async () => {
       const containerRect = container.getBoundingClientRect();
-      if (containerRect.width === fittedWidth && containerRect.height === fittedHeight) return;
+      const audioBounds = container.querySelector('.audio-player-bar')?.getBoundingClientRect();
+      const audioTop = audioBounds?.top ?? Infinity;
+      if (containerRect.width === fittedWidth && containerRect.height === fittedHeight && audioTop === fittedAudioTop) return;
       fittedWidth = containerRect.width;
       fittedHeight = containerRect.height;
+      fittedAudioTop = audioTop;
       const generation = ++fitGeneration;
-      const audioBounds = container.querySelector('.audio-player-bar')?.getBoundingClientRect();
       const topLimit = containerRect.top + 24;
       const bottomLimit = Math.min(containerRect.bottom - 24, audioBounds ? audioBounds.top - 24 : Infinity);
       const availableHeight = Math.max(
@@ -137,6 +140,8 @@ export function useObservationTypography(
       void fit();
     });
     resizeObserver.observe(container);
+    const player = container.querySelector('.audio-player-bar');
+    if (player) resizeObserver.observe(player);
     return () => {
       cancelled = true;
       resizeObserver?.disconnect();

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
+import { appearanceAudioColor, appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
 import { chooseRandomObservationFont, preferredObservationFontSizePx, OBSERVATION_FONTS } from '../frontend/src/presentation';
 import { parentSettingsPage, settingsGroups } from '../frontend/src/settings/navigation';
 
@@ -36,7 +36,8 @@ test('appearance positions preserve existing baselines and validate persisted of
   const previous = parseAppearance({ fontScale: 75 });
   assert.equal(previous.textOffset, 0);
   assert.equal(previous.audioOffset, 0);
-  assert.equal(previous.magnifierPosition, 'above');
+  assert.equal(previous.magnifierPosition, 'below');
+  assert.equal(parseAppearance({ magnifierPosition: 'above' }).magnifierPosition, 'above');
   const custom = parseAppearance({ textOffset: -35, audioOffset: 60, magnifierPosition: 'below' });
   assert.equal(custom.textOffset, -35);
   assert.equal(custom.audioOffset, 60);
@@ -47,8 +48,15 @@ test('appearance positions preserve existing baselines and validate persisted of
   for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).textOffset, 0);
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
-    assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'above');
+    assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'below');
   }
+});
+
+test('audio controls derive their shared color from the gradient, not text or settings surfaces', () => {
+  const color = appearanceAudioColor(DEFAULT_APPEARANCE);
+  assert.match(color, /^#[0-9a-f]{6}$/);
+  assert.equal(appearanceAudioColor({ ...DEFAULT_APPEARANCE, ...parseAppearance({ foreground: '#ffffff', surface: '#ff0000' }) }), color);
+  assert.notEqual(appearanceAudioColor(parseAppearance(randomAppearanceColors(() => 0.6))), color);
 });
 
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
@@ -88,7 +96,8 @@ test('surface colors remain independent while corner colors adapt to palette and
     const corner = appearanceCornerColor(appearance);
     assert.match(corner, /^#[0-9a-f]{6}$/);
     assert.equal(appearanceCornerColor(appearance), corner);
-    assert.ok(contrast(corner, appearance.foreground) >= 1.2, `${corner} must differ visibly from audio`);
+    assert.ok(contrast(corner, appearance.foreground) >= 1.2, `${corner} must differ visibly from text`);
+    assert.ok(contrast(corner, appearanceAudioColor(appearance)) >= 1.2, `${corner} must differ visibly from audio`);
     for (const background of appearance.gradient) {
       assert.ok(contrast(corner, background) >= 3, `${corner} must contrast with ${background}`);
     }

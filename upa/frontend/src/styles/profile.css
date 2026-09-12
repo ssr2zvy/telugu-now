@@ -30,6 +30,7 @@
       -50%
     );
 }
+.profile-preferences-loading { --entry-layout-height: 100dvh; }
 .entry-status { display: grid; place-items: center; width: 40px; height: 40px; color: var(--muted); }
 .entry-status svg { width: 28px; height: 28px; stroke-width: 1.4; }
 .entry-status[data-state='invalid'] { color: var(--foreground); }

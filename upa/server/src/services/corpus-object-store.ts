@@ -57,8 +57,9 @@ export class CorpusObjectStore {
     return this.prefix + relativeKey;
   }
 
-  getObject(relativeKey: string, input: Omit<GetObjectCommandInput, 'Bucket' | 'Key'> = {}) {
-    return this.client.send(new GetObjectCommand({ ...input, Bucket: this.bucket, Key: this.key(relativeKey) }));
+  getObject(relativeKey: string, input: Omit<GetObjectCommandInput, 'Bucket' | 'Key'> = {}, abortSignal?: AbortSignal) {
+    return this.client.send(new GetObjectCommand({ ...input, Bucket: this.bucket, Key: this.key(relativeKey) }),
+      abortSignal ? { abortSignal } : {});
   }
 
   headObject(relativeKey: string, input: Omit<GetObjectCommandInput, 'Bucket' | 'Key'> = {}) {

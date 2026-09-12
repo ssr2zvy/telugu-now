@@ -132,6 +132,17 @@ sigma = R / 2.326347874
 The normal is truncated and renormalized to `[0,1]`. Probability mass over each tied grapheme-count percentile interval is divided by the global number of rows with that grapheme count to produce per-row global complexity mass.
 After a source is selected, those masses are normalized over the complexity classes present in that source.
 Source probability, conditional row probability, and overall source-and-row probability remain distinct and are persisted in every new acquisition's immutable selection snapshot.
+
+The UI expresses target and spread as percentages: target `1` and spread `1`
+mean `T = 0.01` and `R = 0.01`, not the full `[0,1]` range. The central 98%
+reference interval is approximately the 0th through 2nd global percentiles,
+before truncation at the domain boundary and conditioning on the selected
+source. It is not a guarantee that 98% of final draws fall in exactly 1% of a
+source's rows. Percentiles are global, and all rows with the same grapheme count
+share one interval; a tied class can contain far more than 1% of the corpus.
+Its probability mass is divided among all its rows. The displayed overall
+probability describes one particular source recording per draw, not every
+recording with the same text, and not a history revisit.
 ## Repeats and profile source-record cache
 Selections are independent and with replacement. The same `(source_id, source_key)` may appear in multiple acquisitions.
 A stable source record and an acquisition are separate concepts:
@@ -257,19 +268,19 @@ At desktop widths (960px and above), a navigation rail also provides direct acce
 The settings interface uses locally bundled Manrope variable type for Latin text, with the existing Noto Sans Telugu fallback. Appearance includes a live gradient and Telugu type sample that responds to color, font-pool, and size changes; the reader continues to choose from the enabled font pool.
 Appearance preferences are saved in server-side SQLite for the active profile, alongside its sampling and playback settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
 
-Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. The audio bar's buttons move with it, while the Settings button stays in its corner. **Magnifier position** selects Above (default) or Below; Below reserves room underneath the bar. Positions are constrained to the available viewport, and long text is refitted to avoid overlapping the audio bar. **Reset positions** restores both offsets to zero and the magnifier to Above without changing colors, type size or fonts. These settings persist per profile and do not change exports.
+Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the original baselines, from -200 to +200 pixels. Negative values move up; positive values move down. The audio controls move together, while the Settings button stays in its corner. **Magnifier position** swaps the two rows around the main seek bar: Below (default) puts the precision bar below and the large Play button, speed and bookmark controls above; Above reverses these rows. Explicit saved positions are preserved. Positions are constrained to the viewport, and long text is refitted to avoid overlapping the audio controls. **Reset positions** restores both offsets to zero and the magnifier to Below without changing colors, type size or fonts.
 Settings uses compact rows, inline numeric values with understated unit suffixes, and checkmark Save actions. Numeric fields use one underline focus indicator instead of an outer focus ring; keyboard focus remains visible.
 Appearance exposes three explicit color roles:
 - Background: the three colors used by the reader gradient.
-- Text & icons: the exact foreground shared by reader text, settings text, icons, audio tracks, and waveform marks. Borders and muted states derive from this color.
-- Settings & popovers: the surface behind Settings and export dialogs. Automatic selects a light neutral for dark text or a dark neutral for light text. Audio popovers use an opaque mix of 35% automatic surface and 65% middle gradient colour, avoiding a stark white panel on the reader. An explicit surface swatch overrides all these surfaces exactly.
+- Text & icons: the foreground for reader and settings text and icons. Borders and muted states derive from this color.
+- Settings & popovers: the surface behind Settings and export dialogs. Automatic selects a light neutral for dark text or a dark neutral for light text. Audio controls instead share a gradient-derived contrasting color and an opaque mix of the first and middle gradient colors, independent of the settings surface swatch.
 Color swatches show their hex values. Randomize chooses a coordinated palette and restores Automatic surface. Reset colors restores the default colors without changing font size or font exclusions. Custom text/surface pairs should be chosen with sufficient contrast.
 The settings refinement references [Google's Material 3 Expressive research](https://design.google/library/expressive-material-design-google-research), [Apple's materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), and [Linear's UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui), consulted September 2026: stronger typography and hierarchy, a distinct navigation layer, restrained interaction states, and consistent alignment. Form surfaces remain opaque and use the selected appearance colors, rather than applying glass effects to content.
-Playback speed supports 0.1x-1.5x. The flat audio controls share the appearance colors, and the precision scrubber moves one millisecond per pointer pixel. Popovers stay within the viewport and consume their outside-dismissal click without also navigating.
-The precision magnifier pauses audio when opened by a sustained press or Enter; closing it does not resume playback. Both precision and speed popovers open above the main transport. Keyboard focus marks the precision playhead, not the bottom edge of the panel.
+Playback speed supports 0.1x-1.5x. Play has an 80 by 64 pixel hit box; speed and bookmarks have 48 pixel targets. The precision scrubber moves one millisecond per pointer pixel. The speed popover stays within the player footprint and consumes its outside-dismissal click without navigating.
+The precision bar is always part of the audio controls, with no hold-to-open or dismissal gesture. Pointer interaction or arrow keys pause playback for fine seeking; playback resumes only through Play.
 The desktop settings rail has independent collapse controls for Sampling, Diagnostic, and Display. Group navigation and child links remain available without resetting the current page.
-Starting or replaying a clip from the beginning includes a 500 ms silent lead-in while the audio device is primed, before the native audio element advances. No recorded samples are muted or skipped, and original audio files, exports, seek times and bookmarks remain unchanged. Mid-clip resume is immediate. Pause, seeking, opening the magnifier or navigating away cancels a pending start. Loudness normalization connects before playback when the processing context is running; an unavailable or stalled context does not block native playback after the lead-in. Media loading and playback failures appear above the bar, and Play retries the request.
-The audio bar and Settings button start hidden. Clicking the reading area toggles them; after revealing them, pointer movement or keyboard activity resets their idle timer. **Display > Appearance > Auto-fade** sets the delay from 1 to 60 seconds (default 15), saved automatically for the profile. Its reset button restores 15 seconds without changing other appearance settings. They fade together after inactivity, even when the pointer rests over a control or a control retains keyboard focus. An open magnifier keeps them visible, and active pointer dragging postpones the timer until release. Movement alone does not reveal hidden controls. Keyboard focus or activation can reveal the controls again, and hiding the audio bar does not interrupt playback. Navigating to another observation hides the controls again.
+Every Play or resume starts with 500 ms of zero-valued PCM silence at 1x speed on the same native audio element, initiated within the user gesture. No looping noise or nonzero priming signal is emitted. Silence uses unity gain and is excluded from source loudness analysis. The original recording then resumes at its saved position and selected speed; no recorded samples are intentionally muted or skipped, and original files, exports, seek times and bookmarks remain unchanged. Loading the original recording can add further waiting time. Pause, seeking, precision interaction and navigation cancel a pending start. The scrubbers follow the native media clock on animation frames rather than relying on sparse mobile timeupdate events. Media loading and playback failures appear above the bar; Play retries.
+The audio controls and Settings icon start hidden. Single-clicking the reading area toggles audio only. Double-clicking or double-tapping blank space in the center reveals only the Settings icon; click that icon to enter Settings. Edge double taps still navigate and word double taps still open word profiles. Keyboard focus can reveal either control group for accessibility. **Display > Appearance > Auto-fade** sets the shared inactivity delay from 1 to 60 seconds (default 15). Movement and keyboard activity reset the timer but do not reveal hidden controls. The fixed precision bar fades with the audio controls; active dragging postpones fading until release. Hiding controls does not stop playback. Navigation hides both groups. Profile preference loading uses the same text-free spinner as sign-in instead of flashing a loading sentence.
 Audio objects are streamed with HTTP byte-range support for WAV and FLAC: partial requests receive 206 and Content-Range, and unsatisfiable requests receive 416. Versioned audio URLs bypass older immutable full-file responses that lacked seeking support; the canonical audio files are not converted or modified.
 Scrubbers prevent native text dragging, selection, and touch callouts while retaining keyboard focus. Pointer capture keeps fine seeking active outside the track and resets after cancellation so the next drag can begin normally.
 Because the observation is not visible while Settings is displayed, opening Settings pauses visible-time accumulation. The history-tail absolute timer continues under the accepted Iteration 1 timing model. Closing Settings resumes visible accumulation when appropriate.
@@ -308,7 +319,7 @@ Download
 ```
 Pressing Export opens a native modal format chooser covering the full viewport. Cancel or Escape closes it without generating anything and restores focus to Export.
 An indeterminate progress bar occupies a separate row, showing selection and file-preparation stages; the API does not report completion percentages.
-The selected format is not passed into source or row selection. EPUB versus HTML is only an artifact/container choice.
+The selected format is not passed into source or row selection. EPUB versus HTML changes packaging (including EPUB-only MP3 conversion), not selection.
 Every Export action generates a new batch, even if the count and format are unchanged. Download saves the currently prepared artifact without resampling. Fresh random selections may repeat rows, and source-record cache hits can still make later exports faster.
 Editing `N` or successfully saving source/complexity settings invalidates both the retained current batch and any prepared artifact shown by the Export page.
 ## Shared standalone viewer
@@ -351,27 +362,33 @@ META-INF/
 EPUB/
   package.opf
   nav.xhtml
+  audio.xhtml       # script-free first spine page when audio is present
+  audio-help.xhtml
   viewer.xhtml
   viewer.css
   viewer.js
   data.json
-        audio/
-                <available audio clips>
+  audio/
+    clip-1.mp3      # available clips, deduplicated by original URL
   fonts/
     <all 10 WOFF2 files>
   licenses/
     <all required font license files>
 ```
-The `mimetype` entry contains exactly `application/epub+zip`, is the first ZIP entry, and is stored without compression. `META-INF/container.xml` points to `EPUB/package.opf`. The OPF manifest declares the navigation document, scripted viewer, shared viewer CSS/JavaScript, data, all fonts, and license resources. The viewer spine item is explicitly marked `scripted`.
+The `mimetype` entry contains exactly `application/epub+zip`, is the first ZIP entry, and is stored without compression. `META-INF/container.xml` points to `EPUB/package.opf`. The OPF manifest declares the navigation document, scripted viewer, shared viewer CSS/JavaScript, data, all fonts, and license resources. The viewer manifest item is explicitly marked `scripted`; for audio books its spine item is non-linear, making the script-free audio page the primary reading flow.
 Because Apple Books is the explicit EPUB target and the book embeds its own fonts, `package.opf` also declares the Apple Books `ibooks` vocabulary prefix and includes:
 ```xml
 <meta property="ibooks:specified-fonts">true</meta>
 ```
 This tells Apple Books to honor the packaged font faces used by the randomized typography viewer rather than substituting reader-selected fonts.
 The browser-side EPUB packager is isolated in `frontend/src/export-epub.ts`. ZIP mechanics are isolated in `frontend/src/zip.ts`; the current implementation emits deterministic stored ZIP entries and requires no third-party ZIP runtime.
-The EPUB contains the same immutable `ExportResponse` data and the same viewer behavior as HTML. Audio clips are packaged as local files and declared in the OPF manifest. Each distinct clip is fetched once per export; missing or failed audio aborts packaging rather than silently producing an incomplete file. All fonts, audio, and executable resources are inside the EPUB, so normal viewer operation requires no Telugu Now server, Fly.io, Codespaces, Google Fonts, installed Telugu fonts, APIs, external JavaScript, or external CSS. Audio and scripting support still depend on the EPUB reader and supported codecs; Apple Books device acceptance remains required.
+The EPUB preserves the selected observations and optional interactive viewer; a separate script-free text/audio page opens first when recordings are present, with native audio controls and MP3 links. For EPUB only, the client requests MP3 copies from `GET /api/export-audio/<encoded-corpus-object-key>` and packages `.mp3` files with `audio/mpeg` in the manifest, source elements, and copied export data. Original WAV/FLAC corpus bytes, live `/api/audio/...` playback, and HTML exports remain unchanged. Each distinct original URL is converted/fetched once per export; missing or failed audio aborts packaging rather than silently producing an incomplete file.
+
+Local EPUB audio conversion requires `ffmpeg` on `PATH`, including the `libmp3lame` encoder (`sudo apt-get install ffmpeg` on Debian/Ubuntu). The runtime Docker image installs it. Conversion accepts only validated WAV/FLAC corpus object keys, uses the existing local-root/symlink or object-store protections, and never accepts arbitrary URLs or filesystem paths. It pipes audio through ffmpeg without a shell or corpus writes, producing 128 kbps mono 44.1 kHz MP3. Per server process, at most two conversions run at once, with no waiting queue; each has a 32 MiB input limit, 8 MiB output limit, five-minute audio limit, and 30-second total timeout (including loading). Over-limit or invalid audio fails explicitly rather than being silently truncated. Disconnect/error/timeout closes upstream streams and terminates the encoder. There is no conversion cache or server-side archive. Responses use `Cache-Control: no-store` and never inherit original byte-range, ETag, or encoding headers. Busy or missing-ffmpeg requests return 503; clients can retry the export.
+
+All fonts, audio, and executable resources are inside the EPUB, so normal playback requires no Telugu Now server or network access. MP3 is an EPUB 3 core audio format supported by Apple Books, avoiding reliance on original WAV/FLAC decoder support. It does not enable scripting in readers that disable it or guarantee identical native controls across readers. The optional interactive viewer still requires reader scripting support; actual iPhone/iPad Apple Books playback and seeking acceptance remains required and is not claimed by the automated tests.
 ## EPUB acceptance
-Automated tests validate the EPUB ZIP/container structure, first uncompressed mimetype entry, OPF manifest, scripted declaration, Apple Books embedded-font metadata, viewer resources, data, ten fonts, licenses, and offline viewer code.
+Automated tests validate the EPUB ZIP/container structure, first uncompressed mimetype entry, MP3 MIME/path declarations, script-free audio page, scripted viewer declaration, Apple Books embedded-font metadata, viewer resources, data, ten fonts, licenses, and offline viewer code. With ffmpeg installed, targeted server tests convert real small WAV and FLAC recordings and decode/probe the MP3 outputs, plus exercise limits, cancellation, and unchanged original-route behavior.
 Before EPUB support is considered complete for release, it should additionally pass an actual-device acceptance test in Apple Books on iPhone:
 ```text
 generate EPUB
@@ -379,6 +396,8 @@ generate EPUB
 → enable airplane mode
 → close and reopen Books
 → open EPUB
+→ verify script-free MP3 playback, pause and seeking
+→ open the optional interactive viewer
 → verify Back / Next
 → verify random font rerolls
 → verify sizing/fitting
@@ -528,7 +547,8 @@ pool; already selected queue entries and immutable history snapshots are not
 resampled. Keep published content-addressed audio available for those older
 acquisitions and exports. Replacing the canonical catalog requires an app restart.
 
-Both the live player and offline export packaging use `/api/audio/...`. Tigris
+The live player and HTML export packaging use `/api/audio/...`; EPUB packaging
+uses the separate bounded MP3 conversion route `/api/export-audio/...`. Tigris
 GET responses are streamed through the server, with HEAD, byte ranges,
 conditional requests, ETag/Last-Modified, MIME metadata, and 404/416 handling.
 Unsafe keys are rejected before filesystem or S3 access, and upstream error
@@ -666,12 +686,13 @@ under `/data/corpus/`, user data under `/data/user/`, and shared images under
 `/data/word-images/`. It specifies one shared CPU with 1 GB RAM, HTTPS, and an
 API health check with Fly's maximum one-minute startup grace period. The initial
 corpus download may take longer; allow a longer deployment wait timeout, such as
-`--wait-timeout 5m`, when deploying. Autostop is disabled so the background worker
-continues without traffic.
-This deployment explicitly sets `CORPUS_AVAILABILITY_WORKER_ENABLED=true`,
-overriding the application's disabled default. The worker refreshes at startup,
-then waits two hours after each pass; this is
-not a wall-clock schedule.
+`--wait-timeout 5m`, when deploying. Autostop is disabled to avoid
+traffic-driven startup rebuilds.
+This deployment explicitly sets `CORPUS_AVAILABILITY_WORKER_ENABLED=false`
+and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
+`availability.sqlite` from the Tigris inventory before serving, without a
+background availability worker. Existing corpus and user databases are reused.
+This scan repeats on each application startup while the rebuild flag is enabled.
 
 Fly's `[build]` section selects the root Dockerfile; `fly.toml` is deployment
 configuration and is not copied into the image. The selected primary region is

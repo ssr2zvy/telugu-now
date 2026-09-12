@@ -544,7 +544,14 @@ async function revealControls(page: Page, clockPaused = false) {
     await page.locator('.observation-text').click();
     if (clockPaused) await page.clock.fastForward(500);
   }
+
   await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '1');
+}
+
+async function revealSettings(page: Page) {
+  const center = (await page.locator('.observation-center').boundingBox())!;
+  await page.mouse.dblclick(center.x + center.width / 2, center.y + 12);
+  await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
 }
 
 test('downloaded HTML plays its embedded audio offline', async ({ page }) => {
@@ -610,41 +617,42 @@ test('each export requests a fresh batch even when the count stays the same', as
   expect(fixture.errors).toEqual([]);
 });
 
-test('opening precision seeking pauses playback and popovers sit above the transport', async ({ page }) => {
+test('fixed precision seeking pauses playback and speed stays inside the viewport', async ({ page }) => {
   const fixture = await loadFixture(page);
   await revealControls(page);
   const audio = page.locator('audio');
-  const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
-  for (const activation of ['keyboard', 'hold']) {
+  const precise = page.getByRole('slider', { name: 'Precise audio position' });
+  for (const activation of ['keyboard', 'pointer']) {
     await page.getByTitle('Play', { exact: true }).click();
+    await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
     await expect(audio).toHaveJSProperty('paused', false);
-    if (activation === 'keyboard') await scrubber.press('Enter');
+    const startedAt = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(startedAt);
+    if (activation === 'keyboard') await precise.press('ArrowRight');
     else {
-      const bounds = (await scrubber.boundingBox())!;
+      const bounds = (await precise.boundingBox())!;
       await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
       await page.mouse.down();
     }
-    const precise = page.getByRole('slider', { name: 'Precise audio position' });
     await expect(precise).toBeVisible();
     await expect(audio).toHaveJSProperty('paused', true);
-    if (activation === 'hold') await page.mouse.up();
+    if (activation === 'pointer') await page.mouse.up();
     const panel = (await page.locator('.audio-magnifier').boundingBox())!;
-    const bar = (await page.locator('.audio-player-bar').boundingBox())!;
-    expect(panel.y + panel.height).toBeLessThan(bar.y);
+    const bar = (await page.locator('.audio-scrubber').boundingBox())!;
+    expect(panel.y).toBeGreaterThanOrEqual(bar.y + bar.height);
     await precise.focus();
     await expect(precise).toHaveCSS('box-shadow', 'none');
     await precise.press('Escape');
+    await expect(precise).toBeVisible();
   }
   await page.getByTitle('Playback speed', { exact: true }).click();
   const speed = page.locator('.audio-speed-popover');
   await withinViewport(speed, page);
-  const bounds = (await speed.boundingBox())!;
-  expect(bounds.y + bounds.height).toBeLessThan((await page.locator('.audio-player-bar').boundingBox())!.y);
   expect(fixture.errors).toEqual([]);
 });
 
 async function openSettings(page: Page) {
-  await revealControls(page);
+  await revealSettings(page);
   await page.locator('.settings-trigger').click();
   if (await page.locator('.settings-header h1').textContent() !== 'Settings') {
     await page.locator('.language-toggle').click();
@@ -663,59 +671,77 @@ async function withinViewport(locator: Locator, page: Page) {
 
 test('audio starts with a silent lead-in without consuming the beginning of the clip', async ({ page }) => {
   const fixture = await loadFixture(page);
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
-  await revealControls(page, true);
+  await revealControls(page);
   const audio = page.locator('audio');
   await audio.evaluate(element => {
-    element.addEventListener('play', () => {
-      element.setAttribute('data-start-time', String((element as HTMLAudioElement).currentTime));
+    element.addEventListener('playing', () => {
+      const media = element as HTMLAudioElement;
+      element.setAttribute(media.src.startsWith('data:') ? 'data-silence-start' : 'data-content-start', String(performance.now()));
+      if (!media.src.startsWith('data:')) element.setAttribute('data-start-time', String(media.currentTime));
     });
+    element.addEventListener('ended', () => {
+      const media = element as HTMLAudioElement;
+      if (media.src.startsWith('data:')) element.setAttribute('data-silence-ended-time', String(media.currentTime));
+    }, true);
   });
-  await page.getByTitle('Play', { exact: true }).click();
-  await expect(page.getByTitle('Pause', { exact: true })).toBeVisible();
-  await page.clock.fastForward(499);
-  await expect(audio).toHaveJSProperty('paused', true);
-  await expect(audio).toHaveJSProperty('currentTime', 0);
-  await expect(audio).not.toHaveAttribute('data-start-time');
-  await page.clock.fastForward(1);
-  await expect(audio).toHaveJSProperty('paused', false);
-  await expect.poll(() => audio.getAttribute('data-start-time')).not.toBeNull();
-  expect(Number(await audio.getAttribute('data-start-time'))).toBeLessThan(0.1);
-  await expect.poll(() => audio.evaluate(element => (element as HTMLAudioElement).currentTime)).toBeGreaterThan(0.1);
-  await page.getByTitle('Pause', { exact: true }).click();
-  await page.getByTitle('Play', { exact: true }).click();
-  await expect(audio).toHaveJSProperty('paused', false);
-  await audio.evaluate(element => {
-    const media = element as HTMLAudioElement;
-    media.currentTime = media.duration - 0.05;
-  });
-  await expect(audio).toHaveJSProperty('ended', true);
-  await audio.evaluate(element => element.removeAttribute('data-start-time'));
-  await page.getByTitle('Play', { exact: true }).click();
-  await page.clock.fastForward(499);
-  await expect(audio).toHaveJSProperty('paused', true);
-  await expect(audio).not.toHaveAttribute('data-start-time');
-  await page.clock.fastForward(1);
-  await expect(audio).toHaveJSProperty('paused', false);
-  await expect.poll(() => audio.getAttribute('data-start-time')).not.toBeNull();
-  expect(Number(await audio.getAttribute('data-start-time'))).toBeLessThan(0.1);
+  for (const time of [0, 7]) {
+    await audio.evaluate((element: HTMLAudioElement, time) => {
+      element.currentTime = time;
+      element.removeAttribute('data-content-start');
+      element.removeAttribute('data-start-time');
+      element.removeAttribute('data-silence-ended-time');
+    }, time);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
+    await expect(page.getByRole('slider', { name: 'Audio position', exact: true })).toHaveAttribute('aria-valuenow', String(time));
+    await expect(audio).toHaveJSProperty('playbackRate', 1);
+    await expect.poll(() => audio.getAttribute('data-content-start')).not.toBeNull();
+    const elapsed = Number(await audio.getAttribute('data-content-start')) - Number(await audio.getAttribute('data-silence-start'));
+    expect(elapsed).toBeGreaterThanOrEqual(490);
+    await expect(audio).toHaveAttribute('data-silence-ended-time', '0.5');
+    expect(Number(await audio.getAttribute('data-start-time'))).toBeCloseTo(time, 1);
+    await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(time + 0.1);
+    await page.getByTitle('Pause', { exact: true }).click();
+  }
   expect(fixture.errors).toEqual([]);
+});
+
+test('touch resumes authorize the same element through silence and content', async ({ playwright }) => {
+  const browser = await playwright.chromium.launch({ args: ['--autoplay-policy=user-gesture-required'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const fixture = await loadFixture(page);
+    await revealControls(page);
+    const audio = page.locator('audio');
+    const originalAudio = await audio.elementHandle();
+    for (const time of [0, 7]) {
+      await audio.evaluate((element: HTMLAudioElement, time) => { element.currentTime = time; }, time);
+      await page.getByTitle('Play', { exact: true }).tap();
+      await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
+      await expect(page.getByRole('slider', { name: 'Audio position', exact: true })).toHaveAttribute('aria-valuenow', String(time));
+      await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(time + 0.1);
+      expect(await originalAudio!.evaluate(element => element === document.querySelector('audio'))).toBe(true);
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      await page.getByTitle('Pause', { exact: true }).tap();
+    }
+    expect(fixture.errors).toEqual([]);
+  } finally {
+    await browser.close();
+  }
 });
 
 for (const action of ['pause', 'seek', 'magnifier', 'navigate']) {
   test(`audio lead-in is cancelled by ${action}`, async ({ page }) => {
     const fixture = await loadFixture(page);
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
-    await revealControls(page, true);
+    await revealControls(page);
     const originalAudio = await page.locator('audio').elementHandle();
     await page.getByTitle('Play', { exact: true }).click();
-    await page.clock.fastForward(200);
     if (action === 'pause') await page.getByTitle('Pause', { exact: true }).click();
     if (action === 'seek') await page.getByRole('slider', { name: 'Audio position', exact: true }).press('ArrowRight');
     if (action === 'magnifier') {
-      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+      await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
       await expect(page.getByRole('slider', { name: 'Precise audio position' })).toBeVisible();
     }
     if (action === 'navigate') {
@@ -723,19 +749,17 @@ for (const action of ['pause', 'seek', 'magnifier', 'navigate']) {
       await expect.poll(fixture.navigationCount).toBe(1);
       await expect.poll(() => originalAudio!.evaluate(element => element.isConnected)).toBe(false);
     }
-    await page.clock.fastForward(1000);
+    await page.waitForTimeout(700);
     expect(await originalAudio!.evaluate(element => (element as HTMLAudioElement).paused)).toBe(true);
     await expect(page.locator('audio')).toHaveJSProperty('paused', true);
     await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
-    if (action === 'navigate') {
-      await revealControls(page, true);
-      await page.getByTitle('Play', { exact: true }).click();
-      await page.clock.fastForward(499);
-      await expect(page.locator('audio')).toHaveJSProperty('paused', true);
-      await expect(page.locator('audio')).toHaveJSProperty('currentTime', 0);
-      await page.clock.fastForward(1);
-      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
-    }
+    if (action === 'navigate') await revealControls(page);
+    const resumeAt = await page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect(page.locator('audio')).toHaveAttribute('src', /^data:audio\/wav/);
+    await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
+    await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+    await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(resumeAt + 0.1);
     expect(fixture.errors).toEqual([]);
   });
 }
@@ -763,6 +787,7 @@ for (const failure of ['pending', 'rejected', 'unavailable']) {
     await revealControls(page);
     await page.getByTitle('Play', { exact: true }).click();
     await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+    await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
     await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
     await expect(page.locator('html')).not.toHaveAttribute('data-audio-graph-connected', 'true');
     await page.getByTitle('Pause', { exact: true }).click();
@@ -799,6 +824,7 @@ test('playback failure is visible and retry can start audio', async ({ page }, t
   await expect(page.locator('audio')).toHaveJSProperty('paused', true);
   await page.getByTitle('Play', { exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
   await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
   expect(fixture.errors).toEqual([]);
 });
@@ -827,8 +853,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(duration * fraction, 1);
         await expect(audio).toHaveJSProperty('seeking', false);
       }
-      await scrubber.press('Enter');
       const precise = page.getByRole('slider', { name: 'Precise audio position' });
+      await expect(precise).toBeVisible();
       const track = (await precise.boundingBox())!;
       const before = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
       await page.mouse.move(track.x + 30, track.y + track.height / 2);
@@ -992,7 +1018,7 @@ test('a delayed status poll cannot replay the previous observation after navigat
 test('navigation feedback counts dispatched requests once and rejects overlapping activation', async ({ page }, testInfo) => {
   const fixture = await loadFixture(page);
   await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
   await expect(page.locator('.navigation-feedback')).toHaveCount(0);
   await page.locator('.nav-zone-right').click();
   expect(fixture.navigationCount()).toBe(0);
@@ -1027,6 +1053,106 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
 
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('delayed profile preferences keep the existing text-free loading spinner', async ({ page }) => {
+    const fixture = await loadFixture(page, undefined, false);
+    let release = () => {};
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/api/profiles/001/preferences', async route => {
+      await gate;
+      await route.fallback();
+    });
+    await page.locator('.profile-input').fill('001');
+    const loading = page.getByRole('status', { name: 'Loading profile settings', exact: true });
+    await expect(loading).toBeVisible();
+    await expect(loading.locator('svg')).toBeVisible();
+    await expect(loading).toHaveText('');
+    await expect(page.getByText('Loading profile settings...', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.observation-screen')).toHaveCount(0);
+    release();
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await expect(loading).toHaveCount(0);
+    expect(fixture.errors).toEqual([]);
+  });
+  test('only blank center double taps reveal the settings icon without opening settings', async ({ page }) => {
+    const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+    await wordImageFixture(page);
+    const center = (await page.locator('.observation-center').boundingBox())!;
+    const settings = page.locator('.settings-trigger');
+    const player = page.locator('.audio-player-bar');
+    await page.touchscreen.tap(center.x + center.width / 2, center.y + 12);
+    await expect(player).toHaveCSS('opacity', '1');
+    await expect(settings).toHaveCSS('opacity', '0');
+    await page.touchscreen.tap(center.x + center.width / 2, center.y + 12);
+    await expect(player).toHaveCSS('opacity', '0');
+    for (const y of [center.y + 12, 820]) {
+      await page.touchscreen.tap(center.x + center.width / 2, y);
+      await page.touchscreen.tap(center.x + center.width / 2, y);
+      await expect(settings).toHaveCSS('opacity', '1');
+      await expect(player).toHaveCSS('opacity', '0');
+      await expect(page.locator('.settings-screen')).toHaveCount(0);
+    }
+    await page.locator('.nav-zone-right').tap();
+    await page.locator('.nav-zone-right').tap();
+    await expect.poll(fixture.navigationCount).toBe(1);
+    await expect(settings).toHaveCSS('opacity', '0');
+    const word = await page.locator('.observation-text').evaluate(element => {
+      const range = document.createRange();
+      range.setStart(element.firstChild!, 0);
+      range.setEnd(element.firstChild!, 'అవును'.length);
+      const bounds = range.getBoundingClientRect();
+      return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    });
+    await page.touchscreen.tap(word.x, word.y);
+    await page.touchscreen.tap(word.x, word.y);
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(settings).toHaveCSS('opacity', '0');
+    await page.keyboard.press('Escape');
+    await page.locator('.nav-zone-right').focus();
+    await page.keyboard.press('Tab');
+    await expect(settings).toBeFocused();
+    await expect(settings).toHaveCSS('opacity', '1');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.settings-screen')).toBeVisible();
+    expect(fixture.errors).toEqual([]);
+  });
+  test('mobile progress follows the media clock between sparse timeupdate events at every speed', async ({ page }) => {
+    const fixture = await loadFixture(page);
+    await revealControls(page);
+    const audio = page.locator('audio');
+    const coarse = page.getByRole('slider', { name: 'Audio position', exact: true });
+    const precise = page.getByRole('slider', { name: 'Precise audio position', exact: true });
+    await audio.evaluate(element => {
+      element.addEventListener('timeupdate', event => event.stopImmediatePropagation(), true);
+    });
+    for (const rate of [0.1, 1, 1.5]) {
+      await page.getByTitle('Playback speed', { exact: true }).tap();
+      const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
+      await speed.press('Home');
+      for (let step = 0; step < Math.round((rate - 0.1) / 0.05); step += 1) await speed.press('ArrowUp');
+      await page.keyboard.press('Escape');
+      await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 3; });
+      await page.getByTitle('Play', { exact: true }).tap();
+      await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
+      await expect(coarse).toHaveAttribute('aria-valuenow', '3');
+      await expect(audio).toHaveJSProperty('playbackRate', 1);
+      await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+      await expect(audio).toHaveJSProperty('playbackRate', rate);
+      await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(3.05);
+      for (let sample = 0; sample < 4; sample += 1) {
+        await page.waitForTimeout(80);
+        const timing = await audio.evaluate((element: HTMLAudioElement) => ({
+          media: element.currentTime,
+          coarse: Number(document.querySelector('.audio-scrubber')?.getAttribute('aria-valuenow')),
+          precise: Number(document.querySelector('.audio-magnifier-track')?.getAttribute('aria-valuenow')),
+        }));
+        expect(Math.abs(timing.coarse - timing.media)).toBeLessThan(0.1);
+        expect(timing.precise).toBe(timing.coarse);
+      }
+      await page.getByTitle('Pause', { exact: true }).tap();
+      await expect(precise).toHaveAttribute('aria-valuenow', await coarse.getAttribute('aria-valuenow') ?? '');
+    }
+    expect(fixture.errors).toEqual([]);
+  });
   test('precision touch dragging survives cancellation and capture outside the track', async ({ page }) => {
     const fixture = await loadFixture(page);
     await page.locator('.observation-text').tap();
@@ -1298,8 +1424,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(delay).toHaveValue('5');
       await page.locator('.settings-close').click();
       await page.clock.install();
-      await page.clock.pauseAt(new Date());
+      await page.clock.pauseAt(new Date(Date.now() + 1000));
       await revealControls(page, true);
+      await revealSettings(page);
       const player = page.locator('.audio-player-bar');
       const settings = page.locator('.settings-trigger');
       await page.clock.fastForward(4000);
@@ -1311,15 +1438,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(player).toHaveCSS('opacity', '0');
       await expect(settings).toHaveCSS('opacity', '0');
       await revealControls(page, true);
-      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
       const precise = page.getByRole('slider', { name: 'Precise audio position' });
       await expect(precise).toBeVisible();
       await page.mouse.move(120, 120);
       await page.clock.fastForward(20000);
-      await expect(player).toHaveCSS('opacity', '1');
-      await expect(settings).toHaveCSS('opacity', '1');
-      await precise.press('Escape');
-      await page.clock.fastForward(5500);
       await expect(player).toHaveCSS('opacity', '0');
       await expect(settings).toHaveCSS('opacity', '0');
       await revealControls(page, true);
@@ -1370,50 +1492,63 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await setOffset('Audio bar vertical offset', audioOffset);
         await page.locator('.settings-close').click();
         await expect(text).toHaveCSS('opacity', '1');
-        expect((await text.boundingBox())!.y - initialText.y).toBeCloseTo(offset, 0);
-        expect((await player.boundingBox())!.y - initialBar.y).toBeCloseTo(audioOffset, 0);
+        const textBounds = (await text.boundingBox())!;
+        const playerBounds = (await player.boundingBox())!;
+        const centerBounds = (await page.locator('.observation-center').boundingBox())!;
+        // Small viewports clamp requested offsets before text can overlap the player.
+        const requestedTop = centerBounds.y + centerBounds.height / 2 + 20 + offset - textBounds.height / 2;
+        const expectedTop = Math.max(centerBounds.y + 24, Math.min(requestedTop, playerBounds.y - 24 - textBounds.height));
+        expect(textBounds.y).toBeCloseTo(expectedTop, 0);
+        expect(playerBounds.y - initialBar.y).toBeCloseTo(audioOffset, 0);
         expect((await page.locator('.settings-trigger').boundingBox())!.y).toBeCloseTo(initialSettings.y, 0);
         await revealControls(page);
-        const bar = (await player.boundingBox())!;
+        const primary = (await page.locator('.audio-primary-controls').boundingBox())!;
         for (const button of await player.locator('button').all()) {
           const bounds = (await button.boundingBox())!;
-          expect(bounds.y + bounds.height / 2).toBeCloseTo(bar.y + bar.height / 2, 0);
+          expect(bounds.y + bounds.height / 2).toBeCloseTo(primary.y + primary.height / 2, 0);
         }
-        await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
         const magnifier = page.locator('.audio-magnifier');
         await withinViewport(magnifier, page);
         const bounds = (await magnifier.boundingBox())!;
-        expect(bounds.y + bounds.height).toBeLessThan(bar.y);
+        const coarse = (await page.locator('.audio-scrubber').boundingBox())!;
+        expect(bounds.y).toBeGreaterThan(coarse.y + coarse.height);
         await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
+        await expect(magnifier).toBeVisible();
       }
       await openAppearance();
-      await page.getByRole('radio', { name: 'Below', exact: true }).check();
-      await expect(page.getByRole('radio', { name: 'Below', exact: true })).toBeChecked();
+      await page.getByRole('radio', { name: 'Above', exact: true }).check();
+      await expect(page.getByRole('radio', { name: 'Above', exact: true })).toBeChecked();
       await page.locator('.appearance-section').filter({ has: page.getByRole('heading', { name: 'Position', exact: true }) }).evaluate(element => element.scrollIntoView({ block: 'start' }));
       expect(await page.locator('.settings-page-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
       await page.screenshot({ path: testInfo.outputPath('appearance-positions.png') });
       await page.locator('.settings-close').click();
       await revealControls(page);
-      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
-      const below = page.locator('.audio-magnifier');
-      await withinViewport(below, page);
-      const bar = (await player.boundingBox())!;
-      expect((await below.boundingBox())!.y).toBeGreaterThan(bar.y + bar.height);
-      const belowBounds = (await below.boundingBox())!;
-      expect(belowBounds.y + belowBounds.height).toBeLessThan(initialSettings.y);
+      const above = page.locator('.audio-magnifier');
+      await withinViewport(above, page);
+      const coarse = (await page.locator('.audio-scrubber').boundingBox())!;
+      const aboveBounds = (await above.boundingBox())!;
+      expect(aboveBounds.y + aboveBounds.height).toBeLessThan(coarse.y);
+      const primary = (await page.locator('.audio-primary-controls').boundingBox())!;
+      expect(primary.y).toBeGreaterThan(coarse.y + coarse.height);
+      for (const button of await page.locator('.audio-primary-controls button').all()) {
+        const bounds = (await button.boundingBox())!;
+        expect(bounds.y + bounds.height <= initialSettings.y
+          || bounds.x + bounds.width <= initialSettings.x
+          || bounds.x >= initialSettings.x + initialSettings.width).toBe(true);
+      }
       await withinViewport(text, page);
-      await page.screenshot({ path: testInfo.outputPath('magnifier-below.png') });
+      await page.screenshot({ path: testInfo.outputPath('magnifier-above.png') });
       await page.reload();
       await page.locator('.profile-input').fill('001');
       await expect(text).toHaveCSS('opacity', '1');
       await openAppearance();
       await expect(page.getByRole('slider', { name: 'Text vertical offset' })).toHaveValue('-20');
       await expect(page.getByRole('slider', { name: 'Audio bar vertical offset' })).toHaveValue('6');
-      await expect(page.getByRole('radio', { name: 'Below', exact: true })).toBeChecked();
+      await expect(page.getByRole('radio', { name: 'Above', exact: true })).toBeChecked();
       await page.getByRole('button', { name: 'Reset positions', exact: true }).click();
       await expect(page.getByRole('slider', { name: 'Text vertical offset' })).toHaveValue('0');
       await expect(page.getByRole('slider', { name: 'Audio bar vertical offset' })).toHaveValue('0');
-      await expect(page.getByRole('radio', { name: 'Above', exact: true })).toBeChecked();
+      await expect(page.getByRole('radio', { name: 'Below', exact: true })).toBeChecked();
       await expect(page.getByLabel('Text & icons color', { exact: true })).toHaveValue(darkAppearance.foreground);
       await page.locator('.settings-close').click();
       await expect(text).toHaveCSS('opacity', '1');
@@ -1442,11 +1577,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         expect(textBounds.y + textBounds.height).toBeLessThan(bar.y);
         expect(await text.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
         await revealControls(page);
-        await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
         await withinViewport(page.locator('.audio-magnifier'), page);
         const panel = (await page.locator('.audio-magnifier').boundingBox())!;
-        if (magnifierPosition === 'above') expect(panel.y + panel.height).toBeLessThan(bar.y);
-        else expect(panel.y).toBeGreaterThan(bar.y + bar.height);
+        const coarse = (await page.locator('.audio-scrubber').boundingBox())!;
+        if (magnifierPosition === 'above') expect(panel.y + panel.height).toBeLessThan(coarse.y);
+        else expect(panel.y).toBeGreaterThan(coarse.y + coarse.height);
         await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
         await page.getByTitle('Playback speed', { exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
@@ -1476,10 +1611,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const fixture = await loadFixture(page);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.clock.install();
-      await page.clock.pauseAt(new Date());
+      await page.clock.pauseAt(new Date(Date.now() + 1000));
       await page.locator('.nav-zone-right').press('Enter');
       await expect(page.locator('.nav-zone-right')).toBeEnabled();
-      await revealControls(page);
+      await revealControls(page, true);
       const settings = page.locator('.settings-trigger');
       const feedback = page.getByRole('status', { name: 'Next', exact: true });
       const player = page.locator('.audio-player-bar');
@@ -1487,10 +1622,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const cornerColor = await settings.evaluate(element => getComputedStyle(element).color);
       expect(cornerColor).not.toBe(audioColor);
       await expect(feedback).toHaveCSS('color', cornerColor);
-      await expect(page.locator('.observation-text')).toHaveCSS('color', audioColor);
+      await expect(page.locator('.observation-text')).not.toHaveCSS('color', audioColor);
       await expect(player.locator('button').first()).toHaveCSS('color', audioColor);
       await expect(page.locator('.audio-scrubber-thumb')).toHaveCSS('background-color', audioColor);
-      await expect(settings).toHaveCSS('opacity', '1');
+      await expect(settings).toHaveCSS('opacity', '0');
       await expect(player).toHaveCSS('opacity', '1');
       await withinViewport(settings, page);
       await withinViewport(feedback, page);
@@ -1505,7 +1640,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.locator('.settings-close').click();
       await revealControls(page);
       await expect(settings).not.toHaveCSS('color', cornerColor);
-      await expect(player).toHaveCSS('color', audioColor);
+      await expect(player).not.toHaveCSS('color', audioColor);
       await page.screenshot({ path: testInfo.outputPath('corner-control-colors-updated.png') });
       expect(fixture.errors).toEqual([]);
     });
@@ -1530,24 +1665,34 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.mouse.move(bar.x + bar.width + 1, bar.y + bar.height / 2);
       await page.mouse.up();
       await expect(scrubber).toHaveAttribute('aria-valuenow', '20');
-      const speedIcon = (await page.getByTitle('Playback speed', { exact: true }).locator('svg').boundingBox())!;
-      const bookmarkIcon = (await player.locator('button').last().locator('svg').boundingBox())!;
+      const speedButton = (await page.getByTitle('Playback speed', { exact: true }).boundingBox())!;
+      const bookmarkButton = (await player.locator('.audio-bookmark-button').boundingBox())!;
+      const playButton = (await page.getByTitle('Play', { exact: true }).boundingBox())!;
       const endThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
-      const iconGap = bookmarkIcon.x - speedIcon.x - speedIcon.width;
-      expect(Math.abs(speedIcon.x - endThumb.x - endThumb.width - iconGap)).toBeLessThan(1);
+      expect(endThumb.x + endThumb.width / 2).toBeCloseTo(bar.x + bar.width, 0);
+      expect(playButton.width).toBe(80);
+      expect(playButton.height).toBe(64);
+      for (const button of [speedButton, bookmarkButton]) {
+        expect(button.width).toBe(48);
+        expect(button.height).toBe(48);
+        expect(button.y + button.height / 2).toBeCloseTo(playButton.y + playButton.height / 2, 0);
+      }
+      expect(playButton.x - speedButton.x - speedButton.width).toBe(12);
+      expect(bookmarkButton.x - playButton.x - playButton.width).toBe(12);
+      expect(playButton.y + playButton.height).toBeLessThan(bar.y);
       await page.screenshot({ path: testInfo.outputPath('audio-end-spacing.png') });
       await page.mouse.click(bar.x, bar.y + bar.height / 2);
       await expect(scrubber).toHaveAttribute('aria-valuenow', '0');
-      const playIcon = (await page.getByTitle('Play', { exact: true }).locator('svg').boundingBox())!;
       const startThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
-      expect(Math.abs(startThumb.x - playIcon.x - playIcon.width - iconGap)).toBeLessThan(1);
+      expect(startThumb.x + startThumb.width / 2).toBeCloseTo(bar.x, 0);
 
       await page.getByTitle('Playback speed', { exact: true }).click();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await withinViewport(page.locator('.audio-speed-popover'), page);
       await withinViewport(page.locator('.audio-speed-readout'), page);
       const speedBounds = (await speed.boundingBox())!;
-      expect(speedBounds.y + speedBounds.height).toBeLessThan(playerBounds.y);
+      expect(speedBounds.y).toBeGreaterThanOrEqual(playerBounds.y);
+      expect(speedBounds.y + speedBounds.height).toBeLessThanOrEqual(playerBounds.y + playerBounds.height);
       await speed.press('Home');
       await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.1);
       await speed.press('End');
@@ -1586,8 +1731,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect.poll(async () => Number(await precise.getAttribute('aria-valuenow'))).toBeCloseTo(before + 0.1, 2);
       await page.screenshot({ path: testInfo.outputPath('precision.png') });
       await page.mouse.click(10, 10);
-      await expect(precise).toHaveCount(0);
-      await expect(page.locator('.observation-screen')).toHaveClass(/controls-visible/);
+      await expect(precise).toHaveCount(1);
+      await expect(player).toHaveCSS('opacity', '0');
 
       await revealControls(page);
       await expect(page.locator('.nav-zone svg')).toHaveCount(0);
@@ -1657,7 +1802,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       for (const edge of ['.nav-zone-right', '.nav-zone-left']) {
         await page.locator(edge).click();
         await expect(player).toHaveCSS('opacity', '1');
-        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
         await page.locator(edge).click();
         await expect(player).toHaveCSS('opacity', '0');
         expect(fixture.navigationCount()).toBe(0);
@@ -1674,18 +1819,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.locator('.nav-zone-left')).toBeEnabled();
       await page.screenshot({ path: testInfo.outputPath('reader-hidden.png') });
       await page.clock.install();
-      await page.clock.pauseAt(new Date());
+      await page.clock.pauseAt(new Date(Date.now() + 1000));
       await revealControls(page, true);
       for (let step = 0; step < 3; step += 1) {
         await page.clock.fastForward(14000);
         await page.mouse.move(120 + step * 10, 120);
         await expect(player).toHaveCSS('opacity', '1');
-        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+        await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
       }
       await page.screenshot({ path: testInfo.outputPath('reader-controls.png') });
       await page.clock.fastForward(14999);
       await expect(player).toHaveCSS('opacity', '1');
-      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
       await page.clock.fastForward(501);
       await expect(player).toHaveCSS('opacity', '0');
       await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
@@ -1710,16 +1855,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.clock.fastForward(15500);
       await expect(player).toHaveCSS('opacity', '0');
       await revealControls(page, true);
-      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
       const precise = page.getByRole('slider', { name: 'Precise audio position' });
       await expect(precise).toBeVisible();
-      await page.mouse.move(160, 120);
+      const drag = (await precise.boundingBox())!;
+      await page.mouse.move(drag.x + 30, drag.y + drag.height / 2);
+      await page.mouse.down();
       await page.clock.fastForward(45000);
       await expect(player).toHaveCSS('opacity', '1');
-      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '1');
+      await expect(page.locator('.settings-trigger')).toHaveCSS('opacity', '0');
       await expect(precise).toBeVisible();
+      await page.mouse.up();
       await precise.press('Escape');
-      await expect(precise).toHaveCount(0);
+      await expect(precise).toHaveCount(1);
       await page.clock.fastForward(14999);
       await expect(player).toHaveCSS('opacity', '1');
       await page.clock.fastForward(501);
@@ -1849,11 +1996,13 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.locator('.settings-close').click();
       await expect(page.locator('.observation-text')).toHaveCSS('font-family', /Noto Sans Telugu/);
       await expect(page.locator('.observation-text')).toHaveCSS('color', 'rgb(32, 51, 44)');
-      await expect(page.locator('.audio-player-bar')).toHaveCSS('color', 'rgb(32, 51, 44)');
+      const audioColor = await page.locator('.audio-player-bar').evaluate(element => getComputedStyle(element).color);
+      expect(audioColor).not.toBe('rgb(32, 51, 44)');
       await revealControls(page);
-      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
-      await expect(page.locator('.audio-magnifier')).toHaveCSS('background-color', 'rgb(232, 238, 238)');
-      await expect(page.locator('.audio-magnifier')).toHaveCSS('color', 'rgb(32, 51, 44)');
+      const audioSurface = await page.locator('.audio-play-button').evaluate(element => getComputedStyle(element).backgroundColor);
+      expect(audioSurface).not.toBe('rgb(232, 238, 238)');
+      await expect(page.locator('.audio-magnifier')).toHaveCSS('background-color', audioSurface);
+      await expect(page.locator('.audio-magnifier')).toHaveCSS('color', audioColor);
       await page.screenshot({ path: testInfo.outputPath('custom-magnifier.png') });
       await page.reload();
       await page.locator('.profile-input').fill('001');

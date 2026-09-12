@@ -10,6 +10,7 @@ import { AudioScrubber } from './AudioScrubber';
 import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
+import { useAppearance } from '../../appearance';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio;
@@ -26,15 +27,19 @@ export function AudioPlayerBar({
 }: AudioPlayerBarProps) {
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
   const [speedPopoverOpen, setSpeedPopoverOpen] = useState(false);
+  const { appearance } = useAppearance();
 
   return (
     <div
       className="audio-player-bar"
+      data-magnifier-position={appearance.magnifierPosition}
       onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <audio ref={player.audioRef} src={audio.url} preload="metadata" />
+      <div className="audio-primary-controls">
       <button
-        className="audio-transport-button"
+        className="audio-transport-button audio-play-button"
         type="button"
         aria-label={player.playing ? 'పాజ్' : 'ప్లే'}
         title={player.playing ? 'Pause' : 'Play'}
@@ -42,18 +47,6 @@ export function AudioPlayerBar({
       >
         {player.playing ? <PauseIcon /> : <PlayIcon />}
       </button>
-      <AudioScrubber
-        currentTime={player.currentTime}
-        duration={player.duration}
-        waveformPeaks={player.waveformPeaks}
-        bookmarks={player.bookmarks}
-        disabled={player.duration <= 0}
-        onSeek={player.seek}
-        onMagnifierOpen={() => {
-          player.pause();
-          setSpeedPopoverOpen(false);
-        }}
-      />
       <button
         className="audio-transport-button"
         type="button"
@@ -74,6 +67,19 @@ export function AudioPlayerBar({
       >
         <BookmarkIcon />
       </button>
+      </div>
+      <AudioScrubber
+        currentTime={player.currentTime}
+        duration={player.duration}
+        waveformPeaks={player.waveformPeaks}
+        bookmarks={player.bookmarks}
+        disabled={player.duration <= 0}
+        onSeek={player.seek}
+        onPrecisionSeek={() => {
+          player.pause();
+          setSpeedPopoverOpen(false);
+        }}
+      />
       {player.bookmarkError || player.playbackError ? <div className="audio-playback-error" role="alert">
         {player.bookmarkError ?? player.playbackError}
         {player.bookmarkError ? <button type="button" className="audio-transport-button" title="Retry bookmarks" aria-label="Retry bookmarks"

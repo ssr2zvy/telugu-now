@@ -25,7 +25,7 @@ ENV NODE_ENV=production \
 WORKDIR /app/upa
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gosu \
+    && apt-get install -y --no-install-recommends gosu ffmpeg \
     && rm -rf /var/lib/apt/lists
 
 COPY upa/package.json ./

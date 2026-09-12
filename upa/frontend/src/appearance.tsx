@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { RotateCw } from 'lucide-react';
+import { LoaderCircle, RotateCw } from 'lucide-react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
@@ -29,7 +29,7 @@ function contrastRatio(first: number, second: number): number {
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
 
-export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground'>): string {
+function contrastingPaletteColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground'>, distinctFrom?: string): string {
   const backgrounds = appearance.gradient.map(colorChannels);
   const palette = [0, 1, 2].map(channel => backgrounds.reduce((total, color) => total + color[channel]!, 0) / backgrounds.length);
   const backgroundLuminances = backgrounds.flatMap((start, index) => backgrounds.slice(index).flatMap(end =>
@@ -37,6 +37,7 @@ export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'grad
   ));
   const foreground = colorChannels(appearance.foreground);
   const foregroundLuminance = luminance(foreground);
+  const distinctLuminance = distinctFrom ? luminance(colorChannels(distinctFrom)) : null;
   let bestColor = appearance.foreground;
   let bestContrast = 0;
   for (const target of [foreground, [0, 0, 0], [255, 255, 255]]) {
@@ -49,10 +50,15 @@ export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'grad
         bestColor = color;
         bestContrast = contrast;
       }
-      if (contrast >= 3 && contrastRatio(candidateLuminance, foregroundLuminance) >= 1.2) return color;
+      if (contrast >= 3 && contrastRatio(candidateLuminance, foregroundLuminance) >= 1.2
+        && (distinctLuminance === null || contrastRatio(candidateLuminance, distinctLuminance) >= 1.2)) return color;
     }
   }
   return bestColor;
+}
+
+export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground'>): string {
+  return contrastingPaletteColor(appearance, appearanceAudioColor(appearance));
 }
 
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
@@ -64,6 +70,10 @@ export function randomAppearanceColors(random = Math.random): Pick<AppearanceSet
     { gradient: ['#eef0ce', '#bfd9cc', '#d4c4dc'], foreground: '#30352b' },
   ];
   return palettes[Math.min(palettes.length - 1, Math.max(0, Math.floor(random() * palettes.length)))]!;
+}
+
+export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
+  return contrastingPaletteColor({ gradient: appearance.gradient, foreground: appearance.gradient[1] });
 }
 
 const AppearanceContext = createContext<{
@@ -140,22 +150,27 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   };
   const style = {
     '--surface': appearanceSurface(appearance),
-    '--audio-surface': appearance.surface ?? 'color-mix(in srgb, var(--surface) 35%, var(--gradient-middle))',
+    '--audio-surface': 'color-mix(in srgb, var(--gradient-start) 35%, var(--gradient-middle))',
+    '--audio-control-color': appearanceAudioColor(appearance),
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],
     '--gradient-end': appearance.gradient[2],
     '--foreground': appearance.foreground,
     '--corner-control-color': appearanceCornerColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
-    '--audio-placement-bottom': appearance.magnifierPosition === 'below'
-      ? 'max(164px, calc(env(safe-area-inset-bottom) + 164px))'
-      : 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
+    '--audio-placement-bottom': 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
   } as CSSProperties;
   return (
     <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
       <div className="appearance-root" style={style}>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
-        {loaded ? children : <div className="profile-screen" role="status">{error ? '' : 'Loading profile settings...'}</div>}
+        {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading">
+          <div className="entry-wrap">
+            <div className="entry-status" data-state="loading" role="status" aria-label={error ? 'Could not load profile settings' : 'Loading profile settings'}>
+              {!error ? <LoaderCircle aria-hidden="true" /> : null}
+            </div>
+          </div>
+        </main>}
         {error ? <div className="profile-preferences-error" role="alert">
           <span>{loaded ? 'Settings not saved.' : 'Could not load profile settings.'}</span>
           <button type="button" onClick={() => loaded ? void flush() : setLoadAttempt(current => current + 1)}><RotateCw size={16} aria-hidden="true" />Retry</button>

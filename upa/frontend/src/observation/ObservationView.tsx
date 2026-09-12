@@ -41,6 +41,7 @@ export function ObservationView({
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
   const controlsClickTimer = useRef<number | undefined>(undefined);
@@ -50,27 +51,29 @@ export function ObservationView({
   };
   useEffect(() => {
     const screen = screenRef.current;
-    if (!controlsVisible || !screen) return;
+    if ((!controlsVisible && !settingsVisible) || !screen) return;
     let idleTimer: number;
+    const activePointers = new Set<number>();
     const scheduleHide = (event?: Event) => {
       window.clearTimeout(idleTimer);
-      if (event instanceof PointerEvent && event.buttons !== 0) return;
+      if (event instanceof PointerEvent) {
+        if (event.type === 'pointerdown') activePointers.add(event.pointerId);
+        if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);
+      }
+      if (activePointers.size > 0) return;
       idleTimer = window.setTimeout(() => {
-        if (screen.querySelector('.audio-magnifier')) {
-          scheduleHide();
-          return;
-        }
         setControlsVisible(false);
+        setSettingsVisible(false);
       }, appearance.autoFadeSeconds * 1000);
     };
-    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'pointerleave', 'keydown', 'focusin', 'focusout'];
+    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
     for (const event of events) screen.addEventListener(event, scheduleHide);
     scheduleHide();
     return () => {
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, appearance.autoFadeSeconds]);
+  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds]);
   const observation =
     state?.currentObservation ?? null;
   useEffect(() => () => {
@@ -94,6 +97,7 @@ export function ObservationView({
       await onMove(direction);
     if (moved) {
       setControlsVisible(false);
+      setSettingsVisible(false);
     }
   };
   return (
@@ -104,22 +108,25 @@ export function ObservationView({
           controlsVisible
             ? 'controls-visible'
             : ''
-        }`
+        } ${settingsVisible ? 'settings-visible' : ''}`
       }
       onFocusCapture={(event) => {
-        if (event.target.matches(':focus-visible') && event.target.closest('.audio-player-bar, .settings-trigger')) {
-          setControlsVisible(true);
+        if (event.target.matches(':focus-visible')) {
+          if (event.target.closest('.audio-player-bar')) setControlsVisible(true);
+          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       onKeyDownCapture={(event) => {
-        if (event.target instanceof Element && event.target.closest('.audio-player-bar, .settings-trigger')) {
-          setControlsVisible(true);
+        if (event.target instanceof Element) {
+          if (event.target.closest('.audio-player-bar')) setControlsVisible(true);
+          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       onClick={(event) => {
         cancelControlsClick();
         if (event.detail > 1) return;
-        if (typography.textRef.current?.contains(event.target as Node)) {
+        const center = screenRef.current?.querySelector('.observation-center')?.getBoundingClientRect();
+        if (center && event.clientX >= center.left && event.clientX <= center.right) {
           if (!window.getSelection()?.isCollapsed) return;
           controlsClickTimer.current = window.setTimeout(() => {
             controlsClickTimer.current = undefined;
@@ -128,6 +135,13 @@ export function ObservationView({
           return;
         }
         setControlsVisible((visible) => !visible);
+      }}
+      onDoubleClick={(event) => {
+        const center = screenRef.current?.querySelector('.observation-center')?.getBoundingClientRect();
+        if (center && event.clientX >= center.left && event.clientX <= center.right) {
+          cancelControlsClick();
+          setSettingsVisible(true);
+        }
       }}
     >
       {navigationEvent ? (
@@ -166,6 +180,11 @@ export function ObservationView({
       <section
         ref={typography.containerRef}
         className="observation-center"
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          cancelControlsClick();
+          setSettingsVisible(true);
+        }}
       >
         {observation ? (
           <div
@@ -189,12 +208,21 @@ export function ObservationView({
               const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
               const node = position?.offsetNode ?? range?.startContainer;
               const offset = position?.offset ?? range?.startOffset;
-              if (!node || node !== element.firstChild || offset === undefined) return;
+              if (!node || node !== element.firstChild || offset === undefined) {
+                setSettingsVisible(true);
+                return;
+              }
               const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
-              if (!word) return;
+              if (!word) {
+                setSettingsVisible(true);
+                return;
+              }
               const segment = [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
                 .find(part => part.isWordLike && part.segment === word && offset >= part.index && offset <= part.index + part.segment.length);
-              if (!segment) return;
+              if (!segment) {
+                setSettingsVisible(true);
+                return;
+              }
               const hit = document.createRange();
               hit.setStart(node, segment.index);
               hit.setEnd(node, segment.index + segment.segment.length);
@@ -203,6 +231,8 @@ export function ObservationView({
                 window.getSelection()?.removeAllRanges();
                 setControlsVisible(false);
                 setSelectedWord({ word, observationId: observation.id });
+              } else {
+                setSettingsVisible(true);
               }
             }}
           >
@@ -218,6 +248,7 @@ export function ObservationView({
               event.stopPropagation();
               void move('next');
             }}
+            onDoubleClick={(event) => event.stopPropagation()}
           >
             <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
           </button>

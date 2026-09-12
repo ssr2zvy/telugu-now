@@ -20,6 +20,7 @@ import {
 } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
+import { silentLeadInUrl } from './silent-lead-in';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
@@ -44,29 +45,6 @@ type AudioContextLike = AudioContext;
 
 let sharedAudioContext: AudioContextLike | null = null;
 
-// Amplitude low enough to be inaudible, but non-zero: this keeps the audio
-// device/driver continuously active (rather than idling and "waking up" with
-// startup latency) so the beginning of real playback is never clipped.
-const DEVICE_PRIMING_AMPLITUDE = 0.0006;
-const DEVICE_PRIMING_BUFFER_SECONDS = 1;
-const AUDIO_LEAD_IN_MS = 500;
-
-function primeAudioDevice(context: AudioContextLike): void {
-  const frameCount = Math.max(1, Math.floor(context.sampleRate * DEVICE_PRIMING_BUFFER_SECONDS));
-  const buffer = context.createBuffer(1, frameCount, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let index = 0; index < frameCount; index += 1) {
-    data[index] = (Math.random() * 2 - 1) * DEVICE_PRIMING_AMPLITUDE;
-  }
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
-  // Bypass the per-clip gain node: priming must stay at a fixed, negligible
-  // level regardless of that clip's loudness-normalization gain.
-  source.connect(context.destination);
-  source.start();
-}
-
 function getAudioContext(): AudioContextLike | null {
   if (typeof window === 'undefined') return null;
   const AudioContextClass =
@@ -78,11 +56,6 @@ function getAudioContext(): AudioContextLike | null {
       sharedAudioContext = new AudioContextClass();
     } catch {
       return null;
-    }
-    try {
-      primeAudioDevice(sharedAudioContext);
-    } catch {
-      // Priming is a best-effort mitigation; real playback still proceeds without it.
     }
   }
   return sharedAudioContext;
@@ -99,9 +72,12 @@ export function useAudioPlayer(
   const gainNodeRef = useRef<GainNode | null>(null);
   const normalizationGainRef = useRef(1);
   const connectedElementRef = useRef<HTMLAudioElement | null>(null);
+  const outputConnectedRef = useRef(false);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
-  const leadInTimerRef = useRef<number | undefined>(undefined);
+  const leadInRef = useRef<{ time: number; phase: 'silence' | 'restoring' } | null>(null);
+  const playRequestRef = useRef(0);
+  const playbackRateRef = useRef(defaultPlaybackRate);
 
   const [playing, setPlaying] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -145,17 +121,27 @@ export function useAudioPlayer(
   // MediaElementAudioSourceNode can only ever be created a single time per element.
   const connectAudioOutput = () => {
     const element = audioRef.current;
-    if (!element || connectedElementRef.current === element) return;
+    if (!element) return;
+    if (connectedElementRef.current === element) {
+      // Effect cleanup can disconnect the output without releasing the element's
+      // single-use source node (notably during StrictMode's setup/cleanup replay).
+      if (!outputConnectedRef.current && gainNodeRef.current) {
+        gainNodeRef.current.connect(gainNodeRef.current.context.destination);
+        outputConnectedRef.current = true;
+      }
+      return;
+    }
     const context = getAudioContext();
     if (!context || context.state !== 'running') return;
     try {
       const gain = context.createGain();
-      gain.gain.value = normalizationGainRef.current;
+      gain.gain.value = leadInRef.current?.phase === 'silence' ? 1 : normalizationGainRef.current;
       gain.connect(context.destination);
       const source = context.createMediaElementSource(element);
       source.connect(gain);
       gainNodeRef.current = gain;
       connectedElementRef.current = element;
+      outputConnectedRef.current = true;
     } catch {
       // Playback still works through the element's own output if this fails.
     }
@@ -164,14 +150,15 @@ export function useAudioPlayer(
 
   // Reset transport/analysis state whenever a new observation's audio arrives.
   useEffect(() => {
-    window.clearTimeout(leadInTimerRef.current);
-    leadInTimerRef.current = undefined;
+    leadInRef.current = null;
+    playRequestRef.current += 1;
     setPlaying(false);
     setPlaybackError(null);
     setCurrentTime(0);
     setWaveformPeaks([]);
     setDuration(audio?.durationSeconds ?? 0);
     setPlaybackRateState(defaultPlaybackRate);
+    playbackRateRef.current = defaultPlaybackRate;
     normalizationGainRef.current = 1;
     if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
 
@@ -186,7 +173,7 @@ export function useAudioPlayer(
           if (cancelled) return;
           setWaveformPeaks(computeWaveformPeaks(decoded));
           normalizationGainRef.current = computeNormalizationGain(decoded);
-          if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
+          if (gainNodeRef.current && leadInRef.current?.phase !== 'silence') gainNodeRef.current.gain.value = normalizationGainRef.current;
         })
         .catch(() => {
           // Loudness analysis/waveform are enhancements; direct playback still works.
@@ -194,19 +181,23 @@ export function useAudioPlayer(
     }
     return () => {
       cancelled = true;
-      window.clearTimeout(leadInTimerRef.current);
-      leadInTimerRef.current = undefined;
+      playRequestRef.current += 1;
+      leadInRef.current = null;
+      audioRef.current?.pause();
+      gainNodeRef.current?.disconnect();
+      outputConnectedRef.current = false;
     };
     // defaultPlaybackRate intentionally excluded: it should only seed state on change of clip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audio?.url, sourceId, sourceKey]);
 
   useEffect(() => {
+    playbackRateRef.current = playbackRate;
     const element = audioRef.current;
     // Guard against ever handing the element a non-finite/invalid rate: some
     // browsers throw when assigning it, which previously left the element in
     // a broken state that even reverting the rate afterward could not recover.
-    if (!element || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
+    if (!element || leadInRef.current?.phase === 'silence' || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
     try {
       element.playbackRate = playbackRate;
     } catch {
@@ -219,40 +210,65 @@ export function useAudioPlayer(
     if (!element) return;
     const onPlay = () => { setPlaying(true); setPlaybackError(null); };
     const onPause = () => {
-      window.clearTimeout(leadInTimerRef.current);
-      leadInTimerRef.current = undefined;
+      if (leadInRef.current) return;
       setPlaying(false);
     };
     const onError = () => {
-      onPause();
+      playRequestRef.current += 1;
+      setPlaying(false);
       setPlaybackError(element.error?.code === MediaError.MEDIA_ERR_NETWORK
         ? 'Audio could not be loaded. Check your connection and retry.'
         : 'This audio file could not be played.');
     };
     const onLoadedMetadata = () => {
+      if (leadInRef.current?.phase === 'silence') return;
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
+      if (leadInRef.current?.phase === 'restoring') {
+        element.currentTime = leadInRef.current.time;
+        leadInRef.current = null;
+      }
     };
-    const onTimeUpdate = () => setCurrentTime(element.currentTime);
+    const onTimeUpdate = () => {
+      if (!leadInRef.current) setCurrentTime(element.currentTime);
+    };
+    const onEnded = () => {
+      if (leadInRef.current?.phase === 'silence' && audio) {
+        leadInRef.current.phase = 'restoring';
+        element.src = audio.url;
+        element.playbackRate = playbackRateRef.current;
+        element.currentTime = leadInRef.current.time;
+        if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
+        connectAudioOutput();
+        playElement(element, playRequestRef.current);
+      } else if (!leadInRef.current) {
+        setCurrentTime(element.currentTime);
+        setPlaying(false);
+      }
+    };
     element.addEventListener('play', onPlay);
     element.addEventListener('pause', onPause);
     element.addEventListener('error', onError);
     element.addEventListener('loadedmetadata', onLoadedMetadata);
     element.addEventListener('timeupdate', onTimeUpdate);
+    element.addEventListener('seeked', onTimeUpdate);
+    element.addEventListener('ended', onEnded);
     return () => {
       element.removeEventListener('play', onPlay);
       element.removeEventListener('pause', onPause);
       element.removeEventListener('error', onError);
       element.removeEventListener('loadedmetadata', onLoadedMetadata);
       element.removeEventListener('timeupdate', onTimeUpdate);
+      element.removeEventListener('seeked', onTimeUpdate);
+      element.removeEventListener('ended', onEnded);
     };
   }, [audio?.url]);
 
-  // 'timeupdate' fires too coarsely for a smooth scrubber; interpolate while playing.
+  // Follow the media clock every frame, not the sparse mobile timeupdate events.
   useEffect(() => {
     if (!playing) return;
     let frame: number;
     const tick = () => {
-      if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+      if (audioRef.current && !leadInRef.current) setCurrentTime(audioRef.current.currentTime);
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -260,52 +276,65 @@ export function useAudioPlayer(
   }, [playing]);
 
   const pause = () => {
-    window.clearTimeout(leadInTimerRef.current);
-    leadInTimerRef.current = undefined;
-    audioRef.current?.pause();
+    playRequestRef.current += 1;
+    const element = audioRef.current;
+    element?.pause();
+    if (element && leadInRef.current && audio) {
+      const time = leadInRef.current.time;
+      leadInRef.current = { time, phase: 'restoring' };
+      element.src = audio.url;
+      element.playbackRate = playbackRateRef.current;
+      element.currentTime = time;
+      if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
+    }
+    setCurrentTime(leadInRef.current?.time ?? element?.currentTime ?? 0);
     setPlaying(false);
+  };
+
+  const playElement = (element: HTMLAudioElement, request: number) => {
+    void element.play().catch((error: unknown) => {
+      if (playRequestRef.current !== request || audioRef.current !== element || !element.isConnected) return;
+      pause();
+      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Playback was blocked. Allow sound for this site and retry.'
+        : 'This audio file could not be played.');
+    });
   };
 
   const togglePlay = () => {
     const element = audioRef.current;
-    if (!element) return;
-    if (!element.paused || leadInTimerRef.current !== undefined) {
+    if (!element || !audio) return;
+    if (playing) {
       pause();
       return;
     }
     setPlaybackError(null);
-    if (element.error) element.load();
+    const request = ++playRequestRef.current;
+    const time = leadInRef.current?.time ?? (element.ended ? 0 : element.currentTime);
+    leadInRef.current = { time, phase: 'silence' };
+    setCurrentTime(time);
+    setPlaying(true);
+    // Play finite zero PCM on the same element inside the user gesture. Reusing
+    // that authorized element avoids mobile autoplay rejection after a timer.
+    element.src = silentLeadInUrl();
+    element.playbackRate = 1;
+    if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
     const context = getAudioContext();
     if (context && context.state !== 'running' && context.state !== 'closed') {
-      try {
-        void context.resume().catch(() => undefined);
-      } catch {}
-    }
-    const startPlayback = () => {
-      leadInTimerRef.current = undefined;
-      if (audioRef.current !== element || !element.isConnected) return;
-      connectAudioOutput();
-      void element.play().catch((error: unknown) => {
-        if (audioRef.current !== element || !element.isConnected) return;
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setPlaying(false);
-        setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-          ? 'Playback was blocked. Allow sound for this site and retry.'
-          : 'This audio file could not be played.');
+      void context.resume().catch(() => {
+        if (playRequestRef.current !== request || !connectedElementRef.current) return;
+        pause();
+        setPlaybackError('Playback was blocked. Allow sound for this site and retry.');
       });
-    };
-    if (element.currentTime === 0 || element.ended) {
-      setPlaying(true);
-      leadInTimerRef.current = window.setTimeout(startPlayback, AUDIO_LEAD_IN_MS);
-    } else {
-      startPlayback();
     }
+    playElement(element, request);
   };
 
   const seek = (time: number) => {
-    if (leadInTimerRef.current !== undefined) pause();
+    if (leadInRef.current) pause();
     const element = audioRef.current;
     const safeTime = Math.min(Math.max(0, time), duration > 0 ? duration : time);
+    if (leadInRef.current) leadInRef.current.time = safeTime;
     if (element) element.currentTime = safeTime;
     setCurrentTime(safeTime);
   };
@@ -348,7 +377,7 @@ export function useAudioPlayer(
       const clicks = Math.min(3, bookmarkClickCountRef.current);
       bookmarkClickCountRef.current = 0;
       bookmarkClickTimerRef.current = null;
-      const time = audioRef.current?.currentTime ?? currentTime;
+      const time = leadInRef.current?.time ?? audioRef.current?.currentTime ?? currentTime;
       if (clicks === 1) {
         const target = nearestPriorBookmark(bookmarks, time);
         if (target !== null) seek(target);
