@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { consumeDismissalGesture } from './dismissal-gesture';
 
 type ElementRef = { current: HTMLElement | null };
 
@@ -25,30 +26,7 @@ export function useClickOutsideToClose(
       if (inside) return;
       event.preventDefault();
       event.stopPropagation();
-      const pending = new AbortController();
-      const cleanupTimer = window.setTimeout(() => pending.abort(), 1500);
-      const finish = (release: PointerEvent) => {
-        if (release.pointerId !== event.pointerId) return;
-        pending.abort();
-        window.clearTimeout(cleanupTimer);
-        const consumeClick = (click: MouseEvent) => {
-          click.preventDefault();
-          click.stopImmediatePropagation();
-        };
-        document.addEventListener('click', consumeClick, { capture: true, once: true });
-        const doubleClickGuard = new AbortController();
-        document.addEventListener('dblclick', (click) => {
-          consumeClick(click);
-          doubleClickGuard.abort();
-        }, { capture: true, signal: doubleClickGuard.signal });
-        document.addEventListener('click', (click) => {
-          if (click.detail < 2) doubleClickGuard.abort();
-        }, { capture: true, signal: doubleClickGuard.signal });
-        window.setTimeout(() => doubleClickGuard.abort(), 1500);
-        window.setTimeout(() => document.removeEventListener('click', consumeClick, true), 0);
-      };
-      document.addEventListener('pointerup', finish, { capture: true, signal: pending.signal });
-      document.addEventListener('pointercancel', () => pending.abort(), { once: true, signal: pending.signal });
+      consumeDismissalGesture(document, event.pointerId);
       onCloseRef.current();
     };
     const handleKeyDown = (event: KeyboardEvent) => {

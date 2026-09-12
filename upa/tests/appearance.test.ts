@@ -107,7 +107,9 @@ test('glass controls use broad palette transitions without a repeated specular s
     assert.ok(stop.opacity > 0 && stop.opacity < 1);
     assert.ok(glass.gradient.includes(`${stop.color}${Math.round(stop.opacity * 255).toString(16)}`));
   }
-  assert.equal(new Set(glass.stops.map(stop => stop.opacity)).size, 1);
+  assert.equal(glass.stops[0]!.opacity, glass.stops[2]!.opacity);
+  assert.ok(glass.stops[0]!.opacity < 0.2, 'edges must let the page gradient show through');
+  assert.ok(glass.stops[1]!.opacity > glass.stops[0]!.opacity * 3, 'center must remain distinguishable');
   assert.ok(glass.stops.every(stop => stop.opacity < 0.7));
   assert.match(glass.edge, /^#[0-9a-f]{8}$/);
   assert.deepEqual(appearanceAudioGlass(parseAppearance({ ...palette, foreground: '#ff0000', surface: '#000000' })), glass);

@@ -43,6 +43,7 @@ export function ObservationView({
     setControlsVisible,
   ] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [precisionInteraction, setPrecisionInteraction] = useState(0);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
   const [taps] = useState(() => new ReaderTaps(() => setControlsVisible(visible => !visible)));
@@ -74,7 +75,7 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds]);
+  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
   useEffect(() => () => taps.cancel(), [taps, observation?.id]);
@@ -245,6 +246,11 @@ export function ObservationView({
             sourceKey={observation.sourceKey}
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
             controlsVisible={controlsVisible}
+            onPrecisionInteraction={() => {
+              taps.cancel();
+              setControlsVisible(true);
+              setPrecisionInteraction(value => value + 1);
+            }}
           />
         ) : null}
       </section>

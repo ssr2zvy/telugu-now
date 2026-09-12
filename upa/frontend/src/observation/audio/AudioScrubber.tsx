@@ -215,7 +215,7 @@ export function AudioScrubber({
               <span
                 key={index}
                 className="audio-magnifier-bar"
-                style={{ height: `${Math.max(12, peak * 100)}%` }}
+                style={{ height: `${peak > 0 ? Math.max(12, peak * 100) : 0}%` }}
               />
             ))}
             <div

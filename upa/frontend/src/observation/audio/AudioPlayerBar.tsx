@@ -15,6 +15,7 @@ interface AudioPlayerBarProps {
   sourceKey: string;
   defaultPlaybackRate: number;
   controlsVisible: boolean;
+  onPrecisionInteraction?: () => void;
 }
 
 export function AudioPlayerBar({
@@ -23,6 +24,7 @@ export function AudioPlayerBar({
   sourceKey,
   defaultPlaybackRate,
   controlsVisible,
+  onPrecisionInteraction,
 }: AudioPlayerBarProps) {
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
@@ -34,6 +36,7 @@ export function AudioPlayerBar({
   const paintId = `audio-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const closePrecision = () => {
+    onPrecisionInteraction?.();
     if (document.activeElement?.closest('.audio-magnifier, .audio-precision-actions, .audio-speed-popover')) {
       playerRef.current?.querySelector<HTMLElement>('.audio-scrubber')?.focus({ preventScroll: true });
     }
@@ -72,12 +75,13 @@ export function AudioPlayerBar({
           </linearGradient>
         </defs>
       </svg>
-      <audio ref={player.audioRef} src={audio.url} preload="auto" />
+      <audio ref={player.audioRef} preload="auto" />
       <button
         className="audio-transport-button audio-play-button"
         type="button"
         aria-label={player.playing ? 'పాజ్' : 'ప్లే'}
         title={player.playing ? 'Pause' : 'Play'}
+        aria-busy={player.loading}
         onClick={player.togglePlay}
       >
         <AudioGlassIcon name={player.playing ? 'pause' : 'play'} />
@@ -120,6 +124,7 @@ export function AudioPlayerBar({
           /> : null}
         </>}
         onMagnifierOpen={() => {
+          onPrecisionInteraction?.();
           player.pause();
           dispatchPrecision('open');
         }}
@@ -130,6 +135,9 @@ export function AudioPlayerBar({
           dispatchPrecision('close-speed');
         }}
       />
+      {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-error" role="status">
+        {player.playbackStatus}
+      </div> : null}
       {bookmarkError || player.playbackError ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
         {bookmarkError ? <button type="button" className="audio-transport-button" title="Retry bookmarks" aria-label="Retry bookmarks"

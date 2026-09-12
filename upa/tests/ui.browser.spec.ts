@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import type { ProfileStateResponse, SelectionSnapshot } from '../shared/contracts';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL } from '../shared/image-settings';
 import { parseAppearance, type ProfilePreferences, type UpdateProfilePreferences } from '../shared/appearance';
@@ -624,10 +625,11 @@ test('fixed precision seeking pauses playback and speed stays inside the viewpor
   const precise = page.getByRole('slider', { name: 'Precise audio position' });
   for (const activation of ['keyboard', 'pointer']) {
     await page.getByTitle('Play', { exact: true }).click();
-    await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+    await expect(audio).toHaveAttribute('src', /^blob:/);
     await expect(audio).toHaveJSProperty('paused', false);
     const startedAt = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
     await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(startedAt);
+    await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
     if (activation === 'keyboard') await precise.press('ArrowRight');
     else {
       const bounds = (await precise.boundingBox())!;
@@ -643,8 +645,9 @@ test('fixed precision seeking pauses playback and speed stays inside the viewpor
     await precise.focus();
     await expect(precise).toHaveCSS('box-shadow', 'none');
     await precise.press('Escape');
-    await expect(precise).toBeVisible();
+    await expect(precise).toBeHidden();
   }
+  await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
   await page.getByTitle('Playback speed', { exact: true }).click();
   const speed = page.locator('.audio-speed-popover');
   await withinViewport(speed, page);
@@ -669,45 +672,87 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
 }
 
-test('audio starts with a silent lead-in without consuming the beginning of the clip', async ({ page }) => {
-  const fixture = await loadFixture(page);
-  await revealControls(page);
-  const audio = page.locator('audio');
-  await audio.evaluate(element => {
-    element.addEventListener('playing', () => {
-      const media = element as HTMLAudioElement;
-      element.setAttribute(media.src.startsWith('data:') ? 'data-silence-start' : 'data-content-start', String(performance.now()));
-      if (!media.src.startsWith('data:')) element.setAttribute('data-start-time', String(media.currentTime));
-    });
-    element.addEventListener('ended', () => {
-      const media = element as HTMLAudioElement;
-      if (media.src.startsWith('data:')) element.setAttribute('data-silence-ended-time', String(media.currentTime));
-    }, true);
+test('prepared audio decodes real FLAC bytes into the same padded native timeline', async ({ page }) => {
+  const converted = spawnSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 'flac', 'pipe:1'], { input: audioFixture() });
+  test.skip(converted.error?.message.includes('ENOENT') ?? false, 'ffmpeg is required for the FLAC fixture');
+  expect(converted.status, converted.stderr?.toString()).toBe(0);
+  const fixture = await loadFixture(page, undefined, false);
+  fixture.state.currentObservation!.audio = { url: '/api/test-audio.flac', mimeType: 'audio/flac', durationSeconds: 20 };
+  let requests = 0;
+  await page.route('**/api/test-audio.flac', async route => {
+    requests++;
+    await route.fulfill({ contentType: 'audio/flac', body: converted.stdout });
   });
-  for (const time of [0, 7]) {
-    await audio.evaluate((element: HTMLAudioElement, time) => {
-      element.currentTime = time;
-      element.removeAttribute('data-content-start');
-      element.removeAttribute('data-start-time');
-      element.removeAttribute('data-silence-ended-time');
-    }, time);
-    await page.getByTitle('Play', { exact: true }).click();
-    await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
-    await expect(page.getByRole('slider', { name: 'Audio position', exact: true })).toHaveAttribute('aria-valuenow', String(time));
-    await expect(audio).toHaveJSProperty('playbackRate', 1);
-    await expect.poll(() => audio.getAttribute('data-content-start')).not.toBeNull();
-    const elapsed = Number(await audio.getAttribute('data-content-start')) - Number(await audio.getAttribute('data-silence-start'));
-    expect(elapsed).toBeGreaterThanOrEqual(490);
-    await expect(audio).toHaveAttribute('data-silence-ended-time', '0.5');
-    expect(Number(await audio.getAttribute('data-start-time'))).toBeCloseTo(time, 1);
-    await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
-    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(time + 0.1);
-    await page.getByTitle('Pause', { exact: true }).click();
-  }
+  await page.locator('.profile-input').fill('001');
+  const audio = page.locator('audio');
+  await expect(audio).toHaveJSProperty('duration', 20.5);
+  await expect(audio).toHaveAttribute('src', /^blob:/);
+  await revealControls(page);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(0.6);
+  expect(requests).toBe(1);
   expect(fixture.errors).toEqual([]);
 });
 
-test('touch resumes authorize the same element through silence and content', async ({ playwright }) => {
+test('prepared audio emits exact silence then speech with a native frame-synced timeline', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  const audio = page.locator('audio');
+  const source = await audio.getAttribute('src');
+  expect(source).toMatch(/^blob:/);
+  const pcm = await audio.evaluate(async (element: HTMLAudioElement) => {
+    const data = await (await fetch(element.src)).arrayBuffer();
+    const header = new DataView(data);
+    const rate = header.getUint32(24, true);
+    const samples = new Int16Array(data, 44);
+    return { rate, silent: samples.slice(0, rate / 2).every(value => value === 0),
+      speech: samples.slice(rate / 2, rate).some(value => value !== 0),
+      duration: element.duration, firstNonzero: samples.findIndex(value => value !== 0) / rate };
+  });
+  expect(pcm.silent).toBe(true);
+  expect(pcm.speech).toBe(true);
+  expect(pcm.duration).toBe(20.5);
+  expect(pcm.firstNonzero).toBeGreaterThanOrEqual(0.5);
+  expect(pcm.firstNonzero).toBeLessThan(0.51);
+  await audio.evaluate((element: HTMLAudioElement) => {
+    const frames: Array<{ time: number; bar: number; rms: number }> = [];
+    (window as any).audioFrames = frames;
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    const samples = new Float32Array(analyser.fftSize);
+    element.addEventListener('playing', () => {
+      const stream = (element as HTMLAudioElement & { captureStream(): MediaStream }).captureStream();
+      context.createMediaStreamSource(stream).connect(analyser);
+      void context.resume();
+    }, { once: true });
+    const tick = () => {
+      analyser.getFloatTimeDomainData(samples);
+      if (!element.paused) frames.push({ time: element.currentTime,
+        bar: Number(document.querySelector('.audio-scrubber')?.getAttribute('aria-valuenow')),
+        rms: Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length) });
+      if (element.currentTime < 1.2 && (!element.paused || frames.length === 0)) requestAnimationFrame(tick);
+      else void context.close();
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(1);
+  await page.getByTitle('Pause', { exact: true }).click();
+  const frames = await page.evaluate(() => (window as any).audioFrames as Array<{ time: number; bar: number; rms: number }>);
+  const silenceFrames = frames.filter(frame => frame.time > 0.1 && frame.time < 0.45);
+  expect(silenceFrames.length).toBeGreaterThan(5);
+  expect(silenceFrames.filter(frame => Math.abs(frame.time - frame.bar) >= 0.08)).toEqual([]);
+  // captureStream has its own render-ahead buffer; the WAV assertion above
+  // verifies the exact boundary. Sample output away from that buffer boundary.
+  expect(silenceFrames.filter(frame => frame.time < 0.3 && frame.rms !== 0)).toEqual([]);
+  expect(frames.some(frame => frame.time > 0.6 && frame.rms > 0.005)).toBe(true);
+  expect(frames.filter(frame => frame.time > 0.5).every(frame => Math.abs(frame.time - frame.bar) < 0.08)).toBe(true);
+  await expect(audio).toHaveAttribute('src', source!);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('prepared audio touch play and resume retain gesture authorization without source swaps', async ({ playwright }) => {
   const browser = await playwright.chromium.launch({ args: ['--autoplay-policy=user-gesture-required'] });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -715,12 +760,11 @@ test('touch resumes authorize the same element through silence and content', asy
     await revealControls(page);
     const audio = page.locator('audio');
     const originalAudio = await audio.elementHandle();
+    const source = await audio.getAttribute('src');
     for (const time of [0, 7]) {
       await audio.evaluate((element: HTMLAudioElement, time) => { element.currentTime = time; }, time);
       await page.getByTitle('Play', { exact: true }).tap();
-      await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
-      await expect(page.getByRole('slider', { name: 'Audio position', exact: true })).toHaveAttribute('aria-valuenow', String(time));
-      await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+      await expect(audio).toHaveAttribute('src', source!);
       await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(time + 0.1);
       expect(await originalAudio!.evaluate(element => element === document.querySelector('audio'))).toBe(true);
       await expect(page.getByRole('alert')).toHaveCount(0);
@@ -733,14 +777,20 @@ test('touch resumes authorize the same element through silence and content', asy
 });
 
 for (const action of ['pause', 'seek', 'magnifier', 'navigate']) {
-  test(`audio lead-in is cancelled by ${action}`, async ({ page }) => {
+  test(`prepared audio ${action} interrupts playback without a delayed restart`, async ({ page }) => {
     const fixture = await loadFixture(page);
     await revealControls(page);
     const originalAudio = await page.locator('audio').elementHandle();
     await page.getByTitle('Play', { exact: true }).click();
     if (action === 'pause') await page.getByTitle('Pause', { exact: true }).click();
-    if (action === 'seek') await page.getByRole('slider', { name: 'Audio position', exact: true }).press('ArrowRight');
+    if (action === 'seek') {
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('ArrowRight');
+      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
+      await expect.poll(() => page.locator('audio').evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(1);
+      await page.getByTitle('Pause', { exact: true }).click();
+    }
     if (action === 'magnifier') {
+      await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
       await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
       await expect(page.getByRole('slider', { name: 'Precise audio position' })).toBeVisible();
     }
@@ -756,23 +806,16 @@ for (const action of ['pause', 'seek', 'magnifier', 'navigate']) {
     if (action === 'navigate') await revealControls(page);
     const resumeAt = await page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime);
     await page.getByTitle('Play', { exact: true }).click();
-    await expect(page.locator('audio')).toHaveAttribute('src', /^data:audio\/wav/);
-    await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
+    await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
     await expect(page.locator('audio')).toHaveJSProperty('paused', false);
     await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(resumeAt + 0.1);
     expect(fixture.errors).toEqual([]);
   });
 }
 
-for (const failure of ['pending', 'rejected', 'unavailable']) {
-  test(`playback starts even when Web Audio is ${failure}`, async ({ page }) => {
+for (const failure of ['pending', 'rejected']) {
+  test(`prepared audio plays directly when Web Audio resume is ${failure}`, async ({ page }) => {
     await page.addInitScript((failure) => {
-      if (failure === 'unavailable') {
-        window.AudioContext = class extends AudioContext {
-          constructor() { super(); throw new Error('Audio processing unavailable'); }
-        };
-        return;
-      }
       Object.defineProperty(AudioContext.prototype, 'state', { get: () => 'suspended' });
       const connect = AudioContext.prototype.createMediaElementSource;
       AudioContext.prototype.createMediaElementSource = function (element) {
@@ -787,7 +830,7 @@ for (const failure of ['pending', 'rejected', 'unavailable']) {
     await revealControls(page);
     await page.getByTitle('Play', { exact: true }).click();
     await expect(page.locator('audio')).toHaveJSProperty('paused', false);
-    await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
+    await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
     await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
     await expect(page.locator('html')).not.toHaveAttribute('data-audio-graph-connected', 'true');
     await page.getByTitle('Pause', { exact: true }).click();
@@ -796,7 +839,224 @@ for (const failure of ['pending', 'rejected', 'unavailable']) {
   });
 }
 
-test('playback failure is visible and retry can start audio', async ({ page }, testInfo) => {
+test('prepared audio cold click waits visibly and requires a fresh gesture instead of delayed autoplay', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, false);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/test-audio.wav', async route => { await gate; await route.fallback(); });
+  await page.locator('.profile-input').fill('001');
+  await revealControls(page);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Preparing audio');
+  await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
+  await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+  release();
+  await expect(page.getByRole('status')).toHaveText('Audio ready. Tap Play.');
+  await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.6);
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const failure of ['http', 'decode', 'unavailable']) {
+  test(`prepared audio ${failure} failure is explicit and preparation retries`, async ({ page }) => {
+    if (failure === 'unavailable') await page.addInitScript(() => {
+      const Context = window.AudioContext;
+      let first = true;
+      window.AudioContext = class extends Context {
+        constructor(options?: AudioContextOptions) {
+          if (first) { first = false; throw new Error('Decoder unavailable'); }
+          super(options);
+        }
+      };
+    });
+    const fixture = await loadFixture(page, undefined, false);
+    let requests = 0;
+    await page.route('**/api/test-audio.wav', async route => {
+      requests++;
+      if (requests === 1 && failure !== 'unavailable') {
+        await route.fulfill({ status: failure === 'http' ? 503 : 200, contentType: 'audio/wav', body: 'broken' });
+      } else await route.fallback();
+    });
+    await page.locator('.profile-input').fill('001');
+    await revealControls(page);
+    await expect(page.getByRole('alert')).toContainText('Tap Play to retry');
+    await expect(page.locator('audio')).not.toHaveAttribute('src', /./);
+    await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
+    await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.6);
+    expect(requests).toBe(2);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('prepared audio queue prewarming deduplicates upcoming playback and ignores an abandoned cold source', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, false);
+  fixture.state.upcomingAudio = [1, 2, 3].map(index => ({
+    url: `/api/queued-${index}.wav`, mimeType: 'audio/wav', durationSeconds: 20,
+  }));
+  const requests: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/test-audio.wav', async route => {
+    await gate;
+    await route.fulfill({ contentType: 'audio/wav', body: audioFixture() }).catch(() => {});
+  });
+  await page.route('**/api/queued-*.wav', async route => {
+    requests.push(new URL(route.request().url()).pathname);
+    await route.fulfill({ contentType: 'audio/wav', body: audioFixture() });
+  });
+  await page.locator('.profile-input').fill('001');
+  await expect.poll(() => requests.length).toBe(3);
+  const oldElement = await page.locator('audio').elementHandle();
+  fixture.state.currentObservation!.audio = fixture.state.upcomingAudio[0]!;
+  await page.locator('.nav-zone-right').dblclick();
+  await expect.poll(fixture.navigationCount).toBe(1);
+  await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
+  await revealControls(page);
+  const source = await page.locator('audio').getAttribute('src');
+  release();
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.6);
+  await expect(page.locator('audio')).toHaveAttribute('src', source!);
+  expect(await oldElement!.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true);
+  expect(requests.filter(url => url === '/api/queued-1.wav')).toHaveLength(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('prepared audio stale play rejection after rapid navigation cannot stop the current clip', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  await page.evaluate(() => {
+    const play = HTMLMediaElement.prototype.play;
+    let first = true;
+    HTMLMediaElement.prototype.play = function () {
+      if (!first) return play.call(this);
+      first = false;
+      return new Promise<void>((_resolve, reject) => { (window as any).rejectOldPlay = reject; });
+    };
+  });
+  const previous = await page.locator('audio').elementHandle();
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect(page.getByTitle('Pause', { exact: true })).toHaveCount(0);
+  for (const count of [1, 2]) {
+    await page.locator('.nav-zone-right').dblclick();
+    await expect.poll(fixture.navigationCount).toBe(count);
+  }
+  await revealControls(page);
+  await page.getByTitle('Play', { exact: true }).click();
+  await page.evaluate(() => (window as any).rejectOldPlay(new DOMException('Old play aborted', 'AbortError')));
+  await expect.poll(() => page.locator('audio').evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(0.6);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(await previous!.evaluate((a: HTMLAudioElement) => a.paused && !a.hasAttribute('src'))).toBe(true);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('prepared audio resume, seeks, slow pitch-preserving rates and replay all keep one source', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  const audio = page.locator('audio');
+  const source = await audio.getAttribute('src');
+  const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+  await scrubber.press('Enter');
+  await page.getByTitle('Playback speed', { exact: true }).click();
+  const rate = page.getByRole('slider', { name: 'Playback speed', exact: true });
+  for (let step = 0; step < 10; step++) await rate.press('ArrowDown');
+  await expect(audio).toHaveJSProperty('playbackRate', 0.5);
+  await expect(audio).toHaveJSProperty('preservesPitch', true);
+  await rate.press('Escape');
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(0.6);
+  await page.getByTitle('Pause', { exact: true }).click();
+  const paused = await audio.evaluate((a: HTMLAudioElement) => a.currentTime);
+  await page.waitForTimeout(200);
+  expect(await audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBe(paused);
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(paused + 0.15);
+  await page.getByTitle('Pause', { exact: true }).click();
+  await audio.evaluate((a: HTMLAudioElement) => { a.currentTime = 7; });
+  await expect(scrubber).toHaveAttribute('aria-valuenow', '7');
+  await page.getByTitle('Play', { exact: true }).click();
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(7.1);
+  await audio.evaluate((a: HTMLAudioElement) => { a.currentTime = a.duration - 0.05; });
+  await expect(audio).toHaveJSProperty('ended', true);
+  await page.getByTitle('Play', { exact: true }).click();
+  expect(await audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeLessThan(0.5);
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(0.6);
+  await expect(audio).toHaveAttribute('src', source!);
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const rate of [0.1, 1.5]) {
+  test(`prepared audio preserves saved ${rate}x speed through native metadata loading`, async ({ page }) => {
+    const fixture = await loadFixture(page, undefined, false);
+    fixture.state.audioSettings.playbackRate = rate;
+    await page.locator('.profile-input').fill('001');
+    const audio = page.locator('audio');
+    await expect(audio).toHaveJSProperty('readyState', 4);
+    await expect(audio).toHaveJSProperty('playbackRate', rate);
+    await expect(audio).toHaveJSProperty('preservesPitch', true);
+    await revealControls(page);
+    await page.getByTitle('Play', { exact: true }).click();
+    await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime)).toBeGreaterThan(0.1);
+    await expect(audio).toHaveJSProperty('playbackRate', rate);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('prepared audio bookmarks display padded time but save and reload original speech time without drift', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, false);
+  let saved = [0, 2];
+  let writes = 0;
+  let fail = true;
+  await page.route('**/api/profiles/001/bookmarks?*', async route => {
+    if (route.request().method() === 'PUT') {
+      writes++;
+      if (fail) { await route.fulfill({ status: 503 }); return; }
+      saved = route.request().postDataJSON().bookmarks;
+    }
+    await route.fulfill({ json: { bookmarks: saved } });
+  });
+  // PUT uses no query string.
+  await page.route('**/api/profiles/001/bookmarks', async route => {
+    writes++;
+    if (fail) { await route.fulfill({ status: 503 }); return; }
+    saved = route.request().postDataJSON().bookmarks;
+    await route.fulfill({ json: { bookmarks: saved } });
+  });
+  await page.locator('.profile-input').fill('001');
+  await expect(page.locator('audio')).toHaveJSProperty('readyState', 4);
+  await revealControls(page);
+  const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+  await scrubber.press('Enter');
+  await page.locator('audio').evaluate((a: HTMLAudioElement) => { a.currentTime = 3.5; });
+  const bookmark = page.getByTitle('Bookmarks: click to return, double-click to add, triple-click to remove', { exact: true });
+  await bookmark.dblclick();
+  await expect(page.getByRole('alert')).toContainText('Bookmarks not saved');
+  fail = false;
+  await page.getByTitle('Retry bookmarks', { exact: true }).click();
+  await expect.poll(() => saved).toEqual([0, 2, 3]);
+  expect(writes).toBe(2);
+  await page.locator('audio').evaluate((a: HTMLAudioElement) => { a.currentTime = 4; });
+  await bookmark.click();
+  await expect(scrubber).toHaveAttribute('aria-valuenow', '3.5');
+  await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('Escape');
+  await page.locator('.nav-zone-right').dblclick();
+  await expect.poll(fixture.navigationCount).toBe(1);
+  await revealControls(page);
+  await scrubber.press('Enter');
+  await page.locator('audio').evaluate((a: HTMLAudioElement) => { a.currentTime = 4; });
+  await bookmark.click();
+  await expect(scrubber).toHaveAttribute('aria-valuenow', '3.5');
+  expect(saved).toEqual([0, 2, 3]);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('prepared audio autoplay failure is visible and retry can start audio', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     const play = HTMLMediaElement.prototype.play;
     let rejected = false;
@@ -811,7 +1071,7 @@ test('playback failure is visible and retry can start audio', async ({ page }, t
   const fixture = await loadFixture(page);
   await revealControls(page);
   await page.getByTitle('Play', { exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Playback was blocked. Allow sound for this site and retry.');
+  await expect(page.getByRole('alert')).toHaveText('Playback was blocked. Tap Play to retry or allow sound for this site.');
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
     await page.setViewportSize(viewport);
     await page.getByTitle('Play', { exact: true }).hover();
@@ -824,7 +1084,7 @@ test('playback failure is visible and retry can start audio', async ({ page }, t
   await expect(page.locator('audio')).toHaveJSProperty('paused', true);
   await page.getByTitle('Play', { exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(page.locator('audio')).toHaveAttribute('src', '/api/test-audio.wav');
+  await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
   await expect.poll(() => page.locator('audio').evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(0.1);
   expect(fixture.errors).toEqual([]);
 });
@@ -840,6 +1100,13 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         if (new URL(response.url()).pathname === new URL(audioUrl!, baseUrl).pathname && response.status() === 206) partialResponses += 1;
       });
       const fixture = await loadFixture(page, audioUrl!);
+      const range = await page.evaluate(async url => {
+        const response = await fetch(url, { headers: { Range: 'bytes=0-43' } });
+        return { status: response.status, range: response.headers.get('content-range'), length: (await response.arrayBuffer()).byteLength };
+      }, audioUrl!);
+      expect(range.status).toBe(206);
+      expect(range.range).toMatch(/^bytes 0-43\//);
+      expect(range.length).toBe(44);
       await revealControls(page);
       const audio = page.locator('audio');
       const duration = await audio.evaluate((element: HTMLAudioElement) => element.duration);
@@ -1121,6 +1388,7 @@ test.describe('touch navigation', () => {
     const audio = page.locator('audio');
     const coarse = page.getByRole('slider', { name: 'Audio position', exact: true });
     const precise = page.getByRole('slider', { name: 'Precise audio position', exact: true });
+    await coarse.press('Enter');
     await audio.evaluate(element => {
       element.addEventListener('timeupdate', event => event.stopImmediatePropagation(), true);
     });
@@ -1129,13 +1397,10 @@ test.describe('touch navigation', () => {
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await speed.press('Home');
       for (let step = 0; step < Math.round((rate - 0.1) / 0.05); step += 1) await speed.press('ArrowUp');
-      await page.keyboard.press('Escape');
+      await page.getByTitle('Playback speed', { exact: true }).tap();
       await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 3; });
       await page.getByTitle('Play', { exact: true }).tap();
-      await expect(audio).toHaveAttribute('src', /^data:audio\/wav/);
-      await expect(coarse).toHaveAttribute('aria-valuenow', '3');
-      await expect(audio).toHaveJSProperty('playbackRate', 1);
-      await expect(audio).toHaveAttribute('src', '/api/test-audio.wav');
+      await expect(audio).toHaveAttribute('src', /^blob:/);
       await expect(audio).toHaveJSProperty('playbackRate', rate);
       await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(3.05);
       for (let sample = 0; sample < 4; sample += 1) {
@@ -1624,7 +1889,42 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(feedback).toHaveCSS('color', cornerColor);
       await expect(page.locator('.observation-text')).not.toHaveCSS('color', audioColor);
       await expect(player.locator('button').first()).toHaveCSS('color', audioColor);
-      await expect(page.locator('.audio-scrubber-thumb')).toHaveCSS('background-color', audioColor);
+      const expectGlassPaint = async () => {
+        await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+        const paint = await player.evaluate(element => {
+          const background = (target: Element, pseudo?: string) => {
+            const style = getComputedStyle(target, pseudo);
+            return { image: style.backgroundImage, color: style.backgroundColor };
+          };
+          return {
+            icon: background(element.querySelector('.audio-play-button .audio-glass-icon')!),
+            thumb: background(element.querySelector('.audio-scrubber-thumb')!),
+            bars: [...element.querySelectorAll('.audio-magnifier-bar')].map(bar => background(bar)),
+            progress: background(element.querySelector('.audio-scrubber-progress')!),
+            track: background(element.querySelector('.audio-scrubber')!, '::before'),
+          };
+        });
+        expect(paint.icon.image).toContain('linear-gradient');
+        expect(paint.thumb.image).toBe(paint.icon.image);
+        expect(paint.bars.length).toBeGreaterThan(0);
+        for (const layer of [paint.icon, paint.thumb, ...paint.bars]) {
+          expect(layer.image).toBe(paint.icon.image);
+          expect(layer.color).toBe('rgba(0, 0, 0, 0)');
+        }
+        expect(paint.progress.color).toBe('rgba(0, 0, 0, 0)');
+        expect(paint.track.color).toBe('rgba(0, 0, 0, 0)');
+        expect(paint.progress.image).toContain('linear-gradient');
+        expect(paint.track.image).toBe(paint.progress.image);
+        const alphas = [...paint.progress.image.matchAll(/\/\s*([\d.]+)\s*\)/g)].map(match => Number(match[1]));
+        expect(alphas).toHaveLength(3);
+        expect(alphas[0]).toBeCloseTo(0.2);
+        expect(alphas[1]).toBeCloseTo(0.85);
+        expect(alphas[2]).toBeCloseTo(0.2);
+        expect(alphas[0]!).toBeLessThan(alphas[1]!);
+        expect(alphas[2]!).toBeLessThan(alphas[1]!);
+        await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('Escape');
+      };
+      await expectGlassPaint();
       await expect(settings).toHaveCSS('opacity', '0');
       await expect(player).toHaveCSS('opacity', '1');
       await withinViewport(settings, page);
@@ -1641,6 +1941,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await revealControls(page);
       await expect(settings).not.toHaveCSS('color', cornerColor);
       await expect(player).not.toHaveCSS('color', audioColor);
+      await expectGlassPaint();
       await page.screenshot({ path: testInfo.outputPath('corner-control-colors-updated.png') });
       expect(fixture.errors).toEqual([]);
     });

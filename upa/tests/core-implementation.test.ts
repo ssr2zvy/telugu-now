@@ -243,6 +243,29 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(state.canNext, true);
   });
 
+  await suite.test('audio hints preserve ordered forward history and ready queue slots without consuming or exposing pending audio', context => {
+    resetDatabase();
+    context.mock.method(preparationService, 'checkQueue', () => {});
+    const ids = seedQueue(['ready', 'ready', 'pending', 'ready', 'ready', 'ready']);
+    ids.forEach((id, index) => {
+      const row = db.prepare('SELECT source_key FROM observations WHERE id = ?').get(id) as { source_key: string };
+      db.prepare("INSERT INTO source_records VALUES ('001', 'test-source', ?, 'తెలుగు', ?, ?)")
+        .run(row.source_key, JSON.stringify([{ kind: 'audio', objectKey: `${index}.wav`, mimeType: 'audio/wav', durationSeconds: 1 }]), now);
+    });
+    const urls = () => profileService.getProfileState('001', false).upcomingAudio?.map(audio => audio.url);
+    assert.deepEqual(urls(), [0, 1, 3].map(index => `/api/audio/${index}.wav?v=2`));
+    profileService.navigateNext('001', false);
+    profileService.navigateNext('001', false);
+    profileService.navigateBack('001', false);
+    const before = db.prepare("SELECT * FROM queue_items WHERE profile_code = '001' ORDER BY queue_position").all();
+    const acquisitions = acquisitionCount();
+    assert.deepEqual(urls(), [1, 3, 4].map(index => `/api/audio/${index}.wav?v=2`));
+    assert.deepEqual(db.prepare("SELECT * FROM queue_items WHERE profile_code = '001' ORDER BY queue_position").all(), before);
+    assert.equal(acquisitionCount(), acquisitions);
+    profileService.navigateNext('001', false);
+    assert.equal(profileService.getProfileState('001', false).canNext, false);
+  });
+
   await suite.test('does not allow Back from the first history entry', () => {
     resetDatabase();
     seedQueue(['ready']);

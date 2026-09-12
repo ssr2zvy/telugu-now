@@ -1,31 +1,18 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
-import {
-  computeNormalizationGain,
-  computeWaveformPeaks,
-} from './audio-normalization';
-import {
-  loadBookmarks,
-  saveBookmarks,
-} from './audio-bookmarks-storage';
-import {
-  deleteNearestPriorBookmark,
-  insertBookmark,
-  nearestPriorBookmark,
-} from './bookmarks';
+import { clampPlaybackRate } from '../../../../shared/audio';
+import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';
+import { deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
-import { silentLeadInUrl } from './silent-lead-in';
 import { observePlaybackFeedback } from './playback-feedback';
+import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
   playing: boolean;
+  loading: boolean;
+  playbackStatus: string | null;
   playbackError: string | null;
   currentTime: number;
   duration: number;
@@ -42,26 +29,6 @@ export interface AudioPlayerState {
   clickBookmarkButton: () => void;
 }
 
-type AudioContextLike = AudioContext;
-
-let sharedAudioContext: AudioContextLike | null = null;
-
-function getAudioContext(): AudioContextLike | null {
-  if (typeof window === 'undefined') return null;
-  const AudioContextClass =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return null;
-  if (!sharedAudioContext) {
-    try {
-      sharedAudioContext = new AudioContextClass();
-    } catch {
-      return null;
-    }
-  }
-  return sharedAudioContext;
-}
-
 export function useAudioPlayer(
   audio: ObservationAudio | null,
   sourceId: string | null,
@@ -70,23 +37,24 @@ export function useAudioPlayer(
 ): AudioPlayerState {
   const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const normalizationGainRef = useRef(1);
-  const connectedElementRef = useRef<HTMLAudioElement | null>(null);
-  const outputConnectedRef = useRef(false);
+  const leaseRef = useRef<AudioLease | null>(null);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
-  const leadInRef = useRef<{ time: number; phase: 'silence' | 'restoring' } | null>(null);
   const playRequestRef = useRef(0);
-  const playbackRateRef = useRef(defaultPlaybackRate);
-
+  const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
+  const coldClickRef = useRef(false);
+  const retryPreparationRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(Boolean(audio));
+  const [playbackStatus, setPlaybackStatus] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(audio?.durationSeconds ?? 0);
-  const [playbackRate, setPlaybackRateState] = useState(defaultPlaybackRate);
+  const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
+  // Persistence remains in original speech seconds, including pending retries.
   const [bookmarks, setBookmarks] = useState<number[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(true);
   const [bookmarksSaving, setBookmarksSaving] = useState(false);
@@ -112,101 +80,71 @@ export function useAudioPlayer(
       }).catch(() => {
         if (bookmarkVersion.current === version) setBookmarkError('Could not load bookmarks.');
       }).finally(() => { if (bookmarkVersion.current === version) setBookmarksLoading(false); });
-    }
+    } else setBookmarksLoading(false);
     return () => {
       bookmarkVersion.current += 1;
       if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
     };
   }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);
 
-  // Connect the one persistent <audio> element to a gain node exactly once;
-  // MediaElementAudioSourceNode can only ever be created a single time per element.
-  const connectAudioOutput = () => {
+  useEffect(() => {
     const element = audioRef.current;
     if (!element) return;
-    if (connectedElementRef.current === element) {
-      // Effect cleanup can disconnect the output without releasing the element's
-      // single-use source node (notably during StrictMode's setup/cleanup replay).
-      if (!outputConnectedRef.current && gainNodeRef.current) {
-        gainNodeRef.current.connect(gainNodeRef.current.context.destination);
-        outputConnectedRef.current = true;
-      }
-      return;
-    }
-    const context = getAudioContext();
-    if (!context || context.state !== 'running') return;
-    try {
-      const gain = context.createGain();
-      gain.gain.value = leadInRef.current?.phase === 'silence' ? 1 : normalizationGainRef.current;
-      gain.connect(context.destination);
-      const source = context.createMediaElementSource(element);
-      source.connect(gain);
-      gainNodeRef.current = gain;
-      connectedElementRef.current = element;
-      outputConnectedRef.current = true;
-    } catch {
-      // Playback still works through the element's own output if this fails.
-    }
-  };
-  useEffect(() => connectAudioOutput());
-
-  // Reset transport/analysis state whenever a new observation's audio arrives.
-  useEffect(() => {
-    leadInRef.current = null;
-    playRequestRef.current += 1;
+    let disposed = false;
+    playRequestRef.current++;
+    coldClickRef.current = false;
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
     setPlaying(false);
+    setLoading(Boolean(audio));
     setPlaybackError(null);
     setMediaError(null);
+    setPlaybackStatus(audio ? 'Preparing audio…' : null);
     setCurrentTime(0);
+    setDuration(0);
     setWaveformPeaks([]);
-    setDuration(audio?.durationSeconds ?? 0);
-    setPlaybackRateState(defaultPlaybackRate);
-    playbackRateRef.current = defaultPlaybackRate;
-    normalizationGainRef.current = 1;
-    if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
-
+    setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));
+    playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);
+    element.preservesPitch = true;
+    const legacy = element as HTMLAudioElement & { webkitPreservesPitch?: boolean };
+    legacy.webkitPreservesPitch = true;
     if (!audio) return;
-    let cancelled = false;
-    const context = getAudioContext();
-    if (context) {
-      void fetch(audio.url)
-        .then((response) => response.arrayBuffer())
-        .then((buffer) => context.decodeAudioData(buffer))
-        .then((decoded) => {
-          if (cancelled) return;
-          setWaveformPeaks(computeWaveformPeaks(decoded));
-          normalizationGainRef.current = computeNormalizationGain(decoded);
-          if (gainNodeRef.current && leadInRef.current?.phase !== 'silence') gainNodeRef.current.gain.value = normalizationGainRef.current;
-        })
-        .catch(() => {
-          // Loudness analysis/waveform are enhancements; direct playback still works.
-        });
-    }
-    return () => {
-      cancelled = true;
-      playRequestRef.current += 1;
-      leadInRef.current = null;
-      audioRef.current?.pause();
-      gainNodeRef.current?.disconnect();
-      outputConnectedRef.current = false;
+    const lease = preparedAudioCache.acquire(audio.url, 'active', retryPreparationRef.current);
+    retryPreparationRef.current = false;
+    leaseRef.current = lease;
+    const attach = (clip: NonNullable<ReturnType<AudioLease['value']>>) => {
+      if (disposed) return;
+      element.src = clip.url;
+      element.defaultPlaybackRate = playbackRateRef.current;
+      element.playbackRate = playbackRateRef.current;
+      element.load();
+      setDuration(clip.duration);
+      setWaveformPeaks(clip.waveformPeaks);
+      setLoading(false);
+      setPlaybackStatus(coldClickRef.current ? 'Audio ready. Tap Play.' : null);
     };
-    // defaultPlaybackRate intentionally excluded: it should only seed state on change of clip.
+    const cached = lease.value();
+    if (cached) attach(cached);
+    else void lease.ready.then(attach).catch(error => {
+      if (disposed) return;
+      setLoading(false);
+      setPlaybackStatus(null);
+      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap Play to retry.`);
+    });
+    return () => {
+      disposed = true;
+      playRequestRef.current++;
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+      leaseRef.current = null;
+      // Release only after the native element no longer owns the Blob URL.
+      lease.release();
+    };
+    // Settings seed a new clip, not an already active transport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audio?.url, sourceId, sourceKey]);
-
-  useEffect(() => {
-    playbackRateRef.current = playbackRate;
-    const element = audioRef.current;
-    // Guard against ever handing the element a non-finite/invalid rate: some
-    // browsers throw when assigning it, which previously left the element in
-    // a broken state that even reverting the rate afterward could not recover.
-    if (!element || leadInRef.current?.phase === 'silence' || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
-    try {
-      element.playbackRate = playbackRate;
-    } catch {
-      // Ignore out-of-range rejections; the element keeps its prior rate.
-    }
-  }, [playbackRate]);
+  }, [audio?.url, sourceId, sourceKey, attempt]);
 
   useEffect(() => {
     const element = audioRef.current;
@@ -214,66 +152,57 @@ export function useAudioPlayer(
     const stopFeedback = observePlaybackFeedback(element, message => {
       setMediaError(message);
       setPlaying(false);
+      setPlaybackStatus(null);
     }, actuallyPlaying => {
       setMediaError(null);
       if (actuallyPlaying) {
         setPlaying(true);
         setPlaybackError(null);
+        setPlaybackStatus(null);
       }
     });
-    const onPlay = () => { setPlaying(true); setPlaybackError(null); };
-    const onPause = () => {
-      if (leadInRef.current) return;
-      setPlaying(false);
-    };
-    const onLoadedMetadata = () => {
-      if (leadInRef.current?.phase === 'silence') return;
+    const sync = () => {
+      if (!element.getAttribute('src')) return;
+      setCurrentTime(element.currentTime);
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
-      if (leadInRef.current?.phase === 'restoring') {
-        element.currentTime = leadInRef.current.time;
-        leadInRef.current = null;
-      }
     };
-    const onTimeUpdate = () => {
-      if (!leadInRef.current) setCurrentTime(element.currentTime);
+    const onPlaying = () => {
+      if (element.paused || element.ended || !leaseRef.current?.value()) return;
+      setPlaying(true);
+      setPlaybackError(null);
+      setPlaybackStatus(null);
     };
-    const onEnded = () => {
-      if (leadInRef.current?.phase === 'silence' && audio) {
-        leadInRef.current.phase = 'restoring';
-        element.src = audio.url;
-        element.playbackRate = playbackRateRef.current;
-        element.currentTime = leadInRef.current.time;
-        if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
-        connectAudioOutput();
-        playElement(element, playRequestRef.current);
-      } else if (!leadInRef.current) {
-        setCurrentTime(element.currentTime);
-        setPlaying(false);
-      }
+    const onPause = () => {
+      if (!element.paused && !element.ended) return;
+      setPlaying(false);
+      if (leaseRef.current?.value()) setPlaybackStatus(null);
+      sync();
     };
-    element.addEventListener('play', onPlay);
+    const onWaiting = () => { if (!element.paused) setPlaybackStatus('Loading audio…'); };
+    element.addEventListener('playing', onPlaying);
     element.addEventListener('pause', onPause);
-    element.addEventListener('loadedmetadata', onLoadedMetadata);
-    element.addEventListener('timeupdate', onTimeUpdate);
-    element.addEventListener('seeked', onTimeUpdate);
-    element.addEventListener('ended', onEnded);
+    element.addEventListener('waiting', onWaiting);
+    element.addEventListener('loadedmetadata', sync);
+    element.addEventListener('timeupdate', sync);
+    element.addEventListener('seeked', sync);
+    element.addEventListener('ended', onPause);
     return () => {
       stopFeedback();
-      element.removeEventListener('play', onPlay);
+      element.removeEventListener('playing', onPlaying);
       element.removeEventListener('pause', onPause);
-      element.removeEventListener('loadedmetadata', onLoadedMetadata);
-      element.removeEventListener('timeupdate', onTimeUpdate);
-      element.removeEventListener('seeked', onTimeUpdate);
-      element.removeEventListener('ended', onEnded);
+      element.removeEventListener('waiting', onWaiting);
+      element.removeEventListener('loadedmetadata', sync);
+      element.removeEventListener('timeupdate', sync);
+      element.removeEventListener('seeked', sync);
+      element.removeEventListener('ended', onPause);
     };
-  }, [audio?.url]);
+  }, [audio?.url, sourceId, sourceKey, attempt]);
 
-  // Follow the media clock every frame, not the sparse mobile timeupdate events.
   useEffect(() => {
     if (!playing) return;
     let frame: number;
     const tick = () => {
-      if (audioRef.current && !leadInRef.current) setCurrentTime(audioRef.current.currentTime);
+      if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -281,79 +210,69 @@ export function useAudioPlayer(
   }, [playing]);
 
   const pause = () => {
-    playRequestRef.current += 1;
-    const element = audioRef.current;
-    element?.pause();
-    if (element && leadInRef.current && audio) {
-      const time = leadInRef.current.time;
-      leadInRef.current = { time, phase: 'restoring' };
-      element.src = audio.url;
-      element.playbackRate = playbackRateRef.current;
-      element.currentTime = time;
-      if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
-    }
-    setCurrentTime(leadInRef.current?.time ?? element?.currentTime ?? 0);
+    playRequestRef.current++;
+    audioRef.current?.pause();
+    setCurrentTime(audioRef.current?.currentTime ?? 0);
     setPlaying(false);
-  };
-
-  const playElement = (element: HTMLAudioElement, request: number) => {
-    const source = element.src;
-    void element.play().catch((error: unknown) => {
-      if (playRequestRef.current !== request || audioRef.current !== element || !element.isConnected || element.src !== source) return;
-      pause();
-      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-        ? 'Playback was blocked. Allow sound for this site and retry.'
-        : 'This audio file could not be played.');
-    });
+    setPlaybackStatus(null);
   };
 
   const togglePlay = () => {
     const element = audioRef.current;
     if (!element || !audio) return;
-    if (playing) {
-      pause();
+    if (!element.paused) { pause(); return; }
+    if (!leaseRef.current?.value()) {
+      if (loading) {
+        coldClickRef.current = true;
+        setPlaybackStatus('Preparing audio… Tap Play when ready.');
+      } else {
+        retryPreparationRef.current = true;
+        setAttempt(value => value + 1);
+      }
       return;
     }
     setPlaybackError(null);
     setMediaError(null);
+    setPlaybackStatus('Loading audio…');
+    if (element.error) element.load();
+    if (element.ended || (duration > 0 && element.currentTime >= duration)) element.currentTime = 0;
     const request = ++playRequestRef.current;
-    const time = leadInRef.current?.time ?? (element.ended ? 0 : element.currentTime);
-    leadInRef.current = { time, phase: 'silence' };
-    setCurrentTime(time);
-    setPlaying(true);
-    // Play finite zero PCM on the same element inside the user gesture. Reusing
-    // that authorized element avoids mobile autoplay rejection after a timer.
-    element.src = silentLeadInUrl();
-    element.playbackRate = 1;
-    if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
-    const context = getAudioContext();
-    if (context && context.state !== 'running' && context.state !== 'closed') {
-      void context.resume().catch(() => {
-        if (playRequestRef.current !== request || !connectedElementRef.current) return;
-        pause();
-        setPlaybackError('Playback was blocked. Allow sound for this site and retry.');
-      });
-    }
-    playElement(element, request);
+    const source = element.src;
+    // No await, source swap, context resume, or synthetic priming: keep the tap.
+    void element.play().catch((error: unknown) => {
+      if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;
+      element.pause();
+      setPlaying(false);
+      setPlaybackStatus(null);
+      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Playback was blocked. Tap Play to retry or allow sound for this site.'
+        : 'This audio file could not be played. Tap Play to retry.');
+    });
   };
 
   const seek = (time: number) => {
-    if (leadInRef.current) pause();
     const element = audioRef.current;
-    const safeTime = Math.min(Math.max(0, time), duration > 0 ? duration : time);
-    if (leadInRef.current) leadInRef.current.time = safeTime;
-    if (element) element.currentTime = safeTime;
+    if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+    const safeTime = Math.min(Math.max(0, time), duration);
+    element.currentTime = safeTime;
     setCurrentTime(safeTime);
   };
 
   const applyPlaybackRate = (rate: number) => {
     if (!Number.isFinite(rate)) return;
-    setPlaybackRateState(
-      Math.min(
-        AUDIO_PLAYER_PRESENTATION.playbackRateMax,
-        Math.max(AUDIO_PLAYER_PRESENTATION.playbackRateMin, rate),
-      ),
-    );
+    const safeRate = clampPlaybackRate(rate);
+    const element = audioRef.current;
+    try {
+      if (element) {
+        element.preservesPitch = true;
+        element.playbackRate = safeRate;
+        element.defaultPlaybackRate = safeRate;
+      }
+      playbackRateRef.current = safeRate;
+      setPlaybackRateState(safeRate);
+    } catch {
+      setPlaybackError('This browser does not support that playback speed.');
+    }
   };
 
   const persistBookmarks = async (next: number[]) => {
@@ -373,45 +292,35 @@ export function useAudioPlayer(
     }
   };
 
-  // Resolved once no further click arrives within the window: 1 click seeks to
-  // the nearest prior bookmark, 2 creates one at the current position, 3 (or
-  // more) deletes the nearest prior bookmark.
   const clickBookmarkButton = () => {
     if (bookmarksLoading || bookmarkWriteInFlight.current || bookmarkError) return;
-    bookmarkClickCountRef.current += 1;
+    bookmarkClickCountRef.current++;
     if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
     bookmarkClickTimerRef.current = window.setTimeout(() => {
       const clicks = Math.min(3, bookmarkClickCountRef.current);
       bookmarkClickCountRef.current = 0;
       bookmarkClickTimerRef.current = null;
-      const time = leadInRef.current?.time ?? audioRef.current?.currentTime ?? currentTime;
+      const playerTime = audioRef.current?.currentTime ?? currentTime;
+      const time = toSpeechTime(playerTime);
       if (clicks === 1) {
-        const target = nearestPriorBookmark(bookmarks, time);
+        const target = nearestPriorBookmark(bookmarks.map(toPlayerTime), playerTime);
         if (target !== null) seek(target);
       } else if (clicks === 2) {
         void persistBookmarks(insertBookmark(bookmarks, time));
-      } else {
+      } else if (playerTime >= toPlayerTime(0)) {
         void persistBookmarks(deleteNearestPriorBookmark(bookmarks, time));
       }
     }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
   };
 
   return {
-    audioRef,
-    playing,
+    audioRef, playing, loading, playbackStatus,
     playbackError: mediaError ?? playbackError,
-    currentTime,
-    duration,
-    playbackRate,
-    waveformPeaks,
-    bookmarks,
+    currentTime, duration, playbackRate, waveformPeaks,
+    bookmarks: bookmarks.map(toPlayerTime),
     bookmarksBusy: bookmarksLoading || bookmarksSaving,
     bookmarkError,
-    retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(attempt => attempt + 1),
-    togglePlay,
-    pause,
-    seek,
-    setPlaybackRate: applyPlaybackRate,
-    clickBookmarkButton,
+    retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
+    togglePlay, pause, seek, setPlaybackRate: applyPlaybackRate, clickBookmarkButton,
   };
 }
