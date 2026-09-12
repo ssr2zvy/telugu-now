@@ -65,10 +65,13 @@ test('precision actions mount and unmount in the same branch as the magnifier', 
       ...scrubberProps, magnifierOpen: open, precisionControls: actions,
     }));
     assert.equal(markup.includes('class="audio-magnifier"'), open);
+    assert.equal(markup.includes('class="audio-precision-panel"'), open);
+    assert.equal(markup.includes('class="audio-scrubber-window"'), open);
     assert.equal(markup.includes('class="audio-precision-actions"'), open);
     assert.equal(markup.includes('aria-label="Playback speed"'), open);
     assert.equal(markup.includes('aria-label="Bookmarks"'), open);
     assert.match(markup, /aria-label="Audio position"/);
+    if (open) assert.ok(markup.indexOf('class="audio-magnifier"') < markup.indexOf('class="audio-precision-actions"'));
   }
 });
 
@@ -107,7 +110,7 @@ test('Play stays centered, the dot shares icon glass, and the bar fades without 
   assert.match(play ?? '', /grid-column: 1 \/ -1/);
   assert.match(play ?? '', /justify-self: center/);
   assert.match(play ?? '', /grid-row: 1/);
-  const bar = css.match(/^\.audio-scrubber::before, \.audio-scrubber-progress \{([^}]+)\}/m)?.[1] ?? '';
+  const bar = css.match(/^\.audio-scrubber::before, \.audio-scrubber-progress, \.audio-magnifier-track::before \{([^}]+)\}/m)?.[1] ?? '';
   assert.match(bar, /background: linear-gradient\(90deg,/);
   assert.match(bar, /currentColor 20%, transparent/);
   assert.match(bar, /currentColor 85%, transparent\) 50%/);
@@ -125,8 +128,13 @@ test('Play stays centered, the dot shares icon glass, and the bar fades without 
   assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-precision-actions \{[^}]*grid-row: 3;[^}]*grid-column: -2 \/ -1;[^}]*grid-template-rows: repeat\(2, 44px\)/);
-  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-actions \{ grid-row: 1/);
+  assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 3;[^}]*grid-template-rows: 88px 44px/);
+  assert.match(css, /\.audio-precision-actions \{[^}]*grid-row: 2;[^}]*grid-template-columns: repeat\(2, 48px\)/);
+  assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1/);
+  assert.match(css, /\.audio-magnifier::before \{[^}]*backdrop-filter: blur\(12px\)[^}]*mask-image: linear-gradient/);
+  assert.match(css, /\.audio-precision-panel::before \{[^}]*clip-path: polygon\(var\(--audio-window-start\)/);
+  assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
+  assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber \{ grid-row: 2; grid-column: 1 \/ -1/);
   assert.match(css, /\.audio-glass-icon \{[^}]*mask-image: var\(--audio-icon-mask\)[^}]*backdrop-filter: blur\(5px\)/);
 });

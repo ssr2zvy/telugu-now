@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   type ReactNode,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
@@ -136,6 +137,10 @@ export function AudioScrubber({
   return (
     <div
       className="audio-scrubber-wrap"
+      style={{
+        '--audio-window-start': `${duration > 0 ? windowStart / duration * 100 : 0}%`,
+        '--audio-window-end': `${duration > 0 ? windowEnd / duration * 100 : 100}%`,
+      } as CSSProperties}
       draggable={false}
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
@@ -170,6 +175,7 @@ export function AudioScrubber({
         aria-valuenow={currentTime}
       >
         <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
+        {magnifierOpen ? <div className="audio-scrubber-window" aria-hidden="true" /> : null}
         {bookmarks.map((bookmark) => (
           <span
             key={bookmark}
@@ -180,7 +186,7 @@ export function AudioScrubber({
         <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
       </div>
       {magnifierOpen ? (
-        <>
+        <div className="audio-precision-panel">
         <div className="audio-magnifier">
           <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
           <div
@@ -227,7 +233,7 @@ export function AudioScrubber({
           </div>
         </div>
         {precisionControls}
-        </>
+        </div>
       ) : null}
     </div>
   );
