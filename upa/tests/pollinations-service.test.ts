@@ -36,7 +36,7 @@ test('root env key supports dotenv syntax and can change without restarting', as
 });
 
 test('local key discovery uses the renamed controller as its repository marker', t => {
-  const controller = fileURLToPath(new URL('../../local_machine/control_local.sh', import.meta.url));
+  const controller = fileURLToPath(new URL('../../local-machine/control_local.sh', import.meta.url));
   const envPath = fileURLToPath(new URL('../../env', import.meta.url));
   t.mock.method(fs, 'existsSync', (file: fs.PathLike) =>
     String(file) === controller);

@@ -26,7 +26,7 @@ test('runtime user and global storage paths remain under root data from any work
     assert.throws(() => resolveDataPath(path.resolve(root, 'data/app.sqlite'), 'users.sqlite'), /must stay under/);
     assert.throws(() => resolveDataPath('/tmp/outside.sqlite', 'users.sqlite'), /must stay under/);
     assert.equal(resolveDataPath(path.resolve(root, '../data/corpus/corpus.sqlite'), ''), path.resolve(root, '../data/corpus/corpus.sqlite'));
-    const controller = fs.readFileSync(path.resolve(root, '../local_machine/control_local.sh'), 'utf8');
+    const controller = fs.readFileSync(path.resolve(root, '../local-machine/control_local.sh'), 'utf8');
     assert.ok(controller.includes('RAW_DATA_DIR="$REPO_DIR/data/raw"'));
     assert.ok(controller.includes('SAMPLE_DATA_DIR="$REPO_DIR/data/sample"'));
   } finally {
@@ -105,13 +105,13 @@ test('Settings secondary labels and inset dividers preserve localized hierarchy'
   assert.match(css, /\.settings-index button:not\(:last-child\)::after \{[^}]*inset-inline: 54px 12px;[^}]*height: 1px/);
 });
 test(
-  'local controller lives under local_machine with no obsolete controller names',
+  'local controller lives under local-machine with no obsolete controller names',
   () => {
     const control =
       path.resolve(
         root,
         '..',
-        'local_machine',
+        'local-machine',
         'control_local.sh',
       );
     assert.equal(
@@ -167,11 +167,11 @@ test(
       ),
       false,
     );
-    assert.ok(readme.includes('./local_machine/control_local.sh'));
+    assert.ok(readme.includes('./local-machine/control_local.sh'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('run_data_domain'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('CORPUS_NOT_PREPARED'));
-    assert.equal(fs.existsSync(path.resolve(root, '..', 'local_machine', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);
-    assert.equal(fs.existsSync(path.resolve(root, '..', 'local_machine', 'data-transform', 'requirements.txt')), true);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'local-machine', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'local-machine', 'data-transform', 'requirements.txt')), true);
     const registry = read('server/src/services/source-registry.ts');
     assert.ok(registry.includes("'fleurs-te'"));
     assert.ok(registry.includes("'shrutilipi-te'"));

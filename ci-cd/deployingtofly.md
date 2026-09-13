@@ -9,7 +9,7 @@ ci-cd/Containerfile                Multi-stage container build
 ci-cd/make-artifacts.sh            Application build entry point
 ci-cd/container-scripts/entrypoint.sh
 fly.toml                          App configuration
-local_machine/                    Local development and data tooling
+local-machine/                    Local development and data tooling
 upa/                              Application source
 ```
 
