@@ -175,6 +175,82 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
   return { errors, state, preferences, failPreferences: (fail: boolean) => { failPreferences = fail; }, releaseExport, navigationCount: () => navigationCount, resetCount: () => resetCount, exportCount: () => exportCount };
 }
 
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  test(`control darkness and optional timestamp persist across app controls ${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const preferences = new Map<string, ProfilePreferences>([['001', {
+      appearance: parseAppearance({ autoFadeSeconds: 60 }), language: 'en',
+      imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
+    }]]);
+    const fixture = await loadFixture(page, undefined, true, sampleText, preferences);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await revealControls(page);
+    const player = page.locator('.observation-screen .audio-player-bar');
+    const scrubber = player.getByRole('slider', { name: 'Audio position', exact: true });
+    await scrubber.press('Enter');
+    await expect(player.locator('.audio-magnifier-time')).toHaveCount(0);
+    await expect(player.locator('.audio-magnifier-playhead')).toHaveCSS('filter', 'brightness(0.68)');
+    await expect(player.locator('.audio-scrubber-window')).toHaveCSS('filter', 'brightness(0.68)');
+    await expect(player.locator('.audio-scrubber-thumb')).toHaveCSS('filter', 'brightness(0.85)');
+    await expect(player.locator('.audio-bookmark-button')).toHaveCSS('filter', 'none');
+    await expect(player.locator('.audio-glass-icon').first()).toHaveCSS('filter', 'brightness(0.85)');
+    const gradient = await player.locator('.audio-scrubber-thumb').evaluate(el => getComputedStyle(el).backgroundImage);
+    await expect(page.locator('.observation-text')).toHaveCSS('filter', 'none');
+    await expect(page.locator('.gradient-field')).toHaveCSS('filter', 'none');
+
+    await openSettings(page);
+    await expect(page.locator('.settings-close')).toHaveCSS('filter', 'brightness(0.85)');
+    await page.getByRole('button', { name: 'Display', exact: true }).click();
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    const darkness = page.getByRole('slider', { name: 'Control darkness', exact: true });
+    await expect(darkness).toHaveValue('15');
+    await expect(darkness).toHaveCSS('filter', 'none');
+    await expect(darkness.locator('..')).toHaveCSS('filter', 'brightness(0.85)');
+    await expect(page.getByRole('switch', { name: 'Show audio timestamp', exact: true })).not.toBeChecked();
+    await expect(page.getByLabel('Audio bar to magnifier', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Timestamp to magnifier', { exact: true })).toHaveCount(0);
+    const preview = page.locator('.appearance-audio-preview');
+    for (const position of ['Above', 'Below']) {
+      await page.getByRole('radio', { name: position, exact: true }).check();
+      const spacing = await preview.evaluate(element => {
+        const row = element.querySelector('.audio-scrubber-row')!.getBoundingClientRect();
+        const waveform = element.querySelector('.audio-magnifier-track')!.getBoundingClientRect();
+        return Math.max(waveform.top - row.bottom, row.top - waveform.bottom);
+      });
+      expect(spacing).toBeCloseTo(1, 1);
+      await expect(preview.locator('.audio-magnifier-time')).toHaveCount(0);
+    }
+    await darkness.press('End');
+    await expect(page.locator('.settings-close')).toHaveCSS('filter', 'brightness(0.4)');
+    await darkness.press('Home');
+    await expect(page.locator('.settings-close')).toHaveCSS('filter', 'brightness(1)');
+    await page.getByRole('button', { name: 'Reset control darkness', exact: true }).click();
+    await expect(darkness).toHaveValue('15');
+    await darkness.press('ArrowRight');
+    await page.getByRole('switch', { name: 'Show audio timestamp', exact: true }).check();
+    await expect(page.locator('.appearance-audio-preview .audio-magnifier-time')).toBeVisible();
+    await expect(page.getByLabel('Timestamp to magnifier', { exact: true })).toBeVisible();
+    await expect.poll(() => fixture.preferences.get('001')?.appearance?.controlDarkness).toBe(16);
+    await expect.poll(() => fixture.preferences.get('001')?.appearance?.showAudioTimestamp).toBe(true);
+    await page.locator('.settings-close').click();
+    await revealControls(page);
+    await scrubber.press('Enter');
+    await expect(player.locator('.audio-magnifier-time')).toBeVisible();
+    await expect(player.locator('.audio-magnifier-time')).toHaveCSS('filter', 'brightness(0.84)');
+    await expect(player.locator('.audio-scrubber-thumb')).toHaveCSS('background-image', gradient);
+
+    await page.reload();
+    await page.locator('.profile-input').fill('001');
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await openSettings(page);
+    await page.getByRole('button', { name: 'Display', exact: true }).click();
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await expect(darkness).toHaveValue('16');
+    await expect(page.getByRole('switch', { name: 'Show audio timestamp', exact: true })).toBeChecked();
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
 test('reader tap playback autoplays invisibly and separates bottom-third controls', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify({ scrollMode: false })));
   const fixture = await loadFixture(page);
@@ -2277,7 +2353,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         const preferences = new Map<string, ProfilePreferences>([['001', {
           appearance: parseAppearance({
             gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c',
-            magnifierPosition, autoFadeSeconds: 60,
+            magnifierPosition, autoFadeSeconds: 60, showAudioTimestamp: true,
           }),
           language: 'en', imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
         }]]);

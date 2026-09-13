@@ -133,6 +133,7 @@ export function AudioPlayerBar({
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
         magnifierOpen={magnifierOpen}
+        showTimestamp={appearance.showAudioTimestamp}
         speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}

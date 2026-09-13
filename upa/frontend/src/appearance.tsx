@@ -3,7 +3,7 @@ import { LoaderCircle, RotateCw } from 'lucide-react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
-export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
+export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
 
 export function appearanceSurface(appearance: AppearanceSettings): string {
   if (appearance.surface) return appearance.surface;
@@ -215,6 +215,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   };
   const style = {
     '--surface': appearanceSurface(appearance),
+    '--control-brightness': 1 - appearance.controlDarkness / 100,
     '--audio-control-color': appearanceAudioColor(appearance),
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],

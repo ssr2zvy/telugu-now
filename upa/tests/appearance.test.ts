@@ -62,6 +62,26 @@ test('appearance positions preserve existing baselines and validate persisted of
   }
 });
 
+test('control darkness and timestamp visibility validate old and new preferences', () => {
+  assert.equal(parseAppearance({ fontScale: 75 }).controlDarkness, 15);
+  assert.equal(parseAppearance({ fontScale: 75 }).showAudioTimestamp, false);
+  assert.equal(parseAppearance({ controlDarkness: -5 }).controlDarkness, 0);
+  assert.equal(parseAppearance({ controlDarkness: 999 }).controlDarkness, 60);
+  assert.equal(parseAppearance({ controlDarkness: 25.6 }).controlDarkness, 26);
+  for (const invalid of [null, undefined, '20', NaN, Infinity, -Infinity]) {
+    assert.equal(parseAppearance({ controlDarkness: invalid }).controlDarkness, 15);
+    assert.equal(parseAppearance({ showAudioTimestamp: invalid }).showAudioTimestamp, false);
+  }
+  for (const showAudioTimestamp of [false, true]) {
+    const custom = parseAppearance({ controlDarkness: 30, showAudioTimestamp });
+    assert.equal(custom.showAudioTimestamp, showAudioTimestamp);
+    assert.equal(custom.controlDarkness, 30);
+    assert.deepEqual(parseAppearance(JSON.parse(JSON.stringify(custom))), custom);
+    assert.deepEqual(appearanceAudioGlass(custom), appearanceAudioGlass(DEFAULT_APPEARANCE),
+      'darkness is applied to the paint without changing gradient colors, stops, or opacity ratios');
+  }
+});
+
 test('audio gaps migrate shared spacing and remain independent in either orientation', () => {
   for (const [controlSpacing, expected] of [[0, 0], [1, 1], [-5, 0], [40, 1], [0.4, 0]]) {
     const migrated = parseAppearance({ controlSpacing });
