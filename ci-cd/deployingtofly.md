@@ -1,148 +1,140 @@
-# Deploying `telugu-now` to Fly.io
+# Deploying telugu-now to Fly.io
 
-This document reconstructs, from the actual Copilot CLI session history for
-this repository, how the app is built, how branches get merged, and how a
-deploy actually happens on Fly.io — including what Fly does and does not do
-automatically.
+## Repository layout
 
-## 1. The workflow used in every session
-
-Every deployment session in this repo's history follows the same pattern:
-
-1. Work happens on a dedicated `copilot/<topic>` branch created from `main`
-   (never directly on `main`).
-2. Changes are typechecked, built, and tested locally
-   (`npm run typecheck`, `npm run build`, `npm test` inside `upa/`).
-3. The branch is committed, then **merged into `main`** — either via a GitHub
-   pull request (e.g. PR #36, #37, #38, #39, #40, #41) or, when working
-   offline, merged locally into `main` and pushed once network/auth access is
-   available.
-4. `main` is pushed to `origin` (`git push origin main`).
-5. A deploy is triggered **manually** by running `flyctl` against the
-   repository root.
-
-Nothing in this repo automates step 5 from step 4. There is no
-`.github/workflows/*.yml` in this repository, so **pushing or merging to
-`main` on GitHub does not, by itself, deploy anything.** Fly does not watch
-the GitHub repo. Every deploy in the session history was invoked explicitly
-by the assistant/user running `flyctl` from a terminal after the merge.
-
-## 2. How the merge happens
-
-- Feature work happens on `copilot/*` branches.
-- Merges into `main` are done either through a GitHub PR (normal case) or a
-  local `git merge` into `main` followed by `git push origin main` when a PR
-  isn't practical in the moment. Either way, `main` is always the source of
-  truth that gets deployed — feature branches are never deployed directly to
-  the production Fly app (this was corrected once: a branch,
-  `copilot/user-eons`, had been deployed straight to Fly without first being
-  merged into `main`, and was reconciled into `main` after the fact).
-- No branch protection/required-status-check automation exists in this repo;
-  the discipline is enforced by convention (typecheck/build/test before
-  every merge), not by CI.
-
-## 3. How a deploy is actually triggered (manual, from `main`)
-
-After merging, the deploy sequence used throughout the session history is:
-
-```bash
-# from the repository root, on the checked-out main branch
-flyctl auth login          # one-time per machine/environment
-flyctl deploy . --config fly.toml --ha=false
+```text
+.github/workflows/deploy.yml       GitHub Actions trigger and runner setup
+ci-cd/deploy.sh                    Shared deploy, stop, and cancel commands
+ci-cd/Containerfile                Multi-stage container build
+ci-cd/make-artifacts.sh            Application build entry point
+ci-cd/container-scripts/entrypoint.sh
+fly.toml                          App configuration
+local_machine/                    Local development and data tooling
+upa/                              Application source
 ```
 
-- `fly deploy` is run **from the repository root**, not from `upa/`, because
-  the Docker build context must include `upa/` and `ci-cd/` together (this is
-  a "monorepo" layout: application source lives under `upa/`, but
-  `fly.toml` and `ci-cd/` (which holds the Dockerfile, entrypoint script, and
-  build helper) sit above it).
-- `--config fly.toml` selects the config file; it does **not** change the
-  build context — the working directory argument (`.`) does that.
-- `--ha=false` is used because this app has a mounted volume: Fly's
-  redundancy-by-default behavior gives volume-backed process groups a single
-  Machine on first deploy anyway, but `--ha=false` makes that explicit rather
-  than relying on the default.
+The build context is always the repository root, not `ci-cd/` or `upa/`.
+Fly reads `[build] dockerfile = "ci-cd/Containerfile"` in `fly.toml`.
+`Containerfile` uses Dockerfile syntax; the configuration key remains
+`dockerfile`. The root `.dockerignore` allowlists build inputs and excludes
+credentials, local data, dependencies, and generated artifacts. Deployment
+scripts and GitHub credentials are not copied into the application image.
 
-## 4. What Fly does automatically once `fly deploy` runs
+## Authentication setup
 
-`fly deploy` is the only thing that "detects" code changes — Fly has no
-passive integration with this GitHub repo. When invoked, flyctl:
+Create an app-scoped deploy token from an authenticated Fly CLI:
 
-1. Reads `fly.toml` (`[build] dockerfile = "ci-cd/Dockerfile"`) to find the
-   Dockerfile.
-2. Builds the image **remotely** on Fly's remote builder by default (not
-   your local Docker daemon, unless `--local-only` is passed). The Dockerfile
-   here is a multi-stage build:
-   - `dependencies` — installs npm deps (with Python/make/g++ for native
-     SQLite compilation).
-   - `build` — copies `upa/` and `ci-cd/make-artifacts.sh`, then runs it
-     (`make-artifacts.sh` just runs `npm run build`, which typechecks,
-     builds the Vite frontend, and bundles the Node backend + availability
-     worker with `tsup`).
-   - `production-dependencies` — `npm prune --omit=dev`.
-   - `runtime` — final slim image: installs `gosu`/`ffmpeg`, copies
-     production `node_modules`, the built `dist/`, and
-     `ci-cd/container-scripts/entrypoint.sh`, and sets
-     `ENTRYPOINT ["/usr/local/bin/telugu-now-entrypoint"]` /
-     `CMD ["node", "dist/server/index.js"]`.
-   - `.dockerignore` allow-lists exactly the files each stage needs so the
-     build context stays small and never includes `node_modules`, `dist`,
-     local data, secrets, or `.git`.
-3. Pushes the built image to **Fly's internal registry** — there is no
-   separate Docker Hub/manual `docker push` step.
-4. Updates/creates Fly Machines running that image for the `telugu-now` app,
-   attaching the existing `telugu_now_data` volume (3 GB, region `iad`) to
-   the single Machine.
-5. Injects environment variables from `fly.toml`'s `[env]` block plus
-   Fly secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-   `pollinations_api_key`, etc. — set out-of-band via `flyctl secrets set`,
-   never committed) into the Machine's runtime environment.
-6. Runs the container's `ENTRYPOINT`
-   (`ci-cd/container-scripts/entrypoint.sh`): as root it validates and
-   creates/chowns `/data`, `/data/corpus`, `/data/user`,
-   `/data/word-images`, then re-execs itself as the unprivileged `node`
-   user via `gosu`, which finally `exec`s `node dist/server/index.js`.
-   (Dockerfile `chown` alone would not affect a Fly volume — the volume is
-   only mounted at Machine start, so ownership must be fixed by the
-   entrypoint at runtime, not at build time.)
-7. Runs the app's health check (`GET /api/health`, 1 min grace period,
-   30 s interval) before routing traffic to the new Machine, then retires
-   the old one.
-8. Because `CORPUS_BACKEND=tigris`, on startup the app downloads
-   `corpus.sqlite` from Tigris only if missing, and — because
-   `CORPUS_AVAILABILITY_WORKER_ENABLED=false` /
-   `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true` — rebuilds
-   `availability.sqlite` from the Tigris object listing before serving
-   traffic, with no ongoing background worker.
-9. The app is reachable at the Fly-assigned hostname `telugu-now.fly.dev`
-   with managed HTTPS; first deploy also provisioned a dedicated IPv6 and a
-   shared IPv4 automatically.
+```bash
+flyctl tokens create deploy --app telugu-now --expiry 720h
+```
 
-## 5. What Fly does *not* do
+Store the complete value in the repository's **Settings > Secrets and variables >
+Actions** as `FLY_API_TOKEN`. Renew it before expiry. Never put the token in the
+repository, build arguments, or workflow YAML. For local commands, securely
+export it as `FLY_API_TOKEN`; the script deliberately requires this variable
+rather than depending on a machine's cached login.
 
-- It does **not** poll or watch the GitHub repository for new commits.
-- It does **not** auto-build on `git push` or on PR merge. (Setting that up
-  would require adding a `.github/workflows/*.yml` using Fly's official
-  "Continuous Deployment with GitHub Actions" recipe — a workflow, a
-  `FLY_API_TOKEN` deploy secret, `actions/checkout`, then a `flyctl deploy`
-  step. This repo does not have that workflow yet, so every deploy so far
-  has been manual.)
-- Fly volumes do not replicate; the app intentionally runs as a single
-  Machine (`--ha=false`) because SQLite (`corpus.sqlite`,
-  `users.sqlite`) lives on one attached volume.
+Deployment and stop commands require `flyctl`; stop also requires `jq`.
+The Actions runner installs Fly CLI and includes `jq`. Missing tools, missing
+tokens, or failed app-access checks exit nonzero before deployment or stopping.
+Network failures and expired or insufficiently scoped tokens are not bypassed.
+Runtime Tigris and image-generation credentials remain separate Fly secrets;
+they are not supplied by the GitHub deployment token.
 
-## 6. Summary
+## Automatic deployment after merging
 
-| Step | Trigger | Tool |
-|---|---|---|
-| Feature work | Manual | `copilot/*` branch |
-| Merge to `main` | Manual (PR or local merge + push) | `git` / GitHub PR |
-| Build image | Manual, run after merge | `fly deploy .` (remote builder) |
-| Push image to registry | Automatic, part of `fly deploy` | Fly internal registry |
-| Roll out Machine(s) | Automatic, part of `fly deploy` | flyctl / Fly platform |
-| Health check + cutover | Automatic, part of `fly deploy` | `/api/health` |
+1. Work on a dedicated `copilot/*` branch created from `main`.
+2. Validate the changes, commit, push, and merge the pull request into `main`.
+3. A push to `main`, including a PR merge, triggers `.github/workflows/deploy.yml`.
+4. Actions checks out the exact triggering revision, installs Fly CLI, and runs
+   `bash ci-cd/deploy.sh deploy` with the secret token.
+5. The script resolves its own repository root, checks prerequisites and app
+   access, then runs:
 
-**In short: merging to `main` on GitHub is necessary but not sufficient. A
-human (or the assistant, on request) must explicitly run
-`flyctl deploy . --config fly.toml --ha=false` from the repository root
-after the merge for Fly to build and roll out the new code.**
+```bash
+flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
+```
+
+The workflow has read-only repository permissions and pins its third-party
+actions to commit revisions. Production operations share a concurrency group
+with `cancel-in-progress: false`, so a new push does not interrupt an active
+rollout. GitHub may replace an older pending run with the newest pending run.
+Local invocations do not participate in GitHub's concurrency group; do not run
+local deploy/stop commands while an Actions deployment is active.
+
+All pushes to `main` trigger deployment, including documentation-only changes
+and direct pushes. Feature branch pushes and unmerged PRs do not. This workflow
+is not a required pre-merge test gate; the container build does typecheck and
+build the application. Use branch protection if direct pushes must be forbidden.
+The workflow can also be run manually from the Actions tab on `main`, selecting
+`deploy` or `stop`.
+
+Fly does not watch GitHub itself. Previously deployment required a manual
+`flyctl deploy` after merging; GitHub Actions now supplies that invocation.
+If the token secret is absent, the workflow fails clearly and leaves the
+existing deployment untouched.
+
+## Manual commands
+
+These commands work from any current directory when the script path is correct:
+
+```bash
+./ci-cd/deploy.sh deploy
+./ci-cd/deploy.sh stop
+./ci-cd/deploy.sh cancel 123456789
+```
+
+`deploy` builds the current local checkout, including uncommitted changes.
+For production, use a clean checkout of the merged `main` revision; the
+automatic workflow supplies this consistently.
+
+`stop` lists the app's Machines and stops them without destroying Machines,
+volumes, or Tigris data. Storage charges continue. The current `fly.toml` sets
+`auto_start_machines = false`, so traffic does not restart the stopped app.
+A subsequent deployment can start it again. Stopping does not disable the
+workflow: the next push to `main` will deploy again. To keep it offline, disable
+the workflow in GitHub and cancel any pending/active runs before stopping.
+Prefer the workflow's manual `stop` action to serialize it with CI deployments.
+If stopping multiple Machines fails partway through, some may already be stopped;
+the command reports failure rather than claiming success.
+
+`cancel RUN_ID` uses GitHub CLI authentication (`gh auth login` or `GH_TOKEN`
+with Actions read/write permissions), not `FLY_API_TOKEN`. It verifies that the
+run belongs to this repository's deployment workflow on `main` before requesting
+cancellation. Find IDs with:
+
+```bash
+gh run list --repo ssr2zvy/telugu-now --workflow deploy.yml
+```
+
+Cancellation is a request, not confirmation that all remote work has stopped.
+Inspect the run and Fly app before issuing another production operation.
+For a local foreground deployment, use Ctrl+C. Neither local interruption nor
+Actions cancellation rolls back changes already applied, guarantees that a
+remote build stops, or cancels other queued runs. It does not intentionally
+stop the live app. To undo a deployed code change, revert it through a PR to
+`main` and let the workflow deploy the reverted revision. No destructive
+automatic rollback is attempted on deployment failure.
+
+## Build and runtime behavior
+
+Fly builds `ci-cd/Containerfile` remotely and pushes the image to its internal
+`registry.fly.io/telugu-now` registry. The stages install dependencies, build the
+frontend/backend/worker with `ci-cd/make-artifacts.sh`, prune development
+dependencies, and package the runtime with `gosu` and `ffmpeg`.
+
+Fly updates the existing app Machines with the new image and configuration.
+`--ha=false` avoids adding spare Machines; this app uses one persistent SQLite
+volume and does not rely on replicated volume data. The `telugu_now_data`
+volume remains mounted at `/data`; changing application images does not erase it.
+A single-Machine rollout may briefly interrupt service.
+
+The entrypoint prepares mounted directories, drops root privileges with `gosu`,
+and executes the Node server. The server reuses an existing `corpus.sqlite`
+(downloads it from Tigris only if missing) and rebuilds `availability.sqlite`
+from Tigris inventory before serving, with the background availability worker
+disabled. Fly monitors the `/api/health` check during deployment.
+
+The app is served at https://telugu-now.fly.dev/. Deployment failures surface
+as a failed script/workflow; a failed rollout can have already modified remote
+state and must be inspected rather than assumed to have rolled back.

@@ -244,7 +244,7 @@ Dependency installation is separate. All outputs remain under the already
 Git-ignored `upa/dist/`; no additional artifact directory is introduced.
 
 The image and all three artifacts initially use `0.0.1-initial`, with independent
-sources of version information. `Dockerfile` defines the image's OCI
+sources of version information. `ci-cd/Containerfile` defines the image's OCI
 `org.opencontainers.image.version` label. Artifact versions belong to
 `upa/frontend/version.json`, `upa/server/version.json`, and
 `upa/server/availability-worker.version.json`. The npm client/server post-build
@@ -256,7 +256,7 @@ Docker image tagging remains a build/publish action, for example
 
 The worker is always included alongside the frontend and backend. `fly.toml`
 does not select build outputs: changing the runtime worker flag needs no
-different image. The root multi-stage Dockerfile caches dependency installation,
+different image. The multi-stage `ci-cd/Containerfile` caches dependency installation,
 builds with Node 22/Debian Bookworm, and produces production-only dependencies
 with the same Node/native-module ABI. Its final stage contains package metadata,
 production dependencies, and the complete `dist/` tree, not source/test files
@@ -302,7 +302,7 @@ credentials. Non-secret environment settings configure storage and refresh
 policy; same-name Fly secrets override those settings. The application needs
 read/list access, not corpus write access.
 
-The TOML's `[build]` section selects the root Dockerfile; the TOML itself stays
+The TOML's `[build]` section selects `ci-cd/Containerfile`; the TOML itself stays
 outside the image. The selected primary region is `iad` (Ashburn, Virginia) and
 the initial `telugu_now_data` volume size is 3 GB. The runtime entrypoint
 prepares its application directories for UID/GID 1000; restored files need
