@@ -21,11 +21,11 @@ CURRENT_LOCK=""
 usage() {
   cat <<USAGE
 Usage:
-  ./local_machine/$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
-  ./local_machine/$SCRIPT_NAME test [--option start|abort|exit]
-  ./local_machine/$SCRIPT_NAME build [--option start|abort|exit]
-  ./local_machine/$SCRIPT_NAME dev [--option start|stop|exit]
-  ./local_machine/$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
+  ./local-machine/$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
+  ./local-machine/$SCRIPT_NAME test [--option start|abort|exit]
+  ./local-machine/$SCRIPT_NAME build [--option start|abort|exit]
+  ./local-machine/$SCRIPT_NAME dev [--option start|stop|exit]
+  ./local-machine/$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
 USAGE
 }
 

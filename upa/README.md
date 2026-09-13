@@ -1,6 +1,6 @@
 # Telugu Now
 Telugu Now is a profile-based Telugu reader with prepared speech datasets, audio playback, personal settings and bookmarks, global word images, and offline HTML/EPUB exports.
-Implementation and migration notes belong in the existing [iteration 3 document](../local_machine/impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory). Fly deployment instructions live in the [deployment guide](../ci-cd/deployingtofly.md).
+Implementation and migration notes belong in the existing [iteration 3 document](../local-machine/impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory). Fly deployment instructions live in the [deployment guide](../ci-cd/deployingtofly.md).
 ## Stack
 - TypeScript
 - React + Vite
@@ -9,14 +9,14 @@ Implementation and migration notes belong in the existing [iteration 3 document]
 ## Project controller
 
 ## Prepared corpus prerequisite
-Corpus acquisition and transformation are offline data-engineering operations under `local_machine/data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
+Corpus acquisition and transformation are offline data-engineering operations under `local-machine/data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
 The explicit data-controller operations are:
 ```bash
-./local_machine/control_local.sh data --option samples
-./local_machine/control_local.sh data --option prepare
-./local_machine/control_local.sh data --option all
-./local_machine/control_local.sh data --option samples --rows 500 --batch-rows 20
-./local_machine/control_local.sh data --option all --rows all --batch-rows 20
+./local-machine/control_local.sh data --option samples
+./local-machine/control_local.sh data --option prepare
+./local-machine/control_local.sh data --option all
+./local-machine/control_local.sh data --option samples --rows 500 --batch-rows 20
+./local-machine/control_local.sh data --option all --rows all --batch-rows 20
 ```
 `samples` transforms source downloads under:
 ```text
@@ -44,35 +44,35 @@ The controller keeps move semantics: consumed raw files disappear after extracti
 Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
 ```bash
 python3.12 -m venv data/.venv
-data/.venv/bin/python -m pip install -r local_machine/data-transform/requirements.txt
-PYTHON="$PWD/data/.venv/bin/python" ./local_machine/control_local.sh data --option all --rows all --batch-rows 20
-data/.venv/bin/python -m unittest discover -s local_machine/data-transform/tests -v
+data/.venv/bin/python -m pip install -r local-machine/data-transform/requirements.txt
+PYTHON="$PWD/data/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
+data/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
 ```
 The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
-`./local_machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
+`./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
 startup skips this local-only controller check and lets the runtime validate the
 catalog and object-store configuration; it never generates a local audio corpus.
 The controller's `data` command runs the tracked extraction and preparation
-scripts under `local_machine/data-transform/`. Its offline data paths remain under repository
+scripts under `local-machine/data-transform/`. Its offline data paths remain under repository
 `data/`; runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
-The `local_machine/control_local.sh` script is the local development entry point; deployment
+The `local-machine/control_local.sh` script is the local development entry point; deployment
 starts the built server directly and does not require this controller.
 Run these commands from the repository root. Install dependencies on a new checkout:
 ```bash
-./local_machine/control_local.sh deps --option install
+./local-machine/control_local.sh deps --option install
 ```
 Start development:
 ```bash
-./local_machine/control_local.sh dev
+./local-machine/control_local.sh dev
 ```
 By default, startup uses an existing compatible `availability.sqlite` without
 rebuilding it. After preparing a new corpus, explicitly build availability once:
 ```bash
-CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./local_machine/control_local.sh dev --option start
+CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./local-machine/control_local.sh dev --option start
 ```
 Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
 periodic refreshes. These controls apply to both local and Tigris backends.
@@ -80,8 +80,8 @@ The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.
 The configured prototype profile code is `001`.
 ## Build and tests
 ```bash
-./local_machine/control_local.sh build --option start
-./local_machine/control_local.sh test --option start
+./local-machine/control_local.sh build --option start
+./local-machine/control_local.sh test --option start
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
@@ -170,7 +170,7 @@ text, layout and behavior are unchanged.
 Set the lowercase `pollinations_api_key` in the server process environment
 (a same-name Fly secret in deployment). A nonempty value takes precedence over
 the local file; surrounding whitespace is trimmed. For local development, the
-fallback is the repository-root `env`, located using `local_machine/control_local.sh` as the repository marker:
+fallback is the repository-root `env`, located using `local-machine/control_local.sh` as the repository marker:
 ```dotenv
 pollinations_api_key=
 ```
@@ -179,7 +179,7 @@ file server. Do not put the key in frontend code or a `VITE_` variable. The Node
 server reads the environment first on each generation request, falling back to
 the file when the environment value is missing or blank. Local file key changes
 need no restart. Node 20.12+ is required for the standard dotenv parser.
-Without `local_machine/control_local.sh`, local file lookup falls back to the parent of the server's
+Without `local-machine/control_local.sh`, local file lookup falls back to the parent of the server's
 working directory (`../env`). Deployment secrets require neither local file nor
 controller script; do not package either to supply credentials.
 
@@ -213,7 +213,7 @@ without automatic pruning or a history UI. Back up this directory separately.
 Generation is an explicit paid provider operation; keep the prototype behind
 access controls. Provider calls are mocked in tests, which do not spend credits
 or verify live model quality. API, publication, and retry details are recorded in
-the [iteration 3 document](../local_machine/impl-iterations/iteration3.md#global-word-images).
+the [iteration 3 document](../local-machine/impl-iterations/iteration3.md#global-word-images).
 
 Double-click or double-tap anywhere in the left third of the reader to go back, or the right third to go next. A word hit takes priority over these regions and opens its word/image view. Single clicks never navigate. The edge controls remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
 A brief top-right direction arrow identifies each Back/Next request actually dispatched, including failed requests. No sequence number is displayed. Polling and rerenders do not replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
@@ -522,12 +522,12 @@ logs/process files. Corpus files, audio, generated word images and user caches a
 data, not part of that exception.
 
 Default runtime paths are located from the repository root, regardless of the
-working directory; no `local_machine/control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
+working directory; no `local-machine/control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
 may be any persistent mount root and does not require locating the repository.
 `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, and
 `CORPUS_OBJECTS_PATH` may select locations inside that root; runtime rejects paths
 outside it and rejects sharing a file between the three databases. Relative
-environment paths resolve against the working directory (`upa` with `local_machine/control_local.sh`).
+environment paths resolve against the working directory (`upa` with `local-machine/control_local.sh`).
 Tests may use isolated database paths outside the data root.
 
 The default layout is:
@@ -652,7 +652,7 @@ Unsaved edits are not durable across closing the page. Three-digit codes remain
 prototype identifiers, not secure authentication.
 
 ## Storage inventory
-Paths below are relative to the repository root with normal `local_machine/control_local.sh` startup.
+Paths below are relative to the repository root with normal `local-machine/control_local.sh` startup.
 Every item below has user, global, credentials, downloads, or assets/artifacts scope.
 
 | Information | Scope | Location and contents |
