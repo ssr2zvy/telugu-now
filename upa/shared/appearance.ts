@@ -40,14 +40,14 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   audioOffset: 0,
   textOffsetOther: 0,
   audioOffsetOther: 0,
-  controlSpacing: 4,
+  controlSpacing: 1,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
-export const CONTROL_SPACING_LIMITS = { min: 0, max: 16 } as const;
+export const CONTROL_SPACING_LIMITS = { min: 0, max: 1 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
