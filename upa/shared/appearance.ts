@@ -23,6 +23,8 @@ export interface AppearanceSettings {
   // active, restored automatically when switching back to it.
   textOffsetOther: number;
   audioOffsetOther: number;
+  // Distance between the waveform, timestamp, and audio bar.
+  controlSpacing: number;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   autoFadeSeconds: number;
@@ -38,12 +40,14 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   audioOffset: 0,
   textOffsetOther: 0,
   audioOffsetOther: 0,
+  controlSpacing: 4,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
+export const CONTROL_SPACING_LIMITS = { min: 0, max: 16 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
@@ -63,6 +67,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     audioOffset: parseOffset(candidate.audioOffset),
     textOffsetOther: parseOffset(candidate.textOffsetOther),
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
+    controlSpacing: typeof candidate.controlSpacing === 'number' && Number.isFinite(candidate.controlSpacing)
+      ? Math.round(Math.max(CONTROL_SPACING_LIMITS.min, Math.min(CONTROL_SPACING_LIMITS.max, candidate.controlSpacing)))
+      : DEFAULT_APPEARANCE.controlSpacing,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,
