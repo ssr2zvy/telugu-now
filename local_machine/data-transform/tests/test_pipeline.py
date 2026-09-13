@@ -17,8 +17,8 @@ from unittest.mock import patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-REPO = Path(__file__).resolve().parents[2]
-SCRIPTS = REPO / "data-transform" / "scripts"
+REPO = Path(__file__).resolve().parents[3]
+SCRIPTS = REPO / "local_machine" / "data-transform" / "scripts"
 sys.path.insert(0, str(SCRIPTS / "create-tigris-schema"))
 sys.path.insert(0, str(SCRIPTS / "extract-sample-data"))
 
@@ -39,8 +39,10 @@ class PipelineTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="telugu-pipeline-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        shutil.copy2(REPO / "control_local.sh", self.root / "control_local.sh")
-        shutil.copytree(SCRIPTS, self.root / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        local_machine = self.root / "local_machine"
+        local_machine.mkdir()
+        shutil.copy2(REPO / "local_machine" / "control_local.sh", local_machine / "control_local.sh")
+        shutil.copytree(SCRIPTS, local_machine / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         (self.root / "upa").mkdir()
         self.raw = self.root / "data" / "raw"
         self.sample = self.root / "data" / "sample"
@@ -74,7 +76,7 @@ class PipelineTests(unittest.TestCase):
 
     def control(self, *arguments: str, success: bool = True, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
-            ["bash", str(self.root / "control_local.sh"), "data", *arguments],
+            ["bash", str(self.root / "local_machine" / "control_local.sh"), "data", *arguments],
             env={**os.environ, "PYTHON": sys.executable},
             input=input_text, capture_output=True, text=True, timeout=90,
         )

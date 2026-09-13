@@ -52,10 +52,10 @@ flyctl deploy . --config fly.toml --ha=false
 ```
 
 - `fly deploy` is run **from the repository root**, not from `upa/`, because
-  the Docker build context must include `upa/`, `ci-cd/`, and
-  `container-scripts/` together (this is a "monorepo" layout: application
-  source lives under `upa/`, but the root `Dockerfile`, `fly.toml`, and
-  `ci-cd/` sit above it).
+  the Docker build context must include `upa/` and `ci-cd/` together (this is
+  a "monorepo" layout: application source lives under `upa/`, but
+  `fly.toml` and `ci-cd/` (which holds the Dockerfile, entrypoint script, and
+  build helper) sit above it).
 - `--config fly.toml` selects the config file; it does **not** change the
   build context — the working directory argument (`.`) does that.
 - `--ha=false` is used because this app has a mounted volume: Fly's
@@ -68,7 +68,7 @@ flyctl deploy . --config fly.toml --ha=false
 `fly deploy` is the only thing that "detects" code changes — Fly has no
 passive integration with this GitHub repo. When invoked, flyctl:
 
-1. Reads `fly.toml` (`[build] dockerfile = "Dockerfile"`) to find the
+1. Reads `fly.toml` (`[build] dockerfile = "ci-cd/Dockerfile"`) to find the
    Dockerfile.
 2. Builds the image **remotely** on Fly's remote builder by default (not
    your local Docker daemon, unless `--local-only` is passed). The Dockerfile
@@ -82,7 +82,7 @@ passive integration with this GitHub repo. When invoked, flyctl:
    - `production-dependencies` — `npm prune --omit=dev`.
    - `runtime` — final slim image: installs `gosu`/`ffmpeg`, copies
      production `node_modules`, the built `dist/`, and
-     `container-scripts/entrypoint.sh`, and sets
+     `ci-cd/container-scripts/entrypoint.sh`, and sets
      `ENTRYPOINT ["/usr/local/bin/telugu-now-entrypoint"]` /
      `CMD ["node", "dist/server/index.js"]`.
    - `.dockerignore` allow-lists exactly the files each stage needs so the
@@ -98,7 +98,7 @@ passive integration with this GitHub repo. When invoked, flyctl:
    `pollinations_api_key`, etc. — set out-of-band via `flyctl secrets set`,
    never committed) into the Machine's runtime environment.
 6. Runs the container's `ENTRYPOINT`
-   (`container-scripts/entrypoint.sh`): as root it validates and
+   (`ci-cd/container-scripts/entrypoint.sh`): as root it validates and
    creates/chowns `/data`, `/data/corpus`, `/data/user`,
    `/data/word-images`, then re-execs itself as the unprivileged `node`
    user via `gosu`, which finally `exec`s `node dist/server/index.js`.

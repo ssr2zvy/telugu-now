@@ -14,7 +14,7 @@ function fixture(t: TestContext) {
   fs.mkdirSync(bin, { recursive: true });
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const script = path.join(root, 'entrypoint.sh');
-  fs.copyFileSync(path.join(appDirectory, '../container-scripts/entrypoint.sh'), script);
+  fs.copyFileSync(path.join(appDirectory, '../ci-cd/container-scripts/entrypoint.sh'), script);
   const trace = path.join(root, 'ownership.log');
   const data = path.join(root, 'data directory');
   fs.writeFileSync(path.join(bin, 'id'), '#!/bin/sh\nprintf "%s\\n" "${TEST_UID:-0}"\n', { mode: 0o755 });

@@ -31,7 +31,7 @@ RUN apt-get update \
 COPY upa/package.json ./
 COPY --from=production-dependencies /app/upa/node_modules ./node_modules
 COPY --from=build /app/upa/dist ./dist
-COPY container-scripts/entrypoint.sh /usr/local/bin/telugu-now-entrypoint
+COPY ci-cd/container-scripts/entrypoint.sh /usr/local/bin/telugu-now-entrypoint
 
 RUN chmod 755 /usr/local/bin/telugu-now-entrypoint
 EXPOSE 8080

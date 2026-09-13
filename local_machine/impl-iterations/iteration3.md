@@ -13,7 +13,7 @@ and does not need this script.
 The deployment-only removal/ignore policy was undone in favor of the original
 `main` ignore policy. The temporary `current.md` was removed; this document is
 the implementation record for Iteration 3, with operational details in the
-[application README](../upa/README.md).
+[application README](../../upa/README.md).
 
 ## Corpus and runtime foundation
 
@@ -136,7 +136,7 @@ per profile. Rows are scoped by `profile_code`, directly or through profile-owne
 queue/history/acquisition relations. Word images remain global and shared across
 users; they are not moved beneath `user/` or into SQLite. Credentials and
 deployment configuration are not user records. The complete current inventory
-and backup boundaries are maintained in [the README](../upa/README.md#storage-inventory).
+and backup boundaries are maintained in [the README](../../upa/README.md#storage-inventory).
 
 `config.ts` locates the application through its package/source or built-server
 layout, independently of the controller and working directory. `DATA_DIRECTORY`
@@ -307,7 +307,7 @@ outside the image. The selected primary region is `iad` (Ashburn, Virginia) and
 the initial `telugu_now_data` volume size is 3 GB. The runtime entrypoint
 prepares its application directories for UID/GID 1000; restored files need
 appropriate existing permissions. Billing dashboards and pricing
-references are recorded in [costs.md](../costs.md). Start with one Machine:
+references are recorded in [costs.md](../../costs.md). Start with one Machine:
 local SQLite, worker coordination, and global image publication are not
 replicated or globally locked across Machines. These source changes do not
 provision infrastructure, upload a corpus, or deploy the service.

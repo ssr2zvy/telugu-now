@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Iterator
 
 SPLITS = ("dev", "test", "train")
-DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[3] / "data/raw/FLEURS"
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[3] / "data/sample/FLEURS"
+DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[4] / "data/raw/FLEURS"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[4] / "data/sample/FLEURS"
 
 
 def parse_args() -> argparse.Namespace:

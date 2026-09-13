@@ -1,6 +1,6 @@
 # Telugu Now
 Telugu Now is a profile-based Telugu reader with prepared speech datasets, audio playback, personal settings and bookmarks, global word images, and offline HTML/EPUB exports.
-Implementation and migration notes belong in the existing [iteration 3 document](../impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory).
+Implementation and migration notes belong in the existing [iteration 3 document](../local_machine/impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory). Fly deployment instructions live in the [deployment guide](../ci-cd/deployingtofly.md).
 ## Stack
 - TypeScript
 - React + Vite
@@ -9,14 +9,14 @@ Implementation and migration notes belong in the existing [iteration 3 document]
 ## Project controller
 
 ## Prepared corpus prerequisite
-Corpus acquisition and transformation are offline data-engineering operations under `data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
+Corpus acquisition and transformation are offline data-engineering operations under `local_machine/data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
 The explicit data-controller operations are:
 ```bash
-./control_local.sh data --option samples
-./control_local.sh data --option prepare
-./control_local.sh data --option all
-./control_local.sh data --option samples --rows 500 --batch-rows 20
-./control_local.sh data --option all --rows all --batch-rows 20
+./local_machine/control_local.sh data --option samples
+./local_machine/control_local.sh data --option prepare
+./local_machine/control_local.sh data --option all
+./local_machine/control_local.sh data --option samples --rows 500 --batch-rows 20
+./local_machine/control_local.sh data --option all --rows all --batch-rows 20
 ```
 `samples` transforms source downloads under:
 ```text
@@ -44,35 +44,35 @@ The controller keeps move semantics: consumed raw files disappear after extracti
 Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
 ```bash
 python3.12 -m venv data/.venv
-data/.venv/bin/python -m pip install -r data-transform/requirements.txt
-PYTHON="$PWD/data/.venv/bin/python" ./control_local.sh data --option all --rows all --batch-rows 20
-data/.venv/bin/python -m unittest discover -s data-transform/tests -v
+data/.venv/bin/python -m pip install -r local_machine/data-transform/requirements.txt
+PYTHON="$PWD/data/.venv/bin/python" ./local_machine/control_local.sh data --option all --rows all --batch-rows 20
+data/.venv/bin/python -m unittest discover -s local_machine/data-transform/tests -v
 ```
 The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
-`./control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
+`./local_machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
 startup skips this local-only controller check and lets the runtime validate the
 catalog and object-store configuration; it never generates a local audio corpus.
 The controller's `data` command runs the tracked extraction and preparation
-scripts under `data-transform/`. Its offline data paths remain under repository
+scripts under `local_machine/data-transform/`. Its offline data paths remain under repository
 `data/`; runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
-The root `control_local.sh` is the local development entry point; deployment
+The `local_machine/control_local.sh` script is the local development entry point; deployment
 starts the built server directly and does not require this controller.
-Install dependencies on a new checkout:
+Run these commands from the repository root. Install dependencies on a new checkout:
 ```bash
-./control_local.sh deps --option install
+./local_machine/control_local.sh deps --option install
 ```
 Start development:
 ```bash
-./control_local.sh dev
+./local_machine/control_local.sh dev
 ```
 By default, startup uses an existing compatible `availability.sqlite` without
 rebuilding it. After preparing a new corpus, explicitly build availability once:
 ```bash
-CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./control_local.sh dev --option start
+CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./local_machine/control_local.sh dev --option start
 ```
 Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
 periodic refreshes. These controls apply to both local and Tigris backends.
@@ -80,8 +80,8 @@ The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.
 The configured prototype profile code is `001`.
 ## Build and tests
 ```bash
-./control_local.sh build --option start
-./control_local.sh test --option start
+./local_machine/control_local.sh build --option start
+./local_machine/control_local.sh test --option start
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
@@ -170,7 +170,7 @@ text, layout and behavior are unchanged.
 Set the lowercase `pollinations_api_key` in the server process environment
 (a same-name Fly secret in deployment). A nonempty value takes precedence over
 the local file; surrounding whitespace is trimmed. For local development, the
-fallback is `env` next to the root `control_local.sh`:
+fallback is the repository-root `env`, located using `local_machine/control_local.sh` as the repository marker:
 ```dotenv
 pollinations_api_key=
 ```
@@ -179,7 +179,7 @@ file server. Do not put the key in frontend code or a `VITE_` variable. The Node
 server reads the environment first on each generation request, falling back to
 the file when the environment value is missing or blank. Local file key changes
 need no restart. Node 20.12+ is required for the standard dotenv parser.
-Without `control_local.sh`, local file lookup falls back to the parent of the server's
+Without `local_machine/control_local.sh`, local file lookup falls back to the parent of the server's
 working directory (`../env`). Deployment secrets require neither local file nor
 controller script; do not package either to supply credentials.
 
@@ -213,7 +213,7 @@ without automatic pruning or a history UI. Back up this directory separately.
 Generation is an explicit paid provider operation; keep the prototype behind
 access controls. Provider calls are mocked in tests, which do not spend credits
 or verify live model quality. API, publication, and retry details are recorded in
-the [iteration 3 document](../impl-iterations/iteration3.md#global-word-images).
+the [iteration 3 document](../local_machine/impl-iterations/iteration3.md#global-word-images).
 
 Double-click or double-tap anywhere in the left third of the reader to go back, or the right third to go next. A word hit takes priority over these regions and opens its word/image view. Single clicks never navigate. The edge controls remain keyboard-focusable and support Enter/Space; unavailable directions are disabled.
 A brief top-right direction arrow identifies each Back/Next request actually dispatched, including failed requests. No sequence number is displayed. Polling and rerenders do not replay the indicator. Overlapping requests and held-key repeats are suppressed. Status polls run one at a time and responses from before a navigation or local settings update are discarded, preventing older observations from flashing back onto the screen.
@@ -271,7 +271,7 @@ The settings interface uses locally bundled Manrope variable type for Latin text
 Appearance preferences are saved in server-side SQLite for the active profile, alongside its sampling and playback settings. They control three gradient colors, text and coordinated UI colors, a 0-100 font-size scale (50 preserves the default), and the enabled font pool; at least one font must remain enabled. Oversized gradient layers transition for 650ms when the active observation changes, then stay still until the next change, with no continuous drift or skewed layer edges. Reduced-motion mode keeps the gradient static.
 
 Under **Display > Appearance > Position**, separate text and audio-bar sliders adjust their vertical offsets from the defaults, from -200 to +200 pixels. Negative values move up; positive values move down. The bottom inset is 16 pixels plus the device safe area. **Audio control order** offers **Bar above / magnifier below** (default) and **Bar below / magnifier above**. There is no Play button. The bar, thumb, and precision controls share the same softly graded translucent glass. A centered 32-pixel-high highlight marks the magnified section on the main bar, with no connector or background behind the enlarged waveform. The compact lens and action rows lower the default bar by 20 pixels while preserving 44-pixel button hit targets and the safe-area inset. Speed and bookmarks sit directly below the lens in either order. Space is reserved so opening precision controls does not shift the bar under the pointer. Routine audio preparation appears as top-right dots; genuine playback errors remain visible even with the bar hidden. Saved offsets and magnifier order remain intact. **Reset positions** restores both offsets to zero and Bar above / magnifier below.
-Under **Display > Appearance > Control spacing**, a single 0-1 pixel slider adjusts the distance between the waveform, the timestamp, and the audio bar together (default 1px), applying regardless of magnifier order. **Reset control spacing** restores the default.
+Under **Display > Appearance > Control spacing**, two independent 0-48 pixel sliders set **Audio bar to timestamp** and **Timestamp to magnifier** spacing (default 1px each). A live preview mirrors **Magnifier position > Above / Below**. From the main bar outward, the order is always timestamp, then magnifier; switching sides preserves both gaps. Existing shared spacing is carried over to both controls. **Reset control spacing** restores both defaults without changing position.
 Settings uses compact rows, grouped numeric values with small unit suffixes, and checkmark Save actions. Numeric values and their units share one subtle rounded focus treatment without separate underlines. Secondary labels and inset dividers preserve the page hierarchy. Editable controls use at least 16px text to avoid mobile focus auto-zoom without disabling pinch zoom; keyboard-aware vertical scrolling keeps the focused field accessible. On narrow screens, the language globe has its own bottom row rather than overlaying scrollable settings.
 
 **Settings > Eons** marks named periods of use for each profile. Enter a name (up to 80 characters) and choose **Start eon**; only one eon can be active at a time. Starting includes the current observation. Subsequent views, including already prepared observations and history revisits, belong to the active eon until **Stop eon**. Eons survive reloads and show their start/stop times and distinct observation counts. The same observation can belong to multiple eons without overwriting its original acquisition diagnostics.
@@ -522,12 +522,12 @@ logs/process files. Corpus files, audio, generated word images and user caches a
 data, not part of that exception.
 
 Default runtime paths are located from the repository root, regardless of the
-working directory; no `control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
+working directory; no `local_machine/control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
 may be any persistent mount root and does not require locating the repository.
 `DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, and
 `CORPUS_OBJECTS_PATH` may select locations inside that root; runtime rejects paths
 outside it and rejects sharing a file between the three databases. Relative
-environment paths resolve against the working directory (`upa` with `control_local.sh`).
+environment paths resolve against the working directory (`upa` with `local_machine/control_local.sh`).
 Tests may use isolated database paths outside the data root.
 
 The default layout is:
@@ -652,7 +652,7 @@ Unsaved edits are not durable across closing the page. Three-digit codes remain
 prototype identifiers, not secure authentication.
 
 ## Storage inventory
-Paths below are relative to the repository root with normal `control_local.sh` startup.
+Paths below are relative to the repository root with normal `local_machine/control_local.sh` startup.
 Every item below has user, global, credentials, downloads, or assets/artifacts scope.
 
 | Information | Scope | Location and contents |
@@ -710,7 +710,7 @@ Image and artifact versions are independent, initially `0.0.1-initial`:
 
 | Component | Version source | Packaged metadata |
 |---|---|---|
-| Image | `Dockerfile` | OCI label `org.opencontainers.image.version` |
+| Image | `ci-cd/Dockerfile` | OCI label `org.opencontainers.image.version` |
 | Frontend | `upa/frontend/version.json` | `upa/dist/client/version.json` |
 | Backend | `upa/server/version.json` | `upa/dist/server/version.json` |
 | Worker | `upa/server/availability-worker.version.json` | `upa/dist/server/availability-worker.version.json` |
@@ -724,7 +724,7 @@ maintained separately in the Dockerfile.
 Build the single deployment image using the repository root as the context:
 
 ```bash
-docker build -t telugu-now:0.0.1-initial .
+docker build -f ci-cd/Dockerfile -t telugu-now:0.0.1-initial .
 ```
 
 Docker tags are supplied by the build/publish command, not set by a Dockerfile
@@ -739,7 +739,7 @@ not shipped. `.dockerignore` restricts the context to build inputs and excludes
 local data, credentials, dependencies, and prior build output. Neither Git
 cloning nor build-time corpus access or runtime secrets are required.
 
-The container entrypoint, `container-scripts/entrypoint.sh`, starts as root
+The container entrypoint, `ci-cd/container-scripts/entrypoint.sh`, starts as root
 after the volume is mounted. It creates `DATA_DIRECTORY` (default `/data`) and
 its `corpus/`, `user/`, and `word-images/` directories and assigns just those
 directories to `node:node`. It then uses `gosu` to recheck access as the
@@ -770,7 +770,7 @@ and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
 background availability worker. Existing corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
-Fly's `[build]` section selects the root Dockerfile; `fly.toml` is deployment
+Fly's `[build]` section selects `ci-cd/Dockerfile`; `fly.toml` is deployment
 configuration and is not copied into the image. The selected primary region is
 `iad` (Ashburn, Virginia), with a 3 GB `telugu_now_data` volume mounted at `/data`.
 `initial_size` sets the size if deployment needs to create a volume; it does not

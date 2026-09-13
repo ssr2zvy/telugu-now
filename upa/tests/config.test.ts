@@ -153,8 +153,9 @@ test('controller requires local prepared data but never generates a corpus for T
   for (const key of environmentKeys) delete env[key];
   Object.assign(env, { DATA_DIRECTORY: path.join(scratch, 'mount'), PATH: `${scratch}:${process.env.PATH}` });
   fs.mkdirSync(path.join(scratch, 'upa'));
-  const controller = path.join(scratch, 'control_local.sh');
-  fs.copyFileSync(path.join(repositoryDirectory, 'control_local.sh'), controller);
+  fs.mkdirSync(path.join(scratch, 'local_machine'));
+  const controller = path.join(scratch, 'local_machine', 'control_local.sh');
+  fs.copyFileSync(path.join(repositoryDirectory, 'local_machine', 'control_local.sh'), controller);
   const args = [controller, 'dev', '--option', 'start'];
   const local = spawnSync('bash', args, { env, encoding: 'utf8' });
   assert.notEqual(local.status, 0);

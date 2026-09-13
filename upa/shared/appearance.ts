@@ -23,8 +23,8 @@ export interface AppearanceSettings {
   // active, restored automatically when switching back to it.
   textOffsetOther: number;
   audioOffsetOther: number;
-  // Distance between the waveform, timestamp, and audio bar.
-  controlSpacing: number;
+  audioTimestampGap: number;
+  timestampMagnifierGap: number;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   autoFadeSeconds: number;
@@ -40,22 +40,26 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   audioOffset: 0,
   textOffsetOther: 0,
   audioOffsetOther: 0,
-  controlSpacing: 1,
+  audioTimestampGap: 1,
+  timestampMagnifierGap: 1,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
-export const CONTROL_SPACING_LIMITS = { min: 0, max: 1 } as const;
+export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
   ? Math.round(Math.max(-APPEARANCE_OFFSET_LIMIT, Math.min(APPEARANCE_OFFSET_LIMIT, value))) : 0;
+const parseControlGap = (value: unknown, fallback: number): number => typeof value === 'number' && Number.isFinite(value)
+  ? Math.round(Math.max(CONTROL_SPACING_LIMITS.min, Math.min(CONTROL_SPACING_LIMITS.max, value))) : fallback;
 
 export function parseAppearance(value: unknown): AppearanceSettings {
-  const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings>;
+  const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings> & { controlSpacing?: unknown };
   const fonts = OBSERVATION_FONTS.filter((font) => Array.isArray(candidate.fonts) && candidate.fonts.includes(font));
+  const legacyGap = Math.min(1, parseControlGap(candidate.controlSpacing, DEFAULT_APPEARANCE.audioTimestampGap));
   return {
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
@@ -67,9 +71,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     audioOffset: parseOffset(candidate.audioOffset),
     textOffsetOther: parseOffset(candidate.textOffsetOther),
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
-    controlSpacing: typeof candidate.controlSpacing === 'number' && Number.isFinite(candidate.controlSpacing)
-      ? Math.round(Math.max(CONTROL_SPACING_LIMITS.min, Math.min(CONTROL_SPACING_LIMITS.max, candidate.controlSpacing)))
-      : DEFAULT_APPEARANCE.controlSpacing,
+    audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
+    timestampMagnifierGap: parseControlGap(candidate.timestampMagnifierGap, legacyGap),
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,

@@ -4,9 +4,9 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 SELF="$SCRIPT_DIR/$SCRIPT_NAME"
-REPO_DIR="$SCRIPT_DIR"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="$REPO_DIR/upa"
-DATA_TRANSFORM_DIR="$REPO_DIR/data-transform"
+DATA_TRANSFORM_DIR="$SCRIPT_DIR/data-transform"
 SAMPLE_DATA_DIR="$REPO_DIR/data/sample"
 RAW_DATA_DIR="$REPO_DIR/data/raw"
 PREPARED_CORPUS_DIR="$REPO_DIR/data/corpus"
@@ -21,11 +21,11 @@ CURRENT_LOCK=""
 usage() {
   cat <<USAGE
 Usage:
-  ./$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
-  ./$SCRIPT_NAME test [--option start|abort|exit]
-  ./$SCRIPT_NAME build [--option start|abort|exit]
-  ./$SCRIPT_NAME dev [--option start|stop|exit]
-  ./$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
+  ./local_machine/$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
+  ./local_machine/$SCRIPT_NAME test [--option start|abort|exit]
+  ./local_machine/$SCRIPT_NAME build [--option start|abort|exit]
+  ./local_machine/$SCRIPT_NAME dev [--option start|stop|exit]
+  ./local_machine/$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
 USAGE
 }
 

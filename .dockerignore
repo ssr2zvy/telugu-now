@@ -1,11 +1,11 @@
 # Allow only the files needed to build the application.
 **
-!Dockerfile
 !.dockerignore
 !ci-cd/
+!ci-cd/Dockerfile
 !ci-cd/make-artifacts.sh
-!container-scripts/
-!container-scripts/entrypoint.sh
+!ci-cd/container-scripts/
+!ci-cd/container-scripts/entrypoint.sh
 !upa/
 !upa/package.json
 !upa/package-lock.json

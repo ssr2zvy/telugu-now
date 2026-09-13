@@ -74,7 +74,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
           </div>
         ))}
         <fieldset className="appearance-magnifier-position">
-          <legend>{text('Audio control order', 'ఆడియో నియంత్రణల క్రమం')}</legend>
+          <legend>{text('Magnifier position', 'మాగ్నిఫైయర్ స్థానం')}</legend>
           <div className="appearance-position-options">
             {(['above', 'below'] as const).map(position => (
               <label key={position}>
@@ -85,7 +85,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
                   textOffsetOther: appearance.textOffset,
                   audioOffsetOther: appearance.audioOffset,
                 })} />
-                <span>{position === 'below' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'below' ? text('Bar above / magnifier below', 'బార్ పైన / మాగ్నిఫైయర్ కింద') : text('Bar below / magnifier above', 'బార్ కింద / మాగ్నిఫైయర్ పైన')}</span>
+                <span>{position === 'above' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'above' ? text('Above', 'పైన') : text('Below', 'కింద')}</span>
               </label>
             ))}
           </div>
@@ -94,14 +94,38 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Control spacing', 'నియంత్రణల అంతరం')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ controlSpacing: DEFAULT_APPEARANCE.controlSpacing })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" title={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ audioTimestampGap: DEFAULT_APPEARANCE.audioTimestampGap, timestampMagnifierGap: DEFAULT_APPEARANCE.timestampMagnifierGap })}><RotateCcw aria-hidden="true" /></button>
         </div>
-        <label className="appearance-scale">
-          <input type="range" min={CONTROL_SPACING_LIMITS.min} max={CONTROL_SPACING_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance.controlSpacing - CONTROL_SPACING_LIMITS.min) / (CONTROL_SPACING_LIMITS.max - CONTROL_SPACING_LIMITS.min) * 100}%` } as CSSProperties} aria-label={text('Spacing between waveform, timestamp, and audio bar', 'తరంగరూపం, సమయముద్ర, ఆడియో బార్ మధ్య అంతరం')} aria-valuetext={`${appearance.controlSpacing} px`} value={appearance.controlSpacing} onChange={event => updateAppearance({ controlSpacing: Number(event.target.value) })} />
-          <output>{appearance.controlSpacing} px</output>
-        </label>
-        <p>{text('Adjusts the distance between the waveform, the timestamp, and the audio bar.',
-          'తరంగరూపం, సమయముద్ర, మరియు ఆడియో బార్ మధ్య దూరాన్ని సర్దుబాటు చేస్తుంది.')}</p>
+        <div className="appearance-audio-preview" role="img" aria-label={text('Audio spacing preview', 'ఆడియో అంతరం నమూనా')}>
+          <div className="audio-player-bar" data-magnifier-position={appearance.magnifierPosition} aria-hidden="true">
+            <div className="audio-scrubber-row">
+              <div className="audio-scrubber">
+                <div className="audio-scrubber-progress" style={{ width: '40%' }} />
+                <div className="audio-scrubber-thumb" style={{ left: '40%' }} />
+              </div>
+            </div>
+            <div className="audio-precision-panel">
+              <div className="audio-magnifier-time">0:12.340</div>
+              <div className="audio-magnifier-track">
+                {[16, 24, 40, 28, 60, 84, 48, 32, 68, 100, 72, 44, 28, 52, 80, 60, 36, 20, 44, 64, 40, 24, 16].map((height, index) => (
+                  <span key={index} className="audio-magnifier-bar" style={{ height: `${height}%` }} />
+                ))}
+                <div className="audio-magnifier-playhead" style={{ left: '50%' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+        {(['audioTimestampGap', 'timestampMagnifierGap'] as const).map(setting => (
+          <div className="appearance-position-field" key={setting}>
+            <label htmlFor={`appearance-${setting}`}>{setting === 'audioTimestampGap'
+              ? text('Audio bar to timestamp', 'ఆడియో బార్ నుండి సమయముద్ర వరకు')
+              : text('Timestamp to magnifier', 'సమయముద్ర నుండి మాగ్నిఫైయర్ వరకు')}</label>
+            <div className="appearance-scale appearance-gap">
+              <input id={`appearance-${setting}`} type="range" min={CONTROL_SPACING_LIMITS.min} max={CONTROL_SPACING_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance[setting] - CONTROL_SPACING_LIMITS.min) / (CONTROL_SPACING_LIMITS.max - CONTROL_SPACING_LIMITS.min) * 100}%` } as CSSProperties} aria-valuetext={`${appearance[setting]} px`} value={appearance[setting]} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} />
+              <output htmlFor={`appearance-${setting}`}>{appearance[setting]} px</output>
+            </div>
+          </div>
+        ))}
       </section>
       <section className="appearance-section">
         <h2>{text('Audio controls', 'ఆడియో నియంత్రణలు')}</h2>

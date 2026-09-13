@@ -222,7 +222,8 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     '--foreground': appearance.foreground,
     '--corner-control-color': appearanceCornerColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
-    '--audio-control-gap': `${appearance.controlSpacing}px`,
+    '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,
+    '--timestamp-magnifier-gap': `${appearance.timestampMagnifierGap}px`,
     '--audio-placement-bottom': 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
   } as CSSProperties;
   return (

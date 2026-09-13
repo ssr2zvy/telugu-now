@@ -38,7 +38,8 @@ test('appearance positions preserve existing baselines and validate persisted of
   assert.equal(previous.audioOffset, 0);
   assert.equal(previous.textOffsetOther, 0);
   assert.equal(previous.audioOffsetOther, 0);
-  assert.equal(previous.controlSpacing, 1);
+  assert.equal(previous.audioTimestampGap, 1);
+  assert.equal(previous.timestampMagnifierGap, 1);
   assert.equal(previous.magnifierPosition, 'below');
   assert.equal(parseAppearance({ magnifierPosition: 'above' }).magnifierPosition, 'above');
   const custom = parseAppearance({ textOffset: -35, audioOffset: 60, textOffsetOther: 15, audioOffsetOther: -40, magnifierPosition: 'below' });
@@ -55,12 +56,36 @@ test('appearance positions preserve existing baselines and validate persisted of
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
     assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).textOffsetOther, 0);
     assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).audioOffsetOther, 0);
-    assert.equal(parseAppearance({ controlSpacing: invalid }).controlSpacing, 1);
+    assert.equal(parseAppearance({ controlSpacing: invalid }).audioTimestampGap, 1);
+    assert.equal(parseAppearance({ controlSpacing: invalid }).timestampMagnifierGap, 1);
     assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'below');
   }
-  assert.equal(parseAppearance({ controlSpacing: -5 }).controlSpacing, CONTROL_SPACING_LIMITS.min);
-  assert.equal(parseAppearance({ controlSpacing: 40 }).controlSpacing, CONTROL_SPACING_LIMITS.max);
-  assert.equal(parseAppearance({ controlSpacing: 0.4 }).controlSpacing, 0);
+});
+
+test('audio gaps migrate shared spacing and remain independent in either orientation', () => {
+  for (const [controlSpacing, expected] of [[0, 0], [1, 1], [-5, 0], [40, 1], [0.4, 0]]) {
+    const migrated = parseAppearance({ controlSpacing });
+    assert.equal(migrated.audioTimestampGap, expected);
+    assert.equal(migrated.timestampMagnifierGap, expected);
+    assert.ok(!('controlSpacing' in migrated));
+  }
+  for (const magnifierPosition of ['above', 'below']) {
+    const custom = parseAppearance({ controlSpacing: 0, audioTimestampGap: 12, timestampMagnifierGap: 32, magnifierPosition });
+    assert.equal(custom.audioTimestampGap, 12);
+    assert.equal(custom.timestampMagnifierGap, 32);
+    assert.deepEqual(parseAppearance(JSON.parse(JSON.stringify(custom))), custom);
+    const partial = parseAppearance({ controlSpacing: 0, audioTimestampGap: 24, magnifierPosition });
+    assert.equal(partial.audioTimestampGap, 24);
+    assert.equal(partial.timestampMagnifierGap, 0);
+  }
+  for (const setting of ['audioTimestampGap', 'timestampMagnifierGap'] as const) {
+    assert.equal(parseAppearance({ [setting]: -5 })[setting], CONTROL_SPACING_LIMITS.min);
+    assert.equal(parseAppearance({ [setting]: 999 })[setting], CONTROL_SPACING_LIMITS.max);
+    assert.equal(parseAppearance({ [setting]: 12.6 })[setting], 13);
+    for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
+      assert.equal(parseAppearance({ [setting]: invalid })[setting], DEFAULT_APPEARANCE[setting]);
+    }
+  }
 });
 
 test('audio controls derive their shared color from the gradient, not text or settings surfaces', () => {
