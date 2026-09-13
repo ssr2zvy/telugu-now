@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { precisionSeekTime } from '../../../../shared/audio';
+import { DEFAULT_APPEARANCE } from '../../../../shared/appearance';
 
 interface AudioScrubberProps {
   currentTime: number;
@@ -15,6 +16,7 @@ interface AudioScrubberProps {
   bookmarks: number[];
   disabled: boolean;
   magnifierOpen: boolean;
+  showTimestamp?: boolean;
   bookmarkButton?: ReactNode;
   speedButton?: ReactNode;
   speedControls?: ReactNode;
@@ -50,6 +52,7 @@ export function AudioScrubber({
   bookmarks,
   disabled,
   magnifierOpen,
+  showTimestamp = DEFAULT_APPEARANCE.showAudioTimestamp,
   bookmarkButton,
   speedButton,
   speedControls,
@@ -177,6 +180,7 @@ export function AudioScrubber({
           aria-valuemin={0}
           aria-valuemax={duration}
           aria-valuenow={currentTime}
+          aria-valuetext={formatPreciseTime(currentTime)}
         >
           {magnifierOpen && !speedControls ? (
             <div
@@ -208,6 +212,7 @@ export function AudioScrubber({
             aria-valuemin={0}
             aria-valuemax={duration}
             aria-valuenow={currentTime}
+            aria-valuetext={formatPreciseTime(currentTime)}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 event.preventDefault();
@@ -241,7 +246,7 @@ export function AudioScrubber({
               }}
             />
           </div>
-          <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
+          {showTimestamp ? <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div> : null}
         </>}
         </div>
       ) : null}

@@ -1,4 +1,4 @@
-import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_SPACING_LIMITS, appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
+import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, appearanceAudioGlass, appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
 import { ArrowDown, ArrowUp, RotateCcw, Shuffle } from 'lucide-react';
 import { OBSERVATION_FONTS } from '../../presentation';
 import type { CSSProperties } from 'react';
@@ -6,6 +6,7 @@ import type { UiLanguage } from '../types';
 
 export function AppearancePage({ language }: { language: UiLanguage }) {
   const { appearance, updateAppearance } = useAppearance();
+  const glass = appearanceAudioGlass(appearance);
   const text = (english: string, telugu: string) => language === 'en' ? english : telugu;
   return (
     <div className="appearance-page">
@@ -49,6 +50,18 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             <input type="checkbox" role="switch" checked={appearance.surface === null} onChange={(event) => updateAppearance({ surface: event.target.checked ? null : appearanceSurface(appearance) })} />
           </label>
         </div>
+      </section>
+      <section className="appearance-section">
+        <div className="appearance-section-heading">
+          <h2>{text('Control darkness', 'నియంత్రణల ముదురు స్థాయి')}</h2>
+          <button type="button" className="appearance-icon-action" title={text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు')} aria-label={text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు')} onClick={() => updateAppearance({ controlDarkness: DEFAULT_APPEARANCE.controlDarkness })}><RotateCcw aria-hidden="true" /></button>
+        </div>
+        <label className="appearance-scale">
+          <input type="range" min={CONTROL_DARKNESS_LIMITS.min} max={CONTROL_DARKNESS_LIMITS.max} step={1} style={{ '--range-progress': `${appearance.controlDarkness / CONTROL_DARKNESS_LIMITS.max * 100}%` } as CSSProperties} aria-label={text('Control darkness', 'నియంత్రణల ముదురు స్థాయి')} aria-valuetext={text(`${appearance.controlDarkness}% darker`, `${appearance.controlDarkness}% ముదురు`)} value={appearance.controlDarkness} onChange={event => updateAppearance({ controlDarkness: Number(event.target.value) })} />
+          <output>{appearance.controlDarkness}%</output>
+        </label>
+        <p>{text('Darkens audio controls, reader buttons, and Settings controls together without changing the background or reading text. 0% restores their original brightness.',
+          'నేపథ్యం లేదా చదివే అక్షరాలను మార్చకుండా ఆడియో నియంత్రణలు, రీడర్ బటన్లు మరియు అమరికల నియంత్రణలను కలిపి ముదురు చేస్తుంది. 0% వాటి అసలు ప్రకాశాన్ని పునరుద్ధరిస్తుంది.')}</p>
       </section>
       <section className="appearance-section">
         <h2>{text('Type size', 'అక్షరాల పరిమాణం')}</h2>
@@ -96,7 +109,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
           <h2>{text('Control spacing', 'నియంత్రణల అంతరం')}</h2>
           <button type="button" className="appearance-icon-action" title={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ audioTimestampGap: DEFAULT_APPEARANCE.audioTimestampGap, timestampMagnifierGap: DEFAULT_APPEARANCE.timestampMagnifierGap })}><RotateCcw aria-hidden="true" /></button>
         </div>
-        <div className="appearance-audio-preview" role="img" aria-label={text('Audio spacing preview', 'ఆడియో అంతరం నమూనా')}>
+        <div className="appearance-audio-preview" role="img" aria-label={text('Audio spacing preview', 'ఆడియో అంతరం నమూనా')} style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}>
           <div className="audio-player-bar" data-magnifier-position={appearance.magnifierPosition} aria-hidden="true">
             <div className="audio-scrubber-row">
               <div className="audio-scrubber">
@@ -105,7 +118,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
               </div>
             </div>
             <div className="audio-precision-panel">
-              <div className="audio-magnifier-time">0:12.340</div>
+              {appearance.showAudioTimestamp ? <div className="audio-magnifier-time">0:12.340</div> : null}
               <div className="audio-magnifier-track">
                 {[16, 24, 40, 28, 60, 84, 48, 32, 68, 100, 72, 44, 28, 52, 80, 60, 36, 20, 44, 64, 40, 24, 16].map((height, index) => (
                   <span key={index} className="audio-magnifier-bar" style={{ height: `${height}%` }} />
@@ -115,10 +128,12 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             </div>
           </div>
         </div>
-        {(['audioTimestampGap', 'timestampMagnifierGap'] as const).map(setting => (
+        {(['audioTimestampGap', 'timestampMagnifierGap'] as const).filter(setting => appearance.showAudioTimestamp || setting === 'audioTimestampGap').map(setting => (
           <div className="appearance-position-field" key={setting}>
             <label htmlFor={`appearance-${setting}`}>{setting === 'audioTimestampGap'
-              ? text('Audio bar to timestamp', 'ఆడియో బార్ నుండి సమయముద్ర వరకు')
+              ? appearance.showAudioTimestamp
+                ? text('Audio bar to timestamp', 'ఆడియో బార్ నుండి సమయముద్ర వరకు')
+                : text('Audio bar to magnifier', 'ఆడియో బార్ నుండి మాగ్నిఫైయర్ వరకు')
               : text('Timestamp to magnifier', 'సమయముద్ర నుండి మాగ్నిఫైయర్ వరకు')}</label>
             <div className="appearance-scale appearance-gap">
               <input id={`appearance-${setting}`} type="range" min={CONTROL_SPACING_LIMITS.min} max={CONTROL_SPACING_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance[setting] - CONTROL_SPACING_LIMITS.min) / (CONTROL_SPACING_LIMITS.max - CONTROL_SPACING_LIMITS.min) * 100}%` } as CSSProperties} aria-valuetext={`${appearance[setting]} px`} value={appearance[setting]} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} />
@@ -129,6 +144,10 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       </section>
       <section className="appearance-section">
         <h2>{text('Audio controls', 'ఆడియో నియంత్రణలు')}</h2>
+        <label className="appearance-surface-auto">
+          <span>{text('Show audio timestamp', 'ఆడియో సమయముద్రను చూపించు')}</span>
+          <input type="checkbox" role="switch" checked={appearance.showAudioTimestamp} onChange={event => updateAppearance({ showAudioTimestamp: event.target.checked })} />
+        </label>
         <label className="appearance-surface-auto">
           <span>{text('Scroll mode', 'స్క్రోల్ మోడ్')}</span>
           <input type="checkbox" role="switch" checked={appearance.scrollMode} onChange={event => updateAppearance({ scrollMode: event.target.checked })} />

@@ -108,6 +108,26 @@ test('scroll mode defaults on for old profiles and opt-out survives unrelated pr
   } finally { database.close(); }
 });
 
+test('control darkness and timestamp choice persist per profile through unrelated updates', () => {
+  const database = fixture();
+  try {
+    const store = profilePreferencesStore(database);
+    store.update('001', { appearance: { fontScale: 65 } });
+    assert.equal(store.get('001').appearance?.controlDarkness, 15);
+    assert.equal(store.get('001').appearance?.showAudioTimestamp, false);
+    store.update('001', { appearance: { controlDarkness: 35, showAudioTimestamp: true } });
+    store.update('001', { appearance: { audioTimestampGap: 12, timestampMagnifierGap: 24 } });
+    store.update('001', { appearance: { showAudioTimestamp: false } });
+    const saved = profilePreferencesStore(database).get('001').appearance;
+    assert.equal(saved?.controlDarkness, 35);
+    assert.equal(saved?.showAudioTimestamp, false);
+    assert.equal(saved?.audioTimestampGap, 12);
+    assert.equal(saved?.timestampMagnifierGap, 24);
+    assert.equal(saved?.fontScale, 65);
+    assert.equal(store.get('002').appearance, null);
+  } finally { database.close(); }
+});
+
 test('regeneration migration defaults off and preserves existing profile preferences', () => {
   const database = fixture();
   try {

@@ -45,6 +45,11 @@ button {
   position: relative; isolation: isolate; width: 100%; height: 100%; color: var(--foreground); letter-spacing: 0;
 }
 .gradient-field { position: absolute; inset: 0; overflow: hidden; z-index: -1; background: var(--gradient-middle); }
+/* Shade each control once, including compound fields, without dimming page content.
+   Audio paints are shaded individually to retain their glass backdrop filters. */
+.appearance-root :where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label):not(.audio-player-bar *):not(:where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label) *) {
+  filter: brightness(var(--control-brightness, .85));
+}
 .gradient-field > div { position: absolute; left: calc(50% - 100vmax); top: calc(50% - 100vmax); width: 200vmax; height: 200vmax; transition: transform 650ms cubic-bezier(.25,.1,.25,1); }
 .gradient-field > div:nth-child(1) { background: linear-gradient(135deg, var(--gradient-start) 20%, var(--gradient-middle) 50%, var(--gradient-end) 80%); transform: rotate(var(--gradient-turn-a, 0deg)); }
 .gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); }

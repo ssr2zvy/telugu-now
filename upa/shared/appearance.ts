@@ -25,6 +25,8 @@ export interface AppearanceSettings {
   audioOffsetOther: number;
   audioTimestampGap: number;
   timestampMagnifierGap: number;
+  controlDarkness: number;
+  showAudioTimestamp: boolean;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   autoFadeSeconds: number;
@@ -42,6 +44,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   audioOffsetOther: 0,
   audioTimestampGap: 1,
   timestampMagnifierGap: 1,
+  controlDarkness: 15,
+  showAudioTimestamp: false,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
@@ -49,6 +53,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
 export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
+export const CONTROL_DARKNESS_LIMITS = { min: 0, max: 60 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
@@ -73,6 +78,11 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
     audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
     timestampMagnifierGap: parseControlGap(candidate.timestampMagnifierGap, legacyGap),
+    controlDarkness: typeof candidate.controlDarkness === 'number' && Number.isFinite(candidate.controlDarkness)
+      ? Math.round(Math.max(CONTROL_DARKNESS_LIMITS.min, Math.min(CONTROL_DARKNESS_LIMITS.max, candidate.controlDarkness)))
+      : DEFAULT_APPEARANCE.controlDarkness,
+    showAudioTimestamp: typeof candidate.showAudioTimestamp === 'boolean'
+      ? candidate.showAudioTimestamp : DEFAULT_APPEARANCE.showAudioTimestamp,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,

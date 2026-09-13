@@ -59,12 +59,25 @@ test('normal player has no play button and keeps precision-only actions hidden',
   assert.doesNotMatch(markup, /audio-primary-controls|class="audio-magnifier-track"/);
 });
 
+test('timestamp defaults off but remains optional and accessible during precision seeking', () => {
+  for (const showTimestamp of [undefined, false, true]) {
+    for (const magnifierOpen of [false, true]) {
+      const markup = renderToStaticMarkup(createElement(AudioScrubber, {
+        ...scrubberProps, ...(showTimestamp === undefined ? {} : { showTimestamp }), magnifierOpen,
+      }));
+      assert.equal(markup.includes('class="audio-magnifier-time"'), showTimestamp === true && magnifierOpen);
+      assert.equal(markup.includes('class="audio-magnifier-track"'), magnifierOpen);
+      assert.match(markup, /aria-valuetext="00:02\.000"/);
+    }
+  }
+});
+
 test('bookmark and speed buttons flank the scrubber and only mount while the magnifier is open', () => {
   const bookmarkButton = createElement('button', { className: 'audio-bookmark-button', 'aria-label': 'Bookmarks' });
   const speedButton = createElement('button', { className: 'audio-speed-button', 'aria-label': 'Playback speed' });
   for (const open of [false, true, false]) {
     const markup = renderToStaticMarkup(createElement(AudioScrubber, {
-      ...scrubberProps, magnifierOpen: open, bookmarkButton, speedButton,
+      ...scrubberProps, magnifierOpen: open, showTimestamp: true, bookmarkButton, speedButton,
     }));
     assert.equal(markup.includes('class="audio-magnifier-track"'), open);
     assert.equal(markup.includes('class="audio-precision-panel"'), open);
@@ -158,7 +171,9 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.doesNotMatch(css, /--audio-control-gap/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1; justify-content: flex-end/);
   assert.doesNotMatch(css, /\.audio-precision-panel::before/);
-  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: \.4; filter: brightness\(\.8\); \}/);
+  assert.match(css, /\.audio-scrubber-window \{ --audio-detail-brightness: \.8; position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: \.4; \}/);
+  assert.match(css, /\.audio-magnifier-playhead \{ --audio-detail-brightness: \.8;/);
+  assert.match(css, /filter: brightness\(calc\(var\(--control-brightness, \.85\) \* var\(--audio-detail-brightness, 1\)\)\)/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber-row \{ grid-row: 1; grid-column: 1 \/ -1/);
