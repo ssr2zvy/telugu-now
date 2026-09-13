@@ -10,7 +10,7 @@ usage() {
     'Usage: ci-cd/deploy.sh deploy | stop | cancel RUN_ID | help' \
     'deploy: Build and deploy this checkout using FLY_API_TOKEN.' \
     'stop: Stop the deployed app Machines; preserve volumes and data.' \
-    'cancel RUN_ID: Cancel a GitHub deployment workflow run using gh authentication.' \
+    'cancel RUN_ID: Cancel a legacy GitHub deployment workflow run using gh authentication.' \
     'Interrupt local deploys with Ctrl+C. Cancellation is not a rollback.'
 }
 
@@ -54,7 +54,7 @@ esac
 
 require_command flyctl
 [[ -n "${FLY_API_TOKEN:-}" ]] ||
-  fail 'FLY_API_TOKEN is missing. Export an app-scoped Fly deploy token locally, or set the repository Actions secret FLY_API_TOKEN.'
+  fail 'FLY_API_TOKEN is missing. Add an app-scoped Fly deploy token as a Codespaces secret for this repository and restart the Codespace, or securely export it locally.'
 [[ -f fly.toml ]] || fail 'Missing repository-root fly.toml.'
 if [[ "$action" == "deploy" ]]; then
   [[ -f ci-cd/Containerfile ]] || fail 'Missing ci-cd/Containerfile.'
