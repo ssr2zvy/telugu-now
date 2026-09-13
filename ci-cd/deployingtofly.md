@@ -3,6 +3,7 @@
 ## Repository layout
 
 ```text
+.github/workflows/deploy.yml       Disabled GitHub Actions scaffolding
 ci-cd/deploy.sh                    Shared deploy, stop, and cancel commands
 ci-cd/Containerfile                Multi-stage container build
 ci-cd/make-artifacts.sh            Application build entry point
@@ -56,11 +57,18 @@ they are not supplied by the Codespaces deployment token.
 flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
 ```
 
-There is no automatic deployment workflow: pushes and merges to `main` do not
-deploy anything. Fly does not watch GitHub itself. The previous
-`.github/workflows/deploy.yml` has been removed; no Actions secret or self-hosted
-runner is required. A Codespaces secret is not available to GitHub-hosted
-Actions runners.
+There is no active automatic deployment: pushes and merges to `main` do not
+deploy anything. Fly does not watch GitHub itself.
+`.github/workflows/deploy.yml` is retained as disabled scaffolding: its push
+trigger is commented out and its deployment job uses `if: ${{ false }}`.
+Even manual dispatch skips the job. No Actions secret or self-hosted runner
+is required for the current Codespaces deployment method.
+
+To enable the scaffold later, configure an Actions secret named `FLY_API_TOKEN`,
+replace the false job condition with `github.ref == 'refs/heads/main'`, and
+uncomment the push-to-main trigger. A Codespaces secret is not available to
+GitHub-hosted Actions runners. The scaffold preserves pinned action revisions,
+read-only repository permissions, and serialized deploy/stop operations.
 
 Keep the Codespace running until deployment completes. Once deployed, the app
 runs on Fly independently of the Codespace. There is no local concurrency queue;

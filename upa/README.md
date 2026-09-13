@@ -772,7 +772,8 @@ This scan repeats on each application startup while the rebuild flag is enabled.
 
 Deploy manually from Codespaces after merging to `main` by running
 `ci-cd/deploy.sh deploy`, using the `FLY_API_TOKEN` Codespaces secret.
-There is no automatic deployment workflow. The same script supports `stop`;
+The GitHub deployment workflow is disabled scaffolding only; merges do not deploy.
+The same script supports `stop`;
 interrupt local deployment with Ctrl+C. `cancel RUN_ID` remains available for
 legacy GitHub deployment runs. See the
 [deployment guide](../ci-cd/deployingtofly.md) for authentication and cancellation limits.
