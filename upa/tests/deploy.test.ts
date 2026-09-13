@@ -115,19 +115,13 @@ exit "\${ACTION_EXIT:-0}"
   assert.match(missingTool.stderr, /Required command not found: flyctl/);
 });
 
-test('Fly configuration, build context, and workflow use the shared deployment paths', () => {
+test('Fly configuration uses the shared deployment paths without an automatic workflow', () => {
   const read = (file: string) => fs.readFileSync(path.join(repositoryDirectory, file), 'utf8');
   assert.match(read('fly.toml'), /dockerfile = "ci-cd\/Containerfile"/);
   assert.match(read('.dockerignore'), /^!ci-cd\/Containerfile$/m);
   assert.equal(fs.existsSync(path.join(repositoryDirectory, 'ci-cd/Dockerfile')), false);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/make-artifacts.sh/);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/container-scripts\/entrypoint.sh/);
-  const workflow = read('.github/workflows/deploy.yml');
-  assert.match(workflow, /push:\s+branches: \[main\]/);
-  assert.match(workflow, /if: github.ref == 'refs\/heads\/main'/);
-  assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /contents: read/);
-  assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.FLY_API_TOKEN \}\}/);
-  assert.match(workflow, /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/);
-  assert.doesNotMatch(workflow, /pull_request_target|flyctl deploy/);
+  assert.equal(fs.existsSync(path.join(repositoryDirectory, '.github/workflows/deploy.yml')), false);
+  assert.match(read('ci-cd/deploy.sh'), /Codespaces secret/);
 });

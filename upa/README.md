@@ -770,9 +770,11 @@ and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
 background availability worker. Existing corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
-Pushes to `main` automatically invoke `ci-cd/deploy.sh deploy` through
-`.github/workflows/deploy.yml`, using the `FLY_API_TOKEN` Actions secret.
-The same script supports `stop` and `cancel RUN_ID`; see the
+Deploy manually from Codespaces after merging to `main` by running
+`ci-cd/deploy.sh deploy`, using the `FLY_API_TOKEN` Codespaces secret.
+There is no automatic deployment workflow. The same script supports `stop`;
+interrupt local deployment with Ctrl+C. `cancel RUN_ID` remains available for
+legacy GitHub deployment runs. See the
 [deployment guide](../ci-cd/deployingtofly.md) for authentication and cancellation limits.
 
 Fly's `[build]` section selects `ci-cd/Containerfile`; `fly.toml` is deployment
