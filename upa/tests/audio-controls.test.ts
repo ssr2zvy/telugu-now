@@ -158,7 +158,7 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.doesNotMatch(css, /--audio-control-gap/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1; justify-content: flex-end/);
   assert.doesNotMatch(css, /\.audio-precision-panel::before/);
-  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: \.4; \}/);
+  assert.match(css, /\.audio-scrubber-window \{ position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: \.4; filter: brightness\(\.8\); \}/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
   assert.match(css, /\.audio-loading-indicator \{ animation: none;/);
   assert.match(css, /\.audio-scrubber-row \{ grid-row: 1; grid-column: 1 \/ -1/);

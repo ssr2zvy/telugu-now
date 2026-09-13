@@ -52,7 +52,7 @@
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
 .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
 .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
-.audio-scrubber-window { position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: .4; }
+.audio-scrubber-window { position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: .4; filter: brightness(.8); }
 .audio-magnifier-track { position: relative; order: 2; display: flex; flex-shrink: 0; align-items: center; gap: 1px; width: 100%; height: 44px; touch-action: none; cursor: ew-resize; }
 .audio-magnifier-time { order: 1; flex-shrink: 0; margin: 0; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 1; }
