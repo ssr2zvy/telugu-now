@@ -38,7 +38,7 @@ test('appearance positions preserve existing baselines and validate persisted of
   assert.equal(previous.audioOffset, 0);
   assert.equal(previous.textOffsetOther, 0);
   assert.equal(previous.audioOffsetOther, 0);
-  assert.equal(previous.controlSpacing, 4);
+  assert.equal(previous.controlSpacing, 1);
   assert.equal(previous.magnifierPosition, 'below');
   assert.equal(parseAppearance({ magnifierPosition: 'above' }).magnifierPosition, 'above');
   const custom = parseAppearance({ textOffset: -35, audioOffset: 60, textOffsetOther: 15, audioOffsetOther: -40, magnifierPosition: 'below' });
@@ -55,12 +55,12 @@ test('appearance positions preserve existing baselines and validate persisted of
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
     assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).textOffsetOther, 0);
     assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).audioOffsetOther, 0);
-    assert.equal(parseAppearance({ controlSpacing: invalid }).controlSpacing, 4);
+    assert.equal(parseAppearance({ controlSpacing: invalid }).controlSpacing, 1);
     assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'below');
   }
   assert.equal(parseAppearance({ controlSpacing: -5 }).controlSpacing, CONTROL_SPACING_LIMITS.min);
   assert.equal(parseAppearance({ controlSpacing: 40 }).controlSpacing, CONTROL_SPACING_LIMITS.max);
-  assert.equal(parseAppearance({ controlSpacing: 9.6 }).controlSpacing, 10);
+  assert.equal(parseAppearance({ controlSpacing: 0.4 }).controlSpacing, 0);
 });
 
 test('audio controls derive their shared color from the gradient, not text or settings surfaces', () => {
