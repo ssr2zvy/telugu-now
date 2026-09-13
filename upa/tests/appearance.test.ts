@@ -36,11 +36,15 @@ test('appearance positions preserve existing baselines and validate persisted of
   const previous = parseAppearance({ fontScale: 75 });
   assert.equal(previous.textOffset, 0);
   assert.equal(previous.audioOffset, 0);
+  assert.equal(previous.textOffsetOther, 0);
+  assert.equal(previous.audioOffsetOther, 0);
   assert.equal(previous.magnifierPosition, 'below');
   assert.equal(parseAppearance({ magnifierPosition: 'above' }).magnifierPosition, 'above');
-  const custom = parseAppearance({ textOffset: -35, audioOffset: 60, magnifierPosition: 'below' });
+  const custom = parseAppearance({ textOffset: -35, audioOffset: 60, textOffsetOther: 15, audioOffsetOther: -40, magnifierPosition: 'below' });
   assert.equal(custom.textOffset, -35);
   assert.equal(custom.audioOffset, 60);
+  assert.equal(custom.textOffsetOther, 15);
+  assert.equal(custom.audioOffsetOther, -40);
   assert.equal(custom.magnifierPosition, 'below');
   assert.equal(parseAppearance({ textOffset: -999 }).textOffset, -200);
   assert.equal(parseAppearance({ audioOffset: 999 }).audioOffset, 200);
@@ -48,6 +52,8 @@ test('appearance positions preserve existing baselines and validate persisted of
   for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).textOffset, 0);
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
+    assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).textOffsetOther, 0);
+    assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).audioOffsetOther, 0);
     assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'below');
   }
 });

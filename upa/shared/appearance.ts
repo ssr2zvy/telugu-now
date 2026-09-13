@@ -19,6 +19,10 @@ export interface AppearanceSettings {
   fontScale: number;
   textOffset: number;
   audioOffset: number;
+  // Vertical offsets remembered for the magnifier position not currently
+  // active, restored automatically when switching back to it.
+  textOffsetOther: number;
+  audioOffsetOther: number;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   autoFadeSeconds: number;
@@ -32,6 +36,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   fontScale: 50,
   textOffset: 0,
   audioOffset: 0,
+  textOffsetOther: 0,
+  audioOffsetOther: 0,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
@@ -55,6 +61,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
+    textOffsetOther: parseOffset(candidate.textOffsetOther),
+    audioOffsetOther: parseOffset(candidate.audioOffsetOther),
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,

@@ -15,7 +15,8 @@ interface AudioScrubberProps {
   bookmarks: number[];
   disabled: boolean;
   magnifierOpen: boolean;
-  precisionControls?: ReactNode;
+  bookmarkButton?: ReactNode;
+  speedButton?: ReactNode;
   speedControls?: ReactNode;
   onMagnifierOpen: () => void;
   onMagnifierClose: () => void;
@@ -49,7 +50,8 @@ export function AudioScrubber({
   bookmarks,
   disabled,
   magnifierOpen,
-  precisionControls,
+  bookmarkButton,
+  speedButton,
   speedControls,
   onMagnifierOpen,
   onMagnifierClose,
@@ -145,54 +147,58 @@ export function AudioScrubber({
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div
-        ref={barRef}
-        className="audio-scrubber"
-        onPointerDown={handleBarPointerDown}
-        onPointerMove={handleBarPointerMove}
-        onPointerUp={releaseBarCapture}
-        onPointerCancel={releaseBarCapture}
-        onLostPointerCapture={clearHold}
-        role="slider"
-        tabIndex={disabled ? -1 : 0}
-        aria-disabled={disabled}
-        aria-expanded={magnifierOpen}
-        onKeyDown={(event) => {
-          if (disabled || duration <= 0) return;
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            if (magnifierOpen) onMagnifierClose();
-            else openMagnifier();
-          }
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            event.preventDefault();
-            onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));
-          }
-        }}
-        aria-label="Audio position"
-        aria-valuemin={0}
-        aria-valuemax={duration}
-        aria-valuenow={currentTime}
-      >
-        {magnifierOpen && !speedControls ? (
-          <div
-            className="audio-scrubber-window"
-            style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
-          />
-        ) : null}
-        <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
-        {bookmarks.map((bookmark) => (
-          <span
-            key={bookmark}
-            className="audio-scrubber-bookmark"
-            style={{ left: `${duration > 0 ? clamp(0, 100, (bookmark / duration) * 100) : 0}%` }}
-          />
-        ))}
-        <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
+      <div className="audio-scrubber-row">
+        {magnifierOpen ? bookmarkButton : null}
+        <div
+          ref={barRef}
+          className="audio-scrubber"
+          onPointerDown={handleBarPointerDown}
+          onPointerMove={handleBarPointerMove}
+          onPointerUp={releaseBarCapture}
+          onPointerCancel={releaseBarCapture}
+          onLostPointerCapture={clearHold}
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
+          aria-disabled={disabled}
+          aria-expanded={magnifierOpen}
+          onKeyDown={(event) => {
+            if (disabled || duration <= 0) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              if (magnifierOpen) onMagnifierClose();
+              else openMagnifier();
+            }
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+              event.preventDefault();
+              onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));
+            }
+          }}
+          aria-label="Audio position"
+          aria-valuemin={0}
+          aria-valuemax={duration}
+          aria-valuenow={currentTime}
+        >
+          {magnifierOpen && !speedControls ? (
+            <div
+              className="audio-scrubber-window"
+              style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
+            />
+          ) : null}
+          <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
+          {bookmarks.map((bookmark) => (
+            <span
+              key={bookmark}
+              className="audio-scrubber-bookmark"
+              style={{ left: `${duration > 0 ? clamp(0, 100, (bookmark / duration) * 100) : 0}%` }}
+            />
+          ))}
+          <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
+        </div>
+        {magnifierOpen ? speedButton : null}
       </div>
       {magnifierOpen ? (
         <div className="audio-precision-panel">
-        {speedControls ?? <div className="audio-magnifier">
+        {speedControls ?? <>
           <div
             className="audio-magnifier-track"
             role="slider"
@@ -236,8 +242,7 @@ export function AudioScrubber({
             />
           </div>
           <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
-        </div>}
-        {precisionControls}
+        </>}
         </div>
       ) : null}
     </div>
