@@ -188,6 +188,7 @@ test('the timestamp always sits closest to the scrubber, on either side of the m
   // Below: the panel sits under the scrubber, so the item closest to it (time) is first (order 1).
   assert.match(rule('.audio-magnifier-time'), /order: 1/);
   assert.match(rule('.audio-magnifier-track'), /order: 2/);
+  assert.match(rule('.audio-precision-panel'), /align-self: stretch/);
   assert.match(rule('.audio-precision-panel'), /justify-content: flex-start/);
   // Above: the panel sits above the scrubber, so the item closest to it (time) is last (order 2),
   // and content hugs the bottom of the panel.
