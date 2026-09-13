@@ -1,4 +1,4 @@
-import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
+import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_SPACING_LIMITS, appearanceSurface, DEFAULT_APPEARANCE, randomAppearanceColors, useAppearance } from '../../appearance';
 import { ArrowDown, ArrowUp, RotateCcw, Shuffle } from 'lucide-react';
 import { OBSERVATION_FONTS } from '../../presentation';
 import type { CSSProperties } from 'react';
@@ -90,6 +90,18 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             ))}
           </div>
         </fieldset>
+      </section>
+      <section className="appearance-section">
+        <div className="appearance-section-heading">
+          <h2>{text('Control spacing', 'నియంత్రణల అంతరం')}</h2>
+          <button type="button" className="appearance-icon-action" title={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ controlSpacing: DEFAULT_APPEARANCE.controlSpacing })}><RotateCcw aria-hidden="true" /></button>
+        </div>
+        <label className="appearance-scale">
+          <input type="range" min={CONTROL_SPACING_LIMITS.min} max={CONTROL_SPACING_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance.controlSpacing - CONTROL_SPACING_LIMITS.min) / (CONTROL_SPACING_LIMITS.max - CONTROL_SPACING_LIMITS.min) * 100}%` } as CSSProperties} aria-label={text('Spacing between waveform, timestamp, and audio bar', 'తరంగరూపం, సమయముద్ర, ఆడియో బార్ మధ్య అంతరం')} aria-valuetext={`${appearance.controlSpacing} px`} value={appearance.controlSpacing} onChange={event => updateAppearance({ controlSpacing: Number(event.target.value) })} />
+          <output>{appearance.controlSpacing} px</output>
+        </label>
+        <p>{text('Adjusts the distance between the waveform, the timestamp, and the audio bar.',
+          'తరంగరూపం, సమయముద్ర, మరియు ఆడియో బార్ మధ్య దూరాన్ని సర్దుబాటు చేస్తుంది.')}</p>
       </section>
       <section className="appearance-section">
         <h2>{text('Audio controls', 'ఆడియో నియంత్రణలు')}</h2>
