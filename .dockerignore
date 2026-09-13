@@ -2,7 +2,7 @@
 **
 !.dockerignore
 !ci-cd/
-!ci-cd/Dockerfile
+!ci-cd/Containerfile
 !ci-cd/make-artifacts.sh
 !ci-cd/container-scripts/
 !ci-cd/container-scripts/entrypoint.sh

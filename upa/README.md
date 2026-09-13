@@ -710,7 +710,7 @@ Image and artifact versions are independent, initially `0.0.1-initial`:
 
 | Component | Version source | Packaged metadata |
 |---|---|---|
-| Image | `ci-cd/Dockerfile` | OCI label `org.opencontainers.image.version` |
+| Image | `ci-cd/Containerfile` | OCI label `org.opencontainers.image.version` |
 | Frontend | `upa/frontend/version.json` | `upa/dist/client/version.json` |
 | Backend | `upa/server/version.json` | `upa/dist/server/version.json` |
 | Worker | `upa/server/availability-worker.version.json` | `upa/dist/server/availability-worker.version.json` |
@@ -719,18 +719,18 @@ The npm post-build hooks copy each artifact's own version metadata into its
 output, including when building the client or server separately. The workspace
 `package.json` version is not an artifact release version. Update only the
 affected artifact's source file when its version changes; the image label is
-maintained separately in the Dockerfile.
+maintained separately in the Containerfile.
 
 Build the single deployment image using the repository root as the context:
 
 ```bash
-docker build -f ci-cd/Dockerfile -t telugu-now:0.0.1-initial .
+docker build -f ci-cd/Containerfile -t telugu-now:0.0.1-initial .
 ```
 
 Docker tags are supplied by the build/publish command, not set by a Dockerfile
 label. Use the image's version for the release tag; artifact versions may differ.
 
-The multi-stage `Dockerfile` uses Node 22 on Debian Bookworm for both dependency
+The multi-stage `Containerfile` uses Node 22 on Debian Bookworm for both dependency
 installation and runtime, keeping the native SQLite module compatible. It caches
 dependency installation separately, calls `ci-cd/make-artifacts.sh`, and copies
 only the artifacts, application package metadata, and production dependencies
@@ -770,7 +770,12 @@ and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
 background availability worker. Existing corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
-Fly's `[build]` section selects `ci-cd/Dockerfile`; `fly.toml` is deployment
+Pushes to `main` automatically invoke `ci-cd/deploy.sh deploy` through
+`.github/workflows/deploy.yml`, using the `FLY_API_TOKEN` Actions secret.
+The same script supports `stop` and `cancel RUN_ID`; see the
+[deployment guide](../ci-cd/deployingtofly.md) for authentication and cancellation limits.
+
+Fly's `[build]` section selects `ci-cd/Containerfile`; `fly.toml` is deployment
 configuration and is not copied into the image. The selected primary region is
 `iad` (Ashburn, Virginia), with a 3 GB `telugu_now_data` volume mounted at `/data`.
 `initial_size` sets the size if deployment needs to create a volume; it does not

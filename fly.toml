@@ -4,7 +4,7 @@ primary_region = "iad"
 # The container entrypoint prepares mounted directories, then runs as node (UID/GID 1000).
 
 [build]
-  dockerfile = "ci-cd/Dockerfile"
+  dockerfile = "ci-cd/Containerfile"
 
 [env]
   NODE_ENV = "production"
