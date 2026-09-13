@@ -24,6 +24,10 @@ interface AudioPlayerBarProps {
 
 export interface AudioPlayerBarHandle {
   togglePlay: () => void;
+  isPlaying: () => boolean;
+  pause: () => void;
+  resume: () => void;
+  isPrecisionOpen: () => boolean;
   dismissPrecision: () => boolean;
 }
 
@@ -49,25 +53,29 @@ export function AudioPlayerBar({
   const magnifierOpen = precisionMode !== 'closed';
   const speedPopoverOpen = precisionMode === 'speed';
   const playerRef = useRef<HTMLDivElement>(null);
-  const precisionActionsRef = useRef<HTMLDivElement>(null);
+  const speedButtonRef = useRef<HTMLButtonElement>(null);
   const { appearance } = useAppearance();
   const paintId = `audio-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const closePrecision = () => {
     onPrecisionInteraction?.();
-    if (document.activeElement?.closest('.audio-magnifier, .audio-precision-actions, .audio-speed-popover')) {
+    if (document.activeElement?.closest('.audio-magnifier-track, .audio-magnifier-time, .audio-speed-popover, .audio-bookmark-button, .audio-speed-button')) {
       playerRef.current?.querySelector<HTMLElement>('.audio-scrubber')?.focus({ preventScroll: true });
     }
     dispatchPrecision('close');
   };
   const closeSpeed = () => {
     if (document.activeElement?.closest('.audio-speed-popover')) {
-      precisionActionsRef.current?.querySelector<HTMLButtonElement>('.audio-speed-button')?.focus({ preventScroll: true });
+      speedButtonRef.current?.focus({ preventScroll: true });
     }
     dispatchPrecision('close-speed');
   };
   useImperativeHandle(ref, () => ({
     togglePlay: player.togglePlay,
+    isPlaying: () => player.playing,
+    pause: player.pause,
+    resume: () => { if (!player.playing) player.togglePlay(); },
+    isPrecisionOpen: () => magnifierOpen,
     dismissPrecision: () => {
       if (!controlsVisible || !magnifierOpen) return false;
       closePrecision();
@@ -129,33 +137,34 @@ export function AudioPlayerBar({
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
           onClose={closeSpeed}
-          controlsRef={precisionActionsRef}
+          controlsRef={speedButtonRef}
           dismissOnOutside={false}
         /> : undefined}
-        precisionControls={<>
-          <div ref={precisionActionsRef} className="audio-precision-actions">
-            <button
-              className="audio-transport-button audio-speed-button"
-              type="button"
-              aria-label="ప్లేబ్యాక్ వేగం"
-              title="Playback speed"
-              aria-expanded={speedPopoverOpen}
-              onClick={() => dispatchPrecision('toggle-speed')}
-            >
-              <AudioGlassIcon name="speed" />
-            </button>
-            <button
-              className="audio-transport-button audio-bookmark-button"
-              type="button"
-              aria-label="బుక్‌మార్క్‌లు"
-              title="Bookmarks: click to return, double-click to add, triple-click to remove"
-              disabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
-              onClick={player.clickBookmarkButton}
-            >
-              <AudioGlassIcon name="bookmark" />
-            </button>
-          </div>
-        </>}
+        bookmarkButton={
+          <button
+            className="audio-transport-button audio-bookmark-button"
+            type="button"
+            aria-label="బుక్‌మార్క్‌లు"
+            title="Bookmarks: click to return, double-click to add, triple-click to remove"
+            disabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
+            onClick={player.clickBookmarkButton}
+          >
+            <AudioGlassIcon name="bookmark" />
+          </button>
+        }
+        speedButton={
+          <button
+            ref={speedButtonRef}
+            className="audio-transport-button audio-speed-button"
+            type="button"
+            aria-label="ప్లేబ్యాక్ వేగం"
+            title="Playback speed"
+            aria-expanded={speedPopoverOpen}
+            onClick={() => dispatchPrecision('toggle-speed')}
+          >
+            <AudioGlassIcon name="speed" />
+          </button>
+        }
         onMagnifierOpen={() => {
           onPrecisionInteraction?.();
           dispatchPrecision('open');

@@ -195,7 +195,16 @@ export function ObservationView({
           taps.cancel();
           return;
         }
+        // A single tap that will end up pausing playback must stop the audio
+        // immediately, before the double-tap resolution delay, so the pause
+        // lands exactly where the user tapped instead of bleeding later.
+        const willTogglePlay = appearance.scrollMode
+          ? (region.single !== 'controls' || !playerRef.current?.isPrecisionOpen())
+          : region.single === 'playback';
+        const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
+        if (eagerlyPaused) playerRef.current?.pause();
         taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+          if (eagerlyPaused) playerRef.current?.resume();
           window.getSelection()?.removeAllRanges();
           if (word && observation) {
             setControlsVisible(false);
@@ -206,11 +215,11 @@ export function ObservationView({
           if (appearance.scrollMode) {
             // Only the bottom third closes the magnifier; elsewhere, tapping keeps its normal play/pause behavior.
             if (region.single === 'controls') {
-              if (!playerRef.current?.dismissPrecision()) playerRef.current?.togglePlay();
-            } else {
+              if (!playerRef.current?.dismissPrecision() && !eagerlyPaused) playerRef.current?.togglePlay();
+            } else if (!eagerlyPaused) {
               playerRef.current?.togglePlay();
             }
-          } else if (region.single === 'playback') playerRef.current?.togglePlay();
+          } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
           else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
         });
       }}
