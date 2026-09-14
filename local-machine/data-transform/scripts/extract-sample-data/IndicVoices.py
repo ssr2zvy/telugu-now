@@ -9,8 +9,8 @@ import pyarrow.parquet as pq
 
 from parquet_shard import available_output_path, move_complete_shards, move_rows, row_count
 
-DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[4] / "data/raw/IndicVoices"
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[4] / "data/sample/IndicVoices"
+DEFAULT_INPUT_ROOT = Path(__file__).resolve().parents[2] / "raw/IndicVoices"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "sample/IndicVoices"
 DEFAULT_PARQUETS = ["train-00000-of-00061.parquet"]
 
 
