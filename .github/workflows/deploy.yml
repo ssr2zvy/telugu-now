@@ -1,15 +1,16 @@
-name: Fly deployment (scaffolding)
+name: Fly deployment
 
-# Inactive scaffolding: manual dispatch skips the job, and merges do not trigger it.
-# To enable: configure the Actions FLY_API_TOKEN secret, replace the false job
-# condition with github.ref == 'refs/heads/main', and uncomment the push trigger.
+# Pushes to main deploy the app. Manual dispatch can also stop its Machines.
+# The repository Actions secret FLY_API_TOKEN is passed straight into the step's
+# environment, where ci-cd/deploy.sh reads it; Actions masks it in the logs and
+# nothing ever prints or inspects its value.
 on:
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       action:
-        description: Deploy the app or stop its Machines (disabled scaffolding)
+        description: Deploy the app or stop its Machines
         type: choice
         options: [deploy, stop]
         default: deploy
@@ -24,7 +25,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ false }}
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
