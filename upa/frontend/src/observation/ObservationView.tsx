@@ -9,6 +9,9 @@ import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
 import {
+  SettingsIcon,
+} from '../components/icons';
+import {
   AudioPlayerBar,
   type AudioPlayerBarHandle,
 } from './audio/AudioPlayerBar';
@@ -21,11 +24,6 @@ import { useAppearance } from '../appearance';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
-import { ReaderTextMenu, useLongPressMenu } from './ReaderTextMenu';
-import { ObservationText } from './ObservationText';
-import { addBlacklistEntry } from '../api';
-import { QuestionView, type QuestionAnswer } from './question/QuestionView';
-import { AnswerView } from './question/AnswerView';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -42,14 +40,12 @@ export function ObservationView({
   onMove,
   onOpenSettings,
 }: ObservationViewProps) {
-  const { appearance, profileCode } = useAppearance();
+  const { appearance } = useAppearance();
   const [
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
-  const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [menuBusy, setMenuBusy] = useState(false);
-  const [menuError, setMenuError] = useState<string | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [precisionInteraction, setPrecisionInteraction] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -57,31 +53,21 @@ export function ObservationView({
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
-  // On touch the long hold replaces the native selection callout entirely.
-  const longPress = useLongPressMenu({
-    onTrigger: point => {
-      taps.cancel();
-      window.getSelection()?.removeAllRanges();
-      setMenuError(null);
-      setTextMenu(point);
-    },
-  });
   const revealedBy = useRef<ScrollDirection | null>(null);
-  // Drives the direction the audio bar slides from, so entry and exit follow the gesture.
-  const [revealDirection, setRevealDirection] = useState<ScrollDirection>(1);
   const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
     taps.cancel();
     const visible = scrollControlsVisible(controlsVisible, revealedBy.current, direction);
-    if (!controlsVisible) {
-      revealedBy.current = direction;
-      setRevealDirection(direction);
-    }
+    if (!controlsVisible) revealedBy.current = direction;
     setControlsVisible(visible);
     setPrecisionInteraction(value => value + 1);
   }, () => taps.cancel());
+  const toggleSettings = () => {
+    window.getSelection()?.removeAllRanges();
+    setSettingsVisible(visible => !visible);
+  };
   useEffect(() => {
     const screen = screenRef.current;
-    if (!controlsVisible || !screen) return;
+    if ((!controlsVisible && !settingsVisible) || !screen) return;
     let idleTimer: number;
     const activePointers = new Set<number>();
     const scheduleHide = (event?: Event) => {
@@ -93,6 +79,7 @@ export function ObservationView({
       if (activePointers.size > 0) return;
       idleTimer = window.setTimeout(() => {
         setControlsVisible(false);
+        setSettingsVisible(false);
       }, appearance.autoFadeSeconds * 1000);
     };
     const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
@@ -102,11 +89,9 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
+  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
-  const [submittedAnswer, setSubmittedAnswer] = useState<QuestionAnswer | null>(null);
-  useEffect(() => { setSubmittedAnswer(null); }, [observation?.id]);
   useEffect(() => {
     taps.cancel();
     setControlsVisible(false);
@@ -130,7 +115,7 @@ export function ObservationView({
       await onMove(direction);
     if (moved) {
       setControlsVisible(false);
-      setTextMenu(null);
+      setSettingsVisible(false);
     }
   };
   const wordAtPoint = (event: MouseEvent<HTMLElement>): string | null => {
@@ -145,22 +130,9 @@ export function ObservationView({
     const position = browserDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
     const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
     const node = position?.offsetNode ?? range?.startContainer;
-    const localOffset = position?.offset ?? range?.startOffset;
-    if (!node || localOffset === undefined || !element.contains(node)) {
+    const offset = position?.offset ?? range?.startOffset;
+    if (!node || node !== element.firstChild || offset === undefined) {
       return null;
-    }
-    // Highlighted modifications split the text across several nodes, so the
-    // caret offset has to be rebased onto the whole sentence.
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    let offset = 0;
-    let found = false;
-    for (let current = walker.nextNode(); current; current = walker.nextNode()) {
-      if (current === node) { offset += localOffset; found = true; break; }
-      offset += current.textContent?.length ?? 0;
-    }
-    if (!found) {
-      if (node !== element) return null;
-      offset = localOffset;
     }
     const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
     const segment = word ? [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
@@ -168,56 +140,23 @@ export function ObservationView({
     if (!segment || !word) {
       return null;
     }
-    const locate = (target: number): { node: Node; offset: number } | null => {
-      const scan = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      let seen = 0;
-      for (let current = scan.nextNode(); current; current = scan.nextNode()) {
-        const length = current.textContent?.length ?? 0;
-        if (target <= seen + length) return { node: current, offset: target - seen };
-        seen += length;
-      }
-      return null;
-    };
-    const start = locate(segment.index);
-    const end = locate(segment.index + segment.segment.length);
-    if (!start || !end) return null;
     const hit = document.createRange();
-    hit.setStart(start.node, start.offset);
-    hit.setEnd(end.node, end.offset);
+    hit.setStart(node, segment.index);
+    hit.setEnd(node, segment.index + segment.segment.length);
     const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
     return inside ? word : null;
   };
-  if (observation?.displayKind === 'question') {
-    const playbackRate = state?.audioSettings.playbackRate ?? 1;
-    return submittedAnswer ? (
-      <AnswerView
-        key={`${observation.id}:answer-page`}
-        observation={observation}
-        answer={submittedAnswer}
-        playbackRate={playbackRate}
-        onNext={() => { if (canNext) void onMove('next'); }}
-      />
-    ) : (
-      <QuestionView
-        key={observation.id}
-        observation={observation}
-        playbackRate={playbackRate}
-        onSubmit={setSubmittedAnswer}
-      />
-    );
-  }
   return (
     <main
       ref={screenRef}
       {...scrollHandlers}
       data-scroll-mode={appearance.scrollMode}
-      data-reveal-direction={revealDirection}
       className={
         `app-shell observation-screen ${
           controlsVisible
             ? 'controls-visible'
             : ''
-}`
+        } ${settingsVisible ? 'settings-visible' : ''}`
       }
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
@@ -225,6 +164,7 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
+          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       onKeyDownCapture={(event) => {
@@ -238,6 +178,7 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
+          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       tabIndex={0}
@@ -245,8 +186,6 @@ export function ObservationView({
         ? 'Reader. Tap to play or pause. Swipe left or right to reveal audio controls; reverse to hide them.'
         : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onClick={(event) => {
-        if (longPress.consumedClick()) return;
-        if (textMenu) return;
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
@@ -264,42 +203,26 @@ export function ObservationView({
           : region.single === 'playback';
         const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
         if (eagerlyPaused) playerRef.current?.pause();
-        taps.tap(doubleRegion, event.clientX, event.clientY, {
-          onDouble: () => {
-            if (eagerlyPaused) playerRef.current?.resume();
-            window.getSelection()?.removeAllRanges();
-            if (word && observation) {
-              setControlsVisible(false);
-              setSelectedWord({ word, observationId: observation.id });
-            } else if (region.double === 'center') {
-              // Shows the bookmark, loop and speed controls, or closes them
-              // together with the magnifier; never opens the magnifier itself.
-              playerRef.current?.toggleTransportControls();
-            } else if (region.double === 'back' ? canBack : canNext) void move(region.double);
-          },
-          onTriple: () => {
-            if (eagerlyPaused) playerRef.current?.resume();
-            window.getSelection()?.removeAllRanges();
-            onOpenSettings();
-          },
-          onSingle: () => {
-            // The magnifier is dismissed only by the middle double tap now.
-            if (appearance.scrollMode) {
-              if (!eagerlyPaused) playerRef.current?.togglePlay();
-            } else if (region.single === 'playback') {
-              if (!eagerlyPaused) playerRef.current?.togglePlay();
-            } else setControlsVisible(visible => !visible);
-          },
+        taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+          if (eagerlyPaused) playerRef.current?.resume();
+          window.getSelection()?.removeAllRanges();
+          if (word && observation) {
+            setControlsVisible(false);
+            setSelectedWord({ word, observationId: observation.id });
+          } else if (region.double === 'center') toggleSettings();
+          else if (region.double === 'back' ? canBack : canNext) void move(region.double);
+        }, () => {
+          if (appearance.scrollMode) {
+            // Only the bottom third closes the magnifier; elsewhere, tapping keeps its normal play/pause behavior.
+            if (region.single === 'controls') {
+              if (!playerRef.current?.dismissPrecision() && !eagerlyPaused) playerRef.current?.togglePlay();
+            } else if (!eagerlyPaused) {
+              playerRef.current?.togglePlay();
+            }
+          } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
+          else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
         });
       }}
-      onContextMenu={(event) => {
-        if (!observation || (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile'))) return;
-        event.preventDefault();
-        taps.cancel();
-        setMenuError(null);
-        setTextMenu({ x: event.clientX, y: event.clientY });
-      }}
-      {...longPress.handlers}
       onMouseDownCapture={(event) => {
         if (event.button !== 0 || event.detail < 2) return;
         if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile')) return;
@@ -350,7 +273,7 @@ export function ObservationView({
             className="observation-text"
             style={typography.style}
           >
-            <ObservationText text={observation.text} />
+            {observation.text}
           </div>
         ) : canNext ? (
           <button
@@ -406,39 +329,23 @@ export function ObservationView({
           }}
         />
       </div>
-      {textMenu ? (
-        <ReaderTextMenu
-          x={textMenu.x}
-          y={textMenu.y}
-          busy={menuBusy}
-          error={menuError}
-          onCopy={() => {
-            if (!observation) return;
-            void navigator.clipboard?.writeText(observation.text)
-              .then(() => setTextMenu(null))
-              .catch(() => setMenuError('Could not copy the sentence.'));
-          }}
-          onBlacklist={() => {
-            if (!observation || !profileCode) return;
-            setMenuBusy(true);
-            setMenuError(null);
-            void addBlacklistEntry(profileCode, {
-              sourceId: observation.sourceId,
-              sourceKey: observation.sourceKey,
-              text: observation.text,
-            }).then(() => {
-              setTextMenu(null);
-              if (canNext) void move('next');
-            }).catch(() => setMenuError('Could not blacklist the sentence.'))
-              .finally(() => setMenuBusy(false));
-          }}
-          onClose={() => setTextMenu(null)}
-        />
-      ) : null}
+      <button
+        className="settings-trigger"
+        type="button"
+        aria-label="అమరికలు"
+        onClick={(
+          event:
+            MouseEvent<HTMLButtonElement>,
+        ) => {
+          event.stopPropagation();
+          onOpenSettings();
+        }}
+      >
+        <SettingsIcon />
+      </button>
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word}
-          sentence={observation?.text ?? ''} onClose={() => setSelectedWord(null)} />
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />
       ) : null}
     </main>
   );

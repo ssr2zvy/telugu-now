@@ -25,13 +25,13 @@ export class PreparedCorpusDataSource implements DataSource {
     return this.store.rowCount(this.id);
   }
 
-  complexityClasses(commonWordReduction = 0): readonly SourceComplexityClass[] {
-    return this.store.complexityClasses(this.id, commonWordReduction);
+  complexityClasses(): readonly SourceComplexityClass[] {
+    return this.store.complexityClasses(this.id);
   }
 
-  candidateAt(complexityValue: number, classIndex: number, commonWordReduction = 0): SourceCandidate {
+  candidateAt(complexityValue: number, classIndex: number): SourceCandidate {
     return {
-      sourceKey: this.store.sourceKeyAt(this.id, complexityValue, classIndex, commonWordReduction),
+      sourceKey: this.store.sourceKeyAt(this.id, complexityValue, classIndex),
       complexityValue,
     };
   }

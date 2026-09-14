@@ -774,10 +774,9 @@ and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
 background availability worker. Existing corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
-Pushing or merging to `main` deploys automatically: `.github/workflows/deploy.yml`
-runs `ci-cd/deploy.sh deploy` on a GitHub runner using the repository Actions
-secret `FLY_API_TOKEN`. That secret is the token's only storage location, so the
-script can no longer be run from the Codespace.
+Deploy manually from Codespaces after merging to `main` by running
+`ci-cd/deploy.sh deploy`, using the `FLY_API_TOKEN` Codespaces secret.
+The GitHub deployment workflow is disabled scaffolding only; merges do not deploy.
 The same script supports `stop`;
 interrupt local deployment with Ctrl+C. `cancel RUN_ID` remains available for
 legacy GitHub deployment runs. See the

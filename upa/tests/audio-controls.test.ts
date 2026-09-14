@@ -21,9 +21,6 @@ const scrubberProps = {
   onPrecisionSeek: () => {},
   onMagnifierOpen: () => {},
   onMagnifierClose: () => {},
-  onScrubBegin: () => {},
-  onScrubEnd: () => {},
-  controlsOpen: false,
 };
 
 test('normal audio controls do not render precision until explicitly opened', () => {
@@ -75,12 +72,12 @@ test('timestamp defaults off but remains optional and accessible during precisio
   }
 });
 
-test('bookmark and speed buttons flank the scrubber and only mount while the transport controls are open', () => {
+test('bookmark and speed buttons flank the scrubber and only mount while the magnifier is open', () => {
   const bookmarkButton = createElement('button', { className: 'audio-bookmark-button', 'aria-label': 'Bookmarks' });
   const speedButton = createElement('button', { className: 'audio-speed-button', 'aria-label': 'Playback speed' });
   for (const open of [false, true, false]) {
     const markup = renderToStaticMarkup(createElement(AudioScrubber, {
-      ...scrubberProps, magnifierOpen: open, controlsOpen: open, showTimestamp: true, showHighlight: true, bookmarkButton, speedButton,
+      ...scrubberProps, magnifierOpen: open, showTimestamp: true, bookmarkButton, speedButton,
     }));
     assert.equal(markup.includes('class="audio-magnifier-track"'), open);
     assert.equal(markup.includes('class="audio-precision-panel"'), open);
@@ -168,13 +165,13 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: 48px 100px;[^}]*gap: var\(--audio-timestamp-gap, 1px\) 0;/);
+  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: 48px 116px;[^}]*gap: var\(--audio-timestamp-gap, 1px\) 0;/);
   assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*display: flex; flex-direction: column/);
   assert.match(css, /\.audio-precision-panel \{[^}]*gap: var\(--timestamp-magnifier-gap, 1px\)/);
   assert.doesNotMatch(css, /--audio-control-gap/);
   assert.match(css, /\[data-magnifier-position="above"\] \.audio-precision-panel \{ grid-row: 1; justify-content: flex-end/);
   assert.doesNotMatch(css, /\.audio-precision-panel::before/);
-  assert.match(css, /\.audio-scrubber-window \{ --audio-detail-brightness: \.8; position: absolute; top: 21px; bottom: 21px; border-radius: 4px; opacity: \.4; \}/);
+  assert.match(css, /\.audio-scrubber-window \{ --audio-detail-brightness: \.8; position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: \.4; \}/);
   assert.match(css, /\.audio-magnifier-playhead \{ --audio-detail-brightness: \.8;/);
   assert.match(css, /filter: brightness\(calc\(var\(--control-brightness, \.85\) \* var\(--audio-detail-brightness, 1\)\)\)/);
   assert.match(css, /\.audio-playback-status \{[^}]*clip-path: inset\(50%\)/);
@@ -188,11 +185,12 @@ test('the magnifier highlight is a third as tall as before, and buttons flank a 
   const rule = (selector: string) => css.split(`\n${selector} {`)[1]!.split('}')[0]!;
   const pixels = (body: string, property: string) =>
     Number(body.match(new RegExp(`(?:^|;)\\s*${property}: (-?\\d+)(?:px)?;`))?.[1]);
-  // The magnifier track shrank to 28px, so the highlight was re-centred on it.
+  const previousInset = 8;
+  const previousHeight = 48 - previousInset * 2;
   const inset = pixels(rule('.audio-scrubber-window'), 'top');
   assert.equal(inset, pixels(rule('.audio-scrubber-window'), 'bottom'));
   const height = 48 - inset * 2;
-  assert.ok(height > 0 && height <= 8, 'highlight stays a thin band centred on the scrubber');
+  assert.ok(Math.abs(height - previousHeight / 3) <= 1, 'highlight height must be about a third of the previous height');
   assert.match(rule('.audio-scrubber'), /flex: 1 1 auto/);
   assert.equal(pixels(rule('.audio-scrubber'), 'height'), 48);
   assert.equal(pixels(rule('.audio-transport-button'), 'width'), 48);
@@ -218,11 +216,8 @@ test('the timestamp always sits closest to the scrubber, on either side of the m
 
 test('scroll controls translate the whole scrubber row (including its flanking buttons) and the panel together', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
-  // The bar now wipes in from the side the reveal came from rather than from the centre.
-  assert.match(css, /clip-path: inset\(0 0 0 100%\); transition: opacity var\(--audio-slide-duration\)/);
-  assert.match(css, /\[data-reveal-direction="-1"\] \.audio-player-bar \{ clip-path: inset\(0 100% 0 0\)/);
-  assert.match(css, /\.audio-scrubber-row,\n[^{}]*\.audio-precision-panel \{ transform: translateX\(56px\); transition: transform var\(--audio-slide-duration\)/);
-  assert.match(css, /\[data-reveal-direction="-1"\] \.audio-precision-panel \{ transform: translateX\(-56px\)/);
+  assert.match(css, /clip-path: inset\(0 50%\); transition: opacity var\(--audio-slide-duration\)/);
+  assert.match(css, /\.audio-scrubber-row,\n[^{}]*\.audio-precision-panel \{ transform: translateX\(-56px\); transition: transform var\(--audio-slide-duration\)/);
   assert.match(css, /\.controls-visible \.audio-precision-panel \{ transform: translateX\(0\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*\.audio-player-bar,[^}]*\.audio-scrubber-row,[^}]*\.audio-precision-panel \{ transition: none;/);
 });

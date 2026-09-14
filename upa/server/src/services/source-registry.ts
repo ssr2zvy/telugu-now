@@ -1,4 +1,8 @@
 import type { DataSource } from '../domain/source';
+import { DummyDataSource } from '../sources/dummy/dummy-data-source';
+import { source1Rows } from '../sources/dummy/data/source1';
+import { source2Rows } from '../sources/dummy/data/source2';
+import { source3Rows } from '../sources/dummy/data/source3';
 import { PreparedCorpusDataSource } from '../sources/prepared-corpus/prepared-corpus-data-source';
 import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
 
@@ -17,6 +21,10 @@ export class SourceRegistry {
   }
 
   constructor(options: { includePreparedSources?: boolean } = {}) {
+    this.register(new DummyDataSource('source1', source1Rows));
+    this.register(new DummyDataSource('source2', source2Rows));
+    this.register(new DummyDataSource('source3', source3Rows));
+
     if (options.includePreparedSources === false) return;
 
     for (const sourceId of REQUIRED_PREPARED_SOURCE_IDS) {

@@ -139,16 +139,12 @@ export function useSettingsController({
     if (!profileCode || !state || !draft) return;
     const target = Number(draft.targetPercent) / 100;
     const spread = Number(draft.spreadPercent) / 100;
-    const commonWordReduction = Number(draft.commonWordReduction);
     const valid =
       Number.isFinite(target) &&
       target >= 0 &&
       target <= 1 &&
       Number.isFinite(spread) &&
-      spread > 0 &&
-      Number.isInteger(commonWordReduction) &&
-      commonWordReduction >= 0 &&
-      commonWordReduction <= 20;
+      spread > 0;
     if (!valid) {
       setSettingsError(true);
       return;
@@ -160,7 +156,6 @@ export function useSettingsController({
         sourceWeights: state.selectionSettings.sourceWeights,
         complexityPercentileTarget: target,
         complexityPercentileSpread: spread,
-        commonWordReduction,
       });
       onSettingsSaved(saved);
       setDraftState(draftFromSettings(saved));
@@ -202,8 +197,6 @@ export function useSettingsController({
           state.selectionSettings.complexityPercentileTarget,
         complexityPercentileSpread:
           state.selectionSettings.complexityPercentileSpread,
-        commonWordReduction:
-          state.selectionSettings.commonWordReduction,
       });
       onSettingsSaved(saved);
       setDraftState(draftFromSettings(saved));

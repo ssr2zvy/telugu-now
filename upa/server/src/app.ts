@@ -8,8 +8,6 @@ import { serveExportAudio } from './services/export-audio-service';
 import { wordImageRoutes } from './services/word-image-service';
 import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
-import { blacklistRoutes } from './services/blacklist-service';
-import { ACCESS_COOKIE_NAME, accessGateRoutes, gateSatisfied } from './services/access-gate-service';
 import { profileEonsRoutes } from './services/eon-service';
 import {
   InvalidProfileCodeError,
@@ -23,12 +21,10 @@ import {
   updateSelectionSettingsAndResetQueue,
 } from './services/profile-service';
 import { preparationService } from './services/preparation-service';
-import { replaceRejectedQueuedObservation } from './services/queue-service';
 import { InvalidSelectionSettingsError } from './services/selection-settings-service';
 import { InvalidAudioSettingsError, updateProfileAudioSettings } from './services/audio-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
 import { sourceRegistry } from './services/source-registry';
-import { versionInformation } from './services/version-service';
 import type {
   DataSourcesResponse,
   ExportRequest,
@@ -44,23 +40,7 @@ const app = new Hono();
 sourceRegistry.assertPreparedSourcesPresent();
 migrateLegacyWordImages(db);
 
-const gateConfig = { passwordHash: config.accessPasswordHash, sessionSecret: config.accessSessionSecret };
-
 app.get('/api/health', (c) => c.json({ ok: true }));
-app.get('/api/version', (c) => c.json(versionInformation()));
-
-app.route('/api', accessGateRoutes(gateConfig));
-
-// Everything behind the gate, including profile selection, requires the cookie.
-app.use('/api/profiles/*', async (c, next) => {
-  const cookie = c.req.header('cookie') ?? '';
-  const token = cookie.split(';').map(part => part.trim())
-    .find(part => part.startsWith(`${ACCESS_COOKIE_NAME}=`))?.slice(ACCESS_COOKIE_NAME.length + 1);
-  if (!gateSatisfied(gateConfig, token ? decodeURIComponent(token) : undefined)) {
-    return c.json({ error: 'locked' }, 401);
-  }
-  await next();
-});
 
 app.get('/api/data-sources', (c) =>
   c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
@@ -71,9 +51,6 @@ app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', profileEonsRoutes(db, code => config.profileCodes.has(code)));
-app.route('/api/profiles', blacklistRoutes(db, code => config.profileCodes.has(code), ids => {
-  for (const id of ids) replaceRejectedQueuedObservation(id);
-}));
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

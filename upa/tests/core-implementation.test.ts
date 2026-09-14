@@ -72,17 +72,7 @@ before(async () => {
   ({ sourceRecordService } = await import('../server/src/services/source-record-service'));
   selectionModule = await import('../server/src/services/selection-engine');
   sourceRegistryModule = await import('../server/src/services/source-registry');
-  // The app ships no dummy sources any more; these tests still pin their exact
-  // distribution, so they register the fixtures into the shared registry.
-  const { DummyDataSource } = await import('./fixtures/dummy-data-source');
-  const { source1Rows } = await import('./fixtures/source1');
-  const { source2Rows } = await import('./fixtures/source2');
-  const { source3Rows } = await import('./fixtures/source3');
-  sourceRegistryModule.sourceRegistry.register(new DummyDataSource('source1', source1Rows));
-  sourceRegistryModule.sourceRegistry.register(new DummyDataSource('source2', source2Rows));
-  sourceRegistryModule.sourceRegistry.register(new DummyDataSource('source3', source3Rows));
   ({ config: appConfig } = await import('../server/src/config/config'));
-  Object.assign(appConfig.defaultSourceWeights, { source1: 1, source2: 1, source3: 1 });
 
   // Core queue/history tests explicitly seed readiness. Source-record caching and export
   // are tested separately by calling their services directly.
@@ -248,7 +238,7 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(state.queue.unseenCount, 2);
     assert.equal(state.queue.readyCount, 1);
 
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'తె', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'తె', prepared_at = ? WHERE id = ?`).run(now, first);
     state = profileService.getProfileState('001', false);
     assert.equal(state.canNext, true);
   });
@@ -346,7 +336,7 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
       SELECT observation_id FROM queue_items WHERE profile_code = '001'
       ORDER BY queue_position LIMIT 1
     `).get() as { observation_id: string };
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first.observation_id);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
     now = 2_000;
     profileService.navigateNext('001', true);
     assert.equal(queueService.getQueueCount('001'), 10);
@@ -462,7 +452,7 @@ test(
   { concurrency: false },
   async (suite) => {
   await suite.test(
-    'contains six selectable sources: three prepared catalogs plus the test fixtures',
+    'contains six selectable sources with three dummy and three prepared catalogs',
     () => {
       resetDatabase();
       const sources =
@@ -471,17 +461,17 @@ test(
       assert.deepEqual(
         sources.map((source) => source.id),
         [
-          'fleurs-te',
-          'shrutilipi-te',
-          'indicvoices-te',
           'source1',
           'source2',
           'source3',
+          'fleurs-te',
+          'shrutilipi-te',
+          'indicvoices-te',
         ],
       );
       assert.deepEqual(
         sources.map((source) => source.rowCount()),
-        [1, 1, 1, 12, 24, 36],
+        [12, 24, 36, 1, 1, 1],
       );
       for (const source of sources) {
         const complexityRows =
@@ -502,13 +492,13 @@ test(
   );
 
   await suite.test(
-    'builds the complexity reference from all six test sources',
+    'builds complexity reference version 2 from all six test sources',
     () => {
       resetDatabase();
       const reference =
         selectionModule.selectionEngine
           .describeReference();
-      assert.equal(reference.version, 3);
+      assert.equal(reference.version, 2);
       assert.equal(reference.totalRows, 75);
       assert.equal(
         reference.classes[0]?.percentileStart,
@@ -596,9 +586,8 @@ test(
       );
       assert.equal(
         settings.complexityReferenceVersion,
-        3,
+        2,
       );
-      assert.equal(settings.commonWordReduction, 2);
     },
   );
 
@@ -673,8 +662,7 @@ test(
 
   await suite.test('source probability uses row count times profile weight and snapshots exact row probabilities', () => {
     resetDatabase();
-    // The shared registry already carries the prepared catalogs plus the fixtures.
-    const registry = sourceRegistryModule.sourceRegistry;
+    const registry = new sourceRegistryModule.SourceRegistry();
     const randoms = [0.2, 0.5, 0.5];
     const engine = new selectionModule.SelectionEngine(registry, () => randoms.shift() ?? 0.5);
     const selected = engine.select({
@@ -683,8 +671,7 @@ test(
       },
       complexityPercentileTarget: 0.5,
       complexityPercentileSpread: 0.25,
-      complexityReferenceVersion: 3,
-      commonWordReduction: 0,
+      complexityReferenceVersion: 2,
     });
 
     assert.equal(selected.sourceId, 'source2');
@@ -712,11 +699,8 @@ test(
       GROUP BY source_id, source_key
       ORDER BY count DESC
     `).all() as Array<{ source_id: string; source_key: string; count: number }>;
-    // A zero needle always lands on the first row of the first selectable source,
-    // so all ten acquisitions repeat that single row.
-    const firstSource = sourceRegistryModule.sourceRegistry.selectableSources()[0]!;
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]?.source_id, firstSource.id);
+    assert.equal(rows[0]?.source_id, 'source1');
+    assert.equal(rows[0]?.source_key, 'source1-001');
     assert.equal(rows[0]?.count, 10);
     assert.equal(acquisitionCount(), 10);
   });
@@ -742,7 +726,7 @@ test(
       SELECT observation_id FROM queue_items WHERE profile_code = '001'
       ORDER BY queue_position LIMIT 1
     `).get() as { observation_id: string };
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first.observation_id);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
     profileService.navigateNext('001', false);
 
     const after = acquisitionSnapshots();
@@ -787,7 +771,7 @@ test(
       SELECT observation_id FROM queue_items WHERE profile_code = '001'
       ORDER BY queue_position LIMIT 1
     `).get() as { observation_id: string };
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first.observation_id);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
     profileService.navigateNext('001', false);
 
     const beforeQueueIds = (db.prepare(`
@@ -819,7 +803,7 @@ test(
       SELECT observation_id FROM queue_items WHERE profile_code = '001'
       ORDER BY queue_position LIMIT 1
     `).get() as { observation_id: string };
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first.observation_id);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
     profileService.navigateNext('001', false);
 
     const state = profileService.getProfileState('001', false);
@@ -876,7 +860,7 @@ test(
       SELECT observation_id FROM queue_items WHERE profile_code = '001'
       ORDER BY queue_position LIMIT 1
     `).get() as { observation_id: string };
-    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ?, audio_validated_at = ? WHERE id = ?`).run(now, now, first.observation_id);
+    db.prepare(`UPDATE observations SET status = 'ready', text = 'వర్షం', prepared_at = ? WHERE id = ?`).run(now, first.observation_id);
     profileService.navigateNext('001', false);
 
     const settings = profileService.updateSelectionSettingsAndResetQueue('001', {

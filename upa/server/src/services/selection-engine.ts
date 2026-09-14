@@ -2,8 +2,8 @@ import type { ProfileSelectionSettings, SelectionSnapshot } from '../../../share
 import type { DataSource } from '../domain/source';
 import { sourceRegistry, SourceRegistry } from './source-registry';
 
-export const COMPLEXITY_REFERENCE_VERSION = 3;
-const SUPPORTED_REFERENCE_VERSIONS = new Set([2, 3]);
+export const COMPLEXITY_REFERENCE_VERSION = 2;
+const SUPPORTED_REFERENCE_VERSIONS = new Set([2]);
 const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
@@ -102,24 +102,20 @@ export class SelectionEngine {
   private classes: ComplexityClass[] = [];
   private totalRows = 0;
   private generation = '';
-  private reduction = 0;
 
   constructor(
     private readonly registry: SourceRegistry = sourceRegistry,
     private readonly random: () => number = () => Math.random(),
-  ) {}
+  ) {
+    this.refreshReference();
+  }
 
-  /**
-   * The global reference depends on the Common Word Inclusion strength in use.
-   * Built lazily: with no source registered yet there is nothing to describe,
-   * and that is a runtime condition rather than a startup failure.
-   */
-  private refreshReference(reduction: number): void {
-    if (this.generation === this.registry.generation && this.reduction === reduction) return;
+  private refreshReference(): void {
+    if (this.generation === this.registry.generation) return;
     const counts = new Map<number, number>();
 
     for (const source of this.registry.selectableSources()) {
-      const sourceClasses = source.complexityClasses(reduction);
+      const sourceClasses = source.complexityClasses();
       const seenValues = new Set<number>();
       let classRowCount = 0;
 
@@ -150,11 +146,10 @@ export class SelectionEngine {
         };
       });
     this.generation = this.registry.generation;
-    this.reduction = reduction;
   }
 
-  describeReference(reduction = 0): ComplexityReferenceDescription {
-    this.refreshReference(reduction);
+  describeReference(): ComplexityReferenceDescription {
+    this.refreshReference();
     return {
       version: COMPLEXITY_REFERENCE_VERSION,
       totalRows: this.totalRows,
@@ -180,8 +175,7 @@ export class SelectionEngine {
   }
 
   select(settings: ProfileSelectionSettings): SelectionResult {
-    const reduction = settings.commonWordReduction ?? 0;
-    this.refreshReference(reduction);
+    this.refreshReference();
     if (!SUPPORTED_REFERENCE_VERSIONS.has(settings.complexityReferenceVersion)) {
       throw new Error(`Unsupported complexity reference version ${settings.complexityReferenceVersion}.`);
     }
@@ -209,7 +203,7 @@ export class SelectionEngine {
       settings.complexityPercentileSpread,
     );
     const classByValue = new Map(classMasses.map((item) => [item.complexityValue, item]));
-    const sourceClasses = selectedSourceEntry.source.complexityClasses(reduction).map((item) => {
+    const sourceClasses = selectedSourceEntry.source.complexityClasses().map((item) => {
       const complexity = classByValue.get(item.complexityValue);
       if (!complexity) throw new Error('Complexity value ' + `${item.complexityValue} ` + 'is absent from the global reference.');
       return { complexityValue: item.complexityValue, rowCount: item.rowCount, complexity, sourceClassMass: item.rowCount * complexity.perRowMass };
@@ -218,7 +212,7 @@ export class SelectionEngine {
     if (!(denominator > 0)) throw new Error('Selected source has zero complexity mass.');
     const selectedClass = weightedPick(sourceClasses, (item) => item.sourceClassMass, this.random);
     const rowIndex = Math.floor(Math.min(Math.max(this.random(), 0), 1 - Number.EPSILON) * selectedClass.rowCount);
-    const selectedRow = selectedSourceEntry.source.candidateAt(selectedClass.complexityValue, rowIndex, reduction);
+    const selectedRow = selectedSourceEntry.source.candidateAt(selectedClass.complexityValue, rowIndex);
 
     const rowProbabilityWithinSource = selectedClass.complexity.perRowMass / denominator;
     const overallProbability = sourceProbability * rowProbabilityWithinSource;
@@ -237,9 +231,8 @@ export class SelectionEngine {
       totalSourceMass,
       sourceProbability,
       sourceKey: selectedRow.sourceKey,
-      complexityMetric: reduction > 0 ? 'common-word-inclusion' : 'grapheme-count',
+      complexityMetric: 'grapheme-count',
       intrinsicComplexityValue: complexityValue,
-      commonWordReduction: reduction,
       complexityReferenceVersion: settings.complexityReferenceVersion,
       complexityPercentileTarget: settings.complexityPercentileTarget,
       complexityPercentileSpread: settings.complexityPercentileSpread,

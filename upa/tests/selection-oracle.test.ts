@@ -3,10 +3,9 @@ import test from 'node:test';
 import type { DataSource, SourceComplexityClass } from '../server/src/domain/source';
 import { SelectionEngine } from '../server/src/services/selection-engine';
 import { SourceRegistry } from '../server/src/services/source-registry';
-import { fixtureRegistry } from './fixtures/registry';
-import { source1Rows } from './fixtures/source1';
-import { source2Rows } from './fixtures/source2';
-import { source3Rows } from './fixtures/source3';
+import { source1Rows } from '../server/src/sources/dummy/data/source1';
+import { source2Rows } from '../server/src/sources/dummy/data/source2';
+import { source3Rows } from '../server/src/sources/dummy/data/source3';
 import type { ProfileSelectionSettings, SelectionSnapshot } from '../shared/contracts';
 
 const CENTRAL_98_Z = 2.326347874;
@@ -270,10 +269,9 @@ test('100-selection black-box audit agrees with an independently calculated orac
     complexityPercentileTarget: 0.64,
     complexityPercentileSpread: 0.22,
     complexityReferenceVersion: 2,
-    commonWordReduction: 0,
   };
   const oracle = buildOracle(settings);
-  const engine = new SelectionEngine(fixtureRegistry(), mulberry32(0xA11CE100));
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), mulberry32(0xA11CE100));
   const sourceCounts = new Map<string, number>();
   const quartileCounts = [0, 0, 0, 0];
   const quartileExpected = [0, 0, 0, 0];
@@ -315,10 +313,9 @@ test('seeded 50,000-selection Monte Carlo converges to the independent full sour
     complexityPercentileTarget: 0.58,
     complexityPercentileSpread: 0.28,
     complexityReferenceVersion: 2,
-    commonWordReduction: 0,
   };
   const oracle = buildOracle(settings);
-  const engine = new SelectionEngine(fixtureRegistry(), mulberry32(0x5E1EC710));
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), mulberry32(0x5E1EC710));
   const draws = 50_000;
   const pairCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
@@ -462,7 +459,6 @@ test('injected random needles cross row-complexity probability boundaries at the
       0.4,
     complexityReferenceVersion:
       2,
-    commonWordReduction: 0,
   };
   const oracle =
     buildOracle(

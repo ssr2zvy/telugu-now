@@ -54,7 +54,7 @@ esac
 
 require_command flyctl
 [[ -n "${FLY_API_TOKEN:-}" ]] ||
-  fail 'FLY_API_TOKEN is missing. In CI it comes from the repository Actions secret of the same name; locally, securely export an app-scoped Fly deploy token before running this script.'
+  fail 'FLY_API_TOKEN is missing. Add an app-scoped Fly deploy token as a Codespaces secret for this repository and restart the Codespace, or securely export it locally.'
 [[ -f fly.toml ]] || fail 'Missing repository-root fly.toml.'
 if [[ "$action" == "deploy" ]]; then
   [[ -f ci-cd/Containerfile ]] || fail 'Missing ci-cd/Containerfile.'
@@ -67,16 +67,7 @@ flyctl status --config fly.toml --json >/dev/null ||
 
 if [[ "$action" == "deploy" ]]; then
   printf '%s\n' 'Deploying this checkout. Production deployments should use the merged main revision.'
-  # Stamp the deployed revision so Settings can report what is running.
-  commit="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
-  subject="$(git log -1 --pretty=%s 2>/dev/null || printf '')"
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf '')"
-  built="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  exec flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m \
-    --build-arg "GIT_COMMIT=$commit" \
-    --build-arg "GIT_COMMIT_SUBJECT=$subject" \
-    --build-arg "GIT_BRANCH=$branch" \
-    --build-arg "BUILD_TIME=$built"
+  exec flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
 fi
 
 machines="$(flyctl machine list --config fly.toml --json)" ||

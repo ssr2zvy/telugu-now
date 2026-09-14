@@ -2,93 +2,47 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ReaderTaps, READER_DOUBLE_TAP_MS, readerTapRegions } from '../frontend/src/observation/reader-taps';
 
-test('a run resolves only once it ends, so a double is never mistaken for a triple', t => {
+test('double taps never run the single-tap action, including between taps', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const actions: string[] = [];
   const taps = new ReaderTaps(() => actions.push('audio'));
-  taps.tap('center', 100, 100, { onDouble: () => actions.push('settings') });
+  taps.tap('center', 100, 100, () => actions.push('settings'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS - 1);
   assert.equal(actions.length, 0);
-  taps.tap('center', 106, 104, { onDouble: () => actions.push('settings') });
-  // Still nothing: a third tap could arrive and make this a triple instead.
-  assert.equal(actions.length, 0);
+  taps.tap('center', 106, 104, () => actions.push('settings'));
+  assert.deepEqual(actions, ['settings']);
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
   assert.deepEqual(actions, ['settings']);
+  taps.tap('center', 100, 100, () => actions.push('settings'));
+  taps.tap('center', 100, 100, () => actions.push('settings'));
+  assert.deepEqual(actions, ['settings', 'settings']);
 });
 
-test('three nearby taps run the triple action instead of the double action', t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const actions: string[] = [];
-  const taps = new ReaderTaps(() => actions.push('audio'));
-  const handlers = { onDouble: () => actions.push('double'), onTriple: () => actions.push('settings') };
-  taps.tap('center', 100, 100, handlers);
-  taps.tap('center', 102, 101, handlers);
-  taps.tap('center', 101, 103, handlers);
-  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['settings']);
-});
-
-test('a lone tap falls back to the constructor single action and cancelling suppresses it', t => {
+test('single taps resolve once and cancelled observation gestures never fire later', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let singles = 0;
   const taps = new ReaderTaps(() => singles++);
-  taps.tap('center', 100, 100, { onDouble: () => assert.fail('Not a double tap') });
+  taps.tap('center', 100, 100, () => assert.fail('Not a double tap'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
   assert.equal(singles, 1);
-  taps.tap('center', 100, 100, { onDouble: () => assert.fail('Cancelled taps never resolve') });
+  taps.tap('center', 100, 100, () => assert.fail('Expired taps cannot pair'));
   taps.cancel();
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
   assert.equal(singles, 1);
 });
 
-test('a per-tap single action overrides the constructor fallback', t => {
+test('only nearby taps in the same region pair, and navigation doubles do not reveal audio', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const actions: string[] = [];
   const taps = new ReaderTaps(() => actions.push('audio'));
-  taps.tap('center', 300, 550, { onSingle: () => actions.push('controls') });
+  taps.tap('back', 10, 100, () => actions.push('back'));
+  taps.tap('back', 12, 103, () => actions.push('back'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['controls']);
-});
-
-test('distant taps start a new run rather than pairing', t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const actions: string[] = [];
-  const taps = new ReaderTaps(() => actions.push('audio'));
-  taps.tap('back', 10, 100, { onDouble: () => actions.push('back') });
-  taps.tap('back', 200, 100, { onDouble: () => assert.fail('Too far to pair') });
-  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  // Only the second run survives; the first was superseded before it resolved.
-  assert.deepEqual(actions, ['audio']);
-});
-
-test('matches only reports taps in the same region and within the pairing distance', t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const taps = new ReaderTaps();
-  taps.tap('back', 10, 100, { onDouble: () => {} });
-  assert.equal(taps.matches('back', 12, 103), true);
-  assert.equal(taps.matches('next', 12, 103), false);
-  assert.equal(taps.matches('back', 10, 200), false);
+  assert.deepEqual(actions, ['back']);
+  taps.tap('center', 100, 100, () => assert.fail('Different regions'));
+  assert.equal(taps.matches('next', 110, 100), false);
+  assert.equal(taps.matches('center', 100, 200), false);
   taps.cancel();
-  assert.equal(taps.matches('back', 10, 100), false);
-});
-
-test('a run keeps the region it started in even when later taps are labelled differently', t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const taps = new ReaderTaps();
-  taps.tap('back', 298, 100, { onDouble: () => {} });
-  taps.tap('word:example', 302, 100, { onDouble: () => {} });
-  assert.equal(taps.matches('back', 302, 100), true);
-  taps.cancel();
-});
-
-test('later handlers in a run merge over earlier ones', t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const actions: string[] = [];
-  const taps = new ReaderTaps();
-  taps.tap('center', 300, 100, { onDouble: () => actions.push('settings') });
-  taps.tap('word:example', 303, 100, { onDouble: () => actions.push('image') });
-  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['image']);
 });
 
 test('single and double hitboxes use independent screen thirds, not the text width', () => {
@@ -99,4 +53,44 @@ test('single and double hitboxes use independent screen thirds, not the text wid
   assert.deepEqual(readerTapRegions(100, 410, bounds), { single: 'controls', double: 'back' });
   assert.deepEqual(readerTapRegions(450, 550, bounds), { single: 'controls', double: 'center' });
   assert.deepEqual(readerTapRegions(800, 550, bounds), { single: 'controls', double: 'next' });
+});
+
+test('a double crossing the bottom-third boundary never plays or toggles the bar', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const actions: string[] = [];
+  const taps = new ReaderTaps();
+  taps.tap('center', 300, 395, () => actions.push('settings'), () => actions.push('playback'));
+  t.mock.timers.tick(150);
+  assert.equal(actions.length, 0);
+  taps.tap('center', 300, 410, () => actions.push('settings'), () => actions.push('controls'));
+  taps.tap('center', 300, 395, () => actions.push('settings'), () => actions.push('playback'));
+  taps.tap('center', 300, 410, () => actions.push('settings'), () => actions.push('controls'));
+  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
+  assert.deepEqual(actions, ['settings', 'settings']);
+});
+
+test('a double crossing horizontal or word hitboxes consumes both singles', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const actions: string[] = [];
+  const taps = new ReaderTaps(() => actions.push('single'));
+  taps.tap('back', 298, 100, () => actions.push('back'));
+  taps.tap('center', 302, 100, () => actions.push('settings'));
+  taps.tap('center', 302, 100, () => actions.push('settings'));
+  taps.tap('word:example', 303, 100, () => actions.push('image'));
+  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
+  assert.deepEqual(actions, ['settings', 'image']);
+});
+
+test('separate singles wait their whole window and preserve their own action', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const actions: string[] = [];
+  const taps = new ReaderTaps();
+  taps.tap('center', 300, 100, () => assert.fail('double'), () => actions.push('playback'));
+  t.mock.timers.tick(100);
+  taps.tap('center', 300, 550, () => assert.fail('double'), () => actions.push('controls'));
+  assert.equal(actions.length, 0);
+  t.mock.timers.tick(300);
+  assert.deepEqual(actions, ['playback']);
+  t.mock.timers.tick(100);
+  assert.deepEqual(actions, ['playback', 'controls']);
 });

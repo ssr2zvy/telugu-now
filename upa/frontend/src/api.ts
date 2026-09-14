@@ -1,5 +1,4 @@
 import type {
-  BlacklistResponse,
   DataSourcesResponse,
   ExportRequest,
   ExportResponse,
@@ -74,28 +73,6 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function getDataSources(): Promise<DataSourcesResponse> {
   return parseJson<DataSourcesResponse>(await fetch('/api/data-sources'));
-}
-
-export async function getBlacklist(code: string, signal?: AbortSignal): Promise<BlacklistResponse> {
-  return parseJson<BlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, signal ? { signal } : {}));
-}
-
-export async function addBlacklistEntry(
-  code: string,
-  entry: { sourceId: string; sourceKey: string; text: string },
-): Promise<BlacklistResponse> {
-  return parseJson<BlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(entry),
-  }));
-}
-
-export async function removeBlacklistEntry(
-  code: string,
-  entry: { sourceId: string; sourceKey: string },
-): Promise<BlacklistResponse> {
-  return parseJson<BlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, {
-    method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify(entry),
-  }));
 }
 
 export class InvalidProfileCodeError extends Error {

@@ -3,8 +3,6 @@ import { config } from '../config/config';
 import type {
   AcquisitionTriggerKind,
   DisplayObservation,
-  QuestionKeyboard,
-  QuestionMode,
   MediaItem,
   ObservationAudio,
   ObservationStatus,
@@ -57,10 +55,6 @@ interface ObservationRow {
   selection_snapshot_json: string;
   media_json: string | null;
   repeat_snapshot_json: string | null;
-  display_kind: string;
-  question_mode: QuestionMode | null;
-  question_pool: string | null;
-  question_keyboard: QuestionKeyboard | null;
 }
 
 interface CountRow { count: number }
@@ -260,8 +254,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
            a.preparation_in_flight_at_trigger,
            a.selection_snapshot_json,
            o.request_started_at, o.request_completed_at, o.request_duration_ms,
-           o.cache_hit, sr.media_json, o.repeat_snapshot_json,
-           o.display_kind, o.question_mode, o.question_pool, o.question_keyboard
+           o.cache_hit, sr.media_json, o.repeat_snapshot_json
     FROM history_entries h
     JOIN observations o ON o.id = h.observation_id
     JOIN observation_acquisitions a ON a.observation_id = o.id
@@ -277,14 +270,6 @@ function currentObservation(code: string, currentPosition: number | null): Displ
     sourceKey: row.source_key,
     text: row.text,
     audio: parseObservationAudio(row.media_json),
-    displayKind: row.display_kind === 'question' ? 'question' : 'normal',
-    question: row.display_kind === 'question' && row.question_mode
-      ? {
-          mode: row.question_mode,
-          pool: row.question_pool === 'unseen' ? 'unseen' : 'seen',
-          keyboard: row.question_keyboard,
-        }
-      : null,
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
