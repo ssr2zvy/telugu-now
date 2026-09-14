@@ -17,8 +17,8 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
         <div className="appearance-section-heading">
           <h2>{text('Background', 'నేపథ్యం')}</h2>
           <div className="appearance-color-actions">
-            <button type="button" className="appearance-icon-action" title={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} aria-label={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} onClick={() => updateAppearance({ ...randomAppearanceColors(), surface: null })}><Shuffle aria-hidden="true" /></button>
-            <button type="button" className="appearance-icon-action" title={text('Reset colors', 'రంగులను పునరుద్ధరించు')} aria-label={text('Reset colors', 'రంగులను పునరుద్ధరించు')} onClick={() => updateAppearance({ gradient: DEFAULT_APPEARANCE.gradient, foreground: DEFAULT_APPEARANCE.foreground, surface: null })}><RotateCcw aria-hidden="true" /></button>
+            <button type="button" className="appearance-icon-action" aria-label={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} onClick={() => updateAppearance({ ...randomAppearanceColors(), surface: null })}><Shuffle aria-hidden="true" /></button>
+            <button type="button" className="appearance-icon-action" aria-label={text('Reset colors', 'రంగులను పునరుద్ధరించు')} onClick={() => updateAppearance({ gradient: DEFAULT_APPEARANCE.gradient, foreground: DEFAULT_APPEARANCE.foreground, surface: null })}><RotateCcw aria-hidden="true" /></button>
           </div>
         </div>
         <div className="appearance-colors">
@@ -54,7 +54,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Control darkness', 'నియంత్రణల ముదురు స్థాయి')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు')} aria-label={text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు')} onClick={() => updateAppearance({ controlDarkness: DEFAULT_APPEARANCE.controlDarkness })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" aria-label={text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు')} onClick={() => updateAppearance({ controlDarkness: DEFAULT_APPEARANCE.controlDarkness })}><RotateCcw aria-hidden="true" /></button>
         </div>
         <label className="appearance-scale">
           <input type="range" min={CONTROL_DARKNESS_LIMITS.min} max={CONTROL_DARKNESS_LIMITS.max} step={1} style={{ '--range-progress': `${appearance.controlDarkness / CONTROL_DARKNESS_LIMITS.max * 100}%` } as CSSProperties} aria-label={text('Control darkness', 'నియంత్రణల ముదురు స్థాయి')} aria-valuetext={text(`${appearance.controlDarkness}% darker`, `${appearance.controlDarkness}% ముదురు`)} value={appearance.controlDarkness} onChange={event => updateAppearance({ controlDarkness: Number(event.target.value) })} />
@@ -73,7 +73,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Position', 'స్థానం')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} aria-label={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} onClick={() => updateAppearance({ textOffset: 0, audioOffset: 0, textOffsetOther: 0, audioOffsetOther: 0, magnifierPosition: DEFAULT_APPEARANCE.magnifierPosition })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" aria-label={text('Reset positions', 'స్థానాలను పునరుద్ధరించు')} onClick={() => updateAppearance({ textOffset: 0, audioOffset: 0, textOffsetOther: 0, audioOffsetOther: 0, magnifierPosition: DEFAULT_APPEARANCE.magnifierPosition })}><RotateCcw aria-hidden="true" /></button>
         </div>
         {(['textOffset', 'audioOffset'] as const).map(setting => (
           <div className="appearance-position-field" key={setting}>
@@ -107,7 +107,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Control spacing', 'నియంత్రణల అంతరం')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ audioTimestampGap: DEFAULT_APPEARANCE.audioTimestampGap, timestampMagnifierGap: DEFAULT_APPEARANCE.timestampMagnifierGap })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" aria-label={text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ audioTimestampGap: DEFAULT_APPEARANCE.audioTimestampGap, timestampMagnifierGap: DEFAULT_APPEARANCE.timestampMagnifierGap })}><RotateCcw aria-hidden="true" /></button>
         </div>
         <div className="appearance-audio-preview" role="img" aria-label={text('Audio spacing preview', 'ఆడియో అంతరం నమూనా')} style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}>
           <div className="audio-player-bar" data-magnifier-position={appearance.magnifierPosition} aria-hidden="true">
@@ -158,7 +158,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
       <section className="appearance-section">
         <div className="appearance-section-heading">
           <h2>{text('Auto-fade', 'స్వయంచాలకంగా దాచడం')}</h2>
-          <button type="button" className="appearance-icon-action" title={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} aria-label={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ autoFadeSeconds: DEFAULT_APPEARANCE.autoFadeSeconds })}><RotateCcw aria-hidden="true" /></button>
+          <button type="button" className="appearance-icon-action" aria-label={text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు')} onClick={() => updateAppearance({ autoFadeSeconds: DEFAULT_APPEARANCE.autoFadeSeconds })}><RotateCcw aria-hidden="true" /></button>
         </div>
         <label className="appearance-scale">
           <input type="range" min={AUTO_FADE_SECONDS_LIMITS.min} max={AUTO_FADE_SECONDS_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance.autoFadeSeconds - AUTO_FADE_SECONDS_LIMITS.min) / (AUTO_FADE_SECONDS_LIMITS.max - AUTO_FADE_SECONDS_LIMITS.min) * 100}%` } as CSSProperties} aria-label={text('Auto-fade delay', 'దాచే సమయం')} aria-valuetext={text(`${appearance.autoFadeSeconds} seconds`, `${appearance.autoFadeSeconds} సెకన్లు`)} value={appearance.autoFadeSeconds} onChange={event => updateAppearance({ autoFadeSeconds: Number(event.target.value) })} />

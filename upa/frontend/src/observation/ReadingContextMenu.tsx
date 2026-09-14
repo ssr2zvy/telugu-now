@@ -48,7 +48,6 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklist, onClose }: Readi
         role="menuitem"
         className="reading-context-menu-action"
         aria-label="కాపీ చేయి"
-        title="కాపీ చేయి"
         onClick={() => {
           onCopy(menu.text);
           setStatus('copied');
@@ -62,7 +61,6 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklist, onClose }: Readi
         role="menuitem"
         className="reading-context-menu-action"
         aria-label="బ్లాక్‌లిస్ట్‌కు జోడించు"
-        title="బ్లాక్‌లిస్ట్‌కు జోడించు"
         onClick={() => {
           onBlacklist(menu.text);
           setStatus('blacklisted');

@@ -45,6 +45,20 @@ function read(
     'utf8',
   );
 }
+test('controls restrict hover feedback to mouse pointers and retain keyboard and selected states', () => {
+  for (const file of fs.readdirSync(path.join(root, 'frontend/src/styles')).filter(file => file.endsWith('.css'))) {
+    const css = read(`frontend/src/styles/${file}`);
+    if (file !== 'base.css') assert.doesNotMatch(css, /:active\b/, file);
+    if (css.includes(':hover')) assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/, file);
+  }
+  const base = read('frontend/src/styles/base.css');
+  assert.match(base, /:focus-visible\s*\{\s*outline: 2px solid var\(--foreground\);\s*outline-offset: -3px/);
+  assert.match(base, /button, \[role="button"\] \{\s*-webkit-user-select: none;\s*user-select: none;\s*-webkit-touch-callout: none;/);
+  const settings = read('frontend/src/styles/settings-layout.css');
+  assert.match(settings, /input:checked \+ span \{ background:/);
+  assert.match(settings, /input:checked::after/);
+  assert.match(settings, /\[aria-current='page'\] \{ background:/);
+});
 test('Settings fields use a single rounded focus surface and compact accessible percent units', async () => {
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');

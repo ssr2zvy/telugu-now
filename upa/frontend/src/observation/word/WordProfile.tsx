@@ -74,8 +74,7 @@ function WordImage({ root }: { root: string }) {
           </button>
         )}
       </div>
-      {source && allowRegeneration ? <button className="word-profile-action word-image-regenerate" type="button" disabled={busy}
-        title="Regenerate shared image" onClick={() => void generate(true)}>
+      {source && allowRegeneration ? <button className="word-profile-action word-image-regenerate" type="button" disabled={busy} onClick={() => void generate(true)}>
         {busy ? <LoaderCircle className="word-image-spinner" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
         {busy ? 'Regenerating...' : status === 'error' ? 'Retry regeneration' : 'Regenerate'}
       </button> : null}
@@ -85,7 +84,7 @@ function WordImage({ root }: { root: string }) {
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
       {settingsError ? <div className="word-profile-error" role="alert">
         Could not load image settings.
-        <button className="word-profile-action" type="button" title="Retry image settings" aria-label="Retry image settings"
+        <button className="word-profile-action" type="button" aria-label="Retry image settings"
           onClick={() => setSettingsAttempt(attempt => attempt + 1)}><RefreshCw size={16} aria-hidden="true" /></button>
       </div> : null}
     </section>
@@ -115,7 +114,7 @@ export function WordProfile({ word, onClose }: { word: string; onClose: () => vo
         <h2 id="word-profile-title" lang="te" aria-label={analysis.word} title={analysis.root}>
           <span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span>
         </h2>
-        <button type="button" className="word-profile-close" aria-label="Close word profile" title="Close word profile" onClick={onClose}><X size={20} aria-hidden="true" /></button>
+        <button type="button" className="word-profile-close" aria-label="Close word profile" onClick={onClose}><X size={20} aria-hidden="true" /></button>
       </header>
       <WordImage key={analysis.root} root={analysis.root} />
     </dialog>

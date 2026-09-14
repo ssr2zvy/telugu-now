@@ -907,7 +907,7 @@ test('fixed precision seeking pauses playback and speed stays inside the viewpor
     await expect(precise).toBeHidden();
   }
   await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
-  await page.getByTitle('Playback speed', { exact: true }).click();
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
   const speed = page.locator('.audio-speed-popover');
   await withinViewport(speed, page);
   expect(fixture.errors).toEqual([]);
@@ -929,6 +929,16 @@ async function withinViewport(locator: Locator, page: Page) {
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
+async function controlAppearance(control: Locator) {
+  return control.evaluate(element => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor, color: style.color, shadow: style.boxShadow,
+      outline: style.outlineStyle, transform: style.transform,
+    };
+  });
 }
 
 test('prepared audio decodes real FLAC bytes into the same padded native timeline', async ({ page }) => {
@@ -1225,7 +1235,7 @@ test('prepared audio resume, seeks, slow pitch-preserving rates and replay all k
   const source = await audio.getAttribute('src');
   const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
   await scrubber.press('Enter');
-  await page.getByTitle('Playback speed', { exact: true }).click();
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
   const rate = page.getByRole('slider', { name: 'Playback speed', exact: true });
   for (let step = 0; step < 10; step++) await rate.press('ArrowDown');
   await expect(audio).toHaveJSProperty('playbackRate', 0.5);
@@ -1296,11 +1306,11 @@ test('prepared audio bookmarks display padded time but save and reload original 
   const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
   await scrubber.press('Enter');
   await page.locator('audio').evaluate((a: HTMLAudioElement) => { a.currentTime = 3.5; });
-  const bookmark = page.getByTitle('Bookmarks: click to return, double-click to add, triple-click to remove', { exact: true });
+  const bookmark = page.getByRole('button', { name: 'బుక్‌మార్క్‌లు', exact: true });
   await bookmark.dblclick();
   await expect(page.getByRole('alert')).toContainText('Bookmarks not saved');
   fail = false;
-  await page.getByTitle('Retry bookmarks', { exact: true }).click();
+  await page.getByRole('button', { name: 'Retry bookmarks', exact: true }).click();
   await expect.poll(() => saved).toEqual([0, 2, 3]);
   expect(writes).toBe(2);
   await page.locator('audio').evaluate((a: HTMLAudioElement) => { a.currentTime = 4; });
@@ -1582,6 +1592,83 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
 
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('touch highlights only a separate button press and clears on release or cancellation', async ({ page }, testInfo) => {
+    let copies = 0;
+    let blacklists = 0;
+    await page.exposeFunction('recordMenuCopy', () => { copies += 1; });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: () => (window as unknown as { recordMenuCopy: () => Promise<void> }).recordMenuCopy() },
+      });
+    });
+    const fixture = await loadFixture(page);
+    await page.route('**/api/profiles/001/blacklist', async route => {
+      blacklists += 1;
+      await route.fulfill({ json: { entries: [] } });
+    });
+    const client = await page.context().newCDPSession(page);
+    const text = (await page.locator('.observation-text').boundingBox())!;
+    const point = { x: text.x + text.width / 2, y: text.y + text.height / 2 };
+    const menu = page.getByRole('menu');
+    const copy = menu.getByRole('menuitem').first();
+    for (const action of ['copy', 'blacklist']) {
+      await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+      await expect(menu).toBeVisible();
+      const resting = await controlAppearance(copy);
+      expect(resting.background).toBe('rgba(0, 0, 0, 0)');
+      expect(resting.outline).toBe('none');
+      await expect(copy).toHaveCSS('user-select', 'none');
+      await expect(copy).toHaveCSS('-webkit-tap-highlight-color', 'rgba(0, 0, 0, 0)');
+      const bounds = (await copy.boundingBox())!;
+      await client.send('Input.dispatchTouchEvent', {
+        type: 'touchMove', touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }],
+      });
+      expect(await controlAppearance(copy)).toEqual(resting);
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect(menu).toBeVisible();
+      expect(await controlAppearance(copy)).toEqual(resting);
+      expect(copies).toBe(action === 'copy' ? 0 : 1);
+      expect(blacklists).toBe(0);
+      await withinViewport(menu, page);
+      await page.screenshot({ path: testInfo.outputPath(`touch-menu-${action}.png`) });
+      await expect(page.locator('button[title]')).toHaveCount(0);
+      const actionButton = menu.getByRole('menuitem').nth(action === 'copy' ? 0 : 1);
+      const actionBounds = (await actionButton.boundingBox())!;
+      await client.send('Input.dispatchTouchEvent', {
+        type: 'touchStart', touchPoints: [{ x: actionBounds.x + actionBounds.width / 2, y: actionBounds.y + actionBounds.height / 2 }],
+      });
+      await expect(actionButton).not.toHaveCSS('background-color', resting.background);
+      expect(copies).toBe(action === 'copy' ? 0 : 1);
+      expect(blacklists).toBe(0);
+      await page.screenshot({ path: testInfo.outputPath(`touch-menu-${action}-pressed.png`) });
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect(actionButton).toHaveCSS('background-color', resting.background);
+      await expect.poll(() => action === 'copy' ? copies : blacklists).toBe(1);
+      await expect(menu).toBeHidden();
+    }
+    await openSettings(page);
+    const language = page.locator('.language-toggle');
+    const beforeTap = await controlAppearance(language);
+    const bounds = (await language.boundingBox())!;
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchStart', touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }],
+    });
+    await expect(language).not.toHaveCSS('background-color', beforeTap.background);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    await expect.poll(() => controlAppearance(language)).toEqual(beforeTap);
+    await expect(page.locator('.settings-header h1')).toHaveText('Settings');
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchStart', touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }],
+    });
+    await expect(language).not.toHaveCSS('background-color', beforeTap.background);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(page.locator('.settings-header h1')).not.toHaveText('Settings');
+    await expect.poll(() => controlAppearance(language)).toEqual(beforeTap);
+    await page.screenshot({ path: testInfo.outputPath('touch-settings-no-highlight.png') });
+    expect(fixture.errors).toEqual([]);
+    await client.detach();
+  });
   test('scroll mode touch swipes reveal and reverse-hide without a playback tap', async ({ page }) => {
     const fixture = await loadFixture(page);
     const bar = page.locator('.audio-player-bar');
@@ -1724,11 +1811,11 @@ test.describe('touch navigation', () => {
       element.addEventListener('timeupdate', event => event.stopImmediatePropagation(), true);
     });
     for (const rate of [0.1, 1, 1.5]) {
-      await page.getByTitle('Playback speed', { exact: true }).tap();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await speed.press('Home');
       for (let step = 0; step < Math.round((rate - 0.1) / 0.05); step += 1) await speed.press('ArrowUp');
-      await page.getByTitle('Playback speed', { exact: true }).tap();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
       await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 3; });
       await page.getByTitle('Play', { exact: true }).tap();
       await expect(audio).toHaveAttribute('src', /^blob:/);
@@ -1787,7 +1874,7 @@ test.describe('touch navigation', () => {
     await expect(next).toBeEnabled();
     await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '0');
     await page.locator('.observation-text').tap();
-    await page.getByTitle('Playback speed', { exact: true }).tap();
+    await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
     await next.tap();
     await next.tap();
     await expect(page.getByRole('slider', { name: 'Playback speed', exact: true })).toHaveCount(0);
@@ -1799,48 +1886,93 @@ test.describe('touch navigation', () => {
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test.describe(`dark settings ${viewport.width}`, () => {
     test.use({ viewport });
-    test('keyboard focus has no outlines and Tab and Space still operate controls', async ({ page }, testInfo) => {
+    test('keyboard focus is visible while pointer focus stays unhighlighted', async ({ page }, testInfo) => {
       const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
       await wordImageFixture(page);
-      const expectNoOutlines = async () => {
-        expect(await page.evaluate(() => [...document.querySelectorAll('*')].filter(element => {
-          const style = getComputedStyle(element);
-          return element.getClientRects().length > 0 && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
-        }).map(element => element.className))).toEqual([]);
-      };
-      const focusVisibleControls = async () => {
-        for (const control of await page.locator('button:enabled, input:enabled, textarea:enabled, select:enabled, a[href], [role="slider"]').all()) {
-          if (!await control.isVisible()) continue;
-          await control.focus();
-          await expectNoOutlines();
-        }
+      const expectKeyboardOutline = async (control: Locator) => {
+        await expect(control).toBeFocused();
+        await expect(control).toHaveCSS('outline-style', 'solid');
+        await expect(control).toHaveCSS('outline-width', '2px');
       };
       await page.locator('.nav-zone-left').focus();
       await page.keyboard.press('Tab');
-      await expect(page.getByTitle('Play', { exact: true })).toBeFocused();
-      await expectNoOutlines();
-      await page.keyboard.press('Space');
-      await expect(page.locator('audio')).toHaveJSProperty('paused', false);
-      await expectNoOutlines();
-      await page.keyboard.press('Space');
-      await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+      await expectKeyboardOutline(page.getByRole('slider', { name: 'Audio position', exact: true }));
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('slider', { name: 'Precise audio position', exact: true })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('keyboard-player.png') });
-      await focusVisibleControls();
-      await page.getByTitle('Playback speed', { exact: true }).click();
-      await page.getByRole('slider', { name: 'Playback speed', exact: true }).focus();
-      await expectNoOutlines();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true })).toHaveCSS('outline-style', 'none');
+      await page.keyboard.press('Tab');
+      await expectKeyboardOutline(page.locator(':focus'));
       await page.mouse.click(10, 10);
+      await page.locator('.observation-text').click({ button: 'right' });
+      const menu = page.getByRole('menu');
+      await expect(menu).toBeVisible();
+      await menu.getByRole('menuitem').first().focus();
+      await page.keyboard.press('Tab');
+      await expectKeyboardOutline(menu.getByRole('menuitem').nth(1));
+      await page.keyboard.press('Shift+Tab');
+      await expectKeyboardOutline(menu.getByRole('menuitem').first());
+      await page.screenshot({ path: testInfo.outputPath('keyboard-menu.png') });
+      await page.keyboard.press('Escape');
       await doubleClickWord(page, 'అవును');
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.keyboard.press('Tab');
-      await expectNoOutlines();
+      const closeWord = page.getByRole('button', { name: 'Close word profile', exact: true });
+      await closeWord.focus();
+      await expectKeyboardOutline(closeWord);
       await page.keyboard.press('Escape');
       await openSettings(page);
-      await focusVisibleControls();
-      await page.getByRole('button', { name: 'Display: Image generation', exact: true }).click();
-      await page.getByLabel('Image prompt', { exact: true }).focus();
-      await expectNoOutlines();
+      await page.locator('.settings-close').focus();
+      await page.keyboard.press('Tab');
+      await expectKeyboardOutline(page.locator('.settings-screen :focus'));
+      await page.locator('.language-toggle').focus();
+      await page.keyboard.press('Space');
+      await expect(page.locator('.settings-header h1')).not.toHaveText('Settings');
+      await expectKeyboardOutline(page.locator('.language-toggle'));
       await page.screenshot({ path: testInfo.outputPath('keyboard-settings.png') });
+      expect(fixture.errors).toEqual([]);
+    });
+    test('buttons highlight on mouse hover without lingering focus or icon tooltips', async ({ page }, testInfo) => {
+      const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+      await wordImageFixture(page);
+      const expectMouseFeedback = async (button: Locator) => {
+        await page.mouse.move(0, 0);
+        const resting = await controlAppearance(button);
+        await button.hover();
+        await expect(button).not.toHaveCSS('background-color', resting.background);
+        await expect(button).not.toHaveAttribute('title');
+        await page.mouse.down();
+        await expect(button).not.toHaveCSS('background-color', resting.background);
+        await expect(button).toHaveCSS('outline-style', 'none');
+        await page.mouse.move(0, 0);
+        await page.mouse.up();
+        if (await button.isVisible()) await expect.poll(() => controlAppearance(button)).toEqual(resting);
+      };
+      await page.locator('.observation-text').click({ button: 'right' });
+      const menu = page.getByRole('menu');
+      await expect(menu).toBeVisible();
+      await expectMouseFeedback(menu.getByRole('menuitem').first());
+      await page.keyboard.press('Escape');
+      await doubleClickWord(page, 'అవును');
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expectMouseFeedback(page.locator('.word-profile-action').first());
+      await expect(page.locator('button[title]')).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await openSettings(page);
+      for (const selector of ['.settings-close', '.language-toggle', '.settings-index button:first-child']) {
+        await expectMouseFeedback(page.locator(selector));
+      }
+      if (viewport.width >= 960) {
+        await expectMouseFeedback(page.locator('.settings-rail-disclosure').first());
+        await expectMouseFeedback(page.locator('.settings-rail-link').last());
+      }
+      await page.locator('.language-toggle').hover();
+      await page.screenshot({ path: testInfo.outputPath('pointer-settings-hover.png') });
+      await page.getByRole('button', { name: 'Display', exact: true }).click();
+      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      await expectMouseFeedback(page.getByRole('button', { name: 'Reset colors', exact: true }));
+      await expect(page.locator('button[title]')).toHaveCount(0);
       expect(fixture.errors).toEqual([]);
     });
     test('inline fields retain one focus indicator', async ({ page }, testInfo) => {
@@ -2207,7 +2339,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         if (magnifierPosition === 'above') expect(panel.y + panel.height).toBeLessThan(coarse.y);
         else expect(panel.y).toBeGreaterThan(coarse.y + coarse.height);
         await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
-        await page.getByTitle('Playback speed', { exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
       }
       expect(fixture.errors).toEqual([]);
@@ -2255,7 +2387,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(bar).toHaveCSS('opacity', '1');
       await expect(audio).toHaveJSProperty('paused', false);
       await scrubber.press('Enter');
-      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
       await expect(page.locator('.audio-speed-popover')).toBeVisible();
       await swipeReader(page, 1);
       await expect(bar).toHaveCSS('opacity', '0');
@@ -2325,7 +2457,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(bar).toHaveCSS('opacity', '1');
         await scrubber.press('Enter');
         await expect(page.locator('.audio-magnifier')).toBeVisible();
-        if (mode === 'speed') await page.getByTitle('Playback speed', { exact: true }).click();
+        if (mode === 'speed') await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
         const exiting = await sampleSlide(-100);
         expect(exiting.transforms).toBe(2);
         expect(exiting.x).toBeGreaterThan(-56);
@@ -2405,7 +2537,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await scrubber.click({ position: { x: coarse.width / 2, y: coarse.height / 2 } });
         await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
         await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });
-        await page.getByTitle('Playback speed', { exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
         await expect(lens).toHaveCount(0);
         await expect(page.locator('.audio-scrubber-window')).toHaveCount(0);
@@ -2421,15 +2553,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.15);
         await speed.click({ position: { x: speedBox.width / 2, y: speedBox.height / 2 } });
         await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.8);
-        await page.getByTitle('Playback speed', { exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
         await expect(speed).toHaveCount(0);
         await expect(lens).toBeVisible();
         await expect(page.locator('.audio-scrubber-window')).toBeVisible();
         expect((await actions.boundingBox())!.y).toBeCloseTo(buttons.y);
-        await page.getByTitle('Playback speed', { exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
         await speed.press('Escape');
         await expect(lens).toBeVisible();
-        await expect(page.getByTitle('Playback speed', { exact: true })).toBeFocused();
+        await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true })).toBeFocused();
         expect(fixture.errors).toEqual([]);
       });
     }
@@ -2531,7 +2663,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.mouse.move(bar.x + bar.width + 1, bar.y + bar.height / 2);
       await page.mouse.up();
       await expect(scrubber).toHaveAttribute('aria-valuenow', '20');
-      const speedButton = (await page.getByTitle('Playback speed', { exact: true }).boundingBox())!;
+      const speedButton = (await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).boundingBox())!;
       const bookmarkButton = (await player.locator('.audio-bookmark-button').boundingBox())!;
       const playButton = (await page.getByTitle('Play', { exact: true }).boundingBox())!;
       const endThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
@@ -2552,7 +2684,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const startThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
       expect(startThumb.x + startThumb.width / 2).toBeCloseTo(bar.x, 0);
 
-      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await withinViewport(page.locator('.audio-speed-popover'), page);
       await withinViewport(page.locator('.audio-speed-readout'), page);
@@ -2605,7 +2737,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const settings = (await page.locator('.settings-trigger').boundingBox())!;
       expect(viewport.width - settings.x - settings.width).toBe(20);
       expect(viewport.height - settings.y - settings.height).toBe(16);
-      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
       await page.locator('.nav-zone-right').click();
       await expect(speed).toHaveCount(0);
       expect(fixture.navigationCount()).toBe(0);
@@ -2712,7 +2844,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.locator('audio')).toHaveJSProperty('paused', false);
       await revealControls(page, true);
       await page.getByTitle('Pause', { exact: true }).click();
-      await page.getByTitle('Playback speed', { exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
       await page.mouse.move(160, 120);
       await page.clock.fastForward(5000);
       await expect(player).toHaveCSS('opacity', '1');

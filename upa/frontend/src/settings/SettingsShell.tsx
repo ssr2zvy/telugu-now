@@ -118,7 +118,6 @@ export function SettingsShell({
         className="settings-rail-toggle"
         type="button"
         aria-label={railToggleLabel}
-        title={railToggleLabel}
         aria-expanded={!railCollapsed}
         aria-controls="settings-rail"
         onClick={() => setRailCollapsed((collapsed) => !collapsed)}
@@ -130,7 +129,6 @@ export function SettingsShell({
         type="button"
         aria-label={t(language, 'close')}
         onClick={onClose}
-        title={t(language, 'close')}
       >
         <X size={20} aria-hidden="true" />
       </button>
@@ -150,7 +148,6 @@ export function SettingsShell({
                     className="settings-rail-disclosure"
                     type="button"
                     aria-label={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group, language)}`}
-                    title={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group, language)}`}
                     aria-expanded={!collapsedGroups[group]}
                     aria-controls={`settings-rail-${group}`}
                     onClick={() => setCollapsedGroups(current => ({ ...current, [group]: !current[group] }))}
@@ -181,7 +178,6 @@ export function SettingsShell({
                 )
               }
               onClick={onBack}
-              title={t(language, 'back')}
             >
               <ChevronLeft size={20} aria-hidden="true" />
             </button>
@@ -211,7 +207,6 @@ export function SettingsShell({
         onClick={
           onToggleLanguage
         }
-        title={language === 'en' ? 'తెలుగు' : 'English'}
       >
         <LanguageIcon />
       </button>

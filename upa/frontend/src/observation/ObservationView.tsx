@@ -343,7 +343,6 @@ export function ObservationView({
             className="observation-start"
             type="button"
             aria-label="Start observations"
-            title="Start observations"
             onClick={(event) => {
               event.stopPropagation();
               void move('next');

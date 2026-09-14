@@ -159,6 +159,45 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   const [error, setError] = useState(false);
   const pending = useRef<UpdateProfilePreferences>({});
   const saving = useRef(false);
+  const appearanceRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let pressed: { button: HTMLButtonElement; pointerId: number } | null = null;
+    const clear = () => {
+      pressed?.button.removeAttribute('data-touch-pressed');
+      pressed = null;
+    };
+    const start = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch' || !event.isPrimary) return;
+      clear();
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      if (!button || button.disabled || !appearanceRoot.current?.contains(button)) return;
+      pressed = { button, pointerId: event.pointerId };
+      button.setAttribute('data-touch-pressed', '');
+    };
+    const move = (event: PointerEvent) => {
+      if (!pressed || event.pointerId !== pressed.pointerId) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      if (!target || !pressed.button.contains(target)) clear();
+    };
+    const end = (event: PointerEvent) => {
+      if (event.pointerId === pressed?.pointerId) clear();
+    };
+    document.addEventListener('pointerdown', start, true);
+    document.addEventListener('pointermove', move, true);
+    document.addEventListener('pointerup', end, true);
+    document.addEventListener('pointercancel', end, true);
+    document.addEventListener('visibilitychange', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      clear();
+      document.removeEventListener('pointerdown', start, true);
+      document.removeEventListener('pointermove', move, true);
+      document.removeEventListener('pointerup', end, true);
+      document.removeEventListener('pointercancel', end, true);
+      document.removeEventListener('visibilitychange', clear);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
   useEffect(() => {
     if (!profileCode) return;
     let cancelled = false;
@@ -229,7 +268,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   } as CSSProperties;
   return (
     <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
-      <div className="appearance-root" style={style}>
+      <div ref={appearanceRoot} className="appearance-root" style={style}>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
         {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading">
           <div className="entry-wrap">

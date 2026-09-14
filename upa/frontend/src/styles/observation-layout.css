@@ -7,7 +7,9 @@
 }
 .observation-placeholder { color: var(--muted); font-size: 3rem; line-height: 1; user-select: none; }
 .observation-start { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
-.observation-start:hover { background: var(--wash); }
+@media (hover: hover) and (pointer: fine) {
+  .observation-start:hover, .settings-trigger:hover, .audio-transport-button:hover { background: var(--wash); }
+}
 .settings-trigger, .audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .settings-visible .settings-trigger,
 .controls-visible .audio-player-bar { opacity: 1; pointer-events: auto; transition-duration: 0ms; }

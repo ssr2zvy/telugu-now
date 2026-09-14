@@ -10,9 +10,11 @@
 .word-profile-header h2 { min-width: 0; font-family: 'Noto Sans Telugu', sans-serif; font-size: 1.7rem; line-height: 1.8; font-weight: 500; margin: 0; overflow-wrap: anywhere; }
 .word-profile-ending { color: color-mix(in srgb, var(--foreground) 58%, var(--surface)); }
 .word-profile-close { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
-.word-profile-close:hover, .word-profile-action:hover { background: var(--wash); }
 .word-image-section { min-width: 0; }
 .word-profile-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; border: 0; border-radius: 6px; padding: 8px; color: inherit; background: transparent; cursor: pointer; font-size: .8rem; }
+@media (hover: hover) and (pointer: fine) {
+  .word-profile-close:hover, .word-profile-action:hover { background: var(--wash); }
+}
 .word-profile-action:disabled { opacity: .6; cursor: default; }
 .word-image-regenerate { min-width: 160px; margin-top: 8px; }
 .word-image-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 1; background: var(--wash); border: 1px solid var(--line); overflow: hidden; color: var(--muted); }

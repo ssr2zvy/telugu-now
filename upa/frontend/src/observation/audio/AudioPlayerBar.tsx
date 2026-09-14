@@ -146,7 +146,6 @@ export function AudioPlayerBar({
             className="audio-transport-button audio-bookmark-button"
             type="button"
             aria-label="బుక్‌మార్క్‌లు"
-            title="Bookmarks: click to return, double-click to add, triple-click to remove"
             disabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
             onClick={player.clickBookmarkButton}
           >
@@ -159,7 +158,6 @@ export function AudioPlayerBar({
             className="audio-transport-button audio-speed-button"
             type="button"
             aria-label="ప్లేబ్యాక్ వేగం"
-            title="Playback speed"
             aria-expanded={speedPopoverOpen}
             onClick={() => dispatchPrecision('toggle-speed')}
           >
@@ -182,7 +180,7 @@ export function AudioPlayerBar({
       </div> : null}
       {bookmarkError || (!onPlaybackErrorChange && player.playbackError) ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
-        {bookmarkError ? <button type="button" className="audio-transport-button" title="Retry bookmarks" aria-label="Retry bookmarks"
+        {bookmarkError ? <button type="button" className="audio-transport-button" aria-label="Retry bookmarks"
           disabled={player.bookmarksBusy} onClick={player.retryBookmarks}><RotateCw size={16} aria-hidden="true" /></button> : null}
       </div> : null}
     </div>
