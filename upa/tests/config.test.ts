@@ -148,14 +148,20 @@ test('controller requires local prepared data but never generates a corpus for T
   fs.mkdirSync(scratch, { recursive: true });
   t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
   const npmStub = path.join(scratch, 'npm');
-  fs.writeFileSync(npmStub, '#!/usr/bin/env bash\nprintf "npm %s\\n" "$*"\n', { mode: 0o755 });
+  fs.writeFileSync(npmStub, `#!/usr/bin/env bash
+printf 'npm %s\\n' "$*"
+printf 'dev-config:%s|%s|%s|%s|%s|%s\\n' "$CORPUS_BACKEND" "$CORPUS_AVAILABILITY_WORKER_ENABLED" "$CORPUS_AVAILABILITY_REBUILD_ON_STARTUP" "$DATA_DIRECTORY" "$CORPUS_DATABASE_PATH" "$API_DEV_PORT"
+`, { mode: 0o755 });
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of environmentKeys) delete env[key];
+  delete env.API_DEV_PORT;
   Object.assign(env, { DATA_DIRECTORY: path.join(scratch, 'mount'), PATH: `${scratch}:${process.env.PATH}` });
   fs.mkdirSync(path.join(scratch, 'upa'));
   fs.mkdirSync(path.join(scratch, 'local-machine'));
   const controller = path.join(scratch, 'local-machine', 'control_local.sh');
   fs.copyFileSync(path.join(repositoryDirectory, 'local-machine', 'control_local.sh'), controller);
+  const devEnvironment = path.join(scratch, 'local-machine', 'dev.env');
+  fs.copyFileSync(path.join(repositoryDirectory, 'local-machine', 'dev.env'), devEnvironment);
   const args = [controller, 'dev', '--option', 'start'];
   const local = spawnSync('bash', args, { env, encoding: 'utf8' });
   assert.notEqual(local.status, 0);
@@ -176,4 +182,39 @@ test('controller requires local prepared data but never generates a corpus for T
   });
   assert.equal(prepared.status, 0, prepared.stderr);
   assert.match(prepared.stdout, /^npm run dev$/m);
+  assert.deepEqual(prepared.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
+    'local', 'false', 'true', path.join(scratch, 'mount'), path.join(corpusPath, 'catalog.sqlite'), '8787',
+  ]);
+
+  const overridden = spawnSync('bash', args, {
+    env: { ...env, CORPUS_BACKEND: 'tigris', CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: 'false', API_DEV_PORT: '9898' },
+    encoding: 'utf8',
+  });
+  assert.equal(overridden.status, 0, overridden.stderr);
+  assert.deepEqual(overridden.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
+    'tigris', 'false', 'false', path.join(scratch, 'mount'), path.join(scratch, 'mount/corpus/corpus.sqlite'), '9898',
+  ]);
+
+  const defaultsEnv = { ...env };
+  delete defaultsEnv.DATA_DIRECTORY;
+  const defaultCorpus = path.join(scratch, 'data/corpus');
+  fs.mkdirSync(defaultCorpus, { recursive: true });
+  fs.writeFileSync(path.join(defaultCorpus, 'corpus.sqlite'), '');
+  fs.writeFileSync(path.join(defaultCorpus, 'manifest.json'), '{}');
+  const defaults = spawnSync('bash', args, { env: defaultsEnv, cwd: '/', encoding: 'utf8' });
+  assert.equal(defaults.status, 0, defaults.stderr);
+  assert.deepEqual(defaults.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
+    'local', 'false', 'true', path.join(scratch, 'data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
+  ]);
+
+  fs.unlinkSync(devEnvironment);
+  const missing = spawnSync('bash', args, { env, encoding: 'utf8' });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /dev\.env/);
+  assert.doesNotMatch(missing.stdout, /^npm run dev$/m);
+  for (const domain of ['dev', 'data', 'test', 'build', 'deps']) {
+    const exited = spawnSync('bash', [controller, domain, '--option', 'exit'], { env, encoding: 'utf8' });
+    assert.equal(exited.status, 0, exited.stderr);
+    assert.doesNotMatch(exited.stderr, /dev\.env/);
+  }
 });

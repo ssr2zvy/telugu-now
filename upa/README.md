@@ -48,7 +48,7 @@ local-machine/data-transform/.venv/bin/python -m pip install -r local-machine/da
 PYTHON="$PWD/local-machine/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
 local-machine/data-transform/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
 ```
-The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus outputs are Git-ignored. Data operations do not stage files or create Git commits. The local 100-row subsets and how to replace them with full datasets are documented in the [data-transformation README](../local-machine/data-transform/readme.md); their one-time reduction is not a pipeline stage.
+The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, and temporary corpus outputs are Git-ignored. The prepared 300-row dummy corpus and its audio are deliberately tracked; existing ignore rules apply only to untracked files, not changes to that fixture. Data operations do not stage files or create Git commits. The local 100-row subsets and how to replace them with full datasets are documented in the [data-transformation README](../local-machine/data-transform/readme.md); their one-time reduction is not a pipeline stage.
 `./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
@@ -71,13 +71,32 @@ Start development:
 ```bash
 ./local-machine/control_local.sh dev
 ```
-By default, startup uses an existing compatible `availability.sqlite` without
-rebuilding it. After preparing a new corpus, explicitly build availability once:
+Dev startup sources [local-machine/dev.env](../local-machine/dev.env) before
+checking the corpus or launching npm. This checked-in Bash file contains the
+non-secret local defaults: repository-relative data paths, local corpus storage,
+ports, profile codes, availability switches, and sampling/playback settings.
+It is loaded only when starting dev, not by data, build, test, dependency, stop,
+or exit operations. Paths are resolved from the repository, not the calling
+directory. Do not source it manually; the controller supplies `REPO_DIR`.
+
+Each `export NAME="${NAME-default}"` preserves an already-set environment value.
+Edit the fallback after `-` to change a local default, or set an environment
+variable for a single command. Explicitly empty values are preserved for runtime
+validation. Do not put credentials in this tracked file; optional image generation
+still uses `pollinations_api_key` from the environment or the Git-ignored root
+`env` file. Local corpus access does not require AWS/Tigris credentials.
+
+The local defaults disable the background availability worker and rebuild
+`availability.sqlite` before serving on each start, including after preparing a
+new corpus. To reuse an existing compatible snapshot instead:
 ```bash
-CORPUS_AVAILABILITY_WORKER_ENABLED=false CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true ./local-machine/control_local.sh dev --option start
+CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false ./local-machine/control_local.sh dev --option start
 ```
 Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
 periodic refreshes. These controls apply to both local and Tigris backends.
+Direct `npm run dev` or built-server startup does not load this file; without
+environment overrides the app still requires an existing availability snapshot.
+Fly uses its own environment from `fly.toml` and secrets, unchanged by this file.
 The browser app is served by Vite on port `5173`. The Hono API runs on `127.0.0.1:8787`. Vite binds to `0.0.0.0` so development-container/Codespaces forwarding can expose the UI.
 The configured prototype profile code is `001`.
 ## Build and tests
@@ -693,7 +712,11 @@ or stop the app cleanly before copying. Back up `data/user/users.sqlite`, the co
 Include any retained raw/sample inputs and legacy user database when backing up
 global/user data, respectively. With Tigris, back up or retain/version the bucket's
 audio objects separately; a volume backup does not contain remote audio bytes.
-User databases, sidecars, image files and corpus data are Git-ignored.
+The dummy user database and prepared corpus are committed for local testing.
+Stop the app and checkpoint SQLite before committing updated test databases;
+runtime WAL/SHM files are not substitutes for their main databases. Image files
+and untracked corpus outputs remain Git-ignored. Never commit real user data or
+full-dataset replacements inadvertently.
 Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
 current playback position, randomly activated fonts, UI navigation/collapse state,
 active profile session and in-memory export artifacts are not durable storage.
