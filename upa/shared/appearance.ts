@@ -31,6 +31,8 @@ export interface AppearanceSettings {
   showMagnifierHighlight: boolean;
   /** Autoplay on entering a normal observation; unrelated to resuming after a natural end. */
   autoplayAudio: boolean;
+  /** Renders gunintalu/vattulu in a more saturated shade of the text color. */
+  highlightMods: boolean;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   autoFadeSeconds: number;
@@ -52,6 +54,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   showAudioTimestamp: false,
   showMagnifierHighlight: true,
   autoplayAudio: true,
+  highlightMods: true,
   magnifierPosition: 'below',
   scrollMode: true,
   autoFadeSeconds: 15,
@@ -93,6 +96,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       ? candidate.showMagnifierHighlight : DEFAULT_APPEARANCE.showMagnifierHighlight,
     autoplayAudio: typeof candidate.autoplayAudio === 'boolean'
       ? candidate.autoplayAudio : DEFAULT_APPEARANCE.autoplayAudio,
+    highlightMods: typeof candidate.highlightMods === 'boolean'
+      ? candidate.highlightMods : DEFAULT_APPEARANCE.highlightMods,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
     scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,

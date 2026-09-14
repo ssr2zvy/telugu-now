@@ -205,6 +205,10 @@ for (const [column, definition] of [
   ['preparation_retry_at', 'INTEGER'],
   ['preparation_error', 'TEXT'],
   ['repeat_snapshot_json', 'TEXT'],
+  ['display_kind', "TEXT NOT NULL DEFAULT 'normal'"],
+  ['question_mode', 'TEXT'],
+  ['question_pool', 'TEXT'],
+  ['question_keyboard', 'TEXT'],
 ] as const) {
   if (!columnExists('observations', column)) db.exec(`ALTER TABLE observations ADD COLUMN ${column} ${definition}`);
 }

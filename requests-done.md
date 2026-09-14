@@ -303,3 +303,147 @@ tests and Playwright specs are handled in a separate final phase.
   `[data-reveal-direction='-1']` flips the slit to the opposite edge and flips the
   inner `translateX(56px)` offset. Because the attribute is only updated when the
   controls are hidden, the exit animation reverses the same slide.
+
+## Batch 3
+
+### Question observations and sampling
+
+Thirty percent of displays are now questions. `server/src/services/question-service.ts`
+holds `planNextDisplay()`, which rolls `QUESTION_PROBABILITY = 0.3` for the display
+kind, then `AUDIO_GIVEN_PROBABILITY = 0.6` to decide whether the question gives the
+audio (asking for text) or gives the text (asking for a recording), and finally
+`QUESTION_SEEN_PROBABILITY = 0.75` to pick the pool the answer sentence is drawn
+from. `shared/contracts.ts` gained `ObservationDisplayKind`, `QuestionMode`,
+`QuestionKeyboard` and `ObservationQuestion`, and `DisplayObservation` now carries
+`displayKind` and `question`. The plan is persisted with the observation through new
+`display_kind`, `question_mode`, `question_pool` and `question_keyboard` columns in
+`server/src/db/database.ts`, so a question is stable across reloads rather than
+re-rolled on every fetch.
+
+The seen/unseen pools use `recording_displays` as the source of truth.
+`selectAllowedRow()` in `queue-service.ts` redraws up to `POOL_REDRAW_ATTEMPTS = 40`
+times looking for a row matching the planned pool, on top of the existing blacklist
+filter, and falls back to whatever is allowed when a pool has no rows at all
+(`poolHasAnySeenRow()` short-circuits that case). `profile-service.ts` selects and
+exposes the new columns.
+
+Answering a text question uses a virtual keyboard rather than the device keyboard.
+`frontend/src/observation/question/keyboards.ts` implements three authentic layouts
+— Windows InScript, Mac Standard and Chromebook Dictation (phonetic) — reproducing
+the real key positions and behaviour, in the app's existing minimal visual style.
+`VirtualKeyboard.tsx` implements shift, backspace, and space/newline flush, and the
+phonetic layout buffers keystrokes through `transliterate()` so multi-key sequences
+resolve the way the real Chromebook input method resolves them. A keyboard is chosen
+per question and stored in `question_keyboard`.
+
+Answering an audio question records the user. `useAnswerRecorder.ts` wraps
+MediaRecorder and, because re-recording must continue from the playhead rather than
+start over, decodes the existing take through the Web Audio API, splices at the
+current position and re-encodes to WAV. Per the clarification, recordings live only
+in the client and are discarded when the observation is left; nothing is uploaded.
+
+`QuestionView.tsx` renders both question directions, driven by the Toggle Trigger
+setting. Submitting opens `AnswerView.tsx`, which is the split screen that was asked
+for rather than a normal observation: the real observation occupies the right three
+quarters with the full normal-observation UI and all of its functionality intact,
+and the user's own answer occupies the left quarter — an audio bar with the same
+feature set when the question was text-given, or the typed text in the same font
+formatting when the question was audio-given. On mobile and other vertical displays
+the quarter moves to the top and the three quarters below.
+`ObservationView.tsx` routes `displayKind === 'question'` to `QuestionView` and then
+to `AnswerView` after submission. Because the question screens need a deliberate
+reveal, the Appearance page's Scroll Mode switch became a Toggle Trigger radio pair
+(Scroll Mode / Tap Mode). Question, keyboard and answer-split styles were appended to
+`observation-layout.css`.
+
+### Telugu letter-modification highlighting
+
+`frontend/src/observation/letter-mods.ts` splits observation text into base letters
+and modifications, classifying matras, anusvara/visarga and virama-subjoined
+consonants (vattus) as modifications by walking each grapheme cluster; a virama pulls
+the consonant that follows it into the same modification span.
+`ObservationText.tsx` renders those spans as `.letter-mod` elements. The colour is a
+real appearance setting: `highlightMods` was added to `shared/appearance.ts` (default
+on, validated in `parseAppearance`), and `appearanceModColor()` in `appearance.tsx`
+publishes `--letter-mod-color`. Wrapping the text in spans broke `wordAtPoint`, which
+had assumed the caret's text node was the element's only child; it was rewritten with
+a TreeWalker-based `locate()` that rebases caret offsets across the span nodes in
+both directions, so word double-tap still selects the right word.
+
+### Custom cursor
+
+`appearance.tsx` gained `appearanceCursorColor()` and `cursorImage()`, which build
+SVG data-URI cursors in the appearance colour and publish them as
+`--cursor-default`, `--cursor-pointer`, `--cursor-text` and `--cursor-resize`.
+`base.css` applies them through `:where()` rules confined to
+`@media (hover: hover) and (pointer: fine)`, so touch devices are unaffected and the
+rules stay at zero specificity, letting any component override them.
+
+### Password gate
+
+`server/src/services/access-gate-service.ts` verifies a shared password against a
+scrypt hash (`scrypt$<saltHex>$<keyHex>`) held in `ACCESS_PASSWORD_HASH`, and on
+success issues an HMAC-signed `tn_gate` cookie keyed by `ACCESS_SESSION_SECRET`,
+per the clarification that the gate is a single shared password with the hash in a
+Fly secret and a signed session cookie. It exposes `GET /api/gate` and
+`POST /api/gate` plus `gateEnabled`/`gateSatisfied`; `config.ts` reads both secrets
+and `app.ts` mounts the routes together with a guard middleware over
+`/api/profiles/*`. `frontend/src/profile/PasswordGate.tsx` is a real
+username + password form so password managers detect and offer to save it, and
+`App.tsx` fetches `/api/gate` and renders the gate whenever the app is locked. Gate
+styles were added to `profile.css`. The gate is inert when the secrets are unset, so
+local development is unchanged.
+
+### Word view and image catalog
+
+Double-tapping a word now opens a full-page word view: `.word-profile` was changed
+from a 520px dialog to a full-viewport surface, and `WordProfile.tsx` was rebuilt
+around a `Page` union (`word`, `image`, `search`, `letter`) so every image and search
+view opens inside the app's standardized navigation and layout rather than replacing
+it. The word sits alone at the top, with a copy icon and icon-only Generate and
+Search actions beneath it.
+
+The regeneration system is gone, replaced by a per-word catalog.
+`server/src/services/word-catalog-store.ts` defines the `word_image_catalog` table
+(id, root, mime_type, file, created_at, sentence, prompt, source, source_url),
+deduplicates identical bytes, and adopts pre-catalog single images through
+`adoptLegacy()` so no existing image is lost. `POST /api/word-images` now appends to
+the catalog and returns the whole updated catalog instead of replacing the previous
+image, and the `regenerate` query path, the `allowRegeneration` preference, its
+Settings toggle and its field in `ImageSettings` were all removed.
+
+The image view uses the whole page. Tapping the image toggles the Back, `(i)`,
+Exit and Next controls into and out of view, matching the raw clarification that Exit
+belongs among them and that a single tap toggles them. Next walks forward through the
+existing catalog entries; when the last entry is reached Next becomes the generation
+action and creates another image, which is appended and shown. The `(i)` control
+opens metadata for that specific image: when it was added, whether it was generated or
+found by search, the sentence that was on screen at the time, the rendered prompt, and
+the upstream page for searched images.
+
+Prompt placeholders were loosened as requested: `validImagePrompt()` no longer
+requires `<core word>`, which remains supported, and `renderImagePrompt()` now also
+substitutes the new `<sentence>` placeholder with the full sentence that was present
+when the word was tapped. The Settings page labels both as optional placeholders. The
+raw notes phrased this in terms of "regeneration"; since regeneration is replaced by
+the catalog, the sentence is threaded through every catalog addition instead.
+
+Each letter at the top of the word view is double-tappable, opening an
+observation-like letter page holding only that letter and an audio recording speaking
+it, with a back control in the top left. A single tap does nothing, per the
+clarification that this is double-tap activation, not single-click. The speech is
+Pollinations TTS through `generateLetterSpeech()` in
+`server/src/services/shared-media-service.ts`.
+
+Generic web image search is integrated through Serper.dev (`searchImages()`), with
+the credential read from the `SERPER_API_KEY` Fly secret as clarified. Chosen results
+are downloaded server-side and written into the same catalog, so searched images are
+stored permanently alongside generated ones; only URLs present in the cached result
+set may be fetched, so the endpoint is not an open proxy. Both TTS and search results
+live in shared tables (`letter_tts`, `image_search_cache`) keyed only by the request,
+so when any user asks for the same letter or the same word, the stored result is
+reused and no external request is repeated. `word-images.ts` was rewritten onto the
+catalog, search, save and letter-audio endpoints.
+
+Serper.dev credential and cost documentation is tracked by the separate `tokens.md`
+and `costs.md` points and is handled in the batch that covers those.

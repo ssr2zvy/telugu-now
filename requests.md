@@ -165,7 +165,7 @@ Implemented; see `requests-done.md`.
 - Replace the current effect that appears to collapse the bar toward its center.
 - Keep the entry and exit motion consistent with the direction of the gesture.
 
-## Question observations and sampling
+## Question observations and sampling — done
 
 - Introduce questions as another type of displayed observation.
 - Display normal observations, as already defined, with 70% probability and
@@ -210,7 +210,7 @@ Implemented; see `requests-done.md`.
 
 - The answer page looks like the normal observation page for that observation.
 
-## Telugu letter-modification highlighting
+## Telugu letter-modification highlighting — done
 
 - Add an Appearance setting named Highlight Mods and enable it by default.
 - Identify the base letter and leave it in its existing text color.
@@ -220,14 +220,14 @@ Implemented; see `requests-done.md`.
   retain this uncertainty rather than treating the precise linguistic scope as
   already resolved.
 
-## Custom cursor
+## Custom cursor — done
 
 - Add a custom cursor wherever the site uses a cursor, mainly applicable to
   desktop browsers.
 - Derive its color from the gradient and choose a pragmatically appropriate
   darker or lighter variant so it is distinguishable.
 
-## Password gate
+## Password gate — done
 
 - Add a password gate before the user-ID selection/entry step.
 - Store the required password's verification configuration in Fly secrets,
@@ -237,7 +237,7 @@ Implemented; see `requests-done.md`.
 - On later visits, iPhone Safari and other browsers should recognize the site
   and offer the saved password.
 
-## Word view and image catalog
+## Word view and image catalog — done
 
 - Double-clicking/double-tapping a word opens a full-page word view, with the
   word alone at the top.

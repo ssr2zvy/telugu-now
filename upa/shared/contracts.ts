@@ -134,6 +134,19 @@ export interface DisplayRepeatDiagnostic {
   };
 }
 
+export type ObservationDisplayKind = 'normal' | 'question';
+export type QuestionMode = 'audio-given' | 'text-given';
+export type QuestionKeyboard = 'windows-inscript' | 'mac-standard' | 'chromebook-dictation';
+
+export interface ObservationQuestion {
+  /** Which medium is given to the user; they answer in the other medium. */
+  mode: QuestionMode;
+  /** Whether the row was drawn from the seen or unseen pool. */
+  pool: 'seen' | 'unseen';
+  /** Virtual keyboard for audio-given questions; null for text-given ones. */
+  keyboard: QuestionKeyboard | null;
+}
+
 export interface ObservationAudio {
   url: string;
   mimeType: string;
@@ -146,6 +159,8 @@ export interface DisplayObservation {
   sourceKey: string;
   text: string;
   audio: ObservationAudio | null;
+  displayKind: ObservationDisplayKind;
+  question: ObservationQuestion | null;
   diagnostic: ObservationDiagnostic;
 }
 

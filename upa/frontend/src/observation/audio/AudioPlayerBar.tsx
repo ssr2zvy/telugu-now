@@ -29,6 +29,8 @@ export interface AudioPlayerBarHandle {
   resume: () => void;
   isPrecisionOpen: () => boolean;
   hasAudio: () => boolean;
+  /** Current playhead, used when a re-recording continues from the cursor. */
+  currentTime: () => number;
   /** Middle double tap: opens the three transport controls, or closes them together with the magnifier. */
   toggleTransportControls: () => boolean;
   dismissPrecision: () => boolean;
@@ -81,6 +83,7 @@ export function AudioPlayerBar({
     resume: () => { if (!player.playing) player.togglePlay(); },
     isPrecisionOpen: () => magnifierOpen,
     hasAudio: () => Boolean(audio),
+    currentTime: () => player.currentTime,
     toggleTransportControls: () => {
       if (!controlsVisible || !audio) return false;
       if (transportControlsOpen) closePrecision();

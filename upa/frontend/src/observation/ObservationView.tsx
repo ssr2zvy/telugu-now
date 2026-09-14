@@ -22,7 +22,10 @@ import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
 import { ReaderTextMenu, useLongPressMenu } from './ReaderTextMenu';
+import { ObservationText } from './ObservationText';
 import { addBlacklistEntry } from '../api';
+import { QuestionView, type QuestionAnswer } from './question/QuestionView';
+import { AnswerView } from './question/AnswerView';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -102,6 +105,8 @@ export function ObservationView({
   }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
+  const [submittedAnswer, setSubmittedAnswer] = useState<QuestionAnswer | null>(null);
+  useEffect(() => { setSubmittedAnswer(null); }, [observation?.id]);
   useEffect(() => {
     taps.cancel();
     setControlsVisible(false);
@@ -140,9 +145,22 @@ export function ObservationView({
     const position = browserDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
     const range = position ? null : browserDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
     const node = position?.offsetNode ?? range?.startContainer;
-    const offset = position?.offset ?? range?.startOffset;
-    if (!node || node !== element.firstChild || offset === undefined) {
+    const localOffset = position?.offset ?? range?.startOffset;
+    if (!node || localOffset === undefined || !element.contains(node)) {
       return null;
+    }
+    // Highlighted modifications split the text across several nodes, so the
+    // caret offset has to be rebased onto the whole sentence.
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    let found = false;
+    for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+      if (current === node) { offset += localOffset; found = true; break; }
+      offset += current.textContent?.length ?? 0;
+    }
+    if (!found) {
+      if (node !== element) return null;
+      offset = localOffset;
     }
     const word = wordAtOffset(observation.text, offset) ?? wordAtOffset(observation.text, offset - 1);
     const segment = word ? [...new Intl.Segmenter('te', { granularity: 'word' }).segment(observation.text)]
@@ -150,12 +168,44 @@ export function ObservationView({
     if (!segment || !word) {
       return null;
     }
+    const locate = (target: number): { node: Node; offset: number } | null => {
+      const scan = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let seen = 0;
+      for (let current = scan.nextNode(); current; current = scan.nextNode()) {
+        const length = current.textContent?.length ?? 0;
+        if (target <= seen + length) return { node: current, offset: target - seen };
+        seen += length;
+      }
+      return null;
+    };
+    const start = locate(segment.index);
+    const end = locate(segment.index + segment.segment.length);
+    if (!start || !end) return null;
     const hit = document.createRange();
-    hit.setStart(node, segment.index);
-    hit.setEnd(node, segment.index + segment.segment.length);
+    hit.setStart(start.node, start.offset);
+    hit.setEnd(end.node, end.offset);
     const inside = [...hit.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
     return inside ? word : null;
   };
+  if (observation?.displayKind === 'question') {
+    const playbackRate = state?.audioSettings.playbackRate ?? 1;
+    return submittedAnswer ? (
+      <AnswerView
+        key={`${observation.id}:answer-page`}
+        observation={observation}
+        answer={submittedAnswer}
+        playbackRate={playbackRate}
+        onNext={() => { if (canNext) void onMove('next'); }}
+      />
+    ) : (
+      <QuestionView
+        key={observation.id}
+        observation={observation}
+        playbackRate={playbackRate}
+        onSubmit={setSubmittedAnswer}
+      />
+    );
+  }
   return (
     <main
       ref={screenRef}
@@ -300,7 +350,7 @@ export function ObservationView({
             className="observation-text"
             style={typography.style}
           >
-            {observation.text}
+            <ObservationText text={observation.text} />
           </div>
         ) : canNext ? (
           <button
@@ -387,7 +437,8 @@ export function ObservationView({
       ) : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word}
+          sentence={observation?.text ?? ''} onClose={() => setSelectedWord(null)} />
       ) : null}
     </main>
   );

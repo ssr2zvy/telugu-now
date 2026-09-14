@@ -80,6 +80,7 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             textOffset: 0,
             textOffsetOther: 0,
             fonts: [...DEFAULT_APPEARANCE.fonts],
+            highlightMods: DEFAULT_APPEARANCE.highlightMods,
           }))}
         </div>
         {subsection(text('Color', 'రంగు'), (
@@ -93,6 +94,10 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
             'ఆడియో నియంత్రణలను కదపకుండా చదివే అక్షరాలను పైకి లేదా కిందికి కదుపుతుంది.'))}
         {subsection(text('Other', 'ఇతరాలు'), (
           <>
+            <label className="settings-toggle-field">
+              <span>{text('Highlight Mods', 'మార్పులను ఎత్తిచూపు')}</span>
+              <input type="checkbox" role="switch" checked={appearance.highlightMods} onChange={event => updateAppearance({ highlightMods: event.target.checked })} />
+            </label>
             <div className="appearance-position-field">
               <label htmlFor="appearance-fontScale">{text('Type size', 'అక్షరాల పరిమాణం')}</label>
               <div className="appearance-scale">
@@ -113,8 +118,8 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
               </div>
             </div>
           </>
-        ), undefined, text('At least one font stays selected; observations rotate through the chosen fonts.',
-          'కనీసం ఒక ఫాంట్ ఎంపికలో ఉండాలి; పరిశీలనలు ఎంచుకున్న ఫాంట్ల మధ్య మారుతూ ఉంటాయి.'))}
+        ), undefined, text('Highlight Mods leaves each base letter in the text color and draws its modifications in a more saturated shade. At least one font stays selected; observations rotate through the chosen fonts.',
+          'మార్పులను ఎత్తిచూపినప్పుడు మూల అక్షరం అదే రంగులో ఉంటుంది, దానికి చేసిన మార్పులు మరింత గాఢమైన ఛాయలో కనిపిస్తాయి. కనీసం ఒక ఫాంట్ ఎంపికలో ఉండాలి; పరిశీలనలు ఎంచుకున్న ఫాంట్ల మధ్య మారుతూ ఉంటాయి.'))}
       </section>
 
       <section className="appearance-section">
@@ -241,10 +246,18 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
         </div>
         {subsection(text('Other', 'ఇతరాలు'), (
           <>
-            <label className="settings-toggle-field">
-              <span>{text('Scroll mode', 'స్క్రోల్ మోడ్')}</span>
-              <input type="checkbox" role="switch" checked={appearance.scrollMode} onChange={event => updateAppearance({ scrollMode: event.target.checked })} />
-            </label>
+            <fieldset className="appearance-magnifier-position">
+              <legend>{text('Toggle Trigger', 'టోగుల్ ట్రిగ్గర్')}</legend>
+              <div className="appearance-position-options">
+                {([['scroll', text('Scroll Mode', 'స్క్రోల్ మోడ్')], ['tap', text('Tap Mode', 'ట్యాప్ మోడ్')]] as const).map(([option, label]) => (
+                  <label key={option}>
+                    <input type="radio" name="toggle-trigger" value={option} checked={appearance.scrollMode === (option === 'scroll')}
+                      onChange={() => updateAppearance({ scrollMode: option === 'scroll' })} />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <div className="appearance-position-field">
               <label htmlFor="appearance-autoFade">{text('Auto-fade delay', 'దాచే సమయం')}</label>
               <div className="appearance-scale">
@@ -253,8 +266,8 @@ export function AppearancePage({ language }: { language: UiLanguage }) {
               </div>
             </div>
           </>
-        ), undefined, text('Swipe left or right to reveal the audio bar; reverse direction to hide it. Tap anywhere to play or pause. An outside tap dismisses an open magnifier first. Auto-fade hides idle controls after the chosen delay.',
-          'ఆడియో బార్ కోసం ఎడమకు లేదా కుడికి స్వైప్ చేయండి; దాచడానికి వ్యతిరేక దిశలో స్వైప్ చేయండి. ప్లే లేదా పాజ్ కోసం ఎక్కడైనా తాకండి. మాగ్నిఫైయర్ తెరిచి ఉంటే బయట తాకడం ముందు దానిని మూసివేస్తుంది. ఎంచుకున్న సమయం తర్వాత ఖాళీగా ఉన్న నియంత్రణలు దాగిపోతాయి.'))}
+        ), undefined, text('Toggle Trigger decides how controls come in. Scroll Mode: swipe left or right to reveal the audio bar and reverse direction to hide it, while a tap plays or pauses. Tap Mode: tap the bottom third to toggle the controls and tap above it to play or pause. The same trigger brings in the keyboard or Record button on question observations. Auto-fade hides idle controls after the chosen delay.',
+          'నియంత్రణలు ఎలా వస్తాయో టోగుల్ ట్రిగ్గర్ నిర్ణయిస్తుంది. స్క్రోల్ మోడ్: ఆడియో బార్ కోసం ఎడమకు లేదా కుడికి స్వైప్ చేయండి, దాచడానికి వ్యతిరేక దిశలో స్వైప్ చేయండి; తాకితే ప్లే లేదా పాజ్ అవుతుంది. ట్యాప్ మోడ్: కింది మూడో వంతును తాకితే నియంత్రణలు మారతాయి, పైన తాకితే ప్లే లేదా పాజ్ అవుతుంది. ప్రశ్న పరిశీలనలలో కీబోర్డ్ లేదా రికార్డ్ బటన్ కూడా ఇదే ట్రిగ్గర్‌తో వస్తుంది. ఎంచుకున్న సమయం తర్వాత ఖాళీగా ఉన్న నియంత్రణలు దాగిపోతాయి.'))}
       </section>
     </div>
   );

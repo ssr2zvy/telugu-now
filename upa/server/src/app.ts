@@ -9,6 +9,7 @@ import { wordImageRoutes } from './services/word-image-service';
 import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
 import { blacklistRoutes } from './services/blacklist-service';
+import { ACCESS_COOKIE_NAME, accessGateRoutes, gateSatisfied } from './services/access-gate-service';
 import { profileEonsRoutes } from './services/eon-service';
 import {
   InvalidProfileCodeError,
@@ -42,7 +43,22 @@ const app = new Hono();
 sourceRegistry.assertPreparedSourcesPresent();
 migrateLegacyWordImages(db);
 
+const gateConfig = { passwordHash: config.accessPasswordHash, sessionSecret: config.accessSessionSecret };
+
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+app.route('/api', accessGateRoutes(gateConfig));
+
+// Everything behind the gate, including profile selection, requires the cookie.
+app.use('/api/profiles/*', async (c, next) => {
+  const cookie = c.req.header('cookie') ?? '';
+  const token = cookie.split(';').map(part => part.trim())
+    .find(part => part.startsWith(`${ACCESS_COOKIE_NAME}=`))?.slice(ACCESS_COOKIE_NAME.length + 1);
+  if (!gateSatisfied(gateConfig, token ? decodeURIComponent(token) : undefined)) {
+    return c.json({ error: 'locked' }, 401);
+  }
+  await next();
+});
 
 app.get('/api/data-sources', (c) =>
   c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
