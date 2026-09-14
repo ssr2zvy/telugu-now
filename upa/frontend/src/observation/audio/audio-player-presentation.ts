@@ -14,6 +14,9 @@ export const AUDIO_PLAYER_PRESENTATION = {
   magnifierWindowMinSeconds: 0.5,
   magnifierWindowMaxSeconds: 4,
   magnifierWidthPx: 260,
+  // Pointer travel inside the magnifier that turns a click-to-seek into a drag,
+  // which temporarily suspends playback until the drag finishes.
+  magnifierDragPausePx: 8,
   // A run of clicks on the bookmark button is only resolved once no further
   // click arrives within this window.
   bookmarkClickWindowMs: 220,

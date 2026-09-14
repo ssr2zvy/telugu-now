@@ -3,6 +3,36 @@ import { db } from '../db/database';
 import type { AcquisitionTriggerKind, PreparationGroupKind } from '../../../shared/contracts';
 import { selectionEngine } from './selection-engine';
 import { getProfileSelectionSettings } from './selection-settings-service';
+import { blacklistStore } from './blacklist-service';
+
+// A blacklisted row can still be drawn by the weighted sampler. Redraw a bounded
+// number of times rather than distorting the distribution or looping forever.
+const BLACKLIST_REDRAW_ATTEMPTS = 25;
+let blacklist: ReturnType<typeof blacklistStore> | null = null;
+function profileBlacklist() {
+  blacklist ??= blacklistStore(db);
+  return blacklist;
+}
+
+const selectCachedText = db.prepare(
+  'SELECT text FROM source_records WHERE profile_code = ? AND source_id = ? AND source_key = ?',
+);
+
+function selectAllowedRow(profileCode: string) {
+  const settings = getProfileSelectionSettings(profileCode);
+  const store = profileBlacklist();
+  const blockedTexts = store.blacklistedTexts(profileCode);
+  let selected = selectionEngine.select(settings);
+  if (blockedTexts.size === 0) return selected;
+  for (let attempt = 0; attempt < BLACKLIST_REDRAW_ATTEMPTS; attempt += 1) {
+    const cached = selectCachedText.get(profileCode, selected.sourceId, selected.sourceKey) as { text: string } | undefined;
+    const blocked = store.isBlacklisted(profileCode, selected.sourceId, selected.sourceKey)
+      || (cached !== undefined && blockedTexts.has(cached.text));
+    if (!blocked) return selected;
+    selected = selectionEngine.select(settings);
+  }
+  return selected;
+}
 
 interface CountRow { count: number }
 interface MaxRow { max_position: number | null }
@@ -88,8 +118,7 @@ function appendSelectedObservation(
   context: SelectionContext,
   reserved?: { acquisitionNumber: number; queuePosition: number },
 ): string {
-  const settings = getProfileSelectionSettings(profileCode);
-  const selected = selectionEngine.select(settings);
+  const selected = selectAllowedRow(profileCode);
   const observationId = randomUUID();
   const acquisitionNumber = reserved?.acquisitionNumber ?? nextAcquisitionNumber(profileCode);
   const queuePosition = reserved?.queuePosition ?? nextQueuePosition(profileCode);

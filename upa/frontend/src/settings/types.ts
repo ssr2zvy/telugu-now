@@ -5,6 +5,7 @@ export type SettingsPage =
   | 'appearance'
   | 'images'
   | 'eons'
+  | 'blacklist'
   | 'reset'
   | 'trigger'
   | 'source'

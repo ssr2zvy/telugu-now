@@ -9,9 +9,6 @@ import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
 import {
-  SettingsIcon,
-} from '../components/icons';
-import {
   AudioPlayerBar,
   type AudioPlayerBarHandle,
 } from './audio/AudioPlayerBar';
@@ -24,6 +21,8 @@ import { useAppearance } from '../appearance';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
+import { ReaderTextMenu, useLongPressMenu } from './ReaderTextMenu';
+import { addBlacklistEntry } from '../api';
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -40,12 +39,14 @@ export function ObservationView({
   onMove,
   onOpenSettings,
 }: ObservationViewProps) {
-  const { appearance } = useAppearance();
+  const { appearance, profileCode } = useAppearance();
   const [
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menuBusy, setMenuBusy] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
   const [precisionInteraction, setPrecisionInteraction] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -53,6 +54,15 @@ export function ObservationView({
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
+  // On touch the long hold replaces the native selection callout entirely.
+  const longPress = useLongPressMenu({
+    onTrigger: point => {
+      taps.cancel();
+      window.getSelection()?.removeAllRanges();
+      setMenuError(null);
+      setTextMenu(point);
+    },
+  });
   const revealedBy = useRef<ScrollDirection | null>(null);
   const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
     taps.cancel();
@@ -61,13 +71,9 @@ export function ObservationView({
     setControlsVisible(visible);
     setPrecisionInteraction(value => value + 1);
   }, () => taps.cancel());
-  const toggleSettings = () => {
-    window.getSelection()?.removeAllRanges();
-    setSettingsVisible(visible => !visible);
-  };
   useEffect(() => {
     const screen = screenRef.current;
-    if ((!controlsVisible && !settingsVisible) || !screen) return;
+    if (!controlsVisible || !screen) return;
     let idleTimer: number;
     const activePointers = new Set<number>();
     const scheduleHide = (event?: Event) => {
@@ -79,7 +85,6 @@ export function ObservationView({
       if (activePointers.size > 0) return;
       idleTimer = window.setTimeout(() => {
         setControlsVisible(false);
-        setSettingsVisible(false);
       }, appearance.autoFadeSeconds * 1000);
     };
     const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
@@ -89,7 +94,7 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds, precisionInteraction]);
+  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
   useEffect(() => {
@@ -115,7 +120,7 @@ export function ObservationView({
       await onMove(direction);
     if (moved) {
       setControlsVisible(false);
-      setSettingsVisible(false);
+      setTextMenu(null);
     }
   };
   const wordAtPoint = (event: MouseEvent<HTMLElement>): string | null => {
@@ -156,7 +161,7 @@ export function ObservationView({
           controlsVisible
             ? 'controls-visible'
             : ''
-        } ${settingsVisible ? 'settings-visible' : ''}`
+}`
       }
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
@@ -164,7 +169,6 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
-          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       onKeyDownCapture={(event) => {
@@ -178,7 +182,6 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
-          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       tabIndex={0}
@@ -186,6 +189,8 @@ export function ObservationView({
         ? 'Reader. Tap to play or pause. Swipe left or right to reveal audio controls; reverse to hide them.'
         : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onClick={(event) => {
+        if (longPress.consumedClick()) return;
+        if (textMenu) return;
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
@@ -203,26 +208,42 @@ export function ObservationView({
           : region.single === 'playback';
         const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
         if (eagerlyPaused) playerRef.current?.pause();
-        taps.tap(doubleRegion, event.clientX, event.clientY, () => {
-          if (eagerlyPaused) playerRef.current?.resume();
-          window.getSelection()?.removeAllRanges();
-          if (word && observation) {
-            setControlsVisible(false);
-            setSelectedWord({ word, observationId: observation.id });
-          } else if (region.double === 'center') toggleSettings();
-          else if (region.double === 'back' ? canBack : canNext) void move(region.double);
-        }, () => {
-          if (appearance.scrollMode) {
-            // Only the bottom third closes the magnifier; elsewhere, tapping keeps its normal play/pause behavior.
-            if (region.single === 'controls') {
-              if (!playerRef.current?.dismissPrecision() && !eagerlyPaused) playerRef.current?.togglePlay();
-            } else if (!eagerlyPaused) {
-              playerRef.current?.togglePlay();
-            }
-          } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
-          else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
+        taps.tap(doubleRegion, event.clientX, event.clientY, {
+          onDouble: () => {
+            if (eagerlyPaused) playerRef.current?.resume();
+            window.getSelection()?.removeAllRanges();
+            if (word && observation) {
+              setControlsVisible(false);
+              setSelectedWord({ word, observationId: observation.id });
+            } else if (region.double === 'center') {
+              // Shows the bookmark, loop and speed controls, or closes them
+              // together with the magnifier; never opens the magnifier itself.
+              playerRef.current?.toggleTransportControls();
+            } else if (region.double === 'back' ? canBack : canNext) void move(region.double);
+          },
+          onTriple: () => {
+            if (eagerlyPaused) playerRef.current?.resume();
+            window.getSelection()?.removeAllRanges();
+            onOpenSettings();
+          },
+          onSingle: () => {
+            // The magnifier is dismissed only by the middle double tap now.
+            if (appearance.scrollMode) {
+              if (!eagerlyPaused) playerRef.current?.togglePlay();
+            } else if (region.single === 'playback') {
+              if (!eagerlyPaused) playerRef.current?.togglePlay();
+            } else setControlsVisible(visible => !visible);
+          },
         });
       }}
+      onContextMenu={(event) => {
+        if (!observation || (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile'))) return;
+        event.preventDefault();
+        taps.cancel();
+        setMenuError(null);
+        setTextMenu({ x: event.clientX, y: event.clientY });
+      }}
+      {...longPress.handlers}
       onMouseDownCapture={(event) => {
         if (event.button !== 0 || event.detail < 2) return;
         if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile')) return;
@@ -329,20 +350,35 @@ export function ObservationView({
           }}
         />
       </div>
-      <button
-        className="settings-trigger"
-        type="button"
-        aria-label="అమరికలు"
-        onClick={(
-          event:
-            MouseEvent<HTMLButtonElement>,
-        ) => {
-          event.stopPropagation();
-          onOpenSettings();
-        }}
-      >
-        <SettingsIcon />
-      </button>
+      {textMenu ? (
+        <ReaderTextMenu
+          x={textMenu.x}
+          y={textMenu.y}
+          busy={menuBusy}
+          error={menuError}
+          onCopy={() => {
+            if (!observation) return;
+            void navigator.clipboard?.writeText(observation.text)
+              .then(() => setTextMenu(null))
+              .catch(() => setMenuError('Could not copy the sentence.'));
+          }}
+          onBlacklist={() => {
+            if (!observation || !profileCode) return;
+            setMenuBusy(true);
+            setMenuError(null);
+            void addBlacklistEntry(profileCode, {
+              sourceId: observation.sourceId,
+              sourceKey: observation.sourceKey,
+              text: observation.text,
+            }).then(() => {
+              setTextMenu(null);
+              if (canNext) void move('next');
+            }).catch(() => setMenuError('Could not blacklist the sentence.'))
+              .finally(() => setMenuBusy(false));
+          }}
+          onClose={() => setTextMenu(null)}
+        />
+      ) : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />

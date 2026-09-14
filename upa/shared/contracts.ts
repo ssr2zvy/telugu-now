@@ -219,6 +219,17 @@ export interface ExportResponse {
   entries: ExportEntry[];
 }
 
+export interface BlacklistEntry {
+  sourceId: string;
+  sourceKey: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface BlacklistResponse {
+  entries: BlacklistEntry[];
+}
+
 export interface ApiErrorResponse {
   error: string;
 }

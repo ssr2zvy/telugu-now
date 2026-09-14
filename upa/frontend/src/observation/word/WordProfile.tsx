@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, RefreshCw, Sparkles, X } from 'lucide-react';
+import { Copy, LoaderCircle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { existingWordImage, generateWordImage, wordImageError, wordImageSettings } from './word-images';
 import { useAppearance } from '../../appearance';
@@ -96,6 +96,7 @@ export function WordProfile({ word, onClose }: { word: string; onClose: () => vo
   const analysis = analyzeWord(word);
   const parts = wordDisplayParts(analysis);
   const dialog = useRef<HTMLDialogElement>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -115,8 +116,14 @@ export function WordProfile({ word, onClose }: { word: string; onClose: () => vo
         <h2 id="word-profile-title" lang="te" aria-label={analysis.word} title={analysis.root}>
           <span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span>
         </h2>
+        <button type="button" className="word-profile-close" aria-label="Copy word" title="Copy word"
+          onClick={() => {
+            setCopyFailed(false);
+            void navigator.clipboard?.writeText(analysis.word).catch(() => setCopyFailed(true));
+          }}><Copy size={18} aria-hidden="true" /></button>
         <button type="button" className="word-profile-close" aria-label="Close word profile" title="Close word profile" onClick={onClose}><X size={20} aria-hidden="true" /></button>
       </header>
+      {copyFailed ? <p className="word-profile-error" role="alert">Could not copy the word.</p> : null}
       <WordImage key={analysis.root} root={analysis.root} />
     </dialog>
   );

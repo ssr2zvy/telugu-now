@@ -236,4 +236,11 @@
   .settings-page-content { padding-inline: 20px; }
   .settings-form label { grid-template-columns: minmax(0, 1fr) 88px; gap: 12px; }
   .appearance-fonts label { grid-template-columns: 20px minmax(0, 1fr) 48px; gap: 8px; }
-}
+}.settings-description { margin: 0 0 12px; color: var(--muted); font-size: .9rem; }
+.settings-empty { margin: 0; color: var(--muted); font-size: .9rem; }
+.settings-inline-button { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
+.settings-inline-button:hover:not(:disabled) { background: var(--wash); }
+.settings-inline-button:disabled { cursor: default; opacity: .5; }
+.blacklist-entries { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.blacklist-entry { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line, rgba(128, 128, 128, .25)); }
+.blacklist-entry-text { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .95rem; }

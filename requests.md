@@ -11,7 +11,9 @@ precedence; the original wording remains available for context.
 
 This document does not authorize implementing the features or deploying them.
 
-## Reading-page copy and blacklist menu
+## Reading-page copy and blacklist menu — done
+
+Implemented; see `requests-done.md`.
 
 - In desktop browsers, right-clicking the reading text opens a modal/menu.
 - On mobile, a long hold opens the equivalent menu. This replaces native
@@ -29,7 +31,9 @@ This document does not authorize implementing the features or deploying them.
 The later mobile-menu clarification explicitly supersedes the earlier request
 to leave native mobile selection unchanged.
 
-## Magnifier seeking and playback state
+## Magnifier seeking and playback state — done
+
+Implemented; see `requests-done.md`.
 
 - Clicking a position in the magnifier should seek directly to that position.
 - A click-to-seek should preserve whether playback was playing or paused.
@@ -38,7 +42,9 @@ to leave native mobile selection unchanged.
   resume if it was playing, remain paused if it was deliberately paused.
 - To confirm: the drag threshold and how a cancelled drag should finish.
 
-## Seeking after natural completion
+## Seeking after natural completion — done
+
+Implemented; see `requests-done.md`.
 
 - Distinguish playback stopping naturally at the end from a deliberate user
   pause, including a deliberate pause at that exact endpoint.
@@ -50,7 +56,9 @@ to leave native mobile selection unchanged.
 - The new autoplay preference only affects entering an observation. It does
   not disable automatic resume when seeking backward after natural completion.
 
-## Loop button and bookmark loops
+## Loop button and bookmark loops — done
+
+Implemented; see `requests-done.md`.
 
 - Add a Loop button next to the playback-speed button.
 - Single-clicking Loop toggles looping of the entire audio without restarting
@@ -64,7 +72,9 @@ to leave native mobile selection unchanged.
 - Include Loop with the speed and bookmark controls in the gesture visibility
   rules below.
 
-## Reader gestures and control visibility
+## Reader gestures and control visibility — done
+
+Implemented; see `requests-done.md`.
 
 - Remove the reader's Settings button.
 - Triple-tapping anywhere toggles opening Settings directly.

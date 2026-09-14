@@ -39,6 +39,7 @@ export const AUDIO_ICON_SHAPES = {
   pause: { filled: true, paths: ['M6 4.5h4v15H6zM14 4.5h4v15h-4z'] },
   speed: { filled: false, paths: ['M4 16a8 8 0 0 1 16 0', 'M12 16 14.5 11.6'] },
   bookmark: { filled: true, paths: ['M6 3h12v18l-6-4.2L6 21z'] },
+  loop: { filled: false, paths: ['M4 9.5h13a3.5 3.5 0 0 1 0 7H7', 'M14.5 6 17 9.5 14.5 13', 'M9.5 13 7 16.5 9.5 20'] },
 } as const;
 export type AudioIconName = keyof typeof AUDIO_ICON_SHAPES;
 
