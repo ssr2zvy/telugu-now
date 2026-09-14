@@ -91,6 +91,11 @@
 .eon-history h3 { font-size: .85rem; }
 .eon-history ol { display: grid; list-style: none; margin: 0; padding: 0; }
 .eon-history li { display: grid; gap: 8px; padding-block: 16px; border-top: 1px solid var(--line); }
+.blacklist-page { display: grid; gap: 20px; }
+.blacklist-entries { display: grid; list-style: none; margin: 0; padding: 0; }
+.blacklist-entry { display: grid; gap: 8px; padding-block: 16px; border-top: 1px solid var(--line); }
+.blacklist-entry-text { font-family: 'Noto Sans Telugu', sans-serif; overflow-wrap: anywhere; }
+.blacklist-entry-date { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .settings-form input::-webkit-inner-spin-button, .export-page input::-webkit-inner-spin-button { appearance: none; margin: 0; }
 .export-page { gap: 24px; }
 .export-count { display: grid; grid-template-columns: minmax(0, 1fr) 88px; align-items: center; gap: 24px; min-height: 64px; font-size: .9rem; }
