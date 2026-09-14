@@ -26,6 +26,14 @@ test('live preparation is sequential, respects queue order, and reuses the share
   const { db } = await import('../server/src/db/database');
   const { sourceRegistry } = await import('../server/src/services/source-registry');
   const { preparationService } = await import('../server/src/services/preparation-service');
+  const { config } = await import('../server/src/config/config');
+  // The app ships no dummy sources; this test needs a deterministic fixture source.
+  const { DummyDataSource } = await import('./fixtures/dummy-data-source');
+  const { source1Rows } = await import('./fixtures/source1');
+  const { source2Rows } = await import('./fixtures/source2');
+  sourceRegistry.register(new DummyDataSource('source1', source1Rows));
+  sourceRegistry.register(new DummyDataSource('source2', source2Rows));
+  Object.assign(config.defaultSourceWeights, { source1: 1, source2: 0 });
   const source = sourceRegistry.get('source1');
   const originalPrepare = source.prepare.bind(source);
 
@@ -164,7 +172,7 @@ test('live preparation is sequential, respects queue order, and reuses the share
     db.exec('DELETE FROM queue_items; DELETE FROM observations;');
     const { updateProfileSelectionSettings } = await import('../server/src/services/selection-settings-service');
     updateProfileSelectionSettings('001', {
-      sourceWeights: { source1: 0, source2: 1, source3: 0 },
+      sourceWeights: { source1: 0, source2: 1 },
       complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25,
     });
     const badMedia = JSON.stringify([{ kind: 'audio', objectKey: 'missing.wav', mimeType: 'audio/wav', durationSeconds: 1, sha256: '' }]);

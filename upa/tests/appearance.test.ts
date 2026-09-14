@@ -242,7 +242,10 @@ test('surface colors remain independent while corner colors adapt to palette and
 test('settings leaf pages return to their group and reset remains last', () => {
   assert.equal(parentSettingsPage('complexity'), 'sampling');
   assert.equal(parentSettingsPage('global'), 'diagnostic');
-  assert.equal(parentSettingsPage('appearance'), 'display');
+  // The Display group was flattened: its pages now sit directly under the index.
+  assert.equal(parentSettingsPage('appearance'), 'index');
+  assert.equal(parentSettingsPage('playback'), 'index');
+  assert.equal(parentSettingsPage('images'), 'index');
   assert.equal(parentSettingsPage('sampling'), 'index');
   assert.equal(settingsGroups.index?.at(-1), 'reset');
 });

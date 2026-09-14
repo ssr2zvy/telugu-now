@@ -94,9 +94,6 @@ if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioVali
   throw new Error('User, corpus, availability, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
-  source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
-  source2: parseUnitInterval(process.env.SOURCE2_WEIGHT, 1),
-  source3: parseUnitInterval(process.env.SOURCE3_WEIGHT, 1),
   'fleurs-te': parseUnitInterval(process.env.FLEURS_TE_WEIGHT, 1),
   'shrutilipi-te': parseUnitInterval(process.env.SHRUTILIPI_TE_WEIGHT, 1),
   'indicvoices-te': parseUnitInterval(process.env.INDICVOICES_TE_WEIGHT, 1),
@@ -124,6 +121,9 @@ export const config = {
   corpusAvailabilityRebuildOnStartup: parseBoolean('CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', false),
   corpusAvailabilityRefreshMs,
   profileCodes: parseProfileCodes(process.env.PROFILE_CODES),
+  // Password-gate verification material; absent means the gate is disabled.
+  accessPasswordHash: process.env.ACCESS_PASSWORD_HASH,
+  accessSessionSecret: process.env.ACCESS_SESSION_SECRET,
   mockDelayMinMs: parseNonNegativeInt(process.env.MOCK_DELAY_MIN_MS, 1_000),
   mockDelayMaxMs: parseNonNegativeInt(process.env.MOCK_DELAY_MAX_MS, 15_000),
   defaultSourceWeights,

@@ -57,6 +57,68 @@ function contrastingPaletteColor(appearance: Pick<AppearanceSettings, 'gradient'
   return bestColor;
 }
 
+/** Same hue and lightness as the text color, pushed to a stronger saturation. */
+export function appearanceModColor(appearance: Pick<AppearanceSettings, 'foreground'>): string {
+  const [red = 0, green = 0, blue = 0] = colorChannels(appearance.foreground).map(channel => channel / 255);
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const lightness = (max + min) / 2;
+  const delta = max - min;
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  // A neutral text color has no hue to saturate, so shift lightness instead.
+  const boosted = delta === 0
+    ? { saturation: 0, lightness: lightness > 0.5 ? Math.min(1, lightness + 0.28) : Math.max(0, lightness - 0.28) }
+    : { saturation: Math.min(1, saturation * 1.9 + 0.2), lightness };
+  const chroma = (1 - Math.abs(2 * boosted.lightness - 1)) * boosted.saturation;
+  const second = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = boosted.lightness - chroma / 2;
+  const sector = Math.floor(hue / 60) % 6;
+  const rgb = [
+    [chroma, second, 0], [second, chroma, 0], [0, chroma, second],
+    [0, second, chroma], [second, 0, chroma], [chroma, 0, second],
+  ][sector] ?? [0, 0, 0];
+  return `#${rgb.map(channel => Math.round(Math.max(0, Math.min(1, channel + match)) * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Cursor color taken from the gradient itself, pushed darker or lighter —
+ * whichever direction the gradient leaves room for — so the pointer stays
+ * visible over every part of the background.
+ */
+export function appearanceCursorColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
+  const backgrounds = appearance.gradient.map(colorChannels);
+  const average = [0, 1, 2].map(channel => backgrounds.reduce((total, color) => total + color[channel]!, 0) / backgrounds.length);
+  const gradientLuminance = luminance(average);
+  const target = gradientLuminance > 0.35 ? [0, 0, 0] : [255, 255, 255];
+  let chosen = average;
+  for (let step = 0; step <= 100; step += 5) {
+    const channels = average.map((channel, index) => Math.round(channel + (target[index]! - channel) * step / 100));
+    chosen = channels;
+    const worst = Math.min(...backgrounds.map(background => contrastRatio(luminance(channels), luminance(background))));
+    if (worst >= 4.5) break;
+  }
+  return `#${chosen.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function cursorImage(shape: 'arrow' | 'hand' | 'beam' | 'resize', color: string): string {
+  const paths = {
+    arrow: '<path d="M6 3l13 10-5.6.6 3.1 6.2-2.6 1.3-3.1-6.3L6 19z" fill="COLOR" stroke="white" stroke-width="1.1" stroke-linejoin="round"/>',
+    hand: '<path d="M10 12V5.6a1.6 1.6 0 013.2 0V11m0-1.2a1.5 1.5 0 013 0V12m0-1.2a1.5 1.5 0 013 0v5.6a5.4 5.4 0 01-5.4 5.4h-1.9a5 5 0 01-3.9-1.9L5 16.2a1.6 1.6 0 012.4-2.1L10 16.6" fill="none" stroke="COLOR" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>',
+    beam: '<path d="M12 4v16M9 4h6M9 20h6" fill="none" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>',
+    resize: '<path d="M4 12h16M7 8.5L3.5 12 7 15.5M17 8.5L20.5 12 17 15.5" fill="none" stroke="COLOR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${paths[shape].replaceAll('COLOR', color)}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground'>): string {
   return contrastingPaletteColor(appearance, appearanceAudioColor(appearance));
 }
@@ -221,6 +283,11 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     '--gradient-middle': appearance.gradient[1],
     '--gradient-end': appearance.gradient[2],
     '--foreground': appearance.foreground,
+    '--letter-mod-color': appearanceModColor(appearance),
+    '--cursor-default': `${cursorImage('arrow', appearanceCursorColor(appearance))} 3 2, default`,
+    '--cursor-pointer': `${cursorImage('hand', appearanceCursorColor(appearance))} 9 4, pointer`,
+    '--cursor-text': `${cursorImage('beam', appearanceCursorColor(appearance))} 12 12, text`,
+    '--cursor-resize': `${cursorImage('resize', appearanceCursorColor(appearance))} 12 12, ew-resize`,
     '--corner-control-color': appearanceCornerColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
     '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,

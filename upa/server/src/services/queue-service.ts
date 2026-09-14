@@ -3,6 +3,51 @@ import { db } from '../db/database';
 import type { AcquisitionTriggerKind, PreparationGroupKind } from '../../../shared/contracts';
 import { selectionEngine } from './selection-engine';
 import { getProfileSelectionSettings } from './selection-settings-service';
+import { blacklistStore } from './blacklist-service';
+import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
+import { hasSeenRow, planNextDisplay, poolHasAnySeenRow, type QuestionPlan } from './question-service';
+
+// A blacklisted row can still be drawn by the weighted sampler. Redraw a bounded
+// number of times rather than distorting the distribution or looping forever.
+const BLACKLIST_REDRAW_ATTEMPTS = 25;
+// The sampler cannot be restricted to the seen/unseen pool directly, so redraw a
+// bounded number of times and fall back to the last draw rather than looping.
+const POOL_REDRAW_ATTEMPTS = 40;
+let blacklist: ReturnType<typeof blacklistStore> | null = null;
+function profileBlacklist() {
+  blacklist ??= blacklistStore(db);
+  return blacklist;
+}
+
+// The common-word ranking must skip sentences anyone has hidden.
+preparedCorpusStore.blacklistedTexts = () => profileBlacklist().allBlacklistedTexts();
+
+const selectCachedText = db.prepare(
+  'SELECT text FROM source_records WHERE profile_code = ? AND source_id = ? AND source_key = ?',
+);
+
+function selectAllowedRow(profileCode: string, pool: 'seen' | 'unseen' | null = null) {
+  const settings = getProfileSelectionSettings(profileCode);
+  const store = profileBlacklist();
+  const blockedTexts = store.blacklistedTexts(profileCode);
+  // A profile with no history has no seen pool at all; fall back to any row.
+  const wantedPool = pool === 'seen' && !poolHasAnySeenRow(profileCode) ? null : pool;
+  const blocked = (selected: { sourceId: string; sourceKey: string }) => {
+    if (blockedTexts.size === 0) return false;
+    const cached = selectCachedText.get(profileCode, selected.sourceId, selected.sourceKey) as { text: string } | undefined;
+    return store.isBlacklisted(profileCode, selected.sourceId, selected.sourceKey)
+      || (cached !== undefined && blockedTexts.has(cached.text));
+  };
+  const outsidePool = (selected: { sourceId: string; sourceKey: string }) => wantedPool !== null
+    && hasSeenRow(profileCode, selected.sourceId, selected.sourceKey) !== (wantedPool === 'seen');
+  let selected = selectionEngine.select(settings);
+  const attempts = Math.max(BLACKLIST_REDRAW_ATTEMPTS, wantedPool === null ? 0 : POOL_REDRAW_ATTEMPTS);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (!blocked(selected) && !outsidePool(selected)) return selected;
+    selected = selectionEngine.select(settings);
+  }
+  return selected;
+}
 
 interface CountRow { count: number }
 interface MaxRow { max_position: number | null }
@@ -65,8 +110,9 @@ function preparationInFlight(): boolean {
 const insertObservation = db.prepare(`
   INSERT INTO observations (
     id, source_id, source_key, status, selected_at,
-    group_id, group_kind, group_size, group_position
-  ) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+    group_id, group_kind, group_size, group_position,
+    display_kind, question_mode, question_pool, question_keyboard
+  ) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertQueue = db.prepare(`
@@ -88,8 +134,8 @@ function appendSelectedObservation(
   context: SelectionContext,
   reserved?: { acquisitionNumber: number; queuePosition: number },
 ): string {
-  const settings = getProfileSelectionSettings(profileCode);
-  const selected = selectionEngine.select(settings);
+  const plan: QuestionPlan = planNextDisplay();
+  const selected = selectAllowedRow(profileCode, plan.pool);
   const observationId = randomUUID();
   const acquisitionNumber = reserved?.acquisitionNumber ?? nextAcquisitionNumber(profileCode);
   const queuePosition = reserved?.queuePosition ?? nextQueuePosition(profileCode);
@@ -105,6 +151,10 @@ function appendSelectedObservation(
     context.legacyGroupKind,
     context.legacyGroupSize,
     context.legacyGroupPosition,
+    plan.displayKind,
+    plan.mode,
+    plan.pool,
+    plan.keyboard,
   );
 
   insertAcquisition.run(

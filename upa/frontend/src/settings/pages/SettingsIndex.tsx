@@ -42,7 +42,11 @@ export function SettingsIndex({
     diagnostic: state.currentObservation
       ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
       : t(language, 'unavailable'),
-    display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
+    playback: `${state.audioSettings.playbackRate}x`,
+    appearance: `${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
+    images: language === 'en' ? 'Word illustrations' : 'పద చిత్రాలు',
+    blacklist: language === 'en' ? 'Hidden sentences' : 'దాచిన వాక్యాలు',
+    version: language === 'en' ? 'Deployment and build' : 'అమలు మరియు నిర్మాణం',
     eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     export: 'EPUB / HTML',
     reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
@@ -67,15 +71,17 @@ export function SettingsIndex({
               type="button"
               aria-label={settingsPageLabel(page, language)}
               aria-describedby={summaries[page] ? `settings-summary-${page}` : undefined}
-              onClick={() =>
-                onNavigate(page as Exclude<SettingsPage, 'index'>)
-              }
+              onClick={(event) => {
+                // Drop focus so the entry highlight does not persist on the destination page.
+                event.currentTarget.blur();
+                onNavigate(page as Exclude<SettingsPage, 'index'>);
+              }}
             >
               <Icon className="settings-entry-icon" aria-hidden="true" />
               <span className="settings-entry-text">
                 <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
                 {summaries[page] && <span className="settings-entry-meta" id={`settings-summary-${page}`}>
-                  {page === 'display' && <span className="settings-palette-preview" aria-hidden="true" />}
+                  {page === 'appearance' && <span className="settings-palette-preview" aria-hidden="true" />}
                   <span>{summaries[page]}</span>
                 </span>}
               </span>

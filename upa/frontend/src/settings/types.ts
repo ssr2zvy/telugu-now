@@ -1,10 +1,10 @@
 export type SettingsPage =
   | 'index'
   | 'sampling'
-  | 'display'
   | 'appearance'
   | 'images'
   | 'eons'
+  | 'blacklist'
   | 'reset'
   | 'trigger'
   | 'source'
@@ -15,13 +15,15 @@ export type SettingsPage =
   | 'playback'
   | 'diagnostic'
   | 'dataSources'
-  | 'export';
+  | 'export'
+  | 'version';
 export type UiLanguage =
   | 'en'
   | 'te';
 export interface SettingsDraft {
   targetPercent: string;
   spreadPercent: string;
+  commonWordReduction: string;
   sourceWeights:
     Record<string, string>;
 }

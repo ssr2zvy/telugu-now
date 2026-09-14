@@ -47,3 +47,12 @@
 .entry-code[aria-busy='true'] { opacity: .6; }
 @keyframes entry-loading { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .entry-status[data-state='loading'] svg { animation: none; } .entry-digit, .entry-digit::before { transition: none; } }
+
+/* Password gate */
+.gate-form { display: grid; justify-items: center; gap: 20px; }
+.gate-username { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.gate-password { width: min(260px, 70vw); height: 44px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--foreground); font-size: 16px; text-align: center; letter-spacing: .3em; }
+.gate-password:focus { outline: none; border-bottom-color: var(--foreground); }
+.gate-password[aria-invalid='true'] { border-bottom-color: #d1342f; }
+.gate-submit { min-height: 44px; padding: 0 20px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.gate-submit:disabled { opacity: .45; cursor: default; }

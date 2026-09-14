@@ -8,6 +8,13 @@ import { useAppearance } from '../../appearance';
 import { observePlaybackFeedback } from './playback-feedback';
 import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';
 
+export interface LoopState {
+  enabled: boolean;
+  start: number;
+  /** `null` means the loop runs to the end of the audio. */
+  end: number | null;
+}
+
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
   playing: boolean;
@@ -21,12 +28,16 @@ export interface AudioPlayerState {
   bookmarks: number[];
   bookmarksBusy: boolean;
   bookmarkError: string | null;
+  loop: LoopState;
   retryBookmarks: () => void;
   togglePlay: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  beginScrub: () => void;
+  endScrub: () => void;
   setPlaybackRate: (rate: number) => void;
   clickBookmarkButton: () => void;
+  clickLoopButton: () => void;
 }
 
 export function useAudioPlayer(
@@ -35,15 +46,25 @@ export function useAudioPlayer(
   sourceKey: string | null,
   defaultPlaybackRate: number,
   observationId?: string | null,
+  autoplay = true,
 ): AudioPlayerState {
   const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const leaseRef = useRef<AudioLease | null>(null);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
+  const loopClickCountRef = useRef(0);
+  const loopClickTimerRef = useRef<number | null>(null);
+  // Playback reaching the end on its own is not a user-selected paused state:
+  // a later backward seek must resume, unlike a deliberate pause at the end.
+  const endedNaturallyRef = useRef(false);
+  const scrubRef = useRef<{ resume: boolean } | null>(null);
+  const loopRef = useRef<LoopState>({ enabled: false, start: 0, end: null });
   const playRequestRef = useRef(0);
   const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
-  const wantsPlaybackRef = useRef(true);
+  // Autoplay governs entering an observation only; resuming after a natural end
+  // is handled separately and is not disabled by this preference.
+  const wantsPlaybackRef = useRef(autoplay);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -55,6 +76,8 @@ export function useAudioPlayer(
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
+  const [loop, setLoop] = useState<LoopState>({ enabled: false, start: 0, end: null });
+  loopRef.current = loop;
   // Persistence remains in original speech seconds, including pending retries.
   const [bookmarks, setBookmarks] = useState<number[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(true);
@@ -67,6 +90,7 @@ export function useAudioPlayer(
 
   const requestPlayback = (element: HTMLAudioElement) => {
     wantsPlaybackRef.current = true;
+    endedNaturallyRef.current = false;
     setPlaybackError(null);
     setMediaError(null);
     setPlaybackStatus('Loading audio…');
@@ -106,6 +130,7 @@ export function useAudioPlayer(
     return () => {
       bookmarkVersion.current += 1;
       if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+      if (loopClickTimerRef.current !== null) window.clearTimeout(loopClickTimerRef.current);
     };
   }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);
 
@@ -114,7 +139,7 @@ export function useAudioPlayer(
     if (!element) return;
     let disposed = false;
     playRequestRef.current++;
-    wantsPlaybackRef.current = true;
+    wantsPlaybackRef.current = autoplay;
     element.pause();
     element.removeAttribute('src');
     element.load();
@@ -126,6 +151,11 @@ export function useAudioPlayer(
     setCurrentTime(0);
     setDuration(0);
     setWaveformPeaks([]);
+    setLoop({ enabled: false, start: 0, end: null });
+    endedNaturallyRef.current = false;
+    scrubRef.current = null;
+    loopClickCountRef.current = 0;
+    if (loopClickTimerRef.current !== null) window.clearTimeout(loopClickTimerRef.current);
     setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));
     playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);
     element.preservesPitch = true;
@@ -184,8 +214,28 @@ export function useAudioPlayer(
         setPlaybackStatus(null);
       }
     });
+    const loopBoundary = (): number => {
+      const state = loopRef.current;
+      const total = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : duration;
+      return state.end === null ? total : Math.min(state.end, total);
+    };
+    // Loop wrapping runs off the transport itself so it also applies while the
+    // rAF ticker is idle (paused) and on the final `ended` event.
+    const enforceLoop = (): boolean => {
+      const state = loopRef.current;
+      if (!state.enabled || scrubRef.current) return false;
+      const end = loopBoundary();
+      if (!(end > state.start)) return false;
+      if (element.currentTime < end - 0.02 && !element.ended) return false;
+      element.currentTime = state.start;
+      setCurrentTime(state.start);
+      if (!element.paused) return true;
+      requestPlayback(element);
+      return true;
+    };
     const sync = () => {
       if (!element.getAttribute('src')) return;
+      if (enforceLoop()) return;
       setCurrentTime(element.currentTime);
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
     };
@@ -202,13 +252,18 @@ export function useAudioPlayer(
       sync();
     };
     const onWaiting = () => { if (!element.paused) setPlaybackStatus('Loading audio…'); };
+    const onEnded = () => {
+      if (enforceLoop()) return;
+      endedNaturallyRef.current = true;
+      onPause();
+    };
     element.addEventListener('playing', onPlaying);
     element.addEventListener('pause', onPause);
     element.addEventListener('waiting', onWaiting);
     element.addEventListener('loadedmetadata', sync);
     element.addEventListener('timeupdate', sync);
     element.addEventListener('seeked', sync);
-    element.addEventListener('ended', onPause);
+    element.addEventListener('ended', onEnded);
     return () => {
       stopFeedback();
       element.removeEventListener('playing', onPlaying);
@@ -217,7 +272,7 @@ export function useAudioPlayer(
       element.removeEventListener('loadedmetadata', sync);
       element.removeEventListener('timeupdate', sync);
       element.removeEventListener('seeked', sync);
-      element.removeEventListener('ended', onPause);
+      element.removeEventListener('ended', onEnded);
     };
   }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
@@ -225,20 +280,57 @@ export function useAudioPlayer(
     if (!playing) return;
     let frame: number;
     const tick = () => {
-      if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+      const element = audioRef.current;
+      if (element) {
+        const state = loopRef.current;
+        const total = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : duration;
+        const end = state.end === null ? total : Math.min(state.end, total);
+        // Wrap on the animation frame rather than waiting for `timeupdate`,
+        // which can overshoot a short bookmark loop by a quarter second.
+        if (state.enabled && !scrubRef.current && end > state.start && element.currentTime >= end - 0.02) {
+          element.currentTime = state.start;
+        }
+        setCurrentTime(element.currentTime);
+      }
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [playing]);
+  }, [playing, duration]);
 
-  const pause = () => {
-    wantsPlaybackRef.current = false;
+  const pauseTransport = () => {
     playRequestRef.current++;
     audioRef.current?.pause();
     setCurrentTime(audioRef.current?.currentTime ?? 0);
     setPlaying(false);
     setPlaybackStatus(null);
+  };
+
+  const pause = () => {
+    wantsPlaybackRef.current = false;
+    // A deliberate pause, including one landing exactly on the end, replaces
+    // any natural-completion state so later seeks stay paused.
+    endedNaturallyRef.current = false;
+    pauseTransport();
+  };
+
+  // Dragging the magnifier suspends playback without the user choosing to pause;
+  // the pre-drag intent (playing, or resumable after natural completion) is restored.
+  const beginScrub = () => {
+    if (scrubRef.current) return;
+    const element = audioRef.current;
+    const resume = playing || endedNaturallyRef.current;
+    scrubRef.current = { resume };
+    if (element && !element.paused) pauseTransport();
+  };
+
+  const endScrub = () => {
+    const state = scrubRef.current;
+    scrubRef.current = null;
+    if (!state) return;
+    const element = audioRef.current;
+    if (!state.resume || !element || !leaseRef.current?.value()) return;
+    if (element.paused) requestPlayback(element);
   };
 
   const togglePlay = () => {
@@ -265,6 +357,11 @@ export function useAudioPlayer(
     const safeTime = Math.min(Math.max(0, time), duration);
     element.currentTime = safeTime;
     setCurrentTime(safeTime);
+    // Seeking back from a natural stop resumes; seeking while deliberately
+    // paused, or mid-scrub, does not.
+    if (endedNaturallyRef.current && !scrubRef.current && safeTime < duration - 0.02) {
+      requestPlayback(element);
+    }
   };
 
   const applyPlaybackRate = (rate: number) => {
@@ -322,6 +419,32 @@ export function useAudioPlayer(
     }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
   };
 
+  const clickLoopButton = () => {
+    loopClickCountRef.current++;
+    if (loopClickTimerRef.current !== null) window.clearTimeout(loopClickTimerRef.current);
+    loopClickTimerRef.current = window.setTimeout(() => {
+      const clicks = loopClickCountRef.current;
+      loopClickCountRef.current = 0;
+      loopClickTimerRef.current = null;
+      if (clicks === 1) {
+        // Toggle whole-audio looping without moving the cursor or restarting.
+        setLoop(current => ({ enabled: !current.enabled, start: 0, end: null }));
+        return;
+      }
+      const playerTime = audioRef.current?.currentTime ?? currentTime;
+      const marks = bookmarks.map(toPlayerTime);
+      const start = nearestPriorBookmark(marks, playerTime);
+      if (start === null) {
+        seek(0);
+        setLoop(current => ({ enabled: !current.enabled, start: 0, end: null }));
+        return;
+      }
+      const next = marks.filter(mark => mark > start).sort((left, right) => left - right)[0];
+      seek(start);
+      setLoop({ enabled: true, start, end: next ?? null });
+    }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
+  };
+
   return {
     audioRef, playing, loading, playbackStatus,
     playbackError: mediaError ?? playbackError,
@@ -329,7 +452,9 @@ export function useAudioPlayer(
     bookmarks: bookmarks.map(toPlayerTime),
     bookmarksBusy: bookmarksLoading || bookmarksSaving,
     bookmarkError,
+    loop,
     retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
-    togglePlay, pause, seek, setPlaybackRate: applyPlaybackRate, clickBookmarkButton,
+    togglePlay, pause, seek, beginScrub, endScrub,
+    setPlaybackRate: applyPlaybackRate, clickBookmarkButton, clickLoopButton,
   };
 }

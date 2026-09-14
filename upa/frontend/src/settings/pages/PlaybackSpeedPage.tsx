@@ -9,6 +9,7 @@ import type {
   UiLanguage,
 } from '../types';
 import { AUDIO_PLAYER_PRESENTATION } from '../../observation/audio/audio-player-presentation';
+import { useAppearance } from '../../appearance';
 interface PlaybackSpeedPageProps {
   language: UiLanguage;
   rate: string;
@@ -27,6 +28,7 @@ export function PlaybackSpeedPage({
   onClearError,
   onSave,
 }: PlaybackSpeedPageProps) {
+  const { appearance, updateAppearance } = useAppearance();
   return (
     <div className="settings-form">
       <label>
@@ -52,6 +54,16 @@ export function PlaybackSpeedPage({
           }}
         />
       </label>
+      <label className="settings-toggle-field">
+        <span>{t(language, 'disableAutoplay')}</span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={!appearance.autoplayAudio}
+          onChange={event => updateAppearance({ autoplayAudio: !event.target.checked })}
+        />
+      </label>
+      <p className="settings-description">{t(language, 'disableAutoplayDescription')}</p>
       {error ? (
         <div className="settings-error">
           {t(

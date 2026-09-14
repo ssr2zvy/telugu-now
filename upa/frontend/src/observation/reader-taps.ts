@@ -9,9 +9,17 @@ export function readerTapRegions(x: number, y: number, bounds: { left: number; t
   } as const;
 }
 
+export interface ReaderTapHandlers {
+  onSingle?: () => void;
+  onDouble?: () => void;
+  /** Three taps anywhere toggle Settings, which no longer has a reader button. */
+  onTriple?: () => void;
+}
+
 export class ReaderTaps {
-  private pending: { region: string; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
-  private timers = new Set<ReturnType<typeof setTimeout>>();
+  private pending:
+    | { region: string; x: number; y: number; count: number; timer: ReturnType<typeof setTimeout>; handlers: ReaderTapHandlers }
+    | null = null;
 
   constructor(private readonly onSingle: () => void = () => {}) {}
 
@@ -20,27 +28,27 @@ export class ReaderTaps {
       && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE;
   }
 
-  tap(region: string, x: number, y: number, onDouble: () => void, onSingle = this.onSingle): void {
-    // A pair straddling a hitbox boundary is still a double tap, never two singles.
-    if (this.pending && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE) {
-      clearTimeout(this.pending.timer);
-      this.timers.delete(this.pending.timer);
-      this.pending = null;
-      onDouble();
-      return;
-    }
+  tap(region: string, x: number, y: number, handlers: ReaderTapHandlers): void {
+    // Taps resolve only once the run ends: a double tap cannot be distinguished
+    // from the first two taps of a Settings triple tap until then.
+    const previous = this.pending;
+    const near = previous !== null && Math.hypot(x - previous.x, y - previous.y) <= DOUBLE_TAP_DISTANCE;
+    const count = near ? previous.count + 1 : 1;
+    const handlersForRun = near ? { ...previous.handlers, ...handlers } : handlers;
+    if (previous) clearTimeout(previous.timer);
     const timer = setTimeout(() => {
-      this.timers.delete(timer);
-      if (this.pending?.timer === timer) this.pending = null;
-      onSingle();
+      const resolved = this.pending;
+      this.pending = null;
+      if (!resolved || resolved.timer !== timer) return;
+      if (resolved.count >= 3) resolved.handlers.onTriple?.();
+      else if (resolved.count === 2) resolved.handlers.onDouble?.();
+      else (resolved.handlers.onSingle ?? this.onSingle)();
     }, READER_DOUBLE_TAP_MS);
-    this.timers.add(timer);
-    this.pending = { region, x, y, timer };
+    this.pending = { region: near ? previous.region : region, x, y, count, timer, handlers: handlersForRun };
   }
 
   cancel(): void {
-    for (const timer of this.timers) clearTimeout(timer);
-    this.timers.clear();
+    if (this.pending) clearTimeout(this.pending.timer);
     this.pending = null;
   }
 }

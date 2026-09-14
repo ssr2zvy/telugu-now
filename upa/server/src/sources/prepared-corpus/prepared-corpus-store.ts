@@ -5,6 +5,7 @@ import { config } from '../../config/config';
 import type { DataSourceInfo } from '../../../../shared/contracts';
 import { openAvailability, type AvailabilityOptions } from '../../services/corpus-availability';
 import { AudioValidationStore, audioStorageIdentity } from '../../services/audio-validation-store';
+import { CommonWordStore, type CorpusTextRow, type CommonWord } from '../../services/common-word-complexity';
 
 interface CanonicalRow {
   source_id: string;
@@ -23,7 +24,10 @@ export class PreparedCorpusStore {
   private availabilityGeneration = '';
   private exclusionRevision = -1;
   private readonly excluded = new Map<string, Map<number, number[]>>();
+  private readonly adjustedExcluded = new Map<number, Map<string, Map<number, number[]>>>();
   private readonly validation: AudioValidationStore;
+  private commonWords: CommonWordStore | null = null;
+  private commonWordsPath: string;
 
   get generation(): string {
     this.refreshExclusions();
@@ -43,6 +47,9 @@ export class PreparedCorpusStore {
         ? config.audioValidationPath : path.join(path.dirname(options.corpusAvailabilityPath), 'audio-validation.sqlite'),
       audioStorageIdentity(options),
     );
+    this.commonWordsPath = options.corpusAvailabilityPath === config.corpusAvailabilityPath
+      ? path.join(path.dirname(config.corpusAvailabilityPath), 'common-words.sqlite')
+      : path.join(path.dirname(options.corpusAvailabilityPath), 'common-words.sqlite');
     this.db = fs.existsSync(databasePath)
       ? new Database(databasePath, {
           readonly: true,
@@ -68,6 +75,8 @@ export class PreparedCorpusStore {
   }
 
   close(): void {
+    this.commonWords?.close();
+    this.commonWords = null;
     this.availability?.close();
     this.db?.close();
     this.validation.close();
@@ -99,6 +108,68 @@ export class PreparedCorpusStore {
       for (const classes of this.excluded.values()) for (const indices of classes.values()) indices.sort((a, b) => a - b);
     }
     this.exclusionRevision = revision;
+    this.adjustedExcluded.clear();
+  }
+
+  /** Set by the app so the ranking can skip sentences hidden by any profile. */
+  blacklistedTexts: () => ReadonlySet<string> = () => new Set();
+
+  private blacklisted(): ReadonlySet<string> {
+    try { return this.blacklistedTexts(); }
+    catch { return new Set(); }
+  }
+
+  private *textRows(): Iterable<CorpusTextRow> {
+    if (!this.db) return;
+    yield* this.db.prepare(
+      'SELECT source_id, source_key, text, grapheme_count FROM source_rows',
+    ).iterate() as Iterable<CorpusTextRow>;
+  }
+
+  /**
+   * Common Word Inclusion is materialized lazily: the ranking is built once per
+   * corpus generation, and adjusted classes once per reduction setting in use.
+   */
+  private adjusted(reduction: number): CommonWordStore | null {
+    if (!this.db || !this.availability || reduction <= 0) return null;
+    if (!this.commonWords) this.commonWords = new CommonWordStore(this.commonWordsPath);
+    this.commonWords.buildRanking(this.generation, () => this.textRows(), this.blacklisted());
+    this.commonWords.buildReduction(reduction, () => this.textRows());
+    return this.commonWords;
+  }
+
+  commonWordRanking(limit = 200): CommonWord[] {
+    if (!this.db || !this.availability) return [];
+    if (!this.commonWords) this.commonWords = new CommonWordStore(this.commonWordsPath);
+    this.commonWords.buildRanking(this.generation, () => this.textRows(), this.blacklisted());
+    return this.commonWords.topWords(limit);
+  }
+
+  /** Invalid-audio rows, mapped into the adjusted complexity classes. */
+  private adjustedExclusions(reduction: number): Map<string, Map<number, number[]>> {
+    this.refreshExclusions();
+    const cached = this.adjustedExcluded.get(reduction);
+    if (cached) return cached;
+    const mapped = new Map<string, Map<number, number[]>>();
+    const store = this.adjusted(reduction);
+    if (store) {
+      for (const key of this.validation.invalidKeys()) {
+        const row = this.db?.prepare(
+          'SELECT source_id, source_key FROM source_rows WHERE audio_object_key = ?',
+        ).get(key) as { source_id: string; source_key: string } | undefined;
+        if (!row) continue;
+        const placement = store.placementOf(row.source_id, reduction, row.source_key);
+        if (!placement) continue;
+        let classes = mapped.get(row.source_id);
+        if (!classes) { classes = new Map(); mapped.set(row.source_id, classes); }
+        const indices = classes.get(placement.complexityValue) ?? [];
+        indices.push(placement.classIndex);
+        classes.set(placement.complexityValue, indices);
+      }
+      for (const classes of mapped.values()) for (const indices of classes.values()) indices.sort((a, b) => a - b);
+    }
+    this.adjustedExcluded.set(reduction, mapped);
+    return mapped;
   }
 
   hasSource(sourceId: string): boolean {
@@ -153,9 +224,16 @@ export class PreparedCorpusStore {
     return (row?.row_count ?? 0) - excluded;
   }
 
-  complexityClasses(sourceId: string): Array<{ complexityValue: number; rowCount: number }> {
+  complexityClasses(sourceId: string, reduction = 0): Array<{ complexityValue: number; rowCount: number }> {
     this.refreshExclusions();
     if (!this.availability) return [];
+    const store = this.adjusted(reduction);
+    if (store) {
+      const excluded = this.adjustedExclusions(reduction).get(sourceId);
+      return store.classes(sourceId, reduction)
+        .map(item => ({ ...item, rowCount: item.rowCount - (excluded?.get(item.complexityValue)?.length ?? 0) }))
+        .filter(item => item.rowCount > 0);
+    }
     const classes = this.availability.prepare(`
       SELECT grapheme_count AS complexityValue, row_count AS rowCount
       FROM complexity_counts
@@ -172,9 +250,21 @@ export class PreparedCorpusStore {
     sourceId: string,
     graphemeCount: number,
     classIndex: number,
+    reduction = 0,
   ): string {
     this.refreshExclusions();
     if (!this.availability) throw new Error(`CORPUS_AVAILABILITY_MISSING:${sourceId}`);
+    const store = this.adjusted(reduction);
+    if (store) {
+      let index = classIndex;
+      for (const rejected of this.adjustedExclusions(reduction).get(sourceId)?.get(graphemeCount) ?? []) {
+        if (rejected > index) break;
+        index++;
+      }
+      const key = store.sourceKeyAt(sourceId, reduction, graphemeCount, index);
+      if (!key) throw new Error('CORPUS_SOURCE_KEY_MISSING:' + `${sourceId}/${graphemeCount}/${classIndex}`);
+      return key;
+    }
     let availableIndex = classIndex;
     for (const rejected of this.excluded.get(sourceId)?.get(graphemeCount) ?? []) {
       if (rejected > availableIndex) break;

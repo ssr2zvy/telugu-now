@@ -65,7 +65,7 @@ test('real corpus quarantine replaces reservations, survives restart and recheck
   try {
     profile.ensureProfileRow('001');
     updateProfileSelectionSettings('001', {
-      sourceWeights: { source1: 0, source2: 0, source3: 0, 'fleurs-te': 1 },
+      sourceWeights: { 'fleurs-te': 1 },
       complexityPercentileTarget: 0.01, complexityPercentileSpread: 0.01,
     });
     db.prepare("INSERT INTO source_records VALUES ('001', 'fleurs-te', 'b', 'obsolete transcription', ?, 1)").run(JSON.stringify([

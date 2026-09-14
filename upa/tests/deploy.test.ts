@@ -79,10 +79,16 @@ exit "\${ACTION_EXIT:-0}"
   for (const code of [0, 23]) {
     const result = run(['deploy'], { ACTION_EXIT: String(code) });
     assert.equal(result.status, code, result.stderr);
-    assert.deepEqual(result.calls.trim().split('\n'), [
-      `${root}|status --config fly.toml --json`,
+    const calls = result.calls.trim().split('\n');
+    assert.equal(calls[0], `${root}|status --config fly.toml --json`);
+    // The build is stamped with the revision it came from, for the Version page.
+    assert.equal(
+      calls[1]?.replace(/ --build-arg .*/, ''),
       `${root}|deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m`,
-    ]);
+    );
+    for (const argument of ['GIT_COMMIT', 'GIT_COMMIT_SUBJECT', 'GIT_BRANCH', 'BUILD_TIME']) {
+      assert.match(calls[1] ?? '', new RegExp(`--build-arg ${argument}=`));
+    }
   }
   const stop = run(['stop']);
   assert.equal(stop.status, 0, stop.stderr);
@@ -128,7 +134,9 @@ test('Fly configuration uses shared deployment paths and keeps workflow scaffold
   assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule|workflow_run):/m);
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /contents: read/);
-  assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.FLY_API_TOKEN \}\}/);
+  // The Actions secret is stored under the label API_TOKEN and mapped onto the
+  // FLY_API_TOKEN variable that ci-cd/deploy.sh actually reads.
+  assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.API_TOKEN \}\}/);
   assert.match(workflow, /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/);
   assert.match(read('ci-cd/deploy.sh'), /Codespaces secret/);
 });

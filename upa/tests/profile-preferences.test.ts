@@ -79,7 +79,9 @@ test('profile preference routes validate profiles and payloads and preserve save
     });
     assert.equal((await request('002')).status, 404);
     assert.equal((await request('999', 'POST', {})).status, 404);
-    for (const body of [null, [], { language: 'xx' }, { appearance: [] }, { imagePrompt: 'invalid' }, { allowImageRegeneration: 'true' }, { unexpected: true }]) {
+    // Image regeneration was removed, and prompts no longer require a placeholder,
+    // so only structurally invalid payloads are rejected.
+    for (const body of [null, [], { language: 'xx' }, { appearance: [] }, { imagePrompt: '' }, { imagePrompt: 5 }, { unexpected: true }]) {
       assert.equal((await request('001', 'PATCH', body)).status, 400);
     }
     const imported = await request('001', 'POST', { appearance: { foreground: '#abcdef' }, language: 'en' });

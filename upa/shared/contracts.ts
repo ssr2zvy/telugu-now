@@ -2,6 +2,8 @@ export type PreparationGroupKind = 'launch-fill' | 'rolling-replenishment';
 export type AcquisitionTriggerKind = 'initial-fill' | 'observation-consumed';
 export type ObservationStatus = 'pending' | 'preparing' | 'ready';
 export type ComplexityMetric = 'word-count' | 'grapheme-count';
+/** The selection metric; Common Word Inclusion adjusts the grapheme count. */
+export type SelectionComplexityMetric = ComplexityMetric | 'common-word-inclusion';
 
 export interface ProfileEon {
   id: string;
@@ -21,12 +23,15 @@ export interface ProfileSelectionSettings {
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
   complexityReferenceVersion: number;
+  /** Common Word Inclusion strength, 0-20; 0 is the plain grapheme count. */
+  commonWordReduction: number;
 }
 
 export interface UpdateSelectionSettingsRequest {
   sourceWeights: Record<string, number>;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
+  commonWordReduction?: number;
 }
 
 export interface ProfileAudioSettings {
@@ -46,8 +51,9 @@ export interface SelectionSnapshot {
   totalSourceMass: number;
   sourceProbability: number;
   sourceKey: string;
-  complexityMetric: ComplexityMetric;
+  complexityMetric: SelectionComplexityMetric;
   intrinsicComplexityValue: number;
+  commonWordReduction: number;
   complexityReferenceVersion: number;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
@@ -134,6 +140,19 @@ export interface DisplayRepeatDiagnostic {
   };
 }
 
+export type ObservationDisplayKind = 'normal' | 'question';
+export type QuestionMode = 'audio-given' | 'text-given';
+export type QuestionKeyboard = 'windows-inscript' | 'mac-standard' | 'chromebook-dictation';
+
+export interface ObservationQuestion {
+  /** Which medium is given to the user; they answer in the other medium. */
+  mode: QuestionMode;
+  /** Whether the row was drawn from the seen or unseen pool. */
+  pool: 'seen' | 'unseen';
+  /** Virtual keyboard for audio-given questions; null for text-given ones. */
+  keyboard: QuestionKeyboard | null;
+}
+
 export interface ObservationAudio {
   url: string;
   mimeType: string;
@@ -146,6 +165,8 @@ export interface DisplayObservation {
   sourceKey: string;
   text: string;
   audio: ObservationAudio | null;
+  displayKind: ObservationDisplayKind;
+  question: ObservationQuestion | null;
   diagnostic: ObservationDiagnostic;
 }
 
@@ -219,6 +240,35 @@ export interface ExportResponse {
   entries: ExportEntry[];
 }
 
+export interface BlacklistEntry {
+  sourceId: string;
+  sourceKey: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface BlacklistResponse {
+  entries: BlacklistEntry[];
+}
+
 export interface ApiErrorResponse {
   error: string;
+}
+
+/** Deployment and build information reported by Settings. */
+export interface VersionInformation {
+  appVersion: string;
+  frontendVersion: string;
+  backendVersion: string;
+  commit: string;
+  shortCommit: string;
+  commitSubject: string;
+  branch: string;
+  buildTime: string;
+  flyAppName: string;
+  flyRegion: string;
+  flyMachineId: string;
+  flyImageRef: string;
+  serverStartedAt: number;
+  serverTime: number;
 }

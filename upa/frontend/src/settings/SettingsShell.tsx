@@ -35,19 +35,30 @@ export function SettingsShell({
   onToggleLanguage,
   children,
 }: SettingsShellProps) {
-  const [railCollapsed, setRailCollapsed] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>({});
+  // The overview and each of its top-level sections start collapsed.
+  const [railOpen, setRailOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>(
+    () => Object.fromEntries((settingsGroups.index ?? []).map(group => [group, true])),
+  );
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLElement>(null);
-  const parent = parentSettingsPage(page);
   const railToggleLabel = language === 'en'
-    ? (railCollapsed ? 'Show settings menu' : 'Hide settings menu')
-    : (railCollapsed ? 'అమరికల మెను చూపించు' : 'అమరికల మెను దాచు');
+    ? (railOpen ? 'Hide settings menu' : 'Show settings menu')
+    : (railOpen ? 'అమరికల మెను దాచు' : 'అమరికల మెను చూపించు');
+  // From the top-level screen the overview takes the whole screen; from a nested
+  // section it is a left-side overlay that leaves the section visible.
+  const railMode = page === 'index' ? 'full' : 'popup';
   useEffect(() => {
     content.current?.scrollTo(0, 0);
     heading.current?.focus({ preventScroll: true });
   }, [page]);
+  useEffect(() => {
+    if (!railOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setRailOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [railOpen]);
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
@@ -100,7 +111,9 @@ export function SettingsShell({
         type="button"
         aria-label={`${nested ? settingsPageLabel(parentSettingsPage(destination), language) : t(language, 'settings')}: ${label}`}
         aria-current={page === destination ? 'page' : undefined}
-        onClick={() => {
+        onClick={(event) => {
+          event.currentTarget.blur();
+          setRailOpen(false);
           if (page !== destination) {
             if (destination === 'index') onOverview();
             else onNavigate(destination);
@@ -113,18 +126,21 @@ export function SettingsShell({
     );
   };
   return (
-    <main ref={shell} className={`app-shell settings-screen${railCollapsed ? ' settings-rail-collapsed' : ''}`} lang={language}>
+    <main ref={shell} className={`app-shell settings-screen${railOpen ? ' settings-rail-open' : ''}`} data-rail-mode={railMode} lang={language}>
       <button
         className="settings-rail-toggle"
         type="button"
         aria-label={railToggleLabel}
         title={railToggleLabel}
-        aria-expanded={!railCollapsed}
+        aria-expanded={railOpen}
         aria-controls="settings-rail"
-        onClick={() => setRailCollapsed((collapsed) => !collapsed)}
+        onClick={() => setRailOpen((open) => !open)}
       >
-        {railCollapsed ? <PanelLeftOpen size={20} aria-hidden="true" /> : <PanelLeftClose size={20} aria-hidden="true" />}
+        {railOpen ? <PanelLeftClose size={20} aria-hidden="true" /> : <PanelLeftOpen size={20} aria-hidden="true" />}
       </button>
+      {railOpen && railMode === 'popup' ? (
+        <button className="settings-rail-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setRailOpen(false)} />
+      ) : null}
       <button
         className="settings-close"
         type="button"
@@ -134,7 +150,7 @@ export function SettingsShell({
       >
         <X size={20} aria-hidden="true" />
       </button>
-      <aside className="settings-rail" id="settings-rail">
+      <aside className="settings-rail" id="settings-rail" hidden={!railOpen}>
         <div className="settings-rail-heading">
           <span>{language === 'en' ? 'Profile' : 'ప్రొఫైల్'}</span>
           <span className="settings-profile-code">{profileCode}</span>
@@ -188,11 +204,6 @@ export function SettingsShell({
           ) : null}
         </div>
         <div className="settings-heading">
-          <div className="settings-context">
-            {page === 'index'
-              ? `${language === 'en' ? 'Profile' : 'ప్రొఫైల్'} ${profileCode}`
-              : settingsPageLabel(parent, language)}
-          </div>
           <h1 ref={heading} tabIndex={-1}>{title}</h1>
         </div>
       </header>

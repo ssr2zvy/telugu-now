@@ -5,8 +5,7 @@
 .observation-placeholder { color: var(--muted); font-size: 3rem; line-height: 1; user-select: none; }
 .observation-start { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
 .observation-start:hover { background: var(--wash); }
-.settings-trigger, .audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
-.settings-visible .settings-trigger,
+.audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .controls-visible .audio-player-bar { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .nav-region { z-index: 1; min-width: 0; touch-action: manipulation; user-select: none; }
 .nav-zone { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--control-color); cursor: default; touch-action: manipulation; user-select: none; }
@@ -15,14 +14,18 @@
 .audio-loading-indicator { animation: none; font-size: 1.4rem; letter-spacing: .12em; }
 @keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }
-.settings-trigger { position: absolute; z-index: 4; right: max(20px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--corner-control-color); cursor: pointer; }
-.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px 116px; align-items: center; gap: var(--audio-timestamp-gap, 1px) 0; width: min(416px, calc(100vw - 48px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
+.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px 100px; align-items: center; gap: var(--audio-timestamp-gap, 1px) 0; width: min(416px, calc(100vw - 48px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
 .audio-player-bar[data-has-audio="false"] { display: none; }
 .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
-.observation-screen[data-scroll-mode="true"] .audio-player-bar { clip-path: inset(0 50%); transition: opacity var(--audio-slide-duration) ease, clip-path var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
+/* The bar slides out of, and back into, a slit at the edge the swipe came from,
+   rather than collapsing towards its own centre. */
+.observation-screen[data-scroll-mode="true"] .audio-player-bar { clip-path: inset(0 0 0 100%); transition: opacity var(--audio-slide-duration) ease, clip-path var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
+.observation-screen[data-scroll-mode="true"][data-reveal-direction="-1"] .audio-player-bar { clip-path: inset(0 100% 0 0); }
 .observation-screen[data-scroll-mode="true"].controls-visible .audio-player-bar { clip-path: inset(0); }
 .observation-screen[data-scroll-mode="true"] .audio-scrubber-row,
-.observation-screen[data-scroll-mode="true"] .audio-precision-panel { transform: translateX(-56px); transition: transform var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
+.observation-screen[data-scroll-mode="true"] .audio-precision-panel { transform: translateX(56px); transition: transform var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1); }
+.observation-screen[data-scroll-mode="true"][data-reveal-direction="-1"] .audio-scrubber-row,
+.observation-screen[data-scroll-mode="true"][data-reveal-direction="-1"] .audio-precision-panel { transform: translateX(-56px); }
 .observation-screen[data-scroll-mode="true"].controls-visible .audio-scrubber-row,
 .observation-screen[data-scroll-mode="true"].controls-visible .audio-precision-panel { transform: translateX(0); }
 @media (prefers-reduced-motion: reduce) {
@@ -52,8 +55,8 @@
 .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
 .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
 .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
-.audio-scrubber-window { --audio-detail-brightness: .8; position: absolute; top: 19px; bottom: 19px; border-radius: 4px; opacity: .4; }
-.audio-magnifier-track { position: relative; order: 2; display: flex; flex-shrink: 0; align-items: center; gap: 1px; width: 100%; height: 44px; touch-action: none; cursor: ew-resize; }
+.audio-scrubber-window { --audio-detail-brightness: .8; position: absolute; top: 21px; bottom: 21px; border-radius: 4px; opacity: .4; }
+.audio-magnifier-track { position: relative; order: 2; display: flex; flex-shrink: 0; align-items: center; gap: 1px; width: 100%; height: 28px; touch-action: none; cursor: ew-resize; }
 .audio-magnifier-time { order: 1; flex-shrink: 0; margin: 0; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 1; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { order: 2; }
@@ -75,3 +78,48 @@
   .audio-glass-icon > svg { opacity: 0; }
 }
 @media (max-width: 600px) { .observation-screen { --nav-width: 13vw; } }
+/* The long-hold menu replaces the native touch selection callout. */
+@media (hover: none) {
+  .observation-text { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.reader-text-menu { position: fixed; z-index: 8; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--line, rgba(128, 128, 128, .35)); border-radius: 8px; background: var(--surface, #1a1a1a); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); transform: translate(-50%, calc(-100% - 10px)); }
+.reader-text-menu-action { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
+.reader-text-menu-action:hover:not(:disabled) { background: var(--wash); }
+.reader-text-menu-action:disabled { cursor: default; opacity: .5; }
+.reader-text-menu-error { max-width: 14rem; padding: 0 6px; color: var(--danger, #d66); font-size: .75rem; }
+.audio-loop-button[aria-pressed="true"] svg { opacity: 1; }
+.audio-loop-button[aria-pressed="false"] svg { opacity: .45; }
+
+/* Question observations */
+.question-screen .question-center { min-height: 0; }
+.question-prompt { display: grid; place-items: center; min-height: 96px; font-size: 2rem; color: var(--audio-control-color); opacity: .5; }
+.question-answer-area { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; gap: 8px; padding: 12px max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(12px); }
+.question-answer-area[hidden] { display: none; }
+.question-typed { min-height: 48px; padding: 8px 4px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.question-pending { opacity: .45; }
+.question-record-area { justify-items: center; }
+.question-record { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--audio-control-color); cursor: pointer; }
+.question-record-active { border-color: #d1342f; color: #d1342f; }
+.question-error { margin: 0; color: #d1342f; font-size: .8rem; }
+.question-actions { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); z-index: 7; }
+.question-next { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 6px; background: transparent; color: var(--audio-control-color); cursor: pointer; }
+
+/* Virtual keyboards */
+.virtual-keyboard { display: grid; gap: 4px; user-select: none; -webkit-user-select: none; }
+.virtual-keyboard-name { font-size: .65rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.virtual-keyboard-row { display: flex; gap: 4px; justify-content: center; }
+.virtual-key { flex: 1 1 0; min-width: 0; min-height: 40px; padding: 0 2px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--foreground); font-size: .95rem; cursor: pointer; }
+.virtual-key-modifier { flex: 0 0 44px; display: grid; place-items: center; color: var(--muted); }
+.virtual-key-active { background: var(--wash); color: var(--foreground); }
+.virtual-key-space { flex: 1 1 auto; display: grid; place-items: center; }
+
+/* Answer page: quarter for the user's answer, three quarters for the observation. */
+.answer-screen { display: grid; grid-template-rows: 25fr 75fr; min-height: 100%; }
+.answer-user { position: relative; display: grid; align-items: center; min-height: 0; padding: 12px; border-bottom: 1px solid var(--line); overflow: auto; }
+.answer-typed { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.answer-user-audio { position: relative; min-height: 148px; }
+.answer-observation { position: relative; min-height: 0; }
+@media (min-aspect-ratio: 1/1) {
+  .answer-screen { grid-template-rows: minmax(0, 1fr); grid-template-columns: 25fr 75fr; }
+  .answer-user { border-bottom: 0; border-inline-end: 1px solid var(--line); }
+}

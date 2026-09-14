@@ -6,7 +6,7 @@ import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
-import { precisionControls } from './precision-controls';
+import { precisionControls, precisionControlsVisible, precisionMagnifierVisible } from './precision-controls';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 
 interface AudioPlayerBarProps {
@@ -28,6 +28,11 @@ export interface AudioPlayerBarHandle {
   pause: () => void;
   resume: () => void;
   isPrecisionOpen: () => boolean;
+  hasAudio: () => boolean;
+  /** Current playhead, used when a re-recording continues from the cursor. */
+  currentTime: () => number;
+  /** Middle double tap: opens the three transport controls, or closes them together with the magnifier. */
+  toggleTransportControls: () => boolean;
   dismissPrecision: () => boolean;
 }
 
@@ -43,23 +48,24 @@ export function AudioPlayerBar({
   onLoadingChange,
   onPlaybackErrorChange,
 }: AudioPlayerBarProps) {
-  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId);
+  const { appearance } = useAppearance();
+  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId, appearance.autoplayAudio);
   useEffect(() => {
     onLoadingChange?.(player.loading);
     return () => onLoadingChange?.(false);
   }, [player.loading, onLoadingChange]);
   useEffect(() => { onPlaybackErrorChange?.(player.playbackError); }, [player.playbackError, onPlaybackErrorChange]);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
-  const magnifierOpen = precisionMode !== 'closed';
+  const magnifierOpen = precisionMagnifierVisible(precisionMode);
+  const transportControlsOpen = precisionControlsVisible(precisionMode);
   const speedPopoverOpen = precisionMode === 'speed';
   const playerRef = useRef<HTMLDivElement>(null);
   const speedButtonRef = useRef<HTMLButtonElement>(null);
-  const { appearance } = useAppearance();
   const paintId = `audio-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const closePrecision = () => {
     onPrecisionInteraction?.();
-    if (document.activeElement?.closest('.audio-magnifier-track, .audio-magnifier-time, .audio-speed-popover, .audio-bookmark-button, .audio-speed-button')) {
+    if (document.activeElement?.closest('.audio-magnifier-track, .audio-magnifier-time, .audio-speed-popover, .audio-bookmark-button, .audio-loop-button, .audio-speed-button')) {
       playerRef.current?.querySelector<HTMLElement>('.audio-scrubber')?.focus({ preventScroll: true });
     }
     dispatchPrecision('close');
@@ -76,6 +82,14 @@ export function AudioPlayerBar({
     pause: player.pause,
     resume: () => { if (!player.playing) player.togglePlay(); },
     isPrecisionOpen: () => magnifierOpen,
+    hasAudio: () => Boolean(audio),
+    currentTime: () => player.currentTime,
+    toggleTransportControls: () => {
+      if (!controlsVisible || !audio) return false;
+      if (transportControlsOpen) closePrecision();
+      else dispatchPrecision('toggle-controls');
+      return true;
+    },
     dismissPrecision: () => {
       if (!controlsVisible || !magnifierOpen) return false;
       closePrecision();
@@ -133,7 +147,9 @@ export function AudioPlayerBar({
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
         magnifierOpen={magnifierOpen}
+        controlsOpen={transportControlsOpen}
         showTimestamp={appearance.showAudioTimestamp}
+        showHighlight={appearance.showMagnifierHighlight}
         speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
@@ -151,6 +167,19 @@ export function AudioPlayerBar({
             onClick={player.clickBookmarkButton}
           >
             <AudioGlassIcon name="bookmark" />
+          </button>
+        }
+        loopButton={
+          <button
+            className="audio-transport-button audio-loop-button"
+            type="button"
+            aria-label="లూప్"
+            title="Loop: click to loop the whole audio, double-click to loop from the previous bookmark"
+            aria-pressed={player.loop.enabled}
+            data-loop-scope={player.loop.end === null && player.loop.start === 0 ? 'full' : 'bookmark'}
+            onClick={player.clickLoopButton}
+          >
+            <AudioGlassIcon name="loop" />
           </button>
         }
         speedButton={
@@ -172,10 +201,9 @@ export function AudioPlayerBar({
         }}
         onMagnifierClose={closePrecision}
         onSeek={player.seek}
-        onPrecisionSeek={() => {
-          player.pause();
-          dispatchPrecision('close-speed');
-        }}
+        onPrecisionSeek={() => dispatchPrecision('close-speed')}
+        onScrubBegin={player.beginScrub}
+        onScrubEnd={player.endScrub}
       />
       {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
         {player.playbackStatus}

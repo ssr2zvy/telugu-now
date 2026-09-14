@@ -2,13 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import { AppearanceProvider } from './appearance';
 import { ObservationView } from './observation/ObservationView';
 import { ProfileEntry } from './profile/ProfileEntry';
+import { PasswordGate } from './profile/PasswordGate';
 import { useProfileSession, type ProfileSession } from './profile/useProfileSession';
 import { SettingsView } from './settings/SettingsView';
 import { useSettingsController } from './settings/useSettingsController';
 import './styles.css';
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const session = useProfileSession(settingsOpen);
+  const [locked, setLocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    void fetch('/api/gate', { credentials: 'same-origin' })
+      .then(response => response.json() as Promise<{ required: boolean; unlocked: boolean }>)
+      .then(gate => setLocked(gate.required && !gate.unlocked))
+      .catch(() => setLocked(false));
+  }, []);
+  const session = useProfileSession(settingsOpen || locked !== false);
+  if (locked === null) return null;
+  if (locked) {
+    return <AppearanceProvider profileCode={null}>
+      <PasswordGate onUnlocked={() => setLocked(false)} />
+    </AppearanceProvider>;
+  }
   return <AppearanceProvider key={session.profileCode ?? 'entry'} profileCode={session.profileCode}>
     <AppContent session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
   </AppearanceProvider>;
