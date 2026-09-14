@@ -579,3 +579,90 @@ password design and why the password itself is never stored, and a rotation
 section covers scoping and the blast radius of rotating each secret. The
 `gh secret set` setup task and the `API_TOKEN` / `FLY_API_TOKEN` naming are also
 documented here; that request is recorded under its own point.
+
+## Batch 5
+
+### GitHub deployment secret setup
+
+The workflow scaffold was corrected first: `.github/workflows/deploy.yml` now
+reads `secrets.API_TOKEN` and maps it onto the `FLY_API_TOKEN` environment
+variable that `ci-cd/deploy.sh` expects, and its enabling comment was updated to
+name `API_TOKEN` rather than `FLY_API_TOKEN`, so the storage name and the
+consumed variable name are no longer confusable. As the user clarified,
+`API_TOKEN` is only the storage label of the Actions secret — it is a placeholder
+name, not a second credential; the value is the Fly deploy token and the
+deployment still consumes it as `FLY_API_TOKEN`. That distinction is spelled out
+in `tokens.md`.
+
+The setup task, its source and destination secret names, and the exact
+no-exposure command are documented in `tokens.md` without any credential value:
+
+```
+printf '%s' "$FLY_API_TOKEN" | gh secret set API_TOKEN --repo ssr2zvy/telugu-now
+```
+
+`printf` is a shell builtin, so the value never appears in the process list, and
+the value moves from the environment straight into the GitHub CLI's standard
+input. The value was never read, inspected, printed, logged, written to a file,
+passed as a command-line argument, or retrieved through a tool and passed back;
+only its presence was checked.
+
+**The transfer itself did not complete.** Running the command in this Codespace
+returned `HTTP 403: Resource not accessible by integration` from
+`/actions/secrets/public-key`, because the `gh` credentials available here do not
+carry the Actions secrets write scope. The point is therefore recorded as
+documented-and-pending rather than done: it remains a pending setup request, and
+as the request itself states, setting the secret would not in any case authorize
+enabling the disabled workflow or performing a deployment.
+
+### Controls Guide
+
+`controls-guide.md` was created at the repository root, documenting all
+application behaviour and control behaviour rather than only the newly added
+controls. It covers the password gate and user-ID selection; the reader and its
+gestures; audio playback, seeking, looping, bookmarks and the magnifier;
+Settings and its overview; question and answer pages; keyboard and recording
+interactions; word and letter views; image generation, search and catalog
+navigation; and the copy and blacklist menus.
+
+Desktop and mobile differences are given per gesture in tables, including that
+the sentence menu is right-click on desktop and long press on mobile and that it
+replaces native mobile selection, and that the answer split becomes top/bottom on
+vertical displays. Contextual meanings and precedence are stated explicitly: the
+three distinct meanings of the middle double-tap have their own section, and
+word-tap versus region-navigation precedence, and drag-versus-long-press, are
+called out. Visibility and open/close rules are given for the audio bar, the
+magnifier (hold to open, middle double-tap as the only close), the grouped
+speed/bookmark/loop controls, the Settings overview, and the image view's
+tap-to-toggle controls.
+
+The cross-feature exceptions this request document specifies are included as
+such: a dedicated table contrasts deliberate pause with natural completion and
+states that a pause at the exact endpoint is deliberate; the magnifier section
+documents temporary drag-pause and the restoration of the pre-drag state,
+including for a cancelled drag; and the autoplay setting is documented as
+affecting only observation entry and never the seek-after-completion resume. A
+defaults table lists every default in one place, and a closing Pending section
+lists the unfinished deployment-secret transfer, keeping pending requests clearly
+distinguished from available features.
+
+### Icon and text conventions
+
+New action controls outside Settings were audited and are icons only, with
+accessible names and no visible text inside or beside them: the reader sentence
+menu's Copy and Blacklist, the word view's Copy, Generate, Search and Close, the
+image view's Back, Next, `(i)` and Exit, and the letter page's back control. The
+one remaining text action outside Settings, the password gate's `Enter` button,
+was converted to an icon-only control with `aria-label`/`title` of "Unlock". The
+virtual keyboard's space and newline keys keep their glyphs because they are
+keyboard keys rather than action controls, and they already carry accessible
+names.
+
+Settings retains its icon-and-text patterns, as the user clarified, since
+essentially all of it needs descriptive text; batch 2 standardized Settings
+action design and positioning without stripping that text. The bottom-right
+language control remains icon-only with an accessible name. Section titles and
+field labels remain readable, and the multiword title-capitalization applied in
+batch 2 is preserved; the new Telugu Now Version page follows the same
+convention. The conventions themselves are now written down in the Controls
+Guide.

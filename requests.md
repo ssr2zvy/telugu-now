@@ -338,7 +338,7 @@ Distinguish secret Tigris credentials from non-secret configuration such as
 endpoint, region, bucket name, and object prefix. Describe the actual
 configuration locations without implying that all Tigris configuration is secret.
 
-## GitHub deployment secret setup
+## GitHub deployment secret setup — done (documented; transfer pending)
 
 - Add a setup task to run `gh secret set API_TOKEN` for this repository using
   the existing `FLY_API_TOKEN` in the Codespaces environment.
@@ -354,7 +354,7 @@ configuration locations without implying that all Tigris configuration is secret
 - Setting the secret does not itself authorize enabling the disabled workflow
   or deploying. This is a pending setup request, not a completed secret transfer.
 
-## Controls Guide
+## Controls Guide — done
 
 - Create a **Controls Guide** documenting all application behavior and control
   behavior, not only the newly added controls.
@@ -371,7 +371,7 @@ configuration locations without implying that all Tigris configuration is secret
 - Keep the guide aligned with implemented behavior as changes land, clearly
   distinguishing pending requests from available features.
 
-## Icon and text conventions
+## Icon and text conventions — done
 
 - New action controls outside Settings should be icons only, without visible
   text inside or alongside those action icons; keep accessible names.

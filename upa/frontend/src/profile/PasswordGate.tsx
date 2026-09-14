@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { CircleAlert, LoaderCircle, LockKeyhole } from 'lucide-react';
+import { ArrowRight, CircleAlert, LoaderCircle, LockKeyhole } from 'lucide-react';
 
 interface PasswordGateProps {
   onUnlocked: () => void;
@@ -79,8 +79,9 @@ export function PasswordGate({ onUnlocked }: PasswordGateProps) {
           disabled={submitting}
           onChange={event => { setPassword(event.target.value); setRejected(false); }}
         />
-        <button className="gate-submit" type="submit" disabled={submitting || !password}>
-          Enter
+        <button className="gate-submit" type="submit" disabled={submitting || !password}
+          aria-label="Unlock" title="Unlock">
+          <ArrowRight size={20} aria-hidden="true" />
         </button>
       </form>
     </main>
