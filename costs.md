@@ -109,10 +109,10 @@ for the account's Codespaces usage, included allowances, and spending limit, and
 [Codespaces usage](https://github.com/settings/billing/summary) for current core
 hours and storage. Codespaces is billed by GitHub, separately from Fly.
 
-The Codespace matters to this project specifically because it is the machine that
-holds the `FLY_API_TOKEN` Codespaces secret and is where `ci-cd/deploy.sh` is run
-to deploy the app. Deployments are performed from the Codespace, so keeping it
-available has a cost even when no deployment is happening.
+The Codespace matters to this project as the development machine, not as the
+deployment machine. `FLY_API_TOKEN` is stored only as a repository Actions
+secret, so deployments run on GitHub Actions runners rather than from the
+Codespace, and Codespaces cost accrues for development time alone.
 
 | Possible cost | What applies to this app | Pricing / usage links |
 |---|---|---|
@@ -120,7 +120,7 @@ available has a cost even when no deployment is happening.
 | Storage | Billed per GB-month for the Codespace's storage, including stopped Codespaces. A stopped Codespace stops core-hour charges but keeps storage charges. | [Codespaces pricing](https://docs.github.com/en/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces) |
 | Idle and retention settings | Idle timeout and retention periods determine how long a Codespace keeps running and how long a stopped Codespace is kept before deletion, so they directly affect both charges. | [Timeout settings](https://docs.github.com/en/codespaces/setting-your-user-preferences/setting-your-timeout-period-for-github-codespaces), [Retention settings](https://docs.github.com/en/codespaces/setting-your-user-preferences/configuring-automatic-deletion-of-your-codespaces) |
 | Included allowances | Personal accounts include a monthly allowance of core hours and storage; usage beyond it is charged to the account's payment method up to the spending limit. Confirm the current allowance rather than assuming deployments are free. | [Included storage and core hours](https://docs.github.com/en/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces#monthly-included-storage-and-core-hours-for-personal-accounts), [Spending limit](https://docs.github.com/en/billing/managing-billing-for-github-codespaces/managing-spending-limits-for-github-codespaces) |
-| GitHub Actions alternative | `.github/workflows/deploy.yml` is disabled scaffolding. If it is enabled, deployments run on Actions runners and consume Actions minutes instead of Codespaces core hours, which is a separate billing line. | [Actions billing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions) |
+| GitHub Actions deployment | `.github/workflows/deploy.yml` deploys on every push to `main`, so deployments consume Actions minutes rather than Codespaces core hours, which is a separate billing line. | [Actions billing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions) |
 
 Stopping the Codespace stops compute charges but not its storage charges, in the
 same way that stopping the Fly Machines does not stop volume charges.

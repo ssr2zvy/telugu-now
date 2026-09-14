@@ -15,8 +15,7 @@ them.
 | `ACCESS_PASSWORD_HASH` | Fly secrets | Verifies the shared access password before user-ID selection |
 | `ACCESS_SESSION_SECRET` | Fly secrets | Signs the access-gate session cookie issued after a correct password |
 | Tigris AWS-compatible credentials: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` if temporary credentials are used | Fly secrets | Access to the app's Tigris object storage |
-| `FLY_API_TOKEN` | Codespaces secret, exposed to the Codespace environment | Authorize manual Fly deployments from the Codespaces machine |
-| `API_TOKEN` | Repository GitHub Actions secret, populated from the Codespaces `FLY_API_TOKEN` | Authorize GitHub Actions deployment when that workflow is enabled |
+| `FLY_API_TOKEN` | Repository GitHub Actions secret only | Authorize the Fly deployment that GitHub Actions runs on every push to `main` |
 
 ## Tigris: secret credentials versus non-secret configuration
 
@@ -48,37 +47,30 @@ value used to sign the `tn_gate` session cookie, so a leaked cookie cannot be
 forged without it. Both live in Fly secrets. When either is unset the gate is
 inert, which is what allows local development to run without them.
 
-## Deployment secret setup (pending task)
+## Deployment secret
 
-The GitHub Actions deployment workflow is disabled scaffolding. Before it can
-ever be enabled, the repository needs an Actions secret named `API_TOKEN`, whose
-value is the same Fly deploy token already present in the Codespace as
-`FLY_API_TOKEN`.
+`FLY_API_TOKEN` is stored **only** as a repository GitHub Actions secret. The
+copy that used to exist as a Codespaces secret has been revoked, so the token is
+no longer present in any development environment.
 
-- **Source:** `FLY_API_TOKEN`, a Codespaces secret exposed to the Codespace
-  environment.
-- **Destination:** `API_TOKEN`, a repository GitHub Actions secret.
-- **The names deliberately differ.** `API_TOKEN` is only the *storage name* of
-  the GitHub Actions secret; it is a placeholder label, not a second credential.
-  The value is the Fly deploy token, and the variable the deployment actually
-  consumes is `FLY_API_TOKEN`. `.github/workflows/deploy.yml` therefore maps
-  `secrets.API_TOKEN` onto the `FLY_API_TOKEN` environment variable that
-  `ci-cd/deploy.sh` reads, so the two names should not be conflated.
-
-Run the transfer so the value moves directly from the environment into the
-GitHub CLI's standard input:
-
-```bash
-printf '%s' "$FLY_API_TOKEN" | gh secret set API_TOKEN --repo ssr2zvy/telugu-now
-```
-
-The value must never be read, inspected, printed, logged, written to a file, or
-passed as a command-line argument, and it must never be retrieved through a tool
-and then passed back in. `printf` is a shell builtin, so the value does not
-appear in the process list; keep shell tracing (`set -x`) off while running it.
-
-Setting this secret does **not** authorize enabling the disabled workflow and
-does **not** authorize a deployment. It is a pending setup step only.
+- **The name is the same everywhere.** The Actions secret is named
+  `FLY_API_TOKEN`, and `ci-cd/deploy.sh` reads an environment variable of the
+  same name. `.github/workflows/deploy.yml` passes
+  `FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}` into the deploy step's
+  environment. An earlier scheme stored the token under the placeholder label
+  `API_TOKEN` and mapped one name onto the other; that indirection is gone.
+- **Nothing reads the value.** GitHub exposes Actions secrets to workflow steps
+  and masks them in logs, and the value cannot be read back out of the API. It
+  must never be printed, logged, written to a file, passed as a command-line
+  argument, or retrieved through a tool and passed back in. Keep shell tracing
+  (`set -x`) off in any step that has it in scope.
+- **Consequence for this repository's development environments.** Because the
+  Codespaces copy is revoked, `./ci-cd/deploy.sh deploy` can no longer be run
+  from the Codespace; it will fail with `FLY_API_TOKEN is missing`. Deployment
+  happens through GitHub Actions. To deploy from a personal machine, export an
+  app-scoped Fly deploy token into the shell first.
+- **Rotation.** Create a new app-scoped Fly deploy token, update the repository
+  Actions secret, then revoke the old token. No other location needs updating.
 
 ## Rotation and scope
 

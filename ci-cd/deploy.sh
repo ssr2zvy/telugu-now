@@ -54,7 +54,7 @@ esac
 
 require_command flyctl
 [[ -n "${FLY_API_TOKEN:-}" ]] ||
-  fail 'FLY_API_TOKEN is missing. Add an app-scoped Fly deploy token as a Codespaces secret for this repository and restart the Codespace, or securely export it locally.'
+  fail 'FLY_API_TOKEN is missing. In CI it comes from the repository Actions secret of the same name; locally, securely export an app-scoped Fly deploy token before running this script.'
 [[ -f fly.toml ]] || fail 'Missing repository-root fly.toml.'
 if [[ "$action" == "deploy" ]]; then
   [[ -f ci-cd/Containerfile ]] || fail 'Missing ci-cd/Containerfile.'
