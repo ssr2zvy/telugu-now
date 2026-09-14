@@ -12,9 +12,7 @@ import { SourceWeightsPage } from './pages/SourceWeightsPage';
 import { settingsGroups, settingsPageLabel } from './navigation';
 import { AppearancePage } from './pages/AppearancePage';
 import { ImageGenerationPage } from './pages/ImageGenerationPage';
-import { VersionPage } from './pages/VersionPage';
 import { EonsPage } from './pages/EonsPage';
-import { BlacklistPage } from './pages/BlacklistPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -88,20 +86,6 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <EonsPage key={state.profileCode} profileCode={state.profileCode} language={language} />
-      </SettingsShell>
-    );
-  }
-  if (page === 'blacklist') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <BlacklistPage key={state.profileCode} profileCode={state.profileCode} language={language} />
-      </SettingsShell>
-    );
-  }
-  if (page === 'version') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <VersionPage language={language} />
       </SettingsShell>
     );
   }

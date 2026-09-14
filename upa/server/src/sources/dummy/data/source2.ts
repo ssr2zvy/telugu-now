@@ -1,4 +1,4 @@
-import type { DummyRow } from './dummy-data-source';
+import type { DummyRow } from '../dummy-data-source';
 
 // Fixed Iteration 2 fixture. Lengths were sampled once from a seeded right-skewed
 // distribution and are committed literally; runtime selection never regenerates them.

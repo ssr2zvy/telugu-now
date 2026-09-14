@@ -3,7 +3,6 @@ import test from 'node:test';
 import type { DataSource, SourceComplexityClass } from '../server/src/domain/source';
 import { SelectionEngine } from '../server/src/services/selection-engine';
 import { SourceRegistry } from '../server/src/services/source-registry';
-import { fixtureRegistry } from './fixtures/registry';
 import type { ProfileSelectionSettings, SelectionSnapshot } from '../shared/contracts';
 
 function randomSequence(values: number[]): () => number {
@@ -21,12 +20,11 @@ function actualSettings(
     complexityPercentileTarget: target,
     complexityPercentileSpread: spread,
     complexityReferenceVersion: 2,
-    commonWordReduction: 0,
   };
 }
 
 function probabilityForSource(random: number, weights: Record<string, number>): SelectionSnapshot {
-  const engine = new SelectionEngine(fixtureRegistry(), randomSequence([random, 0.5, 0.5]));
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), randomSequence([random, 0.5, 0.5]));
   return engine.select(actualSettings(weights)).snapshot;
 }
 
@@ -58,9 +56,9 @@ function collectSingleSourceRowProbabilities(target: number, spread: number): Ma
   return found;
 }
 
-test('global complexity reference is pinned to the intended 72-row dummy distribution', () => {
-  const reference = new SelectionEngine(fixtureRegistry(), () => 0).describeReference();
-  assert.equal(reference.version, 3);
+test('global complexity reference v2 is pinned to the intended 72-row dummy distribution', () => {
+  const reference = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), () => 0).describeReference();
+  assert.equal(reference.version, 2);
   assert.equal(reference.totalRows, 72);
   assert.deepEqual(
     reference.classes.map(({ complexityValue, globalCount }) => [complexityValue, globalCount]),
@@ -83,13 +81,12 @@ test('global complexity reference is pinned to the intended 72-row dummy distrib
 
 
 test('selection rejects a mismatched complexity-reference version', () => {
-  const engine = new SelectionEngine(fixtureRegistry(), () => 0);
+  const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), () => 0);
   assert.throws(() => engine.select({
     sourceWeights: { source1: 1, source2: 1, source3: 1 },
     complexityPercentileTarget: 0.5,
     complexityPercentileSpread: 0.25,
     complexityReferenceVersion: 1,
-    commonWordReduction: 0,
   }), /Unsupported complexity reference version/);
 });
 
@@ -136,9 +133,9 @@ test('zero-weight sources are impossible and all-one weights are proportional to
 
 test('complexity settings never change the already-chosen source probability', () => {
   const weights = { source1: 1, source2: 0.5, source3: 0.25 };
-  const low = new SelectionEngine(fixtureRegistry(), randomSequence([0.5, 0.1, 0.1]))
+  const low = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), randomSequence([0.5, 0.1, 0.1]))
     .select(actualSettings(weights, 0.05, 0.05)).snapshot;
-  const high = new SelectionEngine(fixtureRegistry(), randomSequence([0.5, 0.9, 0.9]))
+  const high = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), randomSequence([0.5, 0.9, 0.9]))
     .select(actualSettings(weights, 0.95, 0.5)).snapshot;
   assert.equal(low.sourceId, 'source2');
   assert.equal(high.sourceId, 'source2');
@@ -154,7 +151,7 @@ test('an effectively flat complexity curve converges to uniform per-row selectio
   ] as const;
 
   for (const [sourceWeights, rowCount] of cases) {
-    const engine = new SelectionEngine(fixtureRegistry(), randomSequence([0.7, 0.6, 0.4]));
+    const engine = new SelectionEngine(new SourceRegistry({ includePreparedSources: false }), randomSequence([0.7, 0.6, 0.4]));
     const snapshot = engine.select(actualSettings(sourceWeights, 0.5, Number.MAX_VALUE)).snapshot;
     assert.equal(snapshot.sourceProbability, 1);
     assert.ok(Math.abs(snapshot.globalPerRowComplexityMass - 1 / 72) < 1e-15);

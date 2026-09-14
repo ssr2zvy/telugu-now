@@ -102,43 +102,6 @@ export function ComplexityPage({
           <span className="field-unit" aria-hidden="true">%</span>
         </div>
       </label>
-      <label>
-        <span>
-          {t(
-            language,
-            'commonWordReduction',
-          )}
-        </span>
-        <div className="field-value">
-          <input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          max="20"
-          step="1"
-          aria-label={t(language, 'commonWordReduction')}
-          aria-description={t(language, 'commonWordReductionDescription')}
-          value={draft.commonWordReduction}
-          onChange={(
-            event:
-              ChangeEvent<HTMLInputElement>,
-          ) => {
-            onClearError();
-            onDraftChange({
-              ...draft,
-              commonWordReduction:
-                event.target.value,
-            });
-          }}
-          />
-        </div>
-      </label>
-      <p className="appearance-note">
-        {t(
-          language,
-          'commonWordReductionDescription',
-        )}
-      </p>
       {error ? (
         <div className="settings-error">
           {t(

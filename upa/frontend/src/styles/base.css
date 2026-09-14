@@ -69,20 +69,3 @@ button {
   fill: currentColor;
   stroke: none;
 }
-
-/* Letter-modification highlighting */
-.letter-mod { color: var(--letter-mod-color, currentColor); }
-
-/*
- * Custom cursor, colored from the gradient. Mainly a desktop affordance, so it
- * is limited to real pointers; the low specificity keeps element-specific
- * cursors (grab, not-allowed) able to override it.
- */
-@media (hover: hover) and (pointer: fine) {
-  :where(.appearance-root) { cursor: var(--cursor-default); }
-  :where(.appearance-root) :where(*) { cursor: inherit; }
-  :where(.appearance-root) :where(a[href], button:not(:disabled), summary, [role='button']:not([aria-disabled='true']), input[type='checkbox'], input[type='radio'], input[type='color'], label:has(input:not(:disabled))) { cursor: var(--cursor-pointer); }
-  :where(.appearance-root) :where(input[type='text'], input[type='number'], input[type='password'], input[type='search'], textarea, .observation-text, .profile-input) { cursor: var(--cursor-text); }
-  :where(.appearance-root) :where(input[type='range'], .audio-magnifier-track, .audio-speed-track) { cursor: var(--cursor-resize); }
-  :where(.appearance-root) :where(:disabled, [aria-disabled='true']) { cursor: var(--cursor-default); }
-}

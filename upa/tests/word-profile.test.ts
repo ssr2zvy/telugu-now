@@ -84,13 +84,12 @@ test('highlighted parts preserve the original word and whole Telugu graphemes', 
   }
 });
 
-test('word image generation coalesces requests and appends to the shared catalog', async () => {
+test('word image generation coalesces requests and reuses files independently of SQLite', async () => {
   const database = profileDatabase();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-images-'));
   const imageDirectory = path.join(directory, 'images');
   try {
     const url = `/api/word-images?root=${encodeURIComponent('అవును')}&profile=001`;
-    const catalogUrl = `/api/word-images/catalog?root=${encodeURIComponent('అవును')}`;
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
     let requests = 0;
     const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
@@ -104,58 +103,33 @@ test('word image generation coalesces requests and appends to the shared catalog
       },
     }));
     const settingsUrl = '/api/word-images/settings?profile=001';
-    assert.deepEqual(await (await app.request(settingsUrl)).json(), { prompt: DEFAULT_IMAGE_PROMPT, model: IMAGE_MODEL, keyConfigured: true });
+    assert.deepEqual(await (await app.request(settingsUrl)).json(), { prompt: DEFAULT_IMAGE_PROMPT, model: IMAGE_MODEL, keyConfigured: true, allowRegeneration: false });
     assert.equal((await app.request(settingsUrl, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Picture of <core word>' }) })).status, 200);
-    assert.deepEqual(await (await app.request(catalogUrl)).json(), { entries: [] });
+    assert.equal((await app.request(url)).status, 404);
     const results = await Promise.all([app.request(url, { method: 'POST' }), app.request(url, { method: 'POST' })]);
     assert.deepEqual(results.map(result => result.status), [200, 200]);
-    // Concurrent requests for the same prompt share one paid call.
     assert.equal(requests, 1);
-    for (const result of results) assert.equal((await result.json()).entries.length, 1);
-
-    const { entries } = await (await app.request(catalogUrl)).json();
-    assert.equal(entries.length, 1);
-    assert.equal(entries[0].source, 'generated');
-    assert.equal(entries[0].prompt, 'Picture of అవును');
-    assert.equal(typeof entries[0].createdAt, 'number');
-    const stored = await app.request(`/api/word-images/entry/${entries[0].id}`);
-    assert.equal(stored.status, 200);
-    assert.equal(stored.headers.get('content-type'), 'image/png');
-    assert.deepEqual(Buffer.from(await stored.arrayBuffer()), png);
+    const cached = await app.request(url);
+    assert.equal(cached.status, 200);
+    assert.equal(cached.headers.get('content-type'), 'image/png');
+    assert.deepEqual(Buffer.from(await cached.arrayBuffer()), png);
     assert.equal(database.prepare("SELECT name FROM sqlite_master WHERE name = 'word_images'").get(), undefined);
-
-    // Identical bytes are stored once, and the catalog does not gain a duplicate.
-    assert.equal((await app.request(url, { method: 'POST' })).status, 200);
-    assert.equal((await (await app.request(catalogUrl)).json()).entries.length, 1);
-    const folders = fs.readdirSync(imageDirectory);
-    assert.equal(folders.length, 1);
-    const files = fs.readdirSync(path.join(imageDirectory, folders[0]!));
-    assert.deepEqual(files.filter(name => name.endsWith('.png')).length, 1);
-    assert.equal((await (await app.request(settingsUrl)).json()).prompt, 'Picture of <core word>');
-    assert.deepEqual(await (await app.request('/api/word-images/catalog?root=other')).json(), { entries: [] });
-  } finally {
-    database.close();
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test('a word stored before the catalog existed is adopted into it on first read', async () => {
-  const database = profileDatabase();
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-images-'));
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
-  try {
-    wordImageStore(directory).save('tree', { image: png, mimeType: 'image/png' });
-    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
-      imageDirectory: directory, readKey: () => 'fixture',
-      generate: async () => { throw new Error('Must not generate'); },
-    }));
-    const { entries } = await (await app.request('/api/word-images/catalog?root=tree')).json();
+    const entries = fs.readdirSync(imageDirectory);
     assert.equal(entries.length, 1);
-    assert.equal(entries[0].source, 'generated');
-    assert.equal(entries[0].prompt, null);
-    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images/entry/${entries[0].id}`)).arrayBuffer()), png);
-    // Adoption happens once: a second read does not add the same image again.
-    assert.equal((await (await app.request('/api/word-images/catalog?root=tree')).json()).entries.length, 1);
+    const savedDirectory = path.join(imageDirectory, entries[0]!);
+    assert.deepEqual(fs.readFileSync(path.join(savedDirectory, 'image.png')), png);
+    const metadata = JSON.parse(fs.readFileSync(path.join(savedDirectory, 'metadata.json'), 'utf8'));
+    assert.equal(metadata.root, 'అవును');
+    assert.equal(metadata.mimeType, 'image/png');
+    assert.equal(typeof metadata.createdAt, 'number');
+    const freshDatabase = profileDatabase();
+    try {
+      const reopened = new Hono().route('/api/word-images', wordImageRoutes(freshDatabase, { imageDirectory, readKey: () => '', generate: async () => { throw new Error('Must not regenerate'); } }));
+      assert.deepEqual(Buffer.from(await (await reopened.request(url)).arrayBuffer()), png);
+      assert.equal((await reopened.request(url, { method: 'POST' })).status, 200);
+    } finally { freshDatabase.close(); }
+    assert.equal((await (await app.request(settingsUrl)).json()).prompt, 'Picture of <core word>');
+    assert.equal((await app.request('/api/word-images?root=other')).status, 404);
   } finally {
     database.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -174,8 +148,7 @@ test('word image routes reject invalid settings and never accept browser image u
     assert.equal((await app.request(url, { method: 'PUT', headers: { 'Content-Type': 'image/svg+xml' }, body: '<svg/>' })).status, 404);
     assert.equal((await app.request(url, { method: 'POST', body: new Uint8Array(16385) })).status, 413);
     assert.equal((await app.request(url, { method: 'POST', headers: { Origin: 'https://another.example' } })).status, 403);
-    // A prompt no longer has to carry a placeholder; it only has to be a non-empty string.
-    for (const body of ['{}', 'null', 'not json', JSON.stringify({ prompt: '' }), JSON.stringify({ prompt: 5 })]) {
+    for (const body of ['{}', 'null', 'not json', JSON.stringify({ prompt: 'No placeholder' })]) {
       assert.equal((await app.request('/api/word-images/settings?profile=001', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body })).status, 400);
     }
     const missingKey = await app.request(url, { method: 'POST' });
@@ -188,16 +161,15 @@ test('word image routes reject invalid settings and never accept browser image u
   }
 });
 
-test('image prompts belong to profiles but the word catalog is shared by everyone', async () => {
+test('image prompts belong to profiles but saved root images remain global', async () => {
   const database = profileDatabase();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-images-'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
-  const jpeg = Buffer.from([255, 216, 255, 217]);
   const prompts: string[] = [];
   try {
     const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
       imageDirectory: directory, profileCodes: new Set(['001', '002']), readKey: () => 'fixture',
-      generate: async prompt => { prompts.push(prompt); return prompts.length === 1 ? png : jpeg; },
+      generate: async prompt => { prompts.push(prompt); return png; },
     }));
     for (const code of ['001', '002']) {
       const saved = await app.request(`/api/word-images/settings?profile=${code}`, {
@@ -211,22 +183,15 @@ test('image prompts belong to profiles but the word catalog is shared by everyon
       assert.equal((await app.request(`/api/word-images/settings?profile=${code}`)).status, 404);
       assert.equal((await app.request(`/api/word-images?root=tree&profile=${code}`, { method: 'POST' })).status, 404);
     }
-    // Each profile generates with its own prompt, and both images join one catalog.
-    const first = await app.request('/api/word-images?root=tree&profile=001', { method: 'POST' });
-    assert.equal(first.status, 200);
-    assert.equal((await first.json()).entries.length, 1);
-    const second = await app.request('/api/word-images?root=tree&profile=002', { method: 'POST' });
-    assert.equal(second.status, 200);
-    const entries = (await second.json()).entries;
-    assert.equal(entries.length, 2);
-    assert.deepEqual(prompts, ['001: tree', '002: tree']);
-    assert.deepEqual(entries.map((entry: { prompt: string }) => entry.prompt), ['001: tree', '002: tree']);
-    // The catalog is global: it is keyed by the word alone, not by profile.
-    const shared = await (await app.request('/api/word-images/catalog?root=tree')).json();
-    assert.deepEqual(shared.entries, entries);
-    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images/entry/${entries[0].id}`)).arrayBuffer()), png);
-    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images/entry/${entries[1].id}`)).arrayBuffer()), jpeg);
-    assert.equal((await app.request('/api/word-images/entry/missing-id')).status, 404);
+    for (const code of ['001', '002']) {
+      const response = await app.request(`/api/word-images?root=tree&profile=${code}`, { method: 'POST' });
+      assert.equal(response.status, 200);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
+    }
+    assert.deepEqual(prompts, ['001: tree']);
+    assert.equal((await app.request('/api/word-images?root=another&profile=002', { method: 'POST' })).status, 200);
+    assert.deepEqual(prompts, ['001: tree', '002: another']);
+    assert.equal((await app.request('/api/word-images?root=tree')).status, 200);
   } finally {
     database.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -286,7 +251,7 @@ test('word image files preserve the first image and publish metadata and bytes t
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('damaged word image files return a safe error instead of silently disappearing', async () => {
+test('damaged word image files return a safe error without regenerating', async () => {
   const database = profileDatabase();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-images-'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
@@ -296,33 +261,12 @@ test('damaged word image files return a safe error instead of silently disappear
     const folder = path.join(directory, fs.readdirSync(directory)[0]!);
     const app = new Hono().route('/api/word-images', wordImageRoutes(database, { imageDirectory: directory, readKey: () => 'fixture', generate: async () => { calls += 1; return png; } }));
     fs.unlinkSync(path.join(folder, 'image.png'));
-    const response = await app.request('/api/word-images?root=test');
-    assert.equal(response.status, 500);
-    assert.deepEqual(await response.json(), { error: 'Could not read the saved word image.' });
-    // An unreadable legacy image is not adopted, and nothing is regenerated behind the user's back.
-    assert.deepEqual(await (await app.request('/api/word-images/catalog?root=test')).json(), { entries: [] });
+    for (const method of ['GET', 'POST']) {
+      const response = await app.request('/api/word-images?root=test', { method });
+      assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), { error: 'Could not read the saved word image.' });
+    }
     assert.equal(calls, 0);
-  } finally {
-    database.close();
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test('a catalog entry whose file is damaged reports a read error rather than empty bytes', async () => {
-  const database = profileDatabase();
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-images-'));
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
-  try {
-    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
-      imageDirectory: directory, readKey: () => 'fixture', generate: async () => png,
-    }));
-    const created = await app.request('/api/word-images?root=tree&profile=001', { method: 'POST' });
-    const entry = (await created.json()).entries[0];
-    const folder = path.join(directory, fs.readdirSync(directory)[0]!);
-    for (const name of fs.readdirSync(folder)) fs.writeFileSync(path.join(folder, name), 'not an image');
-    const response = await app.request(`/api/word-images/entry/${entry.id}`);
-    assert.equal(response.status, 500);
-    assert.deepEqual(await response.json(), { error: 'Could not read the saved word image.' });
   } finally {
     database.close();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -356,87 +300,85 @@ test('image replacement publishes atomically and leaves the old image readable a
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('generation always appends: a new prompt adds an image and never replaces the old one', async () => {
+test('regeneration requires the profile toggle, coalesces requests and replaces the shared image', async () => {
   const database = profileDatabase();
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-catalog-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-regeneration-'));
   const original = Buffer.from([255, 216, 255, 217]);
-  const addition = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const replacement = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const store = wordImageStore(directory);
+  store.save('tree', { image: original, mimeType: 'image/jpeg' });
   let calls = 0;
   let release = () => {};
   let started = () => {};
   const entered = new Promise<void>(resolve => { started = resolve; });
   const gate = new Promise<void>(resolve => { release = resolve; });
   try {
-    wordImageStore(directory).save('tree', { image: original, mimeType: 'image/jpeg' });
     const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
       imageDirectory: directory, profileCodes: new Set(['001', '002']), readKey: () => 'fixture',
-      generate: async prompt => { calls += 1; assert.equal(prompt, 'New tree'); started(); await gate; return addition; },
+      generate: async prompt => { calls += 1; assert.equal(prompt, 'New tree'); started(); await gate; return replacement; },
     }));
-    // The pre-catalog image is adopted, so the word starts with exactly one entry.
-    const adopted = (await (await app.request('/api/word-images/catalog?root=tree')).json()).entries;
-    assert.equal(adopted.length, 1);
-
+    const url = '/api/word-images?root=tree&profile=001&regenerate=1';
+    assert.equal((await app.request(url, { method: 'POST' })).status, 403);
+    assert.equal(calls, 0);
+    const settings = await app.request('/api/word-images/settings?profile=001', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'New <core word>', allowRegeneration: true }),
+    });
+    assert.equal((await settings.json()).allowRegeneration, true);
+    assert.equal((await (await app.request('/api/word-images/settings?profile=002')).json()).allowRegeneration, false);
+    assert.equal((await app.request('/api/word-images?root=tree&profile=002&regenerate=1', { method: 'POST' })).status, 403);
+    assert.equal((await app.request('/api/word-images?root=missing&profile=001&regenerate=1', { method: 'POST' })).status, 404);
     assert.equal((await app.request('/api/word-images/settings?profile=001', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'New <core word>' }),
-    })).status, 200);
-    // There is no regeneration switch to set any more.
-    assert.equal((await (await app.request('/api/word-images/settings?profile=001')).json()).allowRegeneration, undefined);
-    const url = '/api/word-images?root=tree&profile=001';
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'New <core word>', allowRegeneration: 'true' }),
+    })).status, 400);
     const first = app.request(url, { method: 'POST' });
     await entered;
     const second = app.request(url, { method: 'POST' });
+    assert.deepEqual(Buffer.from(await (await app.request('/api/word-images?root=tree')).arrayBuffer()), original);
     release();
     for (const result of await Promise.all([first, second])) {
       assert.equal(result.status, 200);
-      assert.equal((await result.json()).entries.length, 2);
+      assert.deepEqual(Buffer.from(await result.arrayBuffer()), replacement);
     }
-    // Concurrent identical requests coalesce into one paid call.
     assert.equal(calls, 1);
-    const entries = (await (await app.request('/api/word-images/catalog?root=tree')).json()).entries;
-    assert.equal(entries.length, 2);
-    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images/entry/${entries[0].id}`)).arrayBuffer()), original);
-    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images/entry/${entries[1].id}`)).arrayBuffer()), addition);
-    // Repeating the same prompt yields the same bytes, so nothing is duplicated.
-    assert.equal((await app.request(url, { method: 'POST' })).status, 200);
-    assert.equal((await (await app.request('/api/word-images/catalog?root=tree')).json()).entries.length, 2);
-    assert.equal(calls, 2);
+    assert.deepEqual(Buffer.from(await (await app.request('/api/word-images?root=tree&profile=002')).arrayBuffer()), replacement);
+    assert.equal((await app.request('/api/word-images?root=tree&profile=001', { method: 'POST' })).status, 200);
+    assert.equal(calls, 1);
   } finally { release(); database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('a failed generation leaves the catalog untouched and retries saving without another paid call', async context => {
+test('failed regeneration preserves the old image and retries publication without another paid call', async context => {
   const database = profileDatabase();
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-catalog-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-regeneration-'));
   const original = Buffer.from([255, 216, 255, 217]);
-  const addition = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const replacement = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const store = wordImageStore(directory);
+  store.save('tree', { image: original, mimeType: 'image/jpeg' });
   let calls = 0;
   let providerFails = true;
   try {
-    wordImageStore(directory).save('tree', { image: original, mimeType: 'image/jpeg' });
     const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
       imageDirectory: directory, readKey: () => 'fixture',
-      generate: async () => { calls += 1; if (providerFails) throw new Error('Provider unavailable'); return addition; },
+      generate: async () => { calls += 1; if (providerFails) throw new Error('Provider unavailable'); return replacement; },
     }));
-    const url = '/api/word-images?root=tree&profile=001';
-    const entryCount = async () => (await (await app.request('/api/word-images/catalog?root=tree')).json()).entries.length;
-    assert.equal(await entryCount(), 1);
+    await app.request('/api/word-images/settings?profile=001', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: DEFAULT_IMAGE_PROMPT, allowRegeneration: true }),
+    });
+    const url = '/api/word-images?root=tree&profile=001&regenerate=1';
     assert.equal((await app.request(url, { method: 'POST' })).status, 502);
-    assert.equal(await entryCount(), 1);
-
+    assert.deepEqual(store.get('tree')?.image, original);
     providerFails = false;
-    const write = fs.writeFileSync;
-    const failure = context.mock.method(fs, 'writeFileSync', (file: fs.PathOrFileDescriptor, data: never, options: never) => {
-      if (String(file).includes('image-')) throw new Error('Publication failed');
-      return write(file, data, options);
+    const rename = fs.renameSync;
+    const failure = context.mock.method(fs, 'renameSync', (source: fs.PathLike, target: fs.PathLike) => {
+      if (String(target).endsWith('metadata.json')) throw new Error('Publication failed');
+      return rename(source, target);
     });
     const failed = await app.request(url, { method: 'POST' });
     assert.equal(failed.status, 502);
     assert.match((await failed.json()).error, /saving failed/);
-    assert.equal(await entryCount(), 1);
+    assert.deepEqual(store.get('tree')?.image, original);
     failure.mock.restore();
-
-    // The generated bytes were kept, so the retry saves them without paying again.
     assert.equal((await app.request(url, { method: 'POST' })).status, 200);
     assert.equal(calls, 2);
-    assert.equal(await entryCount(), 2);
+    assert.deepEqual(store.get('tree')?.image, replacement);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });

@@ -21,12 +21,10 @@ export interface DataSource {
   readonly generation?: string;
 
   rowCount(): number;
-  /** `commonWordReduction` selects the Common Word Inclusion strength (0 disables it). */
-  complexityClasses(commonWordReduction?: number): readonly SourceComplexityClass[];
+  complexityClasses(): readonly SourceComplexityClass[];
   candidateAt(
     complexityValue: number,
     classIndex: number,
-    commonWordReduction?: number,
   ): SourceCandidate;
   prepare(
     sourceKey: string,

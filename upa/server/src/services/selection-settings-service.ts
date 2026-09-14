@@ -6,7 +6,6 @@ import type {
 } from '../../../shared/contracts';
 import { sourceRegistry } from './source-registry';
 import { COMPLEXITY_REFERENCE_VERSION } from './selection-engine';
-import { DEFAULT_COMMON_WORD_REDUCTION, MAX_COMMON_WORD_REDUCTION } from './common-word-complexity';
 
 export class InvalidSelectionSettingsError extends Error {}
 
@@ -23,13 +22,6 @@ export function validateSelectionSettings(request: UpdateSelectionSettingsReques
   }
   if (request.complexityPercentileSpread <= 0) {
     throw new InvalidSelectionSettingsError('Complexity spread must be greater than zero.');
-  }
-  if (request.commonWordReduction !== undefined) {
-    assertFinite(request.commonWordReduction, 'common word reduction');
-    if (!Number.isInteger(request.commonWordReduction)
-      || request.commonWordReduction < 0 || request.commonWordReduction > MAX_COMMON_WORD_REDUCTION) {
-      throw new InvalidSelectionSettingsError(`Common word reduction must be a whole number in [0, ${MAX_COMMON_WORD_REDUCTION}].`);
-    }
   }
 
   const sourceIds = sourceRegistry.selectableSourceIds();
@@ -60,8 +52,8 @@ function ensureRows(profileCode: string): void {
   const now = Date.now();
   const insertSettings = db.prepare(`
     INSERT INTO profile_selection_settings (
-      profile_code, complexity_percentile_target, complexity_percentile_spread, common_word_reduction, updated_at
-    ) VALUES (?, ?, ?, ?, ?)
+      profile_code, complexity_percentile_target, complexity_percentile_spread, updated_at
+    ) VALUES (?, ?, ?, ?)
     ON CONFLICT(profile_code) DO NOTHING
   `);
   const insertWeight = db.prepare(`
@@ -78,7 +70,6 @@ function ensureRows(profileCode: string): void {
     profileCode,
     config.defaultComplexityPercentileTarget,
     config.defaultComplexityPercentileSpread,
-    DEFAULT_COMMON_WORD_REDUCTION,
     now,
   );
   for (const sourceId of sourceRegistry.selectableSourceIds()) {
@@ -89,13 +80,12 @@ function ensureRows(profileCode: string): void {
 export function getProfileSelectionSettings(profileCode: string): ProfileSelectionSettings {
   const sourceIds = sourceRegistry.selectableSourceIds();
   const readSettings = () => db.prepare(`
-    SELECT complexity_percentile_target, complexity_percentile_spread, common_word_reduction
+    SELECT complexity_percentile_target, complexity_percentile_spread
     FROM profile_selection_settings
     WHERE profile_code = ?
   `).get(profileCode) as {
     complexity_percentile_target: number;
     complexity_percentile_spread: number;
-    common_word_reduction: number | null;
   } | undefined;
   const readWeights = () => db.prepare(`
     SELECT source_id, weight
@@ -125,7 +115,6 @@ export function getProfileSelectionSettings(profileCode: string): ProfileSelecti
     complexityPercentileTarget: settings.complexity_percentile_target,
     complexityPercentileSpread: settings.complexity_percentile_spread,
     complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
-    commonWordReduction: settings.common_word_reduction ?? DEFAULT_COMMON_WORD_REDUCTION,
   };
 }
 
@@ -141,7 +130,6 @@ export function updateProfileSelectionSettings(
     UPDATE profile_selection_settings
     SET complexity_percentile_target = ?,
         complexity_percentile_spread = ?,
-        common_word_reduction = ?,
         updated_at = ?
     WHERE profile_code = ?
   `);
@@ -155,7 +143,6 @@ export function updateProfileSelectionSettings(
     updateSettings.run(
       request.complexityPercentileTarget,
       request.complexityPercentileSpread,
-      request.commonWordReduction ?? DEFAULT_COMMON_WORD_REDUCTION,
       now,
       profileCode,
     );

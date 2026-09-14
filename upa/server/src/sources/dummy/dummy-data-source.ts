@@ -1,10 +1,10 @@
-import { config } from '../../server/src/config/config';
+import { config } from '../../config/config';
 import type {
   DataSource,
   PreparedSourceObservation,
   SourceCandidate,
   SourceComplexityClass,
-} from '../../server/src/domain/source';
+} from '../../domain/source';
 
 export interface DummyRow { sourceKey: string; text: string; }
 const graphemeSegmenter = new Intl.Segmenter('te', { granularity: 'grapheme' });

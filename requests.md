@@ -11,9 +11,7 @@ precedence; the original wording remains available for context.
 
 This document does not authorize implementing the features or deploying them.
 
-## Reading-page copy and blacklist menu — done
-
-Implemented; see `requests-done.md`.
+## Reading-page copy and blacklist menu
 
 - In desktop browsers, right-clicking the reading text opens a modal/menu.
 - On mobile, a long hold opens the equivalent menu. This replaces native
@@ -31,9 +29,7 @@ Implemented; see `requests-done.md`.
 The later mobile-menu clarification explicitly supersedes the earlier request
 to leave native mobile selection unchanged.
 
-## Magnifier seeking and playback state — done
-
-Implemented; see `requests-done.md`.
+## Magnifier seeking and playback state
 
 - Clicking a position in the magnifier should seek directly to that position.
 - A click-to-seek should preserve whether playback was playing or paused.
@@ -42,9 +38,7 @@ Implemented; see `requests-done.md`.
   resume if it was playing, remain paused if it was deliberately paused.
 - To confirm: the drag threshold and how a cancelled drag should finish.
 
-## Seeking after natural completion — done
-
-Implemented; see `requests-done.md`.
+## Seeking after natural completion
 
 - Distinguish playback stopping naturally at the end from a deliberate user
   pause, including a deliberate pause at that exact endpoint.
@@ -56,9 +50,7 @@ Implemented; see `requests-done.md`.
 - The new autoplay preference only affects entering an observation. It does
   not disable automatic resume when seeking backward after natural completion.
 
-## Loop button and bookmark loops — done
-
-Implemented; see `requests-done.md`.
+## Loop button and bookmark loops
 
 - Add a Loop button next to the playback-speed button.
 - Single-clicking Loop toggles looping of the entire audio without restarting
@@ -72,9 +64,7 @@ Implemented; see `requests-done.md`.
 - Include Loop with the speed and bookmark controls in the gesture visibility
   rules below.
 
-## Reader gestures and control visibility — done
-
-Implemented; see `requests-done.md`.
+## Reader gestures and control visibility
 
 - Remove the reader's Settings button.
 - Triple-tapping anywhere toggles opening Settings directly.
@@ -96,7 +86,7 @@ Implemented; see `requests-done.md`.
 - The question-page toggle-trigger behavior is also specified separately below;
   preserve those contextual requirements when implementing reader gestures.
 
-## Settings overview navigation — done
+## Settings overview navigation
 
 - All top-level sections in the left-hand overview should start collapsed.
 - The overview itself should also start collapsed.
@@ -107,7 +97,7 @@ Implemented; see `requests-done.md`.
 - Apply this behavior to the overview toggle after Settings is opened with the
   new triple-tap gesture; the reader's old Settings button is being removed.
 
-## Settings structure and consistent presentation — done
+## Settings structure and consistent presentation
 
 - Playback Settings, Appearance, and Image Generation should be separate
   Settings sections.
@@ -133,7 +123,7 @@ Implemented; see `requests-done.md`.
 - Sampling > Data Sources should present information using the same
   standardized format as Diagnostic, since both are information displays.
 
-## Appearance organization — done
+## Appearance organization
 
 - Split Appearance into further subsections organized by visual element.
 - Within each visual element, group its color settings, position settings, and
@@ -151,21 +141,21 @@ Implemented; see `requests-done.md`.
 - Apply coherent organizing decisions to every Appearance element, not only
   the specific examples called out in the notes.
 
-## Magnifier size and highlight background — done
+## Magnifier size and highlight background
 
 - Make the magnifying bar smaller overall.
 - Add an Appearance setting to enable or disable its highlight background.
 - To confirm: the new dimensions, which highlight/background the setting
   controls, and whether it should be enabled by default.
 
-## Directional audio-bar animation — done
+## Directional audio-bar animation
 
 - The audio bar should feel as though it slides into and out of a slit in the
   swipe direction.
 - Replace the current effect that appears to collapse the bar toward its center.
 - Keep the entry and exit motion consistent with the direction of the gesture.
 
-## Question observations and sampling — done
+## Question observations and sampling
 
 - Introduce questions as another type of displayed observation.
 - Display normal observations, as already defined, with 70% probability and
@@ -210,7 +200,7 @@ Implemented; see `requests-done.md`.
 
 - The answer page looks like the normal observation page for that observation.
 
-## Telugu letter-modification highlighting — done
+## Telugu letter-modification highlighting
 
 - Add an Appearance setting named Highlight Mods and enable it by default.
 - Identify the base letter and leave it in its existing text color.
@@ -220,14 +210,14 @@ Implemented; see `requests-done.md`.
   retain this uncertainty rather than treating the precise linguistic scope as
   already resolved.
 
-## Custom cursor — done
+## Custom cursor
 
 - Add a custom cursor wherever the site uses a cursor, mainly applicable to
   desktop browsers.
 - Derive its color from the gradient and choose a pragmatically appropriate
   darker or lighter variant so it is distinguishable.
 
-## Password gate — done
+## Password gate
 
 - Add a password gate before the user-ID selection/entry step.
 - Store the required password's verification configuration in Fly secrets,
@@ -237,7 +227,7 @@ Implemented; see `requests-done.md`.
 - On later visits, iPhone Safari and other browsers should recognize the site
   and offer the saved password.
 
-## Word view and image catalog — done
+## Word view and image catalog
 
 - Double-clicking/double-tapping a word opens a full-page word view, with the
   word alone at the top.
@@ -290,7 +280,7 @@ Implemented; see `requests-done.md`.
 - When any user requests the same TTS or image search, reuse already retrieved
   results rather than repeating the external request.
 
-## Complexity scoring — done
+## Complexity scoring
 
 - Extend complexity scoring beyond grapheme count with a Common Word Inclusion
   metric.
@@ -300,16 +290,16 @@ Implemented; see `requests-done.md`.
 - Retain the source-weight plus complexity selection strategy, including its
   use within seen/unseen question pools.
 
-## Source removal — done
+## Source removal
 
 - Remove Dummy Source 1, Dummy Source 2, and Dummy Source 3.
 
-## Version information in Settings — done
+## Version information in Settings
 
 - Add a Telugu Now version section showing the latest deployment date/time
   and related version/deployment information.
 
-## Cost documentation — done
+## Cost documentation
 
 - Add GitHub Codespaces usage as a platform in `costs.md`, specifically the
   Codespace holding the Fly deployment token and used for deployments.
@@ -319,7 +309,7 @@ Implemented; see `requests-done.md`.
 - Retain existing Fly and Pollinations coverage; include the requested
   Pollinations TTS feature when documenting the expanded usage.
 
-## Credential documentation: tokens.md — done
+## Credential documentation: tokens.md
 
 Create a repository-root `tokens.md` documenting credential purposes, consumers,
 and storage locations. Do not include actual token values, secret keys, or
@@ -338,7 +328,7 @@ Distinguish secret Tigris credentials from non-secret configuration such as
 endpoint, region, bucket name, and object prefix. Describe the actual
 configuration locations without implying that all Tigris configuration is secret.
 
-## GitHub deployment secret setup — done
+## GitHub deployment secret setup
 
 - Add a setup task to run `gh secret set API_TOKEN` for this repository using
   the existing `FLY_API_TOKEN` in the Codespaces environment.
@@ -353,13 +343,8 @@ configuration locations without implying that all Tigris configuration is secret
   expected by `ci-cd/deploy.sh`, so the two names are not confused.
 - Setting the secret does not itself authorize enabling the disabled workflow
   or deploying. This is a pending setup request, not a completed secret transfer.
-- **Superseded.** The agent could not set the secret: `gh` in the Codespace has
-  no Actions-secrets scope and returned HTTP 403. The user instead created the
-  Actions secret directly, named `FLY_API_TOKEN`, and revoked the Codespaces
-  copy, so the `API_TOKEN` placeholder label is obsolete. The workflow now reads
-  `secrets.FLY_API_TOKEN` and is enabled on pushes to `main`.
 
-## Controls Guide — done
+## Controls Guide
 
 - Create a **Controls Guide** documenting all application behavior and control
   behavior, not only the newly added controls.
@@ -376,7 +361,7 @@ configuration locations without implying that all Tigris configuration is secret
 - Keep the guide aligned with implemented behavior as changes land, clearly
   distinguishing pending requests from available features.
 
-## Icon and text conventions — done
+## Icon and text conventions
 
 - New action controls outside Settings should be icons only, without visible
   text inside or alongside those action icons; keep accessible names.

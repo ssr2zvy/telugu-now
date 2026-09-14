@@ -60,8 +60,7 @@ function engine(store: PreparedCorpusStore, random = () => 0.5): SelectionEngine
 
 const settings: ProfileSelectionSettings = {
   sourceWeights: { source1: 0, source2: 0, source3: 0, 'fleurs-te': 1 },
-  complexityReferenceVersion: 2,
-  commonWordReduction: 0, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25,
+  complexityReferenceVersion: 2, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25,
 };
 
 test('local availability indexes only nonempty audio, densely, without mutating canonical content', async t => {
