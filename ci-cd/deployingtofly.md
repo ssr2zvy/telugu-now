@@ -3,8 +3,8 @@
 ## Repository layout
 
 ```text
-.github/workflows/deploy.yml       Manual-only GitHub Actions deployment
-local-machine/control_local.sh    Push main and dispatch with the deploy command
+.github/workflows/deploy.yml       Deployment-tag pushes and manual stop
+local-machine/control_local.sh    Tag and push main with the deploy command
 ci-cd/deploy.sh                    Shared deploy, stop, and cancel commands
 ci-cd/Containerfile                Multi-stage container build
 ci-cd/make-artifacts.sh            Application build entry point
@@ -23,10 +23,12 @@ scripts and GitHub credentials are not copied into the application image.
 
 ## GitHub Actions authentication
 
-The controller's `deploy` command requires `git`, `gh`, permission to push to
-`origin/main`, and GitHub CLI authentication with Actions write permission for
-this repository. Authenticate with `gh auth login` or an appropriate `GH_TOKEN`.
-Follow any branch-protection rules; the controller does not bypass them.
+The controller's `deploy` command requires `git`, GNU `date`, and permission to
+push to `origin/main` and create `deploy/*` tags. It does not call `gh` or require
+Actions write permission. Follow branch and tag protection rules; the controller
+does not bypass them. GitHub Actions must be enabled for the repository. Pushes
+made using an Actions job's `GITHUB_TOKEN` do not trigger another workflow;
+use your normal Git credentials from the Codespace or local machine.
 
 The workflow requires a repository **Actions secret** named `FLY_API_TOKEN`
 containing an app-scoped Fly deploy token. A Codespaces secret alone is not
@@ -71,7 +73,7 @@ bash local-machine/control_local.sh deploy
 
 From `local-machine/`, use `bash control_local.sh deploy`. The command resolves
 the repository regardless of the current directory. `deploy --help` prints usage
-without pushing or dispatching anything. There is no interactive menu or
+without creating tags or pushing anything. There is no interactive menu or
 `--option` argument for deployment.
 
 The command requires a clean working tree on `main`, including no staged or
@@ -79,37 +81,46 @@ untracked changes. It does not stage, commit, merge, switch branches, or force
 push. Stop local dev and deliberately checkpoint/commit changed dummy SQLite
 data before deploying if that test data is part of the intended commit.
 
-After checking prerequisites it runs exactly these remote operations, in order:
+After checking prerequisites it captures the current commit SHA and creates a
+lightweight tag named `deploy/<UTC timestamp with nanoseconds>-<12-character SHA>`.
+Each invocation creates a new tag, so the same commit can be deployed again.
+It then pushes that exact commit to `main` and the tag in one atomic operation:
 
 ```bash
-git push origin main &&
-gh workflow run deploy.yml --ref main -f action=deploy
+git push --atomic origin "$revision:refs/heads/main" "refs/tags/$tag:refs/tags/$tag"
 ```
 
-If the push fails, no workflow is requested. If dispatch fails, the push remains
-completed; fix GitHub authentication or workflow availability and retry only the
-`gh workflow run` command. Successful dispatch means the deployment was requested,
-not that the build or rollout succeeded. Inspect it with:
+The controller fills in `revision` and `tag`; no shell variables need to be set
+by the caller. If the server rejects either ref, neither is updated. A failed
+push retains the local tag and prints the exact retry command. For an ambiguous
+network failure, inspect the remote tag and Actions before retrying: the server
+may have accepted the push before the connection failed.
+
+A successful tag push requests deployment, not proof that the build or rollout
+succeeded. Tags record requests, not successful releases. Inspect runs in the
+GitHub Actions UI, or with optional GitHub CLI read access:
 
 ```bash
-gh run list --workflow deploy.yml --branch main
+gh run list --workflow deploy.yml
 gh run watch RUN_ID --exit-status
 ```
 
-The workflow deploys the `main` revision captured at dispatch time; the controller
-does not pin a separate commit SHA if another push advances `main` between push
-and dispatch. GitHub checks out the triggering revision and serializes deploy/stop
-runs without cancelling an earlier run. The Codespace can close after dispatch.
+GitHub checks out the tagged revision, not whichever commit is currently at the
+tip of `main`. Before building, the workflow verifies that the commit belongs to
+remote `main` history. It serializes deploy/stop runs without cancelling a running
+operation. GitHub concurrency may replace an older pending run when more runs
+arrive; it is not a FIFO deployment queue. The Codespace can close after pushing.
 
-Ordinary pushes and merges to `main` do not deploy. The workflow has only a
-`workflow_dispatch` trigger and accepts runs only from `main`. This policy takes
-effect once the workflow change reaches remote `main`; it does not cancel runs
-already queued or running. Fly does not watch GitHub itself.
+Ordinary pushes and merges to `main` do not deploy. Only pushes to `deploy/*`
+tags request deployment; tag deletion does not deploy. The tagged commit must
+contain this tag-enabled workflow, so commit the workflow change on `main` before
+using the new command. Existing queued/running workflows are not cancelled by
+this policy. Fly does not watch GitHub itself.
 
-To deploy code already on `main` without another push, run the `gh workflow run`
-command directly or select **Actions > Fly deployment > Run workflow**, choose
-`main`, and select `deploy`. Select `stop` to stop Machines instead. A local
-environment variable such as `DEPLOY=true git push` does not trigger deployment.
+To redeploy code already on `main`, run the controller again to create a fresh
+deployment tag. Do not move or force-update existing deployment tags. Manual
+dispatch is retained only for **Actions > Fly deployment > Run workflow > main >
+stop**. A local variable such as `DEPLOY=true git push` does not trigger deployment.
 
 ## Direct deployment alternative
 
@@ -147,7 +158,7 @@ deployment script does not update or switch Git branches for you.
 `stop` lists the app's Machines and stops them without destroying Machines,
 volumes, or Tigris data. Storage charges continue. The current `fly.toml` sets
 `auto_start_machines = false`, so traffic does not restart the stopped app.
-A subsequent manual deployment can start it again. A push to `main` alone
+A subsequent deployment-tag push or direct deployment can start it again. A push to `main` alone
 will not restart it. Cancel any pending/active Actions runs before stopping;
 removing a workflow file does not cancel runs that were already queued.
 If stopping multiple Machines fails partway through, some may already be stopped;
@@ -156,7 +167,7 @@ the command reports failure rather than claiming success.
 `cancel RUN_ID` requests cancellation of a GitHub deployment run. It uses
 GitHub CLI authentication (`gh auth login` or `GH_TOKEN`
 with Actions read/write permissions), not `FLY_API_TOKEN`. It verifies that the
-run belongs to this repository's deployment workflow on `main` before requesting
+run belongs to this repository's deployment workflow on `main` or a `deploy/*` tag before requesting
 cancellation. Find IDs with:
 
 ```bash

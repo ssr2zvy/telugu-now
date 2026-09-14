@@ -31,17 +31,17 @@ USAGE
 }
 
 run_deploy() {
-  local branch changes tool rc
+  local branch changes tool revision timestamp tag rc
 
   if [[ $# -eq 1 && "$1" == "--help" ]]; then
-    printf 'Usage: ./%s deploy\nPush a clean main checkout to origin, then request the GitHub deployment workflow.\n' "$SCRIPT_NAME"
+    printf 'Usage: ./%s deploy\nTag a clean main checkout and push main plus the deployment tag to origin.\n' "$SCRIPT_NAME"
     return 0
   fi
   if [[ $# -ne 0 ]]; then
     printf 'ERROR: deploy takes no arguments; use --help for usage.\n' >&2
     return 2
   fi
-  for tool in git gh; do
+  for tool in git date; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       printf 'ERROR: Required command not found: %s\n' "$tool" >&2
       return 1
@@ -60,13 +60,16 @@ run_deploy() {
     return 1
   fi
 
-  git push origin main || return $?
-  gh workflow run deploy.yml --ref main -f action=deploy || {
+  revision="$(git rev-parse --verify HEAD)" || return $?
+  timestamp="$(date -u +%Y%m%dT%H%M%S%NZ)" || return $?
+  tag="deploy/${timestamp}-${revision:0:12}"
+  git tag --no-sign "$tag" "$revision" || return $?
+  git push --atomic origin "$revision:refs/heads/main" "refs/tags/$tag:refs/tags/$tag" || {
     rc=$?
-    printf 'ERROR: main was pushed, but workflow dispatch failed. Retry with: gh workflow run deploy.yml --ref main -f action=deploy\n' >&2
+    printf 'ERROR: Deployment push failed; local tag %s was retained. Retry with:\ngit push --atomic origin %s:refs/heads/main refs/tags/%s:refs/tags/%s\n' "$tag" "$revision" "$tag" "$tag" >&2
     return "$rc"
   }
-  printf 'Deployment requested, not yet completed. Check GitHub Actions for the result.\n'
+  printf 'Deployment requested by tag %s, not yet completed. Check GitHub Actions for the result.\n' "$tag"
 }
 
 prepared_corpus_ready() {

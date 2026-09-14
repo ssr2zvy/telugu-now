@@ -107,6 +107,9 @@ exit "\${ACTION_EXIT:-0}"
   const cancel = run(['cancel', '123'], { FLY_API_TOKEN: '' });
   assert.equal(cancel.status, 0, cancel.stderr);
   assert.match(cancel.calls, /run cancel 123 --repo ssr2zvy\/telugu-now/);
+  const taggedCancel = run(['cancel', '123'], { RUN_BRANCH: 'deploy/20260914T120000Z-123456789abc' });
+  assert.equal(taggedCancel.status, 0, taggedCancel.stderr);
+  assert.match(taggedCancel.calls, /run cancel 123 --repo ssr2zvy\/telugu-now/);
   assert.equal(run(['cancel', '123'], { ACTION_EXIT: '19' }).status, 19);
   fs.unlinkSync(path.join(root, 'ci-cd/Containerfile'));
   assert.equal(run(['deploy']).calls, '');
@@ -115,7 +118,7 @@ exit "\${ACTION_EXIT:-0}"
   assert.match(missingTool.stderr, /Required command not found: flyctl/);
 });
 
-test('controller deploy pushes clean main before explicitly dispatching the workflow', t => {
+test('controller deploy atomically pushes clean main and a pinned deployment tag without gh', t => {
   const root = path.join(appDirectory, 'test-results', `controller-deploy-${randomUUID()}`);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   for (const directory of ['local-machine', 'upa', 'bin', 'unrelated']) {
@@ -130,15 +133,20 @@ printf '%s|git %s\\n' "$PWD" "$*" >> "$CALL_LOG"
 case "$*" in
   "branch --show-current") printf '%s\\n' "$TEST_BRANCH" ;;
   "status --porcelain") printf '%s' "$TEST_CHANGES" ;;
-  "push origin main") exit "$PUSH_EXIT" ;;
+  "rev-parse --verify HEAD") printf '%s\\n' "$TEST_REVISION" ;;
+  "tag --no-sign "*) exit "$TAG_EXIT" ;;
+  "push --atomic origin "*) exit "$PUSH_EXIT" ;;
   *) exit 99 ;;
 esac
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(root, 'bin/gh'), `#!/usr/bin/env bash
 [[ -z "\${TEST_LOCAL_SECRET:-}" ]] || exit 98
 printf '%s|gh %s\\n' "$PWD" "$*" >> "$CALL_LOG"
-exit "$DISPATCH_EXIT"
+exit 97
 `, { mode: 0o755 });
+  fs.writeFileSync(path.join(root, 'bin/date'), '#!/usr/bin/env bash\nprintf "20260914T120000123456789Z\\n"\n', { mode: 0o755 });
+  const revision = '1234567890abcdef1234567890abcdef12345678';
+  const tag = `deploy/20260914T120000123456789Z-${revision.slice(0, 12)}`;
   const log = path.join(root, 'calls');
   const run = (args: string[] = [], env: Record<string, string> = {}) => {
     fs.writeFileSync(log, '');
@@ -147,7 +155,7 @@ exit "$DISPATCH_EXIT"
       env: {
         ...process.env,
         PATH: `${path.join(root, 'bin')}:${process.env.PATH}`,
-        CALL_LOG: log, TEST_BRANCH: 'main', TEST_CHANGES: '', PUSH_EXIT: '0', DISPATCH_EXIT: '0',
+        CALL_LOG: log, TEST_BRANCH: 'main', TEST_CHANGES: '', TEST_REVISION: revision, PUSH_EXIT: '0', TAG_EXIT: '0',
         ...env,
       },
       encoding: 'utf8',
@@ -161,10 +169,11 @@ exit "$DISPATCH_EXIT"
   assert.deepEqual(success.calls, [
     `${root}|git branch --show-current`,
     `${root}|git status --porcelain`,
-    `${root}|git push origin main`,
-    `${root}|gh workflow run deploy.yml --ref main -f action=deploy`,
+    `${root}|git rev-parse --verify HEAD`,
+    `${root}|git tag --no-sign ${tag} ${revision}`,
+    `${root}|git push --atomic origin ${revision}:refs/heads/main refs/tags/${tag}:refs/tags/${tag}`,
   ]);
-  assert.match(success.stdout, /Deployment requested, not yet completed/);
+  assert.ok(success.stdout.includes(`Deployment requested by tag ${tag}, not yet completed`));
   for (const branch of ['feature', '']) {
     const wrongBranch = run([], { TEST_BRANCH: branch });
     assert.equal(wrongBranch.status, 1);
@@ -179,12 +188,14 @@ exit "$DISPATCH_EXIT"
   }
   const rejectedPush = run([], { PUSH_EXIT: '23' });
   assert.equal(rejectedPush.status, 23);
-  assert.equal(rejectedPush.calls.length, 3);
-  const rejectedDispatch = run([], { DISPATCH_EXIT: '17' });
-  assert.equal(rejectedDispatch.status, 17);
-  assert.match(rejectedDispatch.stderr, /main was pushed, but workflow dispatch failed/);
-  assert.equal(rejectedDispatch.calls.length, 4);
-  assert.doesNotMatch(rejectedDispatch.stdout, /Deployment requested/);
+  assert.equal(rejectedPush.calls.length, 5);
+  assert.ok(rejectedPush.stderr.includes(`local tag ${tag} was retained`));
+  assert.ok(rejectedPush.stderr.includes(`git push --atomic origin ${revision}:refs/heads/main refs/tags/${tag}:refs/tags/${tag}`));
+  assert.doesNotMatch(rejectedPush.stdout, /Deployment requested/);
+  const rejectedTag = run([], { TAG_EXIT: '17' });
+  assert.equal(rejectedTag.status, 17);
+  assert.equal(rejectedTag.calls.length, 4);
+  assert.doesNotMatch(rejectedTag.stdout, /Deployment requested/);
   for (const args of [['--help'], ['extra'], ['--option', 'start']]) {
     const result = run(args);
     assert.equal(result.status, args[0] === '--help' ? 0 : 2);
@@ -192,7 +203,54 @@ exit "$DISPATCH_EXIT"
   }
 });
 
-test('Fly configuration uses shared deployment paths and permits only manual deployment from main', () => {
+test('deployment tags pin the checkout and a rejected atomic push leaves both remote refs unchanged', t => {
+  const root = path.join(appDirectory, 'test-results', `deployment-git-${randomUUID()}`);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const checkout = path.join(root, 'checkout');
+  const remote = path.join(root, 'remote.git');
+  fs.mkdirSync(path.join(checkout, 'local-machine'), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'upa'));
+  fs.copyFileSync(path.join(repositoryDirectory, 'local-machine/control_local.sh'), path.join(checkout, 'local-machine/control_local.sh'));
+  fs.writeFileSync(path.join(checkout, '.gitignore'), '/upa/.control/\n');
+  const git = (args: string[], cwd = checkout) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  git(['init', '--initial-branch=main']);
+  git(['config', 'user.name', 'Deployment test']);
+  git(['config', 'user.email', 'deployment@example.test']);
+  git(['config', 'commit.gpgSign', 'false']);
+  git(['init', '--bare', '--initial-branch=main', remote]);
+  git(['remote', 'add', 'origin', remote]);
+  git(['add', '.']);
+  git(['commit', '-m', 'Initial fixture']);
+  const revision = git(['rev-parse', 'HEAD']);
+  const deploy = () => spawnSync('bash', ['local-machine/control_local.sh', 'deploy'], { cwd: checkout, encoding: 'utf8' });
+  for (const expectedCount of [1, 2]) {
+    const result = deploy();
+    assert.equal(result.status, 0, result.stderr);
+    const tags = git(['tag', '--list', 'deploy/*'], remote).split('\n');
+    assert.equal(tags.length, expectedCount);
+    assert.equal(git(['rev-parse', 'main'], remote), revision);
+    for (const tag of tags) {
+      assert.match(tag, /^deploy\/\d{8}T\d{15}Z-[a-f0-9]{12}$/);
+      assert.equal(git(['rev-parse', tag], remote), revision);
+    }
+  }
+  const previousTags = git(['tag', '--list'], remote);
+  git(['commit', '--allow-empty', '-m', 'Next revision']);
+  fs.writeFileSync(path.join(remote, 'hooks/pre-receive'), '#!/usr/bin/env bash\nexit 1\n', { mode: 0o755 });
+  const rejected = deploy();
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /local tag .* was retained/);
+  assert.equal(git(['rev-parse', 'main'], remote), revision);
+  assert.equal(git(['tag', '--list'], remote), previousTags);
+  assert.equal(git(['tag', '--list', 'deploy/*']).split('\n').length, 3);
+  assert.equal(git(['status', '--porcelain']), '');
+});
+
+test('Fly configuration deploys main revisions only through deployment tags and retains manual stop', () => {
   const read = (file: string) => fs.readFileSync(path.join(repositoryDirectory, file), 'utf8');
   assert.match(read('fly.toml'), /dockerfile = "ci-cd\/Containerfile"/);
   assert.match(read('.dockerignore'), /^!ci-cd\/Containerfile$/m);
@@ -202,13 +260,18 @@ test('Fly configuration uses shared deployment paths and permits only manual dep
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/make-artifacts.sh/);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/container-scripts\/entrypoint.sh/);
   const workflow = read('.github/workflows/deploy.yml');
-  assert.match(workflow, /^\s+if: github\.ref == 'refs\/heads\/main'$/m);
+  assert.match(workflow, /^\s+push:\s*\n\s+tags: \['deploy\/\*'\]/m);
+  assert.match(workflow, /startsWith\(github.ref, 'refs\/tags\/deploy\/'\) && !github.event.deleted/);
+  assert.match(workflow, /github.event_name == 'workflow_dispatch' && github.ref == 'refs\/heads\/main' && inputs.action == 'stop'/);
+  assert.match(workflow, /options: \[stop\]/);
+  assert.match(workflow, /fetch-depth: 0/);
+  assert.match(workflow, /run: git merge-base --is-ancestor HEAD refs\/remotes\/origin\/main/);
   assert.match(workflow, /^\s+workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule|workflow_run):/m);
+  assert.doesNotMatch(workflow, /^\s+(branches|pull_request|pull_request_target|schedule|workflow_run):/m);
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.FLY_API_TOKEN \}\}/);
-  assert.match(workflow, /DEPLOY_ACTION: \$\{\{ inputs.action \}\}/);
+  assert.match(workflow, /DEPLOY_ACTION: \$\{\{ github.event_name == 'push' && 'deploy' \|\| inputs.action \}\}/);
   assert.match(workflow, /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/);
   assert.match(read('ci-cd/deploy.sh'), /Codespaces secret/);
 });

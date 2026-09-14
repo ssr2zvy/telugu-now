@@ -40,8 +40,8 @@ case "$action" in
       --jq '[.path, .head_branch, .status] | @tsv')" ||
       fail 'Cannot read the run. Authenticate gh with Actions read/write access.'
     IFS=$'\t' read -r workflow branch status <<< "$run"
-    [[ "$workflow" == ".github/workflows/deploy.yml" && "$branch" == "main" ]] ||
-      fail 'Refusing to cancel a run outside the main deployment workflow.'
+    [[ "$workflow" == ".github/workflows/deploy.yml" && ( "$branch" == "main" || "$branch" == deploy/* ) ]] ||
+      fail 'Refusing to cancel a run outside the main or deployment-tag workflow.'
     [[ "$status" != "completed" ]] || fail 'That run has already completed; there is nothing to cancel.'
     printf '%s\n' 'Cancelling the workflow does not undo an image or Machine update already applied.'
     exec gh run cancel "$2" --repo "$REPOSITORY"
