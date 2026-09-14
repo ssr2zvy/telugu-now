@@ -44,8 +44,8 @@ class PipelineTests(unittest.TestCase):
         shutil.copy2(REPO / "local-machine" / "control_local.sh", local_machine / "control_local.sh")
         shutil.copytree(SCRIPTS, local_machine / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         (self.root / "upa").mkdir()
-        self.raw = self.root / "data" / "raw"
-        self.sample = self.root / "data" / "sample"
+        self.raw = local_machine / "data-transform" / "raw"
+        self.sample = local_machine / "data-transform" / "sample"
         self.output = self.root / "data" / "corpus"
         fleurs = self.raw / "FLEURS"
         fleurs.mkdir(parents=True)
@@ -86,6 +86,15 @@ class PipelineTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
         return result
 
+    def test_extractor_defaults_keep_working_data_under_data_transform(self) -> None:
+        for source in ["FLEURS", "Shrutilipi", "IndicVoices"]:
+            with self.subTest(source=source):
+                module = importlib.import_module(source)
+                with patch.object(sys, "argv", [source]):
+                    arguments = module.parse_args()
+                self.assertEqual(arguments.input_root, SCRIPTS.parent / "raw" / source)
+                self.assertEqual(arguments.output_root, SCRIPTS.parent / "sample" / source)
+
     def test_default_then_all_preserves_samples_and_prepares_every_available_row(self) -> None:
         for source in ["Shrutilipi", "IndicVoices"]:
             training = next((self.raw / source).rglob("*.parquet"))
@@ -104,6 +113,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(counts, {"fleurs-te": 113, "shrutilipi-te": 129, "indicvoices-te": 129})
         self.assertFalse(any(path.is_file() for path in self.raw.rglob("*")))
         self.assertFalse(any(path.is_file() for path in self.sample.rglob("*")))
+        self.assertFalse((self.root / "data" / "raw").exists())
+        self.assertFalse((self.root / "data" / "sample").exists())
         with sqlite3.connect(self.output / "corpus.sqlite") as database:
             self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
             self.assertEqual(database.execute("SELECT COUNT(*) FROM source_rows").fetchone()[0], 371)

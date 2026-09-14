@@ -1,5 +1,6 @@
-data/raw/
-data/sample/
+local-machine/data-transform/raw/
+local-machine/data-transform/sample/
+local-machine/data-transform/.venv/
 data/corpus/
 data/word-images/
 data/users.sqlite*

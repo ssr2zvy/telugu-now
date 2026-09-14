@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type {
@@ -24,6 +25,27 @@ import { useAppearance } from '../appearance';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
+import { ReadingContextMenu, type ReadingContextMenuState } from './ReadingContextMenu';
+import { addBlacklistEntry } from '../api';
+
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_TOLERANCE = 10;
+
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    // Fall through to the legacy fallback below.
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
+}
 interface ObservationViewProps {
   state: ProfileStateResponse | null;
   busy: boolean;
@@ -50,10 +72,23 @@ export function ObservationView({
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
+  const [readingMenu, setReadingMenu] = useState<ReadingContextMenuState | null>(null);
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
   const revealedBy = useRef<ScrollDirection | null>(null);
+  const suppressNextClick = useRef(false);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPressTimer.current !== null) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    longPressOrigin.current = null;
+  };
+  const openReadingMenu = (x: number, y: number, text: string) => {
+    taps.cancel();
+    setControlsVisible(false);
+    setReadingMenu({ text, x, y });
+  };
   const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
     taps.cancel();
     const visible = scrollControlsVisible(controlsVisible, revealedBy.current, direction);
@@ -96,6 +131,7 @@ export function ObservationView({
     taps.cancel();
     setControlsVisible(false);
     revealedBy.current = null;
+    setReadingMenu(null);
     return () => taps.cancel();
   }, [taps, observation?.id, appearance.scrollMode]);
   const typography =
@@ -186,6 +222,8 @@ export function ObservationView({
         ? 'Reader. Tap to play or pause. Swipe left or right to reveal audio controls; reverse to hide them.'
         : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onClick={(event) => {
+        if (suppressNextClick.current) { suppressNextClick.current = false; return; }
+        if (readingMenu) { setReadingMenu(null); return; }
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
@@ -272,6 +310,31 @@ export function ObservationView({
             ref={typography.textRef}
             className="observation-text"
             style={typography.style}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelLongPress();
+              openReadingMenu(event.clientX, event.clientY, observation.text);
+            }}
+            onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
+              if (event.pointerType !== 'touch') return;
+              longPressOrigin.current = { x: event.clientX, y: event.clientY };
+              const { clientX, clientY } = event;
+              longPressTimer.current = window.setTimeout(() => {
+                longPressTimer.current = null;
+                longPressOrigin.current = null;
+                suppressNextClick.current = true;
+                openReadingMenu(clientX, clientY, observation.text);
+              }, LONG_PRESS_MS);
+            }}
+            onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+              if (!longPressOrigin.current) return;
+              const dx = event.clientX - longPressOrigin.current.x;
+              const dy = event.clientY - longPressOrigin.current.y;
+              if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE) cancelLongPress();
+            }}
+            onPointerUp={cancelLongPress}
+            onPointerCancel={cancelLongPress}
           >
             {observation.text}
           </div>
@@ -346,6 +409,16 @@ export function ObservationView({
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />
+      ) : null}
+      {readingMenu ? (
+        <ReadingContextMenu
+          menu={readingMenu}
+          onCopy={(text) => void copyToClipboard(text)}
+          onBlacklist={(text) => {
+            if (state) void addBlacklistEntry(state.profileCode, text).catch(() => {});
+          }}
+          onClose={() => setReadingMenu(null)}
+        />
       ) : null}
     </main>
   );

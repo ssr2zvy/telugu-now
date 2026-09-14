@@ -16,6 +16,15 @@ export interface ProfileEonsResponse {
   eons: ProfileEon[];
 }
 
+export interface BlacklistEntry {
+  text: string;
+  createdAt: number;
+}
+
+export interface ProfileBlacklistResponse {
+  entries: BlacklistEntry[];
+}
+
 export interface ProfileSelectionSettings {
   sourceWeights: Record<string, number>;
   complexityPercentileTarget: number;

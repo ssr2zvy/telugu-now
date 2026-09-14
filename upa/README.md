@@ -20,11 +20,11 @@ The explicit data-controller operations are:
 ```
 `samples` transforms source downloads under:
 ```text
-data/raw/
+local-machine/data-transform/raw/
 ```
 into source-shaped development input under:
 ```text
-data/sample/
+local-machine/data-transform/sample/
 ```
 `prepare` transforms the current source-shaped input into the canonical local corpus:
 ```text
@@ -43,20 +43,22 @@ The controller keeps move semantics: consumed raw files disappear after extracti
 
 Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
 ```bash
-python3.12 -m venv data/.venv
-data/.venv/bin/python -m pip install -r local-machine/data-transform/requirements.txt
-PYTHON="$PWD/data/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
-data/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
+python3.12 -m venv local-machine/data-transform/.venv
+local-machine/data-transform/.venv/bin/python -m pip install -r local-machine/data-transform/requirements.txt
+PYTHON="$PWD/local-machine/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
+local-machine/data-transform/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
 ```
-The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus output directories are Git-ignored. Data operations do not stage files or create Git commits.
+The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, prepared, and temporary corpus outputs are Git-ignored. Data operations do not stage files or create Git commits. The local 100-row subsets and how to replace them with full datasets are documented in the [data-transformation README](../local-machine/data-transform/readme.md); their one-time reduction is not a pipeline stage.
 `./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
 startup skips this local-only controller check and lets the runtime validate the
 catalog and object-store configuration; it never generates a local audio corpus.
 The controller's `data` command runs the tracked extraction and preparation
-scripts under `local-machine/data-transform/`. Its offline data paths remain under repository
-`data/`; runtime path overrides do not relocate the preparation workflow.
+scripts under `local-machine/data-transform/`. Raw and sample working inputs stay
+under that directory; only the finished corpus is published to repository
+`data/corpus/`. Other runtime data, such as user databases, remains under `data/`.
+Runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
 The `local-machine/control_local.sh` script is the local development entry point; deployment
@@ -679,7 +681,7 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
 | Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
-| Raw and sample inputs | Global | `data/raw/` and `data/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
+| Raw and sample inputs | Offline development | `local-machine/data-transform/raw/` and `local-machine/data-transform/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
 | Bundled fonts and application files | Assets/artifacts | `upa/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `upa/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `upa/node_modules/` are generated. |
 | User database sidecars | User | `data/user/users.sqlite-wal` and `data/user/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
 | Corpus database sidecars | Global | Any SQLite sidecars remain alongside `data/corpus/corpus.sqlite`. |

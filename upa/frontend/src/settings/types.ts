@@ -15,6 +15,7 @@ export type SettingsPage =
   | 'playback'
   | 'diagnostic'
   | 'dataSources'
+  | 'blacklist'
   | 'export';
 export type UiLanguage =
   | 'en'

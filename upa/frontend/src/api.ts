@@ -8,6 +8,7 @@ import type {
   ProfileSelectionSettings,
   ProfileStateResponse,
   ProfileEonsResponse,
+  ProfileBlacklistResponse,
   UpdateAudioSettingsRequest,
   UpdateSelectionSettingsRequest,
   VisibilityRequest,
@@ -31,6 +32,22 @@ export async function startProfileEon(code: string, name: string): Promise<Profi
 export async function stopProfileEon(code: string, eonId: string): Promise<ProfileEonsResponse> {
   return parseJson<ProfileEonsResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/eons/${encodeURIComponent(eonId)}/stop`, {
     method: 'POST',
+  }));
+}
+
+export async function getProfileBlacklist(code: string, signal?: AbortSignal): Promise<ProfileBlacklistResponse> {
+  return parseJson<ProfileBlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, signal ? { signal } : {}));
+}
+
+export async function addBlacklistEntry(code: string, text: string): Promise<ProfileBlacklistResponse> {
+  return parseJson<ProfileBlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+  }));
+}
+
+export async function removeBlacklistEntry(code: string, text: string): Promise<ProfileBlacklistResponse> {
+  return parseJson<ProfileBlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
   }));
 }
 

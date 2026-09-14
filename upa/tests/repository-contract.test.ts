@@ -27,8 +27,9 @@ test('runtime user and global storage paths remain under root data from any work
     assert.throws(() => resolveDataPath('/tmp/outside.sqlite', 'users.sqlite'), /must stay under/);
     assert.equal(resolveDataPath(path.resolve(root, '../data/corpus/corpus.sqlite'), ''), path.resolve(root, '../data/corpus/corpus.sqlite'));
     const controller = fs.readFileSync(path.resolve(root, '../local-machine/control_local.sh'), 'utf8');
-    assert.ok(controller.includes('RAW_DATA_DIR="$REPO_DIR/data/raw"'));
-    assert.ok(controller.includes('SAMPLE_DATA_DIR="$REPO_DIR/data/sample"'));
+    assert.ok(controller.includes('RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"'));
+    assert.ok(controller.includes('SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"'));
+    assert.ok(controller.includes('PREPARED_CORPUS_DIR="$REPO_DIR/data/corpus"'));
   } finally {
     if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous;
   }
