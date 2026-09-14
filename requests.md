@@ -96,7 +96,7 @@ Implemented; see `requests-done.md`.
 - The question-page toggle-trigger behavior is also specified separately below;
   preserve those contextual requirements when implementing reader gestures.
 
-## Settings overview navigation
+## Settings overview navigation — done
 
 - All top-level sections in the left-hand overview should start collapsed.
 - The overview itself should also start collapsed.
@@ -107,7 +107,7 @@ Implemented; see `requests-done.md`.
 - Apply this behavior to the overview toggle after Settings is opened with the
   new triple-tap gesture; the reader's old Settings button is being removed.
 
-## Settings structure and consistent presentation
+## Settings structure and consistent presentation — done
 
 - Playback Settings, Appearance, and Image Generation should be separate
   Settings sections.
@@ -133,7 +133,7 @@ Implemented; see `requests-done.md`.
 - Sampling > Data Sources should present information using the same
   standardized format as Diagnostic, since both are information displays.
 
-## Appearance organization
+## Appearance organization — done
 
 - Split Appearance into further subsections organized by visual element.
 - Within each visual element, group its color settings, position settings, and
@@ -151,14 +151,14 @@ Implemented; see `requests-done.md`.
 - Apply coherent organizing decisions to every Appearance element, not only
   the specific examples called out in the notes.
 
-## Magnifier size and highlight background
+## Magnifier size and highlight background — done
 
 - Make the magnifying bar smaller overall.
 - Add an Appearance setting to enable or disable its highlight background.
 - To confirm: the new dimensions, which highlight/background the setting
   controls, and whether it should be enabled by default.
 
-## Directional audio-bar animation
+## Directional audio-bar animation — done
 
 - The audio bar should feel as though it slides into and out of a slit in the
   swipe direction.

@@ -1,7 +1,6 @@
 export type SettingsPage =
   | 'index'
   | 'sampling'
-  | 'display'
   | 'appearance'
   | 'images'
   | 'eons'

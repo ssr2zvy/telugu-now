@@ -46,6 +46,7 @@ export function useAudioPlayer(
   sourceKey: string | null,
   defaultPlaybackRate: number,
   observationId?: string | null,
+  autoplay = true,
 ): AudioPlayerState {
   const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -61,7 +62,9 @@ export function useAudioPlayer(
   const loopRef = useRef<LoopState>({ enabled: false, start: 0, end: null });
   const playRequestRef = useRef(0);
   const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
-  const wantsPlaybackRef = useRef(true);
+  // Autoplay governs entering an observation only; resuming after a natural end
+  // is handled separately and is not disabled by this preference.
+  const wantsPlaybackRef = useRef(autoplay);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -136,7 +139,7 @@ export function useAudioPlayer(
     if (!element) return;
     let disposed = false;
     playRequestRef.current++;
-    wantsPlaybackRef.current = true;
+    wantsPlaybackRef.current = autoplay;
     element.pause();
     element.removeAttribute('src');
     element.load();

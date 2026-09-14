@@ -64,10 +64,15 @@ export function ObservationView({
     },
   });
   const revealedBy = useRef<ScrollDirection | null>(null);
+  // Drives the direction the audio bar slides from, so entry and exit follow the gesture.
+  const [revealDirection, setRevealDirection] = useState<ScrollDirection>(1);
   const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
     taps.cancel();
     const visible = scrollControlsVisible(controlsVisible, revealedBy.current, direction);
-    if (!controlsVisible) revealedBy.current = direction;
+    if (!controlsVisible) {
+      revealedBy.current = direction;
+      setRevealDirection(direction);
+    }
     setControlsVisible(visible);
     setPrecisionInteraction(value => value + 1);
   }, () => taps.cancel());
@@ -156,6 +161,7 @@ export function ObservationView({
       ref={screenRef}
       {...scrollHandlers}
       data-scroll-mode={appearance.scrollMode}
+      data-reveal-direction={revealDirection}
       className={
         `app-shell observation-screen ${
           controlsVisible

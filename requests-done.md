@@ -167,3 +167,139 @@ tests and Playwright specs are handled in a separate final phase.
 - The question-page toggle-trigger requirements are recorded separately in
   `requests.md` and are not contradicted by this change; they are implemented
   with the question observations point.
+
+## Batch 2
+
+### Settings overview navigation
+
+- **All top-level sections in the left-hand overview start collapsed.**
+  `SettingsShell.tsx` seeds `collapsedGroups` from `settingsGroups.index`, so every
+  group with children is collapsed on first render.
+- **The overview itself starts collapsed.** The former `railCollapsed` state was
+  inverted to `railOpen`, defaulting to `false`.
+- **Opening the overview from the top-level Settings screen occupies the whole
+  screen.** `railMode` is `'full'` when `page === 'index'`; the
+  `[data-rail-mode='full']` rules make the rail a full-viewport panel.
+- **Opening it from a nested section shows a left-side popup/overlay.**
+  `railMode` is `'popup'` otherwise; `[data-rail-mode='popup']` renders the rail as
+  a left-anchored overlay over a `.settings-rail-scrim` dismiss button. Escape also
+  closes it, and choosing any destination closes it.
+- **Applies to the overview toggle after Settings is opened with the new triple-tap
+  gesture.** The rail rules were moved out of the `@media (min-width: 960px)` block
+  so the toggle and overlay behave identically at every width, including the phone
+  layout the triple-tap opens. The reader's Settings button was already removed in
+  batch 1.
+
+### Settings structure and consistent presentation
+
+- **Playback Settings, Appearance, and Image Generation are separate Settings
+  sections.** `settingsGroups.display` was deleted, the `display` page was removed
+  from `SettingsPage`, and `playback`, `appearance`, `images` are now entries of
+  `settingsGroups.index`. `SettingsIndex` gained its own summary line for each of
+  them (plus Blacklist), and the palette preview swatch moved from the old Display
+  entry to Appearance.
+- **Playback Settings contains Playback Speed and a new disable-autoplay setting.**
+  The page label key is now `playbackSettings` ("Playback Settings"), the numeric
+  field is `Default Speed (x)`, and a new `Disable Audio Autoplay` switch was added.
+  It is backed by `autoplayAudio` in `shared/appearance.ts` (default `true`,
+  validated in `parseAppearance`) and passed into `useAudioPlayer` as the initial
+  value of `wantsPlaybackRef`.
+- **Does not change seek-after-natural-completion.** That resume path is driven by
+  `endedNaturallyRef` inside `seek()`, which never consults `autoplay`; a comment in
+  `useAudioPlayer.ts` records the boundary. Only the entry path and the
+  clip-change reset use the preference.
+- **Every word capitalized in multiword English Settings titles.** `COPY.en` now has
+  `Source Weights`, `Data Sources`, `Source Repository`, `Catalog Version`,
+  `Accepted Rows`, `Rejected Rows`, `Complexity Metric`, `Development Fixture`,
+  `Reset Queue`, `Playback Settings`, `Playback Speed`, `Default Speed (x)`,
+  `Initial Fill`, `Observation Consumed`, `Choose Export Format`, `Switch Language`,
+  and `Image Generation` (in `navigation.ts`). Telugu strings are untouched.
+- **Breadcrumb text removed.** The `.settings-context` element was deleted from
+  `SettingsShell.tsx` and its two now-dead CSS rules were removed.
+- **Export and Download share cohesive spacing.** `.export-page` gap and
+  `.export-actions` gap were aligned (20px), and `.export-actions` now shares the
+  same trailing-edge placement and 24px lead-in as every other action group.
+- **Action design and positioning standardized.** A single rule gives
+  `margin-top: 24px; justify-self: end;` to the Sampling/Complexity/Source-Weights
+  Save actions, Playback Save, Reset Queue, Stop Eon, Start Eon, the Image
+  Generation actions, and the Export/Download pair, so all of them sit at the
+  trailing edge with identical spacing. Stop Eon and Reset Queue therefore read as
+  buttons in the same position as Sampling's Save rather than as a checkbox and as
+  unbounded text.
+- **Language control's apparent selected highlight resolved.** The cause was the
+  sticky `:hover` background that a touch leaves behind on `.language-toggle`. All
+  hover rules in `settings-layout.css` were moved into `@media (hover: hover)`, so
+  they only apply to real pointers. Removing the reader Settings button in batch 1
+  does not reintroduce the symptom.
+- **Navigation highlights no longer carry into the destination page.** The same
+  `@media (hover: hover)` change removes the stuck entry/rail-link highlight, and
+  both `SettingsIndex` entries and `SettingsShell` rail links now `blur()` the
+  clicked button so no focus ring lands on a differently labeled control occupying
+  the same position on the next screen.
+- **Sampling > Data Sources uses the Diagnostic format.** `DataSourcesPage` was
+  rewritten from `<dl>` cards to the `.diagnostic-sections` / `.diagnostic-section`
+  / `.diagnostic-table` structure used by `DiagnosticPage`, with the source name as
+  a visible section title and the upstream repository as a final table row.
+
+### Appearance organization
+
+- **Split into subsections organized by visual element.** The page is now five
+  element sections — Background, Text & Icons, Audio Controls, Settings & Popovers,
+  Reader Gestures — instead of eight setting-type sections.
+- **Color, position, and other settings grouped consistently within each element.**
+  A shared `subsection()` helper renders every group with the same heading row,
+  body, and note, and the groups always appear in the order Color, Position, Other.
+  Type size, fonts, spacing gaps, magnifier position, timestamp/highlight switches,
+  scroll mode, and auto-fade were all moved under the element they affect.
+- **Background's three circles versus the lone circles elsewhere.** Text & Icons and
+  the Settings surface now use the same `.appearance-colors` swatch grid as the
+  Background gradient — swatch above, name, hex output — so one circle and three
+  circles are the same component at different counts. The old
+  `.appearance-color-role` row layout and its CSS were deleted.
+- **Automatic Surface addressed rather than silently kept or dropped.** It was kept
+  but reframed: it is renamed `Derive from background`, placed directly beneath the
+  surface swatch it governs, and while it is on the swatch is `disabled` and styled
+  read-only. The accompanying note explains both states.
+- **Explanatory text standardized.** Every subsection renders an optional
+  `.appearance-note` paragraph in one style, and notes were written for all of them,
+  so Control Darkness is no longer the only setting with an explanation.
+- **Typography and heading hierarchy standardized.** `.appearance-section h2` is
+  .95rem/600 in the foreground color, `.appearance-subsection h3` is .75rem
+  uppercase muted, and field labels — including the former "Text vertical offset",
+  now "Vertical offset" under Text & Icons > Position — are .82rem regular, so a
+  field can never out-rank its parent heading.
+- **Applied to every element, not just the called-out examples.** Each element
+  section also gained a scoped reset action covering exactly its own settings
+  (text color/scale/offset/fonts; audio darkness/highlight/timestamp/offset/
+  position/gaps; surface; gestures), replacing the previous per-setting reset
+  buttons that were attached to setting-type sections.
+
+### Magnifier size and highlight background
+
+- **Magnifying bar made smaller overall.** `.audio-magnifier-track` height went from
+  44px to 28px and the audio bar's second grid row from 116px to 100px, with the
+  `.audio-scrubber-window` inset adjusted from 19px to 21px so the highlight still
+  centers on the track.
+- **Appearance setting to enable or disable the highlight background.** New
+  `showMagnifierHighlight` field in `shared/appearance.ts`, surfaced as
+  `Show magnifier highlight` in Appearance > Audio Controls > Other, threaded to
+  `AudioScrubber` as `showHighlight`, which now gates rendering of
+  `.audio-scrubber-window`. The Appearance audio preview reflects the toggle.
+- **Confirmed details.** Dimensions: 28px track height (confirmed by the user).
+  The setting controls the `.audio-scrubber-window` shading drawn on the main bar to
+  mark the region the magnifier is showing. Default: enabled, which keeps the
+  current look (confirmed by the user).
+
+### Directional audio-bar animation
+
+- **The bar slides into and out of a slit in the swipe direction.** The hidden state
+  is now `clip-path: inset(0 0 0 100%)` — zero width at the trailing edge — so the
+  bar unfurls from a slit rather than growing from its middle.
+- **The center-collapse effect was replaced.** The previous `inset(0 50%)` hidden
+  state was removed.
+- **Entry and exit follow the gesture direction.** `ObservationView` records the
+  `ScrollDirection` that revealed the controls in new `revealDirection` state and
+  publishes it as `data-reveal-direction` on the observation screen;
+  `[data-reveal-direction='-1']` flips the slit to the opposite edge and flips the
+  inner `translateX(56px)` offset. Because the attribute is only updated when the
+  controls are hidden, the exit animation reverses the same slide.

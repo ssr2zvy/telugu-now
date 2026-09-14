@@ -18,6 +18,7 @@ interface AudioScrubberProps {
   magnifierOpen: boolean;
   controlsOpen: boolean;
   showTimestamp?: boolean;
+  showHighlight?: boolean;
   bookmarkButton?: ReactNode;
   speedButton?: ReactNode;
   loopButton?: ReactNode;
@@ -58,6 +59,7 @@ export function AudioScrubber({
   magnifierOpen,
   controlsOpen,
   showTimestamp = DEFAULT_APPEARANCE.showAudioTimestamp,
+  showHighlight = DEFAULT_APPEARANCE.showMagnifierHighlight,
   bookmarkButton,
   speedButton,
   loopButton,
@@ -208,7 +210,7 @@ export function AudioScrubber({
           aria-valuenow={currentTime}
           aria-valuetext={formatPreciseTime(currentTime)}
         >
-          {magnifierOpen && !speedControls ? (
+          {magnifierOpen && showHighlight && !speedControls ? (
             <div
               className="audio-scrubber-window"
               style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}

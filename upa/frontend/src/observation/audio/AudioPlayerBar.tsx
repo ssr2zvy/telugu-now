@@ -46,7 +46,8 @@ export function AudioPlayerBar({
   onLoadingChange,
   onPlaybackErrorChange,
 }: AudioPlayerBarProps) {
-  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId);
+  const { appearance } = useAppearance();
+  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId, appearance.autoplayAudio);
   useEffect(() => {
     onLoadingChange?.(player.loading);
     return () => onLoadingChange?.(false);
@@ -58,7 +59,6 @@ export function AudioPlayerBar({
   const speedPopoverOpen = precisionMode === 'speed';
   const playerRef = useRef<HTMLDivElement>(null);
   const speedButtonRef = useRef<HTMLButtonElement>(null);
-  const { appearance } = useAppearance();
   const paintId = `audio-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const closePrecision = () => {
@@ -146,6 +146,7 @@ export function AudioPlayerBar({
         magnifierOpen={magnifierOpen}
         controlsOpen={transportControlsOpen}
         showTimestamp={appearance.showAudioTimestamp}
+        showHighlight={appearance.showMagnifierHighlight}
         speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
