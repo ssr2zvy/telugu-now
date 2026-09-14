@@ -191,6 +191,7 @@ function selection(
       2,
     complexityReferenceVersion:
       2,
+    commonWordReduction: 0,
     complexityPercentileTarget:
       0.5,
     complexityPercentileSpread:
@@ -234,6 +235,7 @@ ExportResponse {
         0.25,
       complexityReferenceVersion:
         2,
+      commonWordReduction: 0,
     },
     entries: [
       {

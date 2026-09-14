@@ -30,6 +30,14 @@ before(async () => {
   profile = await import('../server/src/services/profile-service');
   const { preparationService } = await import('../server/src/services/preparation-service');
   preparationService.kick = () => {};
+  // No prepared corpus exists here, and the app ships no dummy sources, so the
+  // selection engine needs a fixture source to have anything to choose from.
+  const { sourceRegistry } = await import('../server/src/services/source-registry');
+  const { config } = await import('../server/src/config/config');
+  const { DummyDataSource } = await import('./fixtures/dummy-data-source');
+  const { source1Rows } = await import('./fixtures/source1');
+  sourceRegistry.register(new DummyDataSource('source1', source1Rows));
+  Object.assign(config.defaultSourceWeights, { source1: 1 });
   store = profileEonsStore(db);
   Date.now = () => now;
 });

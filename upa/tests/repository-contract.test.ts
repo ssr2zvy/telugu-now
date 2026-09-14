@@ -51,16 +51,19 @@ test('Settings fields use a single rounded focus surface and compact accessible 
   const { SourceWeightsPage } = await import('../frontend/src/settings/pages/SourceWeightsPage');
   const { PlaybackSpeedPage } = await import('../frontend/src/settings/pages/PlaybackSpeedPage');
   const props = {
-    language: 'en' as const, draft: { targetPercent: '50', spreadPercent: '25', sourceWeights: { 'fleurs-te': '1' } },
+    language: 'en' as const,
+    draft: { targetPercent: '50', spreadPercent: '25', commonWordReduction: '2', sourceWeights: { 'fleurs-te': '1' } },
     saving: false, error: false, onDraftChange: () => {}, onClearError: () => {}, onSave: () => {},
   };
   const complexity = renderToStaticMarkup(createElement(ComplexityPage, props));
-  assert.equal((complexity.match(/class="field-value"/g) ?? []).length, 2);
+  // Target, Spread, and Common Word Reduction.
+  assert.equal((complexity.match(/class="field-value"/g) ?? []).length, 3);
   assert.equal((complexity.match(/inputMode="decimal"/g) ?? []).length, 2);
   assert.equal((complexity.match(/aria-description="Percent"/g) ?? []).length, 2);
   assert.equal((complexity.match(/class="field-unit" aria-hidden="true">%/g) ?? []).length, 2);
   assert.match(complexity, /aria-label="Target"/);
   assert.match(complexity, /aria-label="Spread"/);
+  assert.match(complexity, /aria-label="Common Word Reduction"/);
   assert.match(renderToStaticMarkup(createElement(SourceWeightsPage, props)), /inputMode="decimal"/);
   assert.match(renderToStaticMarkup(createElement(PlaybackSpeedPage, {
     language: 'en', rate: '1', saving: false, error: false, onRateChange: () => {}, onClearError: () => {}, onSave: () => {},
@@ -91,15 +94,19 @@ test('Settings editable controls retain a real 16px font floor without disabling
   for (const event of ['focusin', 'focusout']) {
     assert.ok(shell.includes(`document.removeEventListener('${event}', updateViewport)`));
   }
-  assert.doesNotMatch(shell, /preventDefault|\.blur\(|scrollIntoView|scrollTo\([^0]/);
+  assert.doesNotMatch(shell, /preventDefault|scrollIntoView|scrollTo\([^0]/);
+  // The only blur is on a navigation button, clearing sticky touch hover.
+  // Editable controls must never be blurred out from under the keyboard.
+  assert.deepEqual(shell.match(/\.blur\(\)/g), ['.blur()']);
+  assert.match(shell, /onClick=\{\(event\) => \{\s*event\.currentTarget\.blur\(\);/);
   assert.doesNotMatch(read('frontend/index.html'), /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/);
 });
 test('Settings secondary labels and inset dividers preserve localized hierarchy', () => {
   const css = read('frontend/src/styles/settings-layout.css');
   assert.match(css, /--muted: color-mix\(in srgb, var\(--foreground\) 74%, var\(--surface\)\)/);
   assert.match(css, /--line: color-mix\(in srgb, var\(--foreground\) 7%, transparent\)/);
-  assert.match(css, /\.settings-context \{[^}]*font-weight: 600/);
-  assert.match(css, /\.settings-screen\[lang='en'\] \.settings-context \{ letter-spacing: \.035em/);
+  // The breadcrumb context line was removed; the rail carries that hierarchy now.
+  assert.doesNotMatch(css, /\.settings-context/);
   assert.match(css, /\.settings-entry-meta \{[^}]*font-weight: 500/);
   assert.match(css, /\.settings-rail-child \{[^}]*font-weight: 500/);
   assert.match(css, /\.settings-index button:not\(:last-child\)::after \{[^}]*inset-inline: 54px 12px;[^}]*height: 1px/);
@@ -396,7 +403,7 @@ test(
     );
     assert.ok(
       language.includes(
-        "chooseExportFormat: 'Choose export format'",
+        "chooseExportFormat: 'Choose Export Format'",
       ),
     );
     assert.ok(
@@ -728,9 +735,10 @@ test(
           profileStyles,
         ),
     );
+    // Settings has no reader button any more: a triple tap opens it.
     assert.ok(
       observationView.includes(
-        '<SettingsIcon />',
+        'onTriple:',
       ),
     );
     assert.ok(
@@ -756,11 +764,6 @@ test(
     assert.ok(
       observationStyles.includes(
         '.nav-zone:disabled',
-      ),
-    );
-    assert.ok(
-      observationStyles.includes(
-        '.settings-trigger',
       ),
     );
     assert.ok(

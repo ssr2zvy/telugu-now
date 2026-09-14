@@ -21,6 +21,7 @@ function selection(sourceKey: string): SelectionSnapshot {
     complexityMetric: 'grapheme-count',
     intrinsicComplexityValue: 2,
     complexityReferenceVersion: 2,
+    commonWordReduction: 0,
     complexityPercentileTarget: 0.5,
     complexityPercentileSpread: 0.25,
     derivedStandardDeviation: 0.25 / 2.326347874,
@@ -42,6 +43,7 @@ function sampleExport(): ExportResponse {
       complexityPercentileTarget: 0.5,
       complexityPercentileSpread: 0.25,
       complexityReferenceVersion: 2,
+      commonWordReduction: 0,
     },
     entries: [
       {

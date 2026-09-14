@@ -18,9 +18,15 @@ test.afterEach(() => {
   else process.env.pollinations_api_key = originalEnvironmentKey;
 });
 
-test('image prompt requires the placeholder and replaces every occurrence literally', () => {
-  for (const value of ['', 'Draw a word', null, '<core word>'.repeat(201)]) assert.equal(validImagePrompt(value), false);
+test('image prompts only have to be non-empty, and replace every placeholder occurrence literally', () => {
+  // Both placeholders are optional now, so a plain prompt is valid.
+  for (const value of ['', '   ', null, '<core word>'.repeat(201)]) assert.equal(validImagePrompt(value), false);
+  for (const value of ['Draw a word', 'Draw <core word>', 'Draw <sentence>']) assert.equal(validImagePrompt(value), true);
   assert.equal(renderImagePrompt('Draw <core word>, not the text <core word>.', 'అవును'), 'Draw అవును, not the text అవును.');
+  assert.equal(
+    renderImagePrompt('<core word> in <sentence>, and again <sentence>.', 'అవును', ' అవును కదా '),
+    'అవును in అవును కదా, and again అవును కదా.',
+  );
 });
 
 test('root env key supports dotenv syntax and can change without restarting', async () => {

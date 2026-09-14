@@ -43,16 +43,17 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     globalPercentileStart: 0, globalPercentileEnd: 1, globalIntervalMass: 1,
     globalRowsAtComplexityValue: 12, globalPerRowComplexityMass: 1 / 12,
     selectedSourceRowsAtComplexityValue: 12, selectedSourceNormalizationDenominator: 1,
-    rowProbabilityWithinSource: 1 / 12, overallProbability: 1 / 12,
+    rowProbabilityWithinSource: 1 / 12, overallProbability: 1 / 12, commonWordReduction: 0,
   };
   const state: ProfileStateResponse = {
     profileCode: '001', currentPosition: 1, historyLength: 2, canBack: true, canNext: true,
     nextStatus: 'ready', queue: { unseenCount: 10, readyCount: 10, preparingCount: 0, pendingCount: 0 },
     timing: null,
-    selectionSettings: { sourceWeights: { fixture: 1 }, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25, complexityReferenceVersion: 2 },
+    selectionSettings: { sourceWeights: { fixture: 1 }, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25, complexityReferenceVersion: 2, commonWordReduction: 0 },
     audioSettings: { playbackRate: 1 },
     currentObservation: {
       id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: observationText,
+      displayKind: 'normal', question: null,
       audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl && new URL(realAudioUrl, baseUrl).pathname.endsWith('.flac') ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
       diagnostic: {
         acquisitionNumber: 1, triggerKind: 'initial-fill', triggeredByObservationId: null,

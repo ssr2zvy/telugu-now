@@ -107,11 +107,13 @@ export class SelectionEngine {
   constructor(
     private readonly registry: SourceRegistry = sourceRegistry,
     private readonly random: () => number = () => Math.random(),
-  ) {
-    this.refreshReference(0);
-  }
+  ) {}
 
-  /** The global reference depends on the Common Word Inclusion strength in use. */
+  /**
+   * The global reference depends on the Common Word Inclusion strength in use.
+   * Built lazily: with no source registered yet there is nothing to describe,
+   * and that is a runtime condition rather than a startup failure.
+   */
   private refreshReference(reduction: number): void {
     if (this.generation === this.registry.generation && this.reduction === reduction) return;
     const counts = new Map<number, number>();
