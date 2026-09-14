@@ -520,6 +520,8 @@ cleanup_dev_if_owned() {
 run_dev_foreground() {
   local status dev_pid dev_pgid lf rc=0 corpus_database_path
 
+  source "$SCRIPT_DIR/dev.env" || return $?
+
   case "${CORPUS_BACKEND:-local}" in
     local)
       corpus_database_path="${CORPUS_DATABASE_PATH:-${DATA_DIRECTORY:-$REPO_DIR/data}/corpus/corpus.sqlite}"

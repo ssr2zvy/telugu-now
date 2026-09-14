@@ -28,9 +28,17 @@ local-machine/data-transform/sample/{FLEURS,Shrutilipi,IndicVoices}/
 data/corpus/  (corpus.sqlite, manifest.json, objects/, reports/)
 ```
 
-Raw, sample, and prepared files are local working data and are Git-ignored.
-This README lives outside the consumed inputs and remains after processing.
+The prepared 300-row dummy corpus, its audio, and the dummy user SQLite database
+are committed so a checkout includes usable local test data. Raw and sample
+inputs, the Python environment, and newly generated files covered by Git ignore
+rules remain local. The corpus ignore rule does not hide changes to files already
+tracked by Git. This README remains after input files are consumed.
 The pipeline does not download datasets or upload anything to Tigris.
+
+Before committing updated dummy SQLite data, stop the local app and checkpoint
+its WAL writes into the main databases. WAL and SHM files are runtime sidecars,
+not substitutes for the database; SQLite can remove them after a clean checkpoint
+and close. Only commit deliberately prepared test data, never real user data.
 
 ## Process All Available Rows
 
@@ -89,14 +97,25 @@ rejection details under `data/corpus/reports/`.
    inputs remain available. Verify source counts and rejection reports before
    using the replacement.
 
-5. Rebuild runtime availability when starting the local app against the new
-   corpus:
+5. Start the local app against the new corpus. The controller loads
+   [dev.env](../dev.env), which defaults to local storage and rebuilds runtime
+   availability before serving:
 
    ```bash
-   CORPUS_BACKEND=local CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true bash local-machine/control_local.sh dev --option start
+   bash local-machine/control_local.sh dev --option start
    ```
+
+   Shell environment values take precedence over these defaults. If you have
+   explicitly disabled rebuilding or selected Tigris, clear those overrides or
+   set `CORPUS_BACKEND=local`, `CORPUS_AVAILABILITY_WORKER_ENABLED=false`, and
+   `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true` for this command.
 
 Do not delete the entire `data/` directory: `data/user/` and other runtime state
 are separate from corpus preparation. This local workflow does not update a
 Tigris bucket or a Fly volume. Publishing a production corpus is a separate
 operation; an existing Fly corpus database is not refreshed by a local run.
+
+Replacing the tracked dummy corpus with a full dataset modifies tracked files.
+Do not commit those replacements inadvertently. For full-data work that must stay
+outside Git, invoke the extraction and preparation scripts with explicit paths
+outside the checkout and set `DATA_DIRECTORY` for local runtime access there.
