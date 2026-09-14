@@ -48,7 +48,7 @@ local-machine/data-transform/.venv/bin/python -m pip install -r local-machine/da
 PYTHON="$PWD/local-machine/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
 local-machine/data-transform/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
 ```
-The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sample, and temporary corpus outputs are Git-ignored. The prepared 300-row dummy corpus and its audio are deliberately tracked; existing ignore rules apply only to untracked files, not changes to that fixture. Data operations do not stage files or create Git commits. The local 100-row subsets and how to replace them with full datasets are documented in the [data-transformation README](../local-machine/data-transform/readme.md); their one-time reduction is not a pipeline stage.
+The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sampled, and prepared data folders are not Git-ignored. The prepared 300-row dummy corpus and its audio are committed for repository testing; temporary corpus publication/backup directories remain ignored. Data operations do not stage files or create Git commits. The repository's 100-row subsets and how to replace them with full datasets are documented in the [dummy-data README](../data/readme.md); their one-time reduction is not a pipeline stage.
 `./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
@@ -82,9 +82,22 @@ directory. Do not source it manually; the controller supplies `REPO_DIR`.
 Each `export NAME="${NAME-default}"` preserves an already-set environment value.
 Edit the fallback after `-` to change a local default, or set an environment
 variable for a single command. Explicitly empty values are preserved for runtime
-validation. Do not put credentials in this tracked file; optional image generation
-still uses `pollinations_api_key` from the environment or the Git-ignored root
-`env` file. Local corpus access does not require AWS/Tigris credentials.
+validation. Keep all file-based local secrets in `local-machine/dev-secrets.env`,
+which is Git-ignored, excluded from the container build, and blocked by Vite.
+Dev startup sources it immediately after `dev.env`, before the corpus checks,
+then launches `npm run dev` normally. Use Bash `export` assignments just like
+`dev.env`; single-quote literal secrets containing shell-special characters.
+An ordinary assignment overrides an inherited value; use the same
+`export NAME="${NAME-default}"` pattern to preserve an inherited value instead.
+Only source trusted local content. This optional file is not committed; create
+it locally on a fresh checkout if secrets are needed.
+
+Restart dev after changing secrets. Other controller commands, including
+`deploy`, do not load the file. The server reads environment variables only;
+there is no Node dotenv loader or application-level secrets-file lookup. Vite's
+deny rule only prevents HTTP access to the file; it does not load its contents.
+The tracked `dev.env` remains for non-secret settings only. Local corpus access
+does not require AWS/Tigris credentials.
 
 The local defaults disable the background availability worker and rebuild
 `availability.sqlite` before serving on each start, including after preparing a
@@ -189,19 +202,17 @@ text, layout and behavior are unchanged.
 
 ### Image generation setup
 Set the lowercase `pollinations_api_key` in the server process environment
-(a same-name Fly secret in deployment). A nonempty value takes precedence over
-the local file; surrounding whitespace is trimmed. For local development, the
-fallback is the repository-root `env`, located using `local-machine/control_local.sh` as the repository marker:
-```dotenv
-pollinations_api_key=
+(a same-name Fly secret in deployment). Surrounding whitespace is trimmed.
+For local development, export the key in the ignored
+`local-machine/dev-secrets.env` file:
+```bash
+export pollinations_api_key=''
 ```
-Enter the Pollinations key after `=`. The file is Git-ignored and blocked by Vite's
-file server. Do not put the key in frontend code or a `VITE_` variable. The Node
-server reads the environment first on each generation request, falling back to
-the file when the environment value is missing or blank. Local file key changes
-need no restart. Node 20.12+ is required for the standard dotenv parser.
-Without `local-machine/control_local.sh`, local file lookup falls back to the parent of the server's
-working directory (`../env`). Deployment secrets require neither local file nor
+Never commit the file or put the key in frontend code or a `VITE_` variable.
+The controller sources the file at dev startup, so restart dev after editing it.
+The Node server reads only the environment; neither this file nor the old root
+`env` file is read by the application. Direct `npm run dev` needs the key exported
+in its launching shell. Deployment secrets require neither local file nor
 controller script; do not package either to supply credentials.
 
 In **Settings > Display > Image generation**, save a prompt containing the literal
@@ -696,7 +707,7 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Migration records | User | Same user database, `profile_migrations`: retained `settings-v1` and `bookmarks-v1` completion timestamps. |
 | Transferred older browser data | User | Same user database, `profile_browser_data`: exact prior appearance, language, bookmark and migration values with transfer timestamps, scoped by user code. Current usable values also populate the preference/bookmark tables when missing. Older values are retained here even if they conflict with current settings or cannot be parsed. |
 | Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
-| Provider credentials | Credentials | Server environment `pollinations_api_key` takes precedence over the local root `env` fallback. Use a same-name Fly secret in deployment. Never expose credentials to the browser or commit them. |
+| Provider credentials | Credentials | Server environment `pollinations_api_key`, exported by sourcing ignored `local-machine/dev-secrets.env` during local dev startup. Use a same-name Fly secret in deployment. The server does not read credential files. Never expose credentials to the browser or commit them. |
 | Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
 | Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
@@ -714,9 +725,9 @@ global/user data, respectively. With Tigris, back up or retain/version the bucke
 audio objects separately; a volume backup does not contain remote audio bytes.
 The dummy user database and prepared corpus are committed for local testing.
 Stop the app and checkpoint SQLite before committing updated test databases;
-runtime WAL/SHM files are not substitutes for their main databases. Image files
-and untracked corpus outputs remain Git-ignored. Never commit real user data or
-full-dataset replacements inadvertently.
+runtime WAL/SHM files are not substitutes for their main databases. Raw, sampled,
+processed, user, and image data folders are not Git-ignored. Never commit real
+user data or full-dataset replacements inadvertently.
 Unfinished image requests, generated-but-unsaved retry bytes, unsaved form drafts,
 current playback position, randomly activated fonts, UI navigation/collapse state,
 active profile session and in-memory export artifacts are not durable storage.
@@ -799,13 +810,24 @@ and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
 background availability worker. Existing corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
-Deploy manually from Codespaces after merging to `main` by running
-`ci-cd/deploy.sh deploy`, using the `FLY_API_TOKEN` Codespaces secret.
-The GitHub deployment workflow is disabled scaffolding only; merges do not deploy.
-The same script supports `stop`;
-interrupt local deployment with Ctrl+C. `cancel RUN_ID` remains available for
-legacy GitHub deployment runs. See the
-[deployment guide](../ci-cd/deployingtofly.md) for authentication and cancellation limits.
+Ordinary pushes and merges do not deploy. From a clean `main` checkout, explicitly
+push and request deployment with:
+
+```bash
+bash local-machine/control_local.sh deploy
+```
+
+This runs `git push origin main`, then `gh workflow run deploy.yml --ref main -f action=deploy`
+only if the push succeeds. It does not stage or commit changes, load `dev.env`,
+or wait for the deployment result. Local GitHub authentication needs push and
+Actions write access; the runner uses the repository Actions secret `FLY_API_TOKEN`.
+Use `gh run list --workflow deploy.yml --branch main` to find the resulting run.
+GitHub's **Run workflow** button can also deploy or stop the app from `main`.
+
+The alternative `ci-cd/deploy.sh deploy` uses a local Fly CLI and Codespaces
+`FLY_API_TOKEN` to deploy the checkout directly. That script also supports `stop`
+and `cancel RUN_ID`. See the [deployment guide](../ci-cd/deployingtofly.md) for
+authentication, failure handling, and cancellation limits.
 
 Fly's `[build]` section selects `ci-cd/Containerfile`; `fly.toml` is deployment
 configuration and is not copied into the image. The selected primary region is
@@ -827,9 +849,9 @@ paths, bucket, endpoint, region, and refresh delay are non-secret `[env]` settin
 avoid conflicting same-name Fly secrets, which override `[env]`.
 
 For image generation, supply the lowercase `pollinations_api_key` through a
-same-name Fly secret. `readPollinationsKey` reads the server environment first,
-with the root `env` file retained only as a local fallback. Do not package the
-local credential file.
+same-name Fly secret. `readPollinationsKey` reads only the server environment.
+The local controller sources `local-machine/dev-secrets.env` for dev runs only.
+Do not package the local credential file.
 
 ## Environment defaults
 See `.env.example`.

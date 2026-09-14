@@ -1,9 +1,9 @@
-# Data Transformation and Dummy Data
+# Repository Dummy Data
 
-The development data in this Codespace is **dummy data for testing**, not the
-full datasets. It consists of the first **100 rows per source (300 total)**
-from the supplied files, with real text and matching audio rather than
-synthetic recordings. Truncation was a one-time operation, not a pipeline stage.
+The dummy data in this repository is **test data**, not the full datasets.
+It consists of the first **100 rows per source (300 total)** from the supplied
+files, with real text and matching audio rather than synthetic recordings.
+Truncation was a one-time operation, not a pipeline stage.
 
 | Source | Original raw filenames | Retained rows | Supplied file rows |
 | --- | --- | ---: | ---: |
@@ -26,14 +26,17 @@ local-machine/data-transform/raw/{FLEURS,Shrutilipi,IndicVoices}/
 local-machine/data-transform/sample/{FLEURS,Shrutilipi,IndicVoices}/
     -> data --option prepare
 data/corpus/  (corpus.sqlite, manifest.json, objects/, reports/)
+data/user/    (dummy user SQLite database)
 ```
 
 The prepared 300-row dummy corpus, its audio, and the dummy user SQLite database
-are committed so a checkout includes usable local test data. Raw and sample
-inputs, the Python environment, and newly generated files covered by Git ignore
-rules remain local. The corpus ignore rule does not hide changes to files already
-tracked by Git. This README remains after input files are consumed.
-The pipeline does not download datasets or upload anything to Tigris.
+are committed so a checkout includes usable local test data. Raw, sampled, and
+processed data folders are not Git-ignored. Local secrets at
+`local-machine/dev-secrets.env`, the Python environment, temporary corpus
+publication/backup directories, Python caches, and UI test outputs remain
+ignored. This README stays under `data/` when pipeline inputs are consumed or the
+prepared corpus is replaced. The pipeline does not download datasets or upload
+anything to Tigris.
 
 Before committing updated dummy SQLite data, stop the local app and checkpoint
 its WAL writes into the main databases. WAL and SHM files are runtime sidecars,
@@ -43,8 +46,9 @@ and close. Only commit deliberately prepared test data, never real user data.
 ## Process All Available Rows
 
 Run from the repository root with Python 3.12, the packages declared in
-`requirements.txt`, and `ffmpeg` installed. The existing local environment is
-`.venv/` under this directory:
+[requirements.txt](../local-machine/data-transform/requirements.txt), and
+`ffmpeg` installed. The local Python environment belongs at
+`local-machine/data-transform/.venv/`:
 
 ```bash
 export PYTHON="$PWD/local-machine/data-transform/.venv/bin/python"
@@ -61,8 +65,9 @@ including the supplied IndicVoices `valid` shard.
 all available samples, validates and atomically replaces the entire prepared
 corpus, then deletes consumed sample files. It does not append to an existing
 corpus. Raw and sample folders can therefore be empty after a successful run.
-Accepted/rejected counts are recorded in `data/corpus/manifest.json`, with
-rejection details under `data/corpus/reports/`.
+The committed dummy corpus has already passed through both stages; the original
+raw/sample inputs are no longer present. Accepted/rejected counts are recorded
+in `data/corpus/manifest.json`, with rejection details under `data/corpus/reports/`.
 
 ## Replace Dummy Data with Real Data
 
@@ -98,8 +103,8 @@ rejection details under `data/corpus/reports/`.
    using the replacement.
 
 5. Start the local app against the new corpus. The controller loads
-   [dev.env](../dev.env), which defaults to local storage and rebuilds runtime
-   availability before serving:
+   [dev.env](../local-machine/dev.env), which defaults to local storage and
+   rebuilds runtime availability before serving:
 
    ```bash
    bash local-machine/control_local.sh dev --option start
@@ -115,7 +120,8 @@ are separate from corpus preparation. This local workflow does not update a
 Tigris bucket or a Fly volume. Publishing a production corpus is a separate
 operation; an existing Fly corpus database is not refreshed by a local run.
 
-Replacing the tracked dummy corpus with a full dataset modifies tracked files.
-Do not commit those replacements inadvertently. For full-data work that must stay
-outside Git, invoke the extraction and preparation scripts with explicit paths
-outside the checkout and set `DATA_DIRECTORY` for local runtime access there.
+Replacing the tracked dummy corpus with a full dataset modifies tracked files,
+and new raw/sample/processed files will also be visible to Git. Do not commit
+those replacements inadvertently. For full-data work that must stay outside
+Git, invoke the extraction and preparation scripts with explicit paths outside
+the checkout and set `DATA_DIRECTORY` for local runtime access there.

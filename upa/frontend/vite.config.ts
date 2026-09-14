@@ -14,7 +14,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     allowedHosts: codespaceHost ? [codespaceHost] : [],
-    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/env'] },
+    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/env', '**/dev-secrets.env'] },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8787',

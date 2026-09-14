@@ -148,9 +148,15 @@ test('controller requires local prepared data but never generates a corpus for T
   fs.mkdirSync(scratch, { recursive: true });
   t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
   const npmStub = path.join(scratch, 'npm');
-  fs.writeFileSync(npmStub, `#!/usr/bin/env bash
-printf 'npm %s\\n' "$*"
-printf 'dev-config:%s|%s|%s|%s|%s|%s\\n' "$CORPUS_BACKEND" "$CORPUS_AVAILABILITY_WORKER_ENABLED" "$CORPUS_AVAILABILITY_REBUILD_ON_STARTUP" "$DATA_DIRECTORY" "$CORPUS_DATABASE_PATH" "$API_DEV_PORT"
+  fs.writeFileSync(npmStub, `#!/usr/bin/env node
+console.log('npm ' + process.argv.slice(2).join(' '));
+console.log('dev-config:' + ['CORPUS_BACKEND', 'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'DATA_DIRECTORY', 'CORPUS_DATABASE_PATH', 'API_DEV_PORT'].map(key => process.env[key]).join('|'));
+if (process.env.CHECK_LOCAL_SECRETS === 'true') {
+  if (process.env.LOCAL_TEST_SECRET !== 'literal $(echo must-not-run) # value') process.exit(31);
+  if (process.env.pollinations_api_key !== process.env.EXPECTED_TEST_KEY) process.exit(32);
+  console.log('local-secrets-ok');
+}
+process.exit(Number(process.env.TEST_NPM_EXIT || 0));
 `, { mode: 0o755 });
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of environmentKeys) delete env[key];
@@ -206,6 +212,39 @@ printf 'dev-config:%s|%s|%s|%s|%s|%s\\n' "$CORPUS_BACKEND" "$CORPUS_AVAILABILITY
   assert.deepEqual(defaults.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
     'local', 'false', 'true', path.join(scratch, 'data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
   ]);
+
+  const secretsFile = path.join(scratch, 'local-machine/dev-secrets.env');
+  fs.writeFileSync(secretsFile, `export LOCAL_TEST_SECRET='literal $(echo must-not-run) # value'
+export pollinations_api_key="\${pollinations_api_key-file-fixture-key}"
+export CORPUS_BACKEND="\${TEST_SECRET_BACKEND-$CORPUS_BACKEND}"
+`);
+  const secretsEnv: NodeJS.ProcessEnv = { ...env, CORPUS_BACKEND: 'tigris', CHECK_LOCAL_SECRETS: 'true', EXPECTED_TEST_KEY: 'file-fixture-key' };
+  delete secretsEnv.pollinations_api_key;
+  delete secretsEnv.LOCAL_TEST_SECRET;
+  const fromFile = spawnSync('bash', args, { env: secretsEnv, cwd: '/', encoding: 'utf8' });
+  assert.equal(fromFile.status, 0, fromFile.stderr);
+  assert.match(fromFile.stdout, /local-secrets-ok/);
+  assert.doesNotMatch(fromFile.stdout + fromFile.stderr, /file-fixture-key|literal \$\(/);
+  const inherited = spawnSync('bash', args, {
+    env: { ...secretsEnv, pollinations_api_key: 'inherited-fixture-key', EXPECTED_TEST_KEY: 'inherited-fixture-key' },
+    encoding: 'utf8',
+  });
+  assert.equal(inherited.status, 0, inherited.stderr);
+  assert.match(inherited.stdout, /local-secrets-ok/);
+  assert.doesNotMatch(inherited.stdout + inherited.stderr, /inherited-fixture-key|file-fixture-key/);
+  const failedNpm = spawnSync('bash', args, { env: { ...secretsEnv, TEST_NPM_EXIT: '19' }, encoding: 'utf8' });
+  assert.equal(failedNpm.status, 19);
+
+  const beforeChecks = spawnSync('bash', args, {
+    env: { ...secretsEnv, TEST_SECRET_BACKEND: 'invalid' }, encoding: 'utf8',
+  });
+  assert.notEqual(beforeChecks.status, 0);
+  assert.match(beforeChecks.stderr, /CORPUS_BACKEND must be local or tigris/);
+  assert.doesNotMatch(beforeChecks.stdout, /^npm run dev$/m);
+  fs.writeFileSync(secretsFile, 'return 37\n');
+  const failedSource = spawnSync('bash', args, { env: secretsEnv, encoding: 'utf8' });
+  assert.equal(failedSource.status, 37);
+  assert.doesNotMatch(failedSource.stdout, /^npm run dev$/m);
 
   fs.unlinkSync(devEnvironment);
   const missing = spawnSync('bash', args, { env, encoding: 'utf8' });

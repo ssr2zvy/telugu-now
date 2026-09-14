@@ -115,20 +115,100 @@ exit "\${ACTION_EXIT:-0}"
   assert.match(missingTool.stderr, /Required command not found: flyctl/);
 });
 
-test('Fly configuration uses shared deployment paths and keeps workflow scaffolding inactive', () => {
+test('controller deploy pushes clean main before explicitly dispatching the workflow', t => {
+  const root = path.join(appDirectory, 'test-results', `controller-deploy-${randomUUID()}`);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const directory of ['local-machine', 'upa', 'bin', 'unrelated']) {
+    fs.mkdirSync(path.join(root, directory), { recursive: true });
+  }
+  const controller = path.join(root, 'local-machine/control_local.sh');
+  fs.copyFileSync(path.join(repositoryDirectory, 'local-machine/control_local.sh'), controller);
+  fs.writeFileSync(path.join(root, 'local-machine/dev.env'), 'printf "unexpected-dev-env\\n"\nreturn 42\n');
+  fs.writeFileSync(path.join(root, 'local-machine/dev-secrets.env'), 'TEST_LOCAL_SECRET=private-fixture\n');
+  fs.writeFileSync(path.join(root, 'bin/git'), `#!/usr/bin/env bash
+printf '%s|git %s\\n' "$PWD" "$*" >> "$CALL_LOG"
+case "$*" in
+  "branch --show-current") printf '%s\\n' "$TEST_BRANCH" ;;
+  "status --porcelain") printf '%s' "$TEST_CHANGES" ;;
+  "push origin main") exit "$PUSH_EXIT" ;;
+  *) exit 99 ;;
+esac
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(root, 'bin/gh'), `#!/usr/bin/env bash
+[[ -z "\${TEST_LOCAL_SECRET:-}" ]] || exit 98
+printf '%s|gh %s\\n' "$PWD" "$*" >> "$CALL_LOG"
+exit "$DISPATCH_EXIT"
+`, { mode: 0o755 });
+  const log = path.join(root, 'calls');
+  const run = (args: string[] = [], env: Record<string, string> = {}) => {
+    fs.writeFileSync(log, '');
+    const result = spawnSync('bash', [controller, 'deploy', ...args], {
+      cwd: path.join(root, 'unrelated'),
+      env: {
+        ...process.env,
+        PATH: `${path.join(root, 'bin')}:${process.env.PATH}`,
+        CALL_LOG: log, TEST_BRANCH: 'main', TEST_CHANGES: '', PUSH_EXIT: '0', DISPATCH_EXIT: '0',
+        ...env,
+      },
+      encoding: 'utf8',
+    });
+    assert.doesNotMatch(result.stdout + result.stderr, /unexpected-dev-env/);
+    return { ...result, calls: fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) };
+  };
+
+  const success = run();
+  assert.equal(success.status, 0, success.stderr);
+  assert.deepEqual(success.calls, [
+    `${root}|git branch --show-current`,
+    `${root}|git status --porcelain`,
+    `${root}|git push origin main`,
+    `${root}|gh workflow run deploy.yml --ref main -f action=deploy`,
+  ]);
+  assert.match(success.stdout, /Deployment requested, not yet completed/);
+  for (const branch of ['feature', '']) {
+    const wrongBranch = run([], { TEST_BRANCH: branch });
+    assert.equal(wrongBranch.status, 1);
+    assert.match(wrongBranch.stderr, /requires main/);
+    assert.equal(wrongBranch.calls.length, 1);
+  }
+  for (const changes of [' M tracked.ts', 'M  staged.ts', '?? untracked.ts']) {
+    const dirty = run([], { TEST_CHANGES: changes });
+    assert.equal(dirty.status, 1);
+    assert.match(dirty.stderr, /clean working tree/);
+    assert.equal(dirty.calls.length, 2);
+  }
+  const rejectedPush = run([], { PUSH_EXIT: '23' });
+  assert.equal(rejectedPush.status, 23);
+  assert.equal(rejectedPush.calls.length, 3);
+  const rejectedDispatch = run([], { DISPATCH_EXIT: '17' });
+  assert.equal(rejectedDispatch.status, 17);
+  assert.match(rejectedDispatch.stderr, /main was pushed, but workflow dispatch failed/);
+  assert.equal(rejectedDispatch.calls.length, 4);
+  assert.doesNotMatch(rejectedDispatch.stdout, /Deployment requested/);
+  for (const args of [['--help'], ['extra'], ['--option', 'start']]) {
+    const result = run(args);
+    assert.equal(result.status, args[0] === '--help' ? 0 : 2);
+    assert.deepEqual(result.calls, []);
+  }
+});
+
+test('Fly configuration uses shared deployment paths and permits only manual deployment from main', () => {
   const read = (file: string) => fs.readFileSync(path.join(repositoryDirectory, file), 'utf8');
   assert.match(read('fly.toml'), /dockerfile = "ci-cd\/Containerfile"/);
   assert.match(read('.dockerignore'), /^!ci-cd\/Containerfile$/m);
+  assert.match(read('.dockerignore'), /^\*\*\/dev-secrets\.env$/m);
+  assert.match(read('.gitignore'), /^local-machine\/dev-secrets\.env$/m);
   assert.equal(fs.existsSync(path.join(repositoryDirectory, 'ci-cd/Dockerfile')), false);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/make-artifacts.sh/);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/container-scripts\/entrypoint.sh/);
   const workflow = read('.github/workflows/deploy.yml');
-  assert.match(workflow, /^\s+if: \$\{\{ false \}\}$/m);
+  assert.match(workflow, /^\s+if: github\.ref == 'refs\/heads\/main'$/m);
   assert.match(workflow, /^\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule|workflow_run):/m);
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.FLY_API_TOKEN \}\}/);
+  assert.match(workflow, /DEPLOY_ACTION: \$\{\{ inputs.action \}\}/);
   assert.match(workflow, /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/);
   assert.match(read('ci-cd/deploy.sh'), /Codespaces secret/);
 });

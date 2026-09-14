@@ -35,6 +35,7 @@
 **/.control
 **/.git
 **/env
+**/dev-secrets.env
 **/.env
 **/.env.*
 **/*.sqlite

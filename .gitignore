@@ -1,12 +1,7 @@
-local-machine/data-transform/raw/
-local-machine/data-transform/sample/
 local-machine/data-transform/.venv/
-data/corpus/
-data/word-images/
-data/users.sqlite*
+local-machine/dev-secrets.env
 data/.corpus.prepare-*/
 data/.corpus.backup-*/
 **/__pycache__/
 upa/test-results/
 upa/playwright-report/
-/env

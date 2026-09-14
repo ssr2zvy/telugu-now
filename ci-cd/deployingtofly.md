@@ -3,7 +3,8 @@
 ## Repository layout
 
 ```text
-.github/workflows/deploy.yml       Disabled GitHub Actions scaffolding
+.github/workflows/deploy.yml       Manual-only GitHub Actions deployment
+local-machine/control_local.sh    Push main and dispatch with the deploy command
 ci-cd/deploy.sh                    Shared deploy, stop, and cancel commands
 ci-cd/Containerfile                Multi-stage container build
 ci-cd/make-artifacts.sh            Application build entry point
@@ -20,7 +21,21 @@ Fly reads `[build] dockerfile = "ci-cd/Containerfile"` in `fly.toml`.
 credentials, local data, dependencies, and generated artifacts. Deployment
 scripts and GitHub credentials are not copied into the application image.
 
-## Authentication setup
+## GitHub Actions authentication
+
+The controller's `deploy` command requires `git`, `gh`, permission to push to
+`origin/main`, and GitHub CLI authentication with Actions write permission for
+this repository. Authenticate with `gh auth login` or an appropriate `GH_TOKEN`.
+Follow any branch-protection rules; the controller does not bypass them.
+
+The workflow requires a repository **Actions secret** named `FLY_API_TOKEN`
+containing an app-scoped Fly deploy token. A Codespaces secret alone is not
+available to GitHub-hosted runners. The workflow installs `flyctl` itself;
+the controller does not require a local Fly CLI or Fly token and does not load
+`local-machine/dev.env` or `local-machine/dev-secrets.env` for deployment. Keep
+file-based local dev secrets in the latter, Git-ignored file, not in tracked files.
+
+## Direct Fly CLI authentication
 
 Create an app-scoped deploy token from an authenticated Fly CLI:
 
@@ -42,44 +57,80 @@ Network failures and expired or insufficiently scoped tokens are not bypassed.
 Runtime Tigris and image-generation credentials remain separate Fly secrets;
 they are not supplied by the Codespaces deployment token.
 
-## Deploying from Codespaces after merging
+## Push and explicitly deploy
 
 1. Work on a dedicated `copilot/*` branch created from `main`.
 2. Validate the changes, commit, push, and merge the pull request into `main`.
-3. Update a clean deployment checkout to the merged `main` revision. Do not
-   discard local edits or deploy an unmerged feature branch.
-4. From that checkout, run `bash ci-cd/deploy.sh deploy` in the Codespaces terminal.
-   The script receives `FLY_API_TOKEN` from the Codespace environment.
-5. The script resolves its own repository root, checks prerequisites and app
-   access, then runs:
+3. Check out `main` and bring it up to date, for example with `git pull --ff-only`.
+   Preserve local edits first; do not discard them to make the checkout clean.
+4. From the repository root, explicitly request deployment:
+
+```bash
+bash local-machine/control_local.sh deploy
+```
+
+From `local-machine/`, use `bash control_local.sh deploy`. The command resolves
+the repository regardless of the current directory. `deploy --help` prints usage
+without pushing or dispatching anything. There is no interactive menu or
+`--option` argument for deployment.
+
+The command requires a clean working tree on `main`, including no staged or
+untracked changes. It does not stage, commit, merge, switch branches, or force
+push. Stop local dev and deliberately checkpoint/commit changed dummy SQLite
+data before deploying if that test data is part of the intended commit.
+
+After checking prerequisites it runs exactly these remote operations, in order:
+
+```bash
+git push origin main &&
+gh workflow run deploy.yml --ref main -f action=deploy
+```
+
+If the push fails, no workflow is requested. If dispatch fails, the push remains
+completed; fix GitHub authentication or workflow availability and retry only the
+`gh workflow run` command. Successful dispatch means the deployment was requested,
+not that the build or rollout succeeded. Inspect it with:
+
+```bash
+gh run list --workflow deploy.yml --branch main
+gh run watch RUN_ID --exit-status
+```
+
+The workflow deploys the `main` revision captured at dispatch time; the controller
+does not pin a separate commit SHA if another push advances `main` between push
+and dispatch. GitHub checks out the triggering revision and serializes deploy/stop
+runs without cancelling an earlier run. The Codespace can close after dispatch.
+
+Ordinary pushes and merges to `main` do not deploy. The workflow has only a
+`workflow_dispatch` trigger and accepts runs only from `main`. This policy takes
+effect once the workflow change reaches remote `main`; it does not cancel runs
+already queued or running. Fly does not watch GitHub itself.
+
+To deploy code already on `main` without another push, run the `gh workflow run`
+command directly or select **Actions > Fly deployment > Run workflow**, choose
+`main`, and select `deploy`. Select `stop` to stop Machines instead. A local
+environment variable such as `DEPLOY=true git push` does not trigger deployment.
+
+## Direct deployment alternative
+
+`bash ci-cd/deploy.sh deploy` still deploys the current checkout directly using
+the local `flyctl` and `FLY_API_TOKEN`, without a Git push or GitHub workflow.
+It checks app access, then runs:
 
 ```bash
 flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
 ```
 
-There is no active automatic deployment: pushes and merges to `main` do not
-deploy anything. Fly does not watch GitHub itself.
-`.github/workflows/deploy.yml` is retained as disabled scaffolding: its push
-trigger is commented out and its deployment job uses `if: ${{ false }}`.
-Even manual dispatch skips the job. No Actions secret or self-hosted runner
-is required for the current Codespaces deployment method.
-
-To enable the scaffold later, configure an Actions secret named `FLY_API_TOKEN`,
-replace the false job condition with `github.ref == 'refs/heads/main'`, and
-uncomment the push-to-main trigger. A Codespaces secret is not available to
-GitHub-hosted Actions runners. The scaffold preserves pinned action revisions,
-read-only repository permissions, and serialized deploy/stop operations.
-
-Keep the Codespace running until deployment completes. Once deployed, the app
-runs on Fly independently of the Codespace. There is no local concurrency queue;
-run one deployment or stop operation at a time, and ensure any legacy Actions
-run is finished or cancelled first. The container build typechecks and builds
-the application; validate changes before merging as usual.
+Keep the Codespace running until a direct deployment completes. Once deployed,
+the app runs on Fly independently. Direct commands do not share the Actions
+concurrency queue; do not overlap them with other local or Actions deploy/stop
+operations. The container build typechecks and builds the application; validate
+changes before merging as usual.
 
 If the token is absent or app access fails, the script exits before modifying
 the existing deployment.
 
-## Manual commands
+## Direct commands and cancellation
 
 These commands work from any current directory when the script path is correct:
 
@@ -89,7 +140,7 @@ These commands work from any current directory when the script path is correct:
 ./ci-cd/deploy.sh cancel 123456789
 ```
 
-`deploy` builds the current local checkout, including uncommitted changes.
+The direct script's `deploy` builds the current local checkout, including uncommitted changes.
 For production, use a clean checkout of the merged `main` revision; the
 deployment script does not update or switch Git branches for you.
 
@@ -97,12 +148,12 @@ deployment script does not update or switch Git branches for you.
 volumes, or Tigris data. Storage charges continue. The current `fly.toml` sets
 `auto_start_machines = false`, so traffic does not restart the stopped app.
 A subsequent manual deployment can start it again. A push to `main` alone
-will not restart it. Cancel any legacy pending/active Actions runs before stopping;
+will not restart it. Cancel any pending/active Actions runs before stopping;
 removing a workflow file does not cancel runs that were already queued.
 If stopping multiple Machines fails partway through, some may already be stopped;
 the command reports failure rather than claiming success.
 
-`cancel RUN_ID` is retained only for legacy GitHub deployment runs. It uses
+`cancel RUN_ID` requests cancellation of a GitHub deployment run. It uses
 GitHub CLI authentication (`gh auth login` or `GH_TOKEN`
 with Actions read/write permissions), not `FLY_API_TOKEN`. It verifies that the
 run belongs to this repository's deployment workflow on `main` before requesting

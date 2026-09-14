@@ -26,7 +26,47 @@ Usage:
   ./local-machine/$SCRIPT_NAME build [--option start|abort|exit]
   ./local-machine/$SCRIPT_NAME dev [--option start|stop|exit]
   ./local-machine/$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
+  ./local-machine/$SCRIPT_NAME deploy [--help]
 USAGE
+}
+
+run_deploy() {
+  local branch changes tool rc
+
+  if [[ $# -eq 1 && "$1" == "--help" ]]; then
+    printf 'Usage: ./%s deploy\nPush a clean main checkout to origin, then request the GitHub deployment workflow.\n' "$SCRIPT_NAME"
+    return 0
+  fi
+  if [[ $# -ne 0 ]]; then
+    printf 'ERROR: deploy takes no arguments; use --help for usage.\n' >&2
+    return 2
+  fi
+  for tool in git gh; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      printf 'ERROR: Required command not found: %s\n' "$tool" >&2
+      return 1
+    fi
+  done
+
+  cd "$REPO_DIR" || return $?
+  branch="$(git branch --show-current)" || return $?
+  if [[ "$branch" != "main" ]]; then
+    printf 'ERROR: deploy requires main. Merge your changes and check out main first.\n' >&2
+    return 1
+  fi
+  changes="$(git status --porcelain)" || return $?
+  if [[ -n "$changes" ]]; then
+    printf 'ERROR: deploy requires a clean working tree. Commit intended changes first.\n' >&2
+    return 1
+  fi
+
+  git push origin main || return $?
+  gh workflow run deploy.yml --ref main -f action=deploy || {
+    rc=$?
+    printf 'ERROR: main was pushed, but workflow dispatch failed. Retry with: gh workflow run deploy.yml --ref main -f action=deploy\n' >&2
+    return "$rc"
+  }
+  printf 'Deployment requested, not yet completed. Check GitHub Actions for the result.\n'
 }
 
 prepared_corpus_ready() {
@@ -521,6 +561,9 @@ run_dev_foreground() {
   local status dev_pid dev_pgid lf rc=0 corpus_database_path
 
   source "$SCRIPT_DIR/dev.env" || return $?
+  if [[ -f "$SCRIPT_DIR/dev-secrets.env" ]]; then
+    source "$SCRIPT_DIR/dev-secrets.env" || return $?
+  fi
 
   case "${CORPUS_BACKEND:-local}" in
     local)
@@ -756,6 +799,12 @@ fi
 if [[ "${1:-}" == "__runner" ]]; then
   [[ $# -ge 2 && $# -le 3 ]] || exit 2
   runner "$2" "${3:-start}"
+fi
+
+if [[ "${1:-}" == "deploy" ]]; then
+  shift
+  run_deploy "$@"
+  exit $?
 fi
 
 if [[ "${1:-}" == "data" ]]; then

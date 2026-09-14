@@ -10,7 +10,7 @@ usage() {
     'Usage: ci-cd/deploy.sh deploy | stop | cancel RUN_ID | help' \
     'deploy: Build and deploy this checkout using FLY_API_TOKEN.' \
     'stop: Stop the deployed app Machines; preserve volumes and data.' \
-    'cancel RUN_ID: Cancel a legacy GitHub deployment workflow run using gh authentication.' \
+    'cancel RUN_ID: Cancel a GitHub deployment workflow run using gh authentication.' \
     'Interrupt local deploys with Ctrl+C. Cancellation is not a rollback.'
 }
 
