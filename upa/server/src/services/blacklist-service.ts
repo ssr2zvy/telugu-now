@@ -61,7 +61,16 @@ export function blacklistStore(database: Database.Database) {
     new Set((database.prepare('SELECT text FROM profile_blacklist WHERE profile_code = ?')
       .all(code) as Array<{ text: string }>).map(row => row.text));
 
-  return { list, add, remove, isBlacklisted, blacklistedTexts, purgeQueued };
+  /**
+   * Every blacklisted sentence across all profiles. The common-word ranking must
+   * be a single fixed ranking, so it excludes anything any profile has hidden
+   * rather than varying per profile.
+   */
+  const allBlacklistedTexts = (): Set<string> =>
+    new Set((database.prepare('SELECT DISTINCT text FROM profile_blacklist').all() as Array<{ text: string }>)
+      .map(row => row.text));
+
+  return { list, add, remove, isBlacklisted, blacklistedTexts, allBlacklistedTexts, purgeQueued };
 }
 
 export type BlacklistStore = ReturnType<typeof blacklistStore>;

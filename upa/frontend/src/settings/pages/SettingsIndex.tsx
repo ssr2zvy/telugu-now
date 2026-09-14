@@ -46,6 +46,7 @@ export function SettingsIndex({
     appearance: `${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
     images: language === 'en' ? 'Word illustrations' : 'పద చిత్రాలు',
     blacklist: language === 'en' ? 'Hidden sentences' : 'దాచిన వాక్యాలు',
+    version: language === 'en' ? 'Deployment and build' : 'అమలు మరియు నిర్మాణం',
     eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     export: 'EPUB / HTML',
     reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,

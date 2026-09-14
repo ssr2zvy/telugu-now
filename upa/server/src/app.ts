@@ -28,6 +28,7 @@ import { InvalidSelectionSettingsError } from './services/selection-settings-ser
 import { InvalidAudioSettingsError, updateProfileAudioSettings } from './services/audio-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
 import { sourceRegistry } from './services/source-registry';
+import { versionInformation } from './services/version-service';
 import type {
   DataSourcesResponse,
   ExportRequest,
@@ -46,6 +47,7 @@ migrateLegacyWordImages(db);
 const gateConfig = { passwordHash: config.accessPasswordHash, sessionSecret: config.accessSessionSecret };
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+app.get('/api/version', (c) => c.json(versionInformation()));
 
 app.route('/api', accessGateRoutes(gateConfig));
 

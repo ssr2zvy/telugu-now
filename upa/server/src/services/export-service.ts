@@ -45,6 +45,7 @@ export async function generateExport(profileCode: string, count: number): Promis
       complexityPercentileTarget: settings.complexityPercentileTarget,
       complexityPercentileSpread: settings.complexityPercentileSpread,
       complexityReferenceVersion: settings.complexityReferenceVersion,
+      commonWordReduction: settings.commonWordReduction,
     },
     entries,
   };

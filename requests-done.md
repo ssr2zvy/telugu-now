@@ -447,3 +447,135 @@ catalog, search, save and letter-audio endpoints.
 
 Serper.dev credential and cost documentation is tracked by the separate `tokens.md`
 and `costs.md` points and is handled in the batch that covers those.
+
+## Batch 4
+
+### Complexity scoring
+
+Complexity is no longer just the grapheme count. `server/src/services/common-word-complexity.ts`
+implements Common Word Inclusion, built entirely from the corpus itself as
+requested: every word's occurrences across all observation text are counted
+(skipping blacklisted sentences), which produces one fixed ranking rather than a
+hand-written word list.
+
+The formula was chosen so that the metric scales complexity up as well as down,
+which is what the clarification asked for, and so that the downward bias the
+scaling would otherwise introduce is removed:
+
+```
+commonality(w) = (log f(w) - log f_min) / (log f_max - log f_min)      in [0, 1]
+average        = occurrence-weighted mean commonality
+relative(w)    = (commonality(w) - average) / max(average, 1 - average) in [-1, 1]
+strength       = reduction / 20                                        in [0, 1]
+adjusted(row)  = SUM over words of graphemes(w) * (1 - strength * relative(w))
+value(row)     = max(1, round(adjusted(row) * corpusRaw / corpusAdjusted))
+```
+
+Occurrences are compressed logarithmically because raw corpus frequency is
+extremely skewed, so a linear scale would collapse almost every word into one
+bucket. Each word is compared against the commonality of an *average* word, so a
+word more common than average scales its own graphemes down and a rarer word
+scales them up — the effect is per word and proportional to that word's own
+length, which is what "summing over each word" and "a factor of how complex it is
+relative to the average" together imply. Because every word has some commonality,
+the sum would drift away from grapheme units; the final corpus-wide rescale
+(`corpusRaw / corpusAdjusted`) restores the original mean, so the adjusted metric
+stays in grapheme-count units and the existing percentile target and spread keep
+meaning the same thing. Punctuation and spacing fall outside word boundaries and
+are carried at full weight. A reduction of 0 reproduces the plain grapheme count
+exactly.
+
+The metric is materialized rather than computed per selection: `CommonWordStore`
+keeps a `common_word_frequency` ranking rebuilt once per corpus generation, and
+`adjusted_complexity_rows` / `adjusted_complexity_counts` built once per reduction
+value in use, so selection stays a table lookup. `prepared-corpus-store.ts` routes
+`complexityClasses()` and `sourceKeyAt()` through the adjusted tables when a
+reduction is active, including remapping invalid-audio exclusions into the
+adjusted classes so rejected rows stay excluded. The `DataSource` interface,
+`PreparedCorpusDataSource` and `SelectionEngine` all thread the reduction through,
+and the engine rebuilds its global reference when the reduction changes.
+
+The source-weight plus complexity strategy is untouched: a source is still picked
+by `rowCount x weight`, then a complexity class within it, then a row within the
+class, and because the seen/unseen question pools are implemented as redraws over
+that same sampler, Common Word Inclusion applies inside those pools too.
+
+A separate editable number was added to Complexity settings: `commonWordReduction`,
+a whole number in [0, 20] defaulting to 2, stored per profile in a new
+`common_word_reduction` column on `profile_selection_settings` (migrated for
+existing databases), carried on `ProfileSelectionSettings` and
+`UpdateSelectionSettingsRequest`, validated server-side in
+`selection-settings-service.ts`, and surfaced as a labelled field with an
+explanatory note on `ComplexityPage.tsx` in both English and Telugu. The selection
+snapshot now records `commonWordReduction` and reports `complexityMetric` as
+`common-word-inclusion` when the metric is active, so diagnostics and exports show
+which metric produced a draw. The complexity reference version moved to 3.
+
+### Source removal
+
+Dummy Source 1, Dummy Source 2 and Dummy Source 3 are gone: `server/src/sources/dummy/`
+was deleted along with its three committed data files, the registrations were
+removed from `source-registry.ts`, and the `source1`/`source2`/`source3` default
+weights (and their `SOURCE1_WEIGHT`-style environment overrides) were removed from
+`config.ts`. As confirmed, this means a machine without the prepared corpus has no
+selectable sources and shows the corpus-not-prepared state instead of dummy text.
+
+### Version information in Settings
+
+A Telugu Now Version section was added to the Settings index. `ci-cd/deploy.sh`
+now stamps the deployed revision into the image at build time, passing
+`GIT_COMMIT`, `GIT_COMMIT_SUBJECT`, `GIT_BRANCH` and a UTC `BUILD_TIME` as
+`--build-arg`s; `ci-cd/Containerfile` accepts them, records the commit as an OCI
+`revision` label, and promotes all four to runtime environment variables.
+`server/src/services/version-service.ts` reads them together with the artifact
+version files and the Fly-provided `FLY_APP_NAME`, `FLY_REGION`, `FLY_MACHINE_ID`
+and `FLY_IMAGE_REF`, and exposes everything at `GET /api/version`.
+`frontend/src/settings/pages/VersionPage.tsx` renders it in the Diagnostic table
+style, showing the app version, the deployed commit (short SHA) and its subject,
+the branch, the build time, the deployed app, region and machine, the server start
+time, a computed uptime, and the client and server build versions — the set
+confirmed in the clarification round. Values that were not stamped display as
+Unknown rather than blank, so an un-stamped image is obvious.
+
+### Cost documentation
+
+`costs.md` gained a **GitHub Codespaces** platform section covering exactly what
+was asked for: the Codespace that holds the `FLY_API_TOKEN` deploy secret and is
+used to run deployments. It documents compute core-hours, storage (including for
+stopped Codespaces), idle-timeout and retention settings, the personal-account
+included allowances and spending limit, and the fact that enabling the disabled
+Actions workflow would move deployments onto Actions minutes instead. A
+**Serper.dev** section was added for the new image-search integration, covering
+per-request credit consumption, the shared cache that prevents repeat requests
+from being billed, the fact that saving a searched image is a Fly transfer cost
+rather than a Serper cost, and prepaid credits and plans. The established
+per-platform organization was kept throughout: an overall cost/usage link first,
+then a table of possible component costs with links for each.
+
+Existing Fly and Pollinations coverage was retained. The Pollinations section was
+updated for the expanded usage: the regeneration row became an
+additional-catalog-images row (since regeneration was replaced by the catalog, and
+pressing Next at the end of a catalog keeps generating billable images), and a new
+row documents Pollinations letter text-to-speech, including that it uses the same
+`pollinations_api_key` and that its shared cache means a given letter is normally
+generated only once.
+
+### Credential documentation: tokens.md
+
+`tokens.md` was created at the repository root with the requested table, extended
+to cover the credentials introduced by this work: `pollinations_api_key`,
+`SERPER_API_KEY`, `ACCESS_PASSWORD_HASH`, `ACCESS_SESSION_SECRET`, the Tigris
+AWS-compatible credentials (including `AWS_SESSION_TOKEN` when temporary
+credentials are used), `FLY_API_TOKEN`, and `API_TOKEN`. It contains no token
+values, secret keys, hashes, or credential-bearing examples, and says so
+explicitly.
+
+A dedicated Tigris section distinguishes the secret credentials from the
+non-secret configuration, listing `AWS_ENDPOINT_URL_S3`, `AWS_REGION`,
+`BUCKET_NAME` and the object prefix as ordinary configuration with their real
+locations, and explaining that creating a bucket through Fly sets several at once
+which is why they are easily confused. An access-gate section describes the shared
+password design and why the password itself is never stored, and a rotation
+section covers scoping and the blast radius of rotating each secret. The
+`gh secret set` setup task and the `API_TOKEN` / `FLY_API_TOKEN` naming are also
+documented here; that request is recorded under its own point.

@@ -111,6 +111,7 @@ db.exec(`
     profile_code TEXT PRIMARY KEY,
     complexity_percentile_target REAL NOT NULL,
     complexity_percentile_spread REAL NOT NULL,
+    common_word_reduction INTEGER NOT NULL DEFAULT 2,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
@@ -211,6 +212,10 @@ for (const [column, definition] of [
   ['question_keyboard', 'TEXT'],
 ] as const) {
   if (!columnExists('observations', column)) db.exec(`ALTER TABLE observations ADD COLUMN ${column} ${definition}`);
+}
+
+if (!columnExists('profile_selection_settings', 'common_word_reduction')) {
+  db.exec('ALTER TABLE profile_selection_settings ADD COLUMN common_word_reduction INTEGER NOT NULL DEFAULT 2');
 }
 
 if (!columnExists('profiles', 'repeat_tracking_complete')) {

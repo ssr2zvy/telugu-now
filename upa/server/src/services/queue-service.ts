@@ -4,6 +4,7 @@ import type { AcquisitionTriggerKind, PreparationGroupKind } from '../../../shar
 import { selectionEngine } from './selection-engine';
 import { getProfileSelectionSettings } from './selection-settings-service';
 import { blacklistStore } from './blacklist-service';
+import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
 import { hasSeenRow, planNextDisplay, poolHasAnySeenRow, type QuestionPlan } from './question-service';
 
 // A blacklisted row can still be drawn by the weighted sampler. Redraw a bounded
@@ -17,6 +18,9 @@ function profileBlacklist() {
   blacklist ??= blacklistStore(db);
   return blacklist;
 }
+
+// The common-word ranking must skip sentences anyone has hidden.
+preparedCorpusStore.blacklistedTexts = () => profileBlacklist().allBlacklistedTexts();
 
 const selectCachedText = db.prepare(
   'SELECT text FROM source_records WHERE profile_code = ? AND source_id = ? AND source_key = ?',

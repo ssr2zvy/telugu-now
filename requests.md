@@ -290,7 +290,7 @@ Implemented; see `requests-done.md`.
 - When any user requests the same TTS or image search, reuse already retrieved
   results rather than repeating the external request.
 
-## Complexity scoring
+## Complexity scoring — done
 
 - Extend complexity scoring beyond grapheme count with a Common Word Inclusion
   metric.
@@ -300,16 +300,16 @@ Implemented; see `requests-done.md`.
 - Retain the source-weight plus complexity selection strategy, including its
   use within seen/unseen question pools.
 
-## Source removal
+## Source removal — done
 
 - Remove Dummy Source 1, Dummy Source 2, and Dummy Source 3.
 
-## Version information in Settings
+## Version information in Settings — done
 
 - Add a Telugu Now version section showing the latest deployment date/time
   and related version/deployment information.
 
-## Cost documentation
+## Cost documentation — done
 
 - Add GitHub Codespaces usage as a platform in `costs.md`, specifically the
   Codespace holding the Fly deployment token and used for deployments.
@@ -319,7 +319,7 @@ Implemented; see `requests-done.md`.
 - Retain existing Fly and Pollinations coverage; include the requested
   Pollinations TTS feature when documenting the expanded usage.
 
-## Credential documentation: tokens.md
+## Credential documentation: tokens.md — done
 
 Create a repository-root `tokens.md` documenting credential purposes, consumers,
 and storage locations. Do not include actual token values, secret keys, or

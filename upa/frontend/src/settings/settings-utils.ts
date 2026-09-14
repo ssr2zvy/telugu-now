@@ -9,6 +9,8 @@ export function draftFromSettings(
     ProfileSelectionSettings,
 ): SettingsDraft {
   return {
+    commonWordReduction:
+      String(settings.commonWordReduction ?? 2),
     targetPercent:
       String(
         settings

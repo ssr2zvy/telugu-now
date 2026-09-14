@@ -21,6 +21,9 @@ export const COPY = {
 
     target: 'Target',
     spread: 'Spread',
+    commonWordReduction: 'Common Word Reduction',
+    commonWordReductionDescription:
+      'How strongly word commonality shifts complexity. Words more common than average lower a sentence\u2019s complexity; rarer words raise it. 0 uses the plain grapheme count.',
     save: 'Save',
     saving: 'Saving…',
     invalidValues: 'Invalid values',
@@ -65,6 +68,9 @@ export const COPY = {
 
     target: 'లక్ష్యం',
     spread: 'వ్యాప్తి',
+    commonWordReduction: 'సాధారణ పద తగ్గింపు',
+    commonWordReductionDescription:
+      'పదాల సాధారణత సంక్లిష్టతను ఎంత మార్చాలో నిర్ణయిస్తుంది. సగటు కంటే సాధారణమైన పదాలు వాక్య సంక్లిష్టతను తగ్గిస్తాయి; అరుదైన పదాలు పెంచుతాయి. 0 అంటే కేవలం అక్షర సంఖ్య.',
     save: 'భద్రపరచు',
     saving: 'భద్రపరుస్తోంది…',
     invalidValues: 'చెల్లని విలువలు',
