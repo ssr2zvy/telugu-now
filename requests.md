@@ -338,7 +338,7 @@ Distinguish secret Tigris credentials from non-secret configuration such as
 endpoint, region, bucket name, and object prefix. Describe the actual
 configuration locations without implying that all Tigris configuration is secret.
 
-## GitHub deployment secret setup — done (documented; transfer pending)
+## GitHub deployment secret setup — done
 
 - Add a setup task to run `gh secret set API_TOKEN` for this repository using
   the existing `FLY_API_TOKEN` in the Codespaces environment.
@@ -353,6 +353,11 @@ configuration locations without implying that all Tigris configuration is secret
   expected by `ci-cd/deploy.sh`, so the two names are not confused.
 - Setting the secret does not itself authorize enabling the disabled workflow
   or deploying. This is a pending setup request, not a completed secret transfer.
+- **Superseded.** The agent could not set the secret: `gh` in the Codespace has
+  no Actions-secrets scope and returned HTTP 403. The user instead created the
+  Actions secret directly, named `FLY_API_TOKEN`, and revoked the Codespaces
+  copy, so the `API_TOKEN` placeholder label is obsolete. The workflow now reads
+  `secrets.FLY_API_TOKEN` and is enabled on pushes to `main`.
 
 ## Controls Guide — done
 

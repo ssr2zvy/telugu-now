@@ -3,7 +3,7 @@
 ## Repository layout
 
 ```text
-.github/workflows/deploy.yml       Disabled GitHub Actions scaffolding
+.github/workflows/deploy.yml       GitHub Actions deployment on pushes to main
 ci-cd/deploy.sh                    Shared deploy, stop, and cancel commands
 ci-cd/Containerfile                Multi-stage container build
 ci-cd/make-artifacts.sh            Application build entry point
@@ -28,12 +28,13 @@ Create an app-scoped deploy token from an authenticated Fly CLI:
 flyctl tokens create deploy --app telugu-now --expiry 720h
 ```
 
-Store the complete value as a **Codespaces secret** named `FLY_API_TOKEN`, with
-access granted to this repository. Restart an existing Codespace after adding
-or updating the secret so new processes receive it as an environment variable.
-Renew it before expiry. Never put the token in the repository or build arguments.
-Outside Codespaces, securely export it as `FLY_API_TOKEN`; the script deliberately
-requires this variable rather than depending on a machine's cached login.
+Store the complete value as a **repository Actions secret** named
+`FLY_API_TOKEN`. That is now its only storage location; the Codespaces copy that
+once existed has been revoked, so `ci-cd/deploy.sh` cannot be run from the
+Codespace. Renew the token before expiry. Never put it in the repository or in
+build arguments. To run the script outside Actions, securely export
+`FLY_API_TOKEN` in the shell first; the script deliberately requires this
+variable rather than depending on a machine's cached login.
 
 Deployment and stop commands require `flyctl`; stop also requires `jq`.
 Install these tools in the Codespace if needed. Missing tools, missing
@@ -57,17 +58,18 @@ they are not supplied by the Codespaces deployment token.
 flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
 ```
 
-There is no active automatic deployment: pushes and merges to `main` do not
-deploy anything. Fly does not watch GitHub itself.
-`.github/workflows/deploy.yml` is retained as disabled scaffolding: its push
-trigger is commented out and its deployment job uses `if: ${{ false }}`.
-Even manual dispatch skips the job. No Actions secret or self-hosted runner
-is required for the current Codespaces deployment method.
+Deployment is automatic: every push to `main` runs
+`.github/workflows/deploy.yml`, which installs `flyctl` and runs
+`ci-cd/deploy.sh deploy` on a GitHub-hosted runner. Fly does not watch GitHub
+itself; this workflow is what connects the two. The job also guards on
+`github.ref == 'refs/heads/main'`, so a manual dispatch from another branch will
+not deploy, and there is no `pull_request` trigger, so a fork's pull request can
+never reach the deploy token.
 
-To enable the scaffold later, configure an Actions secret named `FLY_API_TOKEN`,
-replace the false job condition with `github.ref == 'refs/heads/main'`, and
-uncomment the push-to-main trigger. A Codespaces secret is not available to
-GitHub-hosted Actions runners. The scaffold preserves pinned action revisions,
+The deploy step receives `FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}`. Actions
+masks the value in logs and it cannot be read back through the API. Manual
+dispatch additionally offers the `stop` action. The workflow preserves pinned
+action revisions,
 read-only repository permissions, and serialized deploy/stop operations.
 
 Keep the Codespace running until deployment completes. Once deployed, the app
@@ -96,9 +98,10 @@ deployment script does not update or switch Git branches for you.
 `stop` lists the app's Machines and stops them without destroying Machines,
 volumes, or Tigris data. Storage charges continue. The current `fly.toml` sets
 `auto_start_machines = false`, so traffic does not restart the stopped app.
-A subsequent manual deployment can start it again. A push to `main` alone
-will not restart it. Cancel any legacy pending/active Actions runs before stopping;
-removing a workflow file does not cancel runs that were already queued.
+A subsequent deployment starts it again, and because pushes to `main` now
+deploy, any such push will restart a stopped app. Cancel queued or in-progress
+Actions runs before stopping; removing a workflow file does not cancel runs that
+were already queued.
 If stopping multiple Machines fails partway through, some may already be stopped;
 the command reports failure rather than claiming success.
 

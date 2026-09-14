@@ -666,3 +666,37 @@ field labels remain readable, and the multiword title-capitalization applied in
 batch 2 is preserved; the new Telugu Now Version page follows the same
 convention. The conventions themselves are now written down in the Controls
 Guide.
+
+## Follow-up: deployment secret and workflow enablement
+
+The GitHub deployment secret point was recorded above as documented-and-pending
+because `gh secret set API_TOKEN` failed with HTTP 403: the `gh` credentials in
+this Codespace carry no Actions-secrets scope, and the same 403 is returned even
+for listing secret *names*. That blocker should have been raised at the moment it
+occurred rather than in the final report.
+
+The user resolved it directly, and in doing so changed the design:
+
+- The repository Actions secret is named `FLY_API_TOKEN`, not `API_TOKEN`. The
+  placeholder-label indirection, and the workflow's name mapping, are obsolete.
+- The Codespaces copy of the token has been **revoked**. The token now exists in
+  exactly one place, a repository Actions secret, and therefore cannot be read by
+  anything running in this Codespace.
+- The user authorized enabling the workflow and deploying.
+
+Accordingly, `.github/workflows/deploy.yml` is now active: the `push` trigger on
+`main` is uncommented, the `if: ${{ false }}` job guard is replaced with
+`github.ref == 'refs/heads/main'`, and the deploy step receives
+`FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}`. There is no `pull_request` or
+`workflow_run` trigger, so a fork's pull request can never reach the token, and
+the ref guard means a dispatch from another branch does not deploy. Actions masks
+the secret in logs and it cannot be read back out of the API, so the value is
+still never read, printed, or inspected. `workflow_dispatch` retains the
+`deploy`/`stop` choice.
+
+`ci-cd/deploy.sh`'s missing-token message no longer points at a Codespaces
+secret. `tokens.md`, `controls-guide.md`, `ci-cd/deploying-to-fly.md`,
+`upa/README.md` and `costs.md` were updated to describe Actions-only storage,
+automatic deployment on merge to `main`, and the fact that manual deployment from
+the Codespace is no longer possible. `tests/deploy.test.ts` asserts the active
+configuration, including the absence of fork-reachable triggers.

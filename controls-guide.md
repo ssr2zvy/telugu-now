@@ -436,12 +436,11 @@ deployed image reads **Unknown**.
 
 ## 8. Pending requests
 
-These are requested but **not yet available**:
+There are currently no pending requests.
 
-- **GitHub deployment secret setup** — the repository Actions secret `API_TOKEN`
-  still needs to be set from the Codespaces `FLY_API_TOKEN`. Setting it does not
-  authorize enabling the disabled deployment workflow or deploying. See
-  `tokens.md`.
+Deployment is no longer pending: the repository Actions secret `FLY_API_TOKEN`
+is set, and pushing to `main` deploys the app through GitHub Actions. See
+`tokens.md` and `ci-cd/deploying-to-fly.md`.
 
 Keep this guide aligned with implemented behaviour as further changes land, and
 keep pending requests clearly separated from available features.

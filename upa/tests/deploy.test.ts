@@ -121,7 +121,7 @@ exit "\${ACTION_EXIT:-0}"
   assert.match(missingTool.stderr, /Required command not found: flyctl/);
 });
 
-test('Fly configuration uses shared deployment paths and keeps workflow scaffolding inactive', () => {
+test('Fly configuration uses shared deployment paths and deploys main through Actions', () => {
   const read = (file: string) => fs.readFileSync(path.join(repositoryDirectory, file), 'utf8');
   assert.match(read('fly.toml'), /dockerfile = "ci-cd\/Containerfile"/);
   assert.match(read('.dockerignore'), /^!ci-cd\/Containerfile$/m);
@@ -129,14 +129,18 @@ test('Fly configuration uses shared deployment paths and keeps workflow scaffold
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/make-artifacts.sh/);
   assert.match(read('ci-cd/Containerfile'), /COPY ci-cd\/container-scripts\/entrypoint.sh/);
   const workflow = read('.github/workflows/deploy.yml');
-  assert.match(workflow, /^\s+if: \$\{\{ false \}\}$/m);
+  // Deployment runs on pushes to main, and only for main.
+  assert.match(workflow, /^on:\n  push:\n    branches: \[main\]$/m);
+  assert.match(workflow, /^\s+if: github.ref == 'refs\/heads\/main'$/m);
+  assert.doesNotMatch(workflow, /\$\{\{ false \}\}/);
+  // Nothing outside main, and nothing from a fork, may reach the deploy token.
+  assert.doesNotMatch(workflow, /^\s+(pull_request|pull_request_target|workflow_run):/m);
   assert.match(workflow, /^\s+workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^\s+(push|pull_request|pull_request_target|schedule|workflow_run):/m);
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /contents: read/);
-  // The Actions secret is stored under the label API_TOKEN and mapped onto the
-  // FLY_API_TOKEN variable that ci-cd/deploy.sh actually reads.
-  assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.API_TOKEN \}\}/);
+  // The Actions secret has the same name as the variable ci-cd/deploy.sh reads.
+  assert.match(workflow, /FLY_API_TOKEN: \$\{\{ secrets.FLY_API_TOKEN \}\}/);
   assert.match(workflow, /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/);
-  assert.match(read('ci-cd/deploy.sh'), /Codespaces secret/);
+  assert.match(read('ci-cd/deploy.sh'), /repository Actions secret of the same name/);
+  assert.doesNotMatch(read('ci-cd/deploy.sh'), /Codespaces/);
 });
