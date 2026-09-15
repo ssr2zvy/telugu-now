@@ -138,6 +138,17 @@ test('playback settings reveal speed and loop before the speed editor opens', ()
   }
 });
 
+test('expanded playback settings stay compact and collapse on the configured fade delay', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  const playerSource = readFileSync(new URL('../frontend/src/observation/audio/AudioPlayerBar.tsx', import.meta.url), 'utf8');
+  assert.match(css, /\.audio-playback-controls-slot > \.audio-speed-button \{ transform: translateX\(8px\); \}/);
+  assert.match(css, /\.audio-playback-settings-row \{[^}]*gap: 0;/);
+  assert.match(css, /\.audio-playback-option \{[^}]*width: 36px;/);
+  assert.match(playerSource, /precisionMode\.playback !== 'controls'/);
+  assert.match(playerSource, /appearance\.autoFadeSeconds \* 1000/);
+  assert.match(playerSource, /dispatchPrecision\('toggle-controls'\)/);
+});
+
 test('precision mode cannot leave speed open or reopen the magnifier after dismissal', () => {
   assert.deepEqual(precisionControls(CLOSED_PRECISION_MODE, 'toggle-speed'), CLOSED_PRECISION_MODE);
   assert.deepEqual(precisionControls(CLOSED_PRECISION_MODE, 'toggle-controls'), CLOSED_PRECISION_MODE);

@@ -52,6 +52,7 @@ export function AudioPlayerBar({
   }, [player.loading, onLoadingChange]);
   useEffect(() => { onPlaybackErrorChange?.(player.playbackError); }, [player.playbackError, onPlaybackErrorChange]);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, CLOSED_PRECISION_MODE);
+  const [playbackInteraction, notePlaybackInteraction] = useReducer((value: number) => value + 1, 0);
   const associatedControlsOpen = precisionMode.surface !== 'closed';
   const magnifierOpen = precisionMode.surface === 'magnifier';
   const speedPopoverOpen = precisionMode.playback === 'speed';
@@ -102,6 +103,11 @@ export function AudioPlayerBar({
     return () => window.clearTimeout(timer);
   }, [controlsVisible, appearance.scrollMode]);
   useEffect(() => { dispatchPrecision('close'); }, [observationId]);
+  useEffect(() => {
+    if (precisionMode.playback !== 'controls') return;
+    const timer = window.setTimeout(() => dispatchPrecision('toggle-controls'), appearance.autoFadeSeconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
   const bookmarkError = associatedControlsOpen ? player.bookmarkError : null;
 
   return (
@@ -157,6 +163,7 @@ export function AudioPlayerBar({
           onClose={closeSpeed}
           controlsRef={speedButtonRef}
           dismissOnOutside={false}
+          onInteraction={notePlaybackInteraction}
         /> : undefined}
         speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}

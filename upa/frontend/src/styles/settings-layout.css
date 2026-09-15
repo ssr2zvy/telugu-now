@@ -12,6 +12,7 @@
 }
 .settings-screen::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, var(--gradient-start), var(--gradient-middle), var(--gradient-end)); pointer-events: none; }
 .settings-rail { display: none; }
+.settings-rail-scrim { display: none; }
 .settings-header {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -30,8 +31,8 @@
   display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
   border: 0; border-radius: 6px; background: transparent; color: var(--foreground); cursor: pointer;
 }
-.settings-close { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 4; }
-.settings-rail-toggle { display: none; position: absolute; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); z-index: 4; }
+.settings-close { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 8; }
+.settings-rail-toggle { display: none; position: absolute; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); z-index: 8; }
 .settings-back, .settings-close { font-size: 1.7rem; line-height: 1; }
 .settings-page-content {
   width: min(600px, 100%); min-width: 0; min-height: 0; margin: 0 auto; overflow-x: hidden; overflow-y: auto;
@@ -205,12 +206,16 @@
   .settings-form input:hover, .export-page input:hover, .eon-start input:hover, .settings-form .field-value:hover { box-shadow: inset 0 0 0 1px var(--line); }
 }
 @media (min-width: 960px) {
-  .settings-screen { grid-template-columns: minmax(224px, calc((100vw - 1100px) / 2 + 224px)) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .settings-screen { grid-template-columns: 72px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .settings-rail-toggle { display: grid; }
-  .settings-screen.settings-rail-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
-  .settings-rail-collapsed .settings-rail { display: none; }
-  .settings-rail-collapsed .settings-header, .settings-rail-collapsed .settings-page-content { margin-inline: auto; }
-  .settings-rail { display: flex; flex-direction: column; grid-column: 1; grid-row: 1 / -1; min-height: 0; padding: 76px 20px 36px max(20px, calc((100vw - 1100px) / 2)); border-right: 1px solid var(--line); background: var(--wash); overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .settings-screen .settings-header, .settings-screen .settings-page-content { margin-inline: auto; }
+  .settings-overview-open.settings-overview-root { grid-template-columns: minmax(0, 1fr); }
+  .settings-overview-open.settings-overview-root .settings-header,
+  .settings-overview-open.settings-overview-root .settings-page-content { visibility: hidden; pointer-events: none; }
+  .settings-overview-open.settings-overview-root .settings-rail { position: absolute; inset: 0; z-index: 6; display: flex; width: 100%; padding: 76px max(20px, calc((100vw - 760px) / 2)) 36px; border: 0; }
+  .settings-overview-open.settings-overview-nested .settings-rail-scrim { position: absolute; z-index: 5; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: color-mix(in srgb, var(--foreground) 12%, transparent); cursor: default; }
+  .settings-overview-open.settings-overview-nested .settings-rail { position: absolute; z-index: 6; inset: 0 auto 0 0; display: flex; width: max(224px, calc((100vw - 1100px) / 2 + 224px)); padding: 76px 20px 36px max(20px, calc((100vw - 1100px) / 2)); border-right: 1px solid var(--line); }
+  .settings-rail { flex-direction: column; min-height: 0; background: var(--wash); overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
   .settings-rail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 12px 26px; font-size: .72rem; font-weight: 600; color: var(--muted); }
   .settings-profile-code { font-family: ui-monospace, monospace; color: var(--foreground); font-variant-numeric: tabular-nums; }
   .settings-rail nav { display: grid; gap: 16px; }

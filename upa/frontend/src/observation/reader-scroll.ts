@@ -3,8 +3,8 @@ const INTENT_DISTANCE = 12;
 const REVEAL_DISTANCE = 48;
 const WHEEL_IDLE_MS = 180;
 
-export function scrollControlsVisible(visible: boolean, revealedBy: ScrollDirection | null, direction: ScrollDirection): boolean {
-  return !visible || (revealedBy !== null && direction === revealedBy);
+export function scrollControlsVisible(visible: boolean): boolean {
+  return !visible;
 }
 
 export class ReaderScroll {

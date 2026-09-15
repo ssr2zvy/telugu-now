@@ -35,12 +35,16 @@ export function SettingsShell({
   onToggleLanguage,
   children,
 }: SettingsShellProps) {
-  const [railCollapsed, setRailCollapsed] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>({});
+  const [railCollapsed, setRailCollapsed] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>(() =>
+    Object.fromEntries((settingsGroups.index ?? []).filter(group => settingsGroups[group]).map(group => [group, true])),
+  );
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLElement>(null);
   const parent = parentSettingsPage(page);
+  const overviewOpen = !railCollapsed;
+  const overviewIsFullScreen = page === 'index';
   const railToggleLabel = language === 'en'
     ? (railCollapsed ? 'Show settings menu' : 'Hide settings menu')
     : (railCollapsed ? 'అమరికల మెను చూపించు' : 'అమరికల మెను దాచు');
@@ -105,6 +109,7 @@ export function SettingsShell({
             if (destination === 'index') onOverview();
             else onNavigate(destination);
           }
+          setRailCollapsed(true);
         }}
       >
         {!nested && <Icon aria-hidden="true" />}
@@ -113,7 +118,11 @@ export function SettingsShell({
     );
   };
   return (
-    <main ref={shell} className={`app-shell settings-screen${railCollapsed ? ' settings-rail-collapsed' : ''}`} lang={language}>
+    <main
+      ref={shell}
+      className={`app-shell settings-screen${railCollapsed ? ' settings-rail-collapsed' : ' settings-overview-open'}${overviewIsFullScreen ? ' settings-overview-root' : ' settings-overview-nested'}`}
+      lang={language}
+    >
       <button
         className="settings-rail-toggle"
         type="button"
@@ -132,7 +141,20 @@ export function SettingsShell({
       >
         <X size={20} aria-hidden="true" />
       </button>
-      <aside className="settings-rail" id="settings-rail">
+      {overviewOpen && !overviewIsFullScreen ? (
+        <button
+          className="settings-rail-scrim"
+          type="button"
+          aria-label={language === 'en' ? 'Close settings menu' : 'అమరికల మెను మూసివేయి'}
+          onClick={() => setRailCollapsed(true)}
+        />
+      ) : null}
+      <aside
+        className="settings-rail"
+        id="settings-rail"
+        aria-hidden={railCollapsed}
+        {...(overviewOpen && !overviewIsFullScreen ? { role: 'dialog', 'aria-modal': true } : {})}
+      >
         <div className="settings-rail-heading">
           <span>{language === 'en' ? 'Profile' : 'ప్రొఫైల్'}</span>
           <span className="settings-profile-code">{profileCode}</span>

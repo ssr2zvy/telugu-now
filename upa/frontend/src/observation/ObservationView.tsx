@@ -20,7 +20,7 @@ import { WordProfile } from './word/WordProfile';
 import { wordAtOffset } from './word/word-analysis';
 import { useAppearance } from '../appearance';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
-import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
+import { scrollControlsVisible } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
 import { ReadingContextMenu, type ReadingContextMenuState } from './ReadingContextMenu';
 import { addBlacklistEntry } from '../api';
@@ -72,7 +72,6 @@ export function ObservationView({
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
-  const revealedBy = useRef<ScrollDirection | null>(null);
   const suppressNextClick = useRef(false);
   const longPressTimer = useRef<number | null>(null);
   const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
@@ -86,11 +85,9 @@ export function ObservationView({
     setControlsVisible(false);
     setReadingMenu({ text, x, y });
   };
-  const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, direction => {
+  const scrollHandlers = useReaderScroll(screenRef, appearance.scrollMode && Boolean(state?.currentObservation?.audio), state?.currentObservation?.id, () => {
     taps.cancel();
-    const visible = scrollControlsVisible(controlsVisible, revealedBy.current, direction);
-    if (!controlsVisible) revealedBy.current = direction;
-    setControlsVisible(visible);
+    setControlsVisible(scrollControlsVisible(controlsVisible));
     setPrecisionInteraction(value => value + 1);
   }, () => taps.cancel());
   useEffect(() => {
@@ -122,7 +119,6 @@ export function ObservationView({
   useEffect(() => {
     taps.cancel();
     setControlsVisible(false);
-    revealedBy.current = null;
     setReadingMenu(null);
     return () => taps.cancel();
   }, [taps, observation?.id, appearance.scrollMode]);
@@ -188,7 +184,6 @@ export function ObservationView({
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
           if (event.target.closest('.audio-player-bar')) {
-            if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
         }
@@ -201,14 +196,13 @@ export function ObservationView({
         }
         if (event.target instanceof Element) {
           if (event.target.closest('.audio-player-bar')) {
-            if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
         }
       }}
       tabIndex={0}
       aria-label={appearance.scrollMode
-        ? 'Reader. Tap to play or pause. Swipe left or right to reveal audio controls; reverse to hide them.'
+        ? 'Reader. Tap to play or pause. Swipe left or right to show or hide audio controls.'
         : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onClick={(event) => {
         if (suppressNextClick.current) { suppressNextClick.current = false; return; }
@@ -400,6 +394,7 @@ export function ObservationView({
           onBlacklist={(text) => {
             if (state) void addBlacklistEntry(state.profileCode, text).catch(() => {});
           }}
+          onOpenSettings={onOpenSettings}
           onClose={() => setReadingMenu(null)}
         />
       ) : null}

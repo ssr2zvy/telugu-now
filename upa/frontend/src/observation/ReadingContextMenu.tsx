@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ban, Copy } from 'lucide-react';
+import { SettingsIcon } from '../components/icons';
 
 export interface ReadingContextMenuState {
   text: string;
@@ -11,13 +12,14 @@ interface ReadingContextMenuProps {
   menu: ReadingContextMenuState;
   onCopy: (text: string) => void;
   onBlacklist: (text: string) => void;
+  onOpenSettings: () => void;
   onClose: () => void;
 }
 
 // Right-click (desktop) or long-press (mobile) on the reading text opens this menu
 // instead of the browser's native context menu / native long-press selection. Copy
 // always targets the entire displayed sentence, never a native selection range.
-export function ReadingContextMenu({ menu, onCopy, onBlacklist, onClose }: ReadingContextMenuProps) {
+export function ReadingContextMenu({ menu, onCopy, onBlacklist, onOpenSettings, onClose }: ReadingContextMenuProps) {
   const [status, setStatus] = useState<'copied' | 'blacklisted' | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -68,6 +70,18 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklist, onClose }: Readi
         }}
       >
         <Ban size={18} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="reading-context-menu-action"
+        aria-label="అమరికలు"
+        onClick={() => {
+          onClose();
+          onOpenSettings();
+        }}
+      >
+        <SettingsIcon />
       </button>
       <span className="reading-context-menu-status" role="status" aria-live="polite">
         {status === 'copied' ? 'కాపీ అయ్యింది' : status === 'blacklisted' ? 'బ్లాక్‌లిస్ట్ చేయబడింది' : ''}

@@ -11,13 +11,9 @@ test('scroll mode defaults on for new and legacy appearance settings and preserv
   assert.equal(parseAppearance({ scrollMode: true }).scrollMode, true);
 });
 
-test('either direction reveals, only reversal hides, and a keyboard-revealed bar hides either way', () => {
-  for (const direction of [-1, 1] as const) {
-    assert.equal(scrollControlsVisible(false, null, direction), true);
-    assert.equal(scrollControlsVisible(true, direction, direction), true);
-    assert.equal(scrollControlsVisible(true, direction, direction === 1 ? -1 : 1), false);
-    assert.equal(scrollControlsVisible(true, null, direction), false);
-  }
+test('every horizontal swipe toggles the audio bar regardless of direction', () => {
+  assert.equal(scrollControlsVisible(false), true);
+  assert.equal(scrollControlsVisible(true), false);
 });
 
 test('horizontal swipes fire once, suppress their click, and leave the next intentional tap alone', () => {

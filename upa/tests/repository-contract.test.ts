@@ -106,6 +106,10 @@ test('Settings editable controls retain a real 16px font floor without disabling
   for (const event of ['focusin', 'focusout']) {
     assert.ok(shell.includes(`document.removeEventListener('${event}', updateViewport)`));
   }
+  assert.ok(shell.includes('useState(true)'));
+  assert.ok(shell.includes('settings-overview-root') && shell.includes('settings-overview-nested'));
+  assert.ok(css.includes('.settings-overview-open.settings-overview-root'));
+  assert.ok(css.includes('.settings-overview-open.settings-overview-nested'));
   assert.doesNotMatch(shell, /preventDefault|\.blur\(|scrollIntoView|scrollTo\([^0]/);
   assert.doesNotMatch(read('frontend/index.html'), /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/);
 });

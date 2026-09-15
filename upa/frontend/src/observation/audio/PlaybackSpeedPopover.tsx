@@ -21,6 +21,7 @@ interface PlaybackSpeedPopoverProps {
   onClose: () => void;
   controlsRef?: RefObject<HTMLElement | null>;
   dismissOnOutside?: boolean;
+  onInteraction?: () => void;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -40,6 +41,7 @@ export function PlaybackSpeedPopover({
   onClose,
   controlsRef,
   dismissOnOutside = true,
+  onInteraction,
 }: PlaybackSpeedPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -94,6 +96,8 @@ export function PlaybackSpeedPopover({
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
       onClick={(event) => event.stopPropagation()}
+      onPointerDownCapture={onInteraction}
+      onKeyDownCapture={onInteraction}
       role="group"
       aria-label="Playback controls"
     >
