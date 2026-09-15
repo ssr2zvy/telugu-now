@@ -60,7 +60,7 @@ button, [role="button"] {
 .gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); }
 .gradient-field > div:nth-child(3) { background: linear-gradient(165deg, transparent 30%, var(--gradient-end) 85%); opacity: .45; transform: translateY(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-a, 0deg)); }
 :focus, :focus-visible { outline: none; }
-.appearance-root :is(.reading-context-menu-action, .observation-start, .settings-trigger, .audio-transport-button, .audio-playback-option, .word-profile-close, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
+.appearance-root :is(.reading-context-menu-action, .observation-start, .audio-transport-button, .audio-playback-option, .word-profile-close, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
   background: var(--wash);
 }
 .appearance-root :is(button, a[href], summary, [role="button"], [role="slider"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"], select):focus-visible {

@@ -109,7 +109,7 @@ export function AudioScrubber({
     barDrag.current = { clientX: event.clientX, time, grabbedThumb };
     onPointerSeekStart(time);
     clearHold();
-    if (!magnifierOpen) {
+    if (!precisionPanelOpen) {
       holdTimer.current = setTimeout(openMagnifier, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
       if (event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
     }
@@ -123,7 +123,7 @@ export function AudioScrubber({
       ? clamp(0, duration, drag.time + ((event.clientX - drag.clientX) / rect.width) * duration)
       : timeFromClientX(event.clientX);
     onPointerSeekMove(time);
-    if (!magnifierOpen && event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
+    if (!precisionPanelOpen && event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
   };
 
   const releaseBarCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -180,7 +180,9 @@ export function AudioScrubber({
       onContextMenu={(event) => event.preventDefault()}
     >
       <div className="audio-scrubber-row">
-        {magnifierOpen ? bookmarkButton : null}
+        <div className="audio-bookmark-controls-slot">
+          {magnifierOpen ? bookmarkButton : null}
+        </div>
         <div
           ref={barRef}
           className="audio-scrubber"
@@ -227,9 +229,9 @@ export function AudioScrubber({
           ))}
           <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
         </div>
-        {magnifierOpen ? <div className="audio-playback-controls-slot">
-          {playbackControls ?? speedButton}
-        </div> : null}
+        <div className="audio-playback-controls-slot">
+          {magnifierOpen ? playbackControls ?? speedButton : null}
+        </div>
       </div>
       {precisionPanelOpen ? (
         <div className="audio-precision-panel">

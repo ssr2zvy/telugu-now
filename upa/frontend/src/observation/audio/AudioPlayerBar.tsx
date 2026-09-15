@@ -6,7 +6,7 @@ import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
 import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
-import { precisionControls } from './precision-controls';
+import { CLOSED_PRECISION_MODE, precisionControls } from './precision-controls';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { SettingsIcon } from '../../components/icons';
 
@@ -30,6 +30,7 @@ export interface AudioPlayerBarHandle {
   resume: () => void;
   isPrecisionOpen: () => boolean;
   dismissPrecision: () => boolean;
+  toggleAssociatedControls: () => boolean;
 }
 
 export function AudioPlayerBar({
@@ -50,10 +51,11 @@ export function AudioPlayerBar({
     return () => onLoadingChange?.(false);
   }, [player.loading, onLoadingChange]);
   useEffect(() => { onPlaybackErrorChange?.(player.playbackError); }, [player.playbackError, onPlaybackErrorChange]);
-  const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
-  const magnifierOpen = precisionMode !== 'closed';
-  const speedPopoverOpen = precisionMode === 'speed';
-  const playbackControlsOpen = precisionMode === 'controls' || speedPopoverOpen;
+  const [precisionMode, dispatchPrecision] = useReducer(precisionControls, CLOSED_PRECISION_MODE);
+  const associatedControlsOpen = precisionMode.surface !== 'closed';
+  const magnifierOpen = precisionMode.surface === 'magnifier';
+  const speedPopoverOpen = precisionMode.playback === 'speed';
+  const playbackControlsOpen = precisionMode.playback === 'controls' || speedPopoverOpen;
   const playerRef = useRef<HTMLDivElement>(null);
   const speedButtonRef = useRef<HTMLButtonElement>(null);
   const { appearance } = useAppearance();
@@ -79,8 +81,14 @@ export function AudioPlayerBar({
     resume: () => { if (!player.playing) player.togglePlay(); },
     isPrecisionOpen: () => magnifierOpen,
     dismissPrecision: () => {
-      if (!controlsVisible || !magnifierOpen) return false;
+      if (!controlsVisible || !associatedControlsOpen) return false;
       closePrecision();
+      return true;
+    },
+    toggleAssociatedControls: () => {
+      if (!controlsVisible || !audio) return false;
+      onPrecisionInteraction?.();
+      dispatchPrecision('toggle-visibility');
       return true;
     },
   }));
@@ -94,7 +102,7 @@ export function AudioPlayerBar({
     return () => window.clearTimeout(timer);
   }, [controlsVisible, appearance.scrollMode]);
   useEffect(() => { dispatchPrecision('close'); }, [observationId]);
-  const bookmarkError = magnifierOpen ? player.bookmarkError : null;
+  const bookmarkError = associatedControlsOpen ? player.bookmarkError : null;
 
   return (
     <div
@@ -134,14 +142,13 @@ export function AudioPlayerBar({
         waveformPeaks={player.waveformPeaks}
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
-        magnifierOpen={magnifierOpen}
-        precisionPanelOpen={magnifierOpen && !speedPopoverOpen}
+        magnifierOpen={associatedControlsOpen}
+        precisionPanelOpen={magnifierOpen || speedPopoverOpen}
         showTimestamp={appearance.showAudioTimestamp}
-        playbackControls={playbackControlsOpen ? <PlaybackSpeedPopover
+        playbackControls={precisionMode.playback === 'controls' ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
           view="controls"
-          speedOpen={speedPopoverOpen}
           onToggleSpeed={() => dispatchPrecision('toggle-speed')}
           loopMode={player.loopMode}
           onToggleWholeLoop={player.toggleWholeLoop}
@@ -149,7 +156,16 @@ export function AudioPlayerBar({
           bookmarkLoopDisabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
           onClose={closeSpeed}
           controlsRef={speedButtonRef}
-          dismissOnOutside={speedPopoverOpen}
+          dismissOnOutside={false}
+        /> : undefined}
+        speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
+          playbackRate={player.playbackRate}
+          onChange={player.setPlaybackRate}
+          view="editor"
+          speedOpen
+          onClose={closeSpeed}
+          controlsRef={speedButtonRef}
+          dismissOnOutside
         /> : undefined}
         bookmarkButton={
           <button
@@ -162,7 +178,7 @@ export function AudioPlayerBar({
             <AudioGlassIcon name="bookmark" />
           </button>
         }
-        speedButton={
+        speedButton={speedPopoverOpen ? null :
           <button
             ref={speedButtonRef}
             className="audio-transport-button audio-speed-button"

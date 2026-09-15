@@ -10,9 +10,6 @@ import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
 import {
-  SettingsIcon,
-} from '../components/icons';
-import {
   AudioPlayerBar,
   type AudioPlayerBarHandle,
 } from './audio/AudioPlayerBar';
@@ -67,7 +64,6 @@ export function ObservationView({
     controlsVisible,
     setControlsVisible,
   ] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
   const [precisionInteraction, setPrecisionInteraction] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -80,6 +76,7 @@ export function ObservationView({
   const suppressNextClick = useRef(false);
   const longPressTimer = useRef<number | null>(null);
   const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const gesturePausedPlayback = useRef(false);
   const cancelLongPress = () => {
     if (longPressTimer.current !== null) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressOrigin.current = null;
@@ -96,13 +93,9 @@ export function ObservationView({
     setControlsVisible(visible);
     setPrecisionInteraction(value => value + 1);
   }, () => taps.cancel());
-  const toggleSettings = () => {
-    window.getSelection()?.removeAllRanges();
-    setSettingsVisible(visible => !visible);
-  };
   useEffect(() => {
     const screen = screenRef.current;
-    if ((!controlsVisible && !settingsVisible) || !screen) return;
+    if (!controlsVisible || !screen) return;
     let idleTimer: number;
     const activePointers = new Set<number>();
     const scheduleHide = (event?: Event) => {
@@ -114,7 +107,6 @@ export function ObservationView({
       if (activePointers.size > 0) return;
       idleTimer = window.setTimeout(() => {
         setControlsVisible(false);
-        setSettingsVisible(false);
       }, appearance.autoFadeSeconds * 1000);
     };
     const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
@@ -124,7 +116,7 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, settingsVisible, appearance.autoFadeSeconds, precisionInteraction]);
+  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
   useEffect(() => {
@@ -151,7 +143,6 @@ export function ObservationView({
       await onMove(direction);
     if (moved) {
       setControlsVisible(false);
-      setSettingsVisible(false);
     }
   };
   const wordAtPoint = (event: MouseEvent<HTMLElement>): string | null => {
@@ -192,7 +183,7 @@ export function ObservationView({
           controlsVisible
             ? 'controls-visible'
             : ''
-        } ${settingsVisible ? 'settings-visible' : ''}`
+        }`
       }
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
@@ -200,7 +191,6 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
-          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       onKeyDownCapture={(event) => {
@@ -214,7 +204,6 @@ export function ObservationView({
             if (!controlsVisible) revealedBy.current = null;
             setControlsVisible(true);
           }
-          if (event.target.closest('.settings-trigger')) setSettingsVisible(true);
         }
       }}
       tabIndex={0}
@@ -240,25 +229,34 @@ export function ObservationView({
           ? (region.single !== 'controls' || !playerRef.current?.isPrecisionOpen())
           : region.single === 'playback';
         const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
-        if (eagerlyPaused) playerRef.current?.pause();
+        if (eagerlyPaused) {
+          gesturePausedPlayback.current = true;
+          playerRef.current?.pause();
+        }
         taps.tap(doubleRegion, event.clientX, event.clientY, () => {
-          if (eagerlyPaused) playerRef.current?.resume();
+          if (gesturePausedPlayback.current) playerRef.current?.resume();
+          gesturePausedPlayback.current = false;
           window.getSelection()?.removeAllRanges();
           if (word && observation) {
             setControlsVisible(false);
             setSelectedWord({ word, observationId: observation.id });
-          } else if (region.double === 'center') toggleSettings();
+          } else if (region.double === 'center') playerRef.current?.toggleAssociatedControls();
           else if (region.double === 'back' ? canBack : canNext) void move(region.double);
         }, () => {
+          gesturePausedPlayback.current = false;
           if (appearance.scrollMode) {
-            // Only the bottom third closes the magnifier; elsewhere, tapping keeps its normal play/pause behavior.
             if (region.single === 'controls') {
-              if (!playerRef.current?.dismissPrecision() && !eagerlyPaused) playerRef.current?.togglePlay();
+              if (!playerRef.current?.isPrecisionOpen() && !eagerlyPaused) playerRef.current?.togglePlay();
             } else if (!eagerlyPaused) {
               playerRef.current?.togglePlay();
             }
           } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
-          else if (!playerRef.current?.dismissPrecision()) setControlsVisible(visible => !visible);
+          else if (!playerRef.current?.isPrecisionOpen()) setControlsVisible(visible => !visible);
+        }, () => {
+          if (gesturePausedPlayback.current) playerRef.current?.resume();
+          gesturePausedPlayback.current = false;
+          window.getSelection()?.removeAllRanges();
+          onOpenSettings();
         });
       }}
       onMouseDownCapture={(event) => {
@@ -391,20 +389,6 @@ export function ObservationView({
           }}
         />
       </div>
-      <button
-        className="settings-trigger"
-        type="button"
-        aria-label="అమరికలు"
-        onClick={(
-          event:
-            MouseEvent<HTMLButtonElement>,
-        ) => {
-          event.stopPropagation();
-          onOpenSettings();
-        }}
-      >
-        <SettingsIcon />
-      </button>
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word} onClose={() => setSelectedWord(null)} />

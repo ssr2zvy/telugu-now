@@ -743,10 +743,11 @@ test(
           profileStyles,
         ),
     );
-    assert.ok(
+    assert.equal(
       observationView.includes(
-        '<SettingsIcon />',
+        'className="settings-trigger"',
       ),
+      false,
     );
     assert.ok(
       observationView.includes(
@@ -773,10 +774,11 @@ test(
         '.nav-zone:disabled',
       ),
     );
-    assert.ok(
+    assert.equal(
       observationStyles.includes(
         '.settings-trigger',
       ),
+      false,
     );
     assert.ok(
       observationStyles.includes(

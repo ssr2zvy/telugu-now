@@ -49,18 +49,12 @@ export function PlaybackSpeedPopover({
     if (loopClickTimer.current !== null) window.clearTimeout(loopClickTimer.current);
   }, []);
 
-  useClickOutsideToClose(
-    dismissOnOutside,
-    speedOpen ? [trackRef] : controlsRef ? [popoverRef, controlsRef] : [popoverRef],
-    onClose,
-  );
+  useClickOutsideToClose(dismissOnOutside, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
 
-  const rateFromPointer = (clientX: number, clientY: number): number => {
+  const rateFromPointer = (clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return playbackRate;
-    const ratio = speedOpen
-      ? clamp(0, 1, (rect.bottom - clientY) / rect.height)
-      : clamp(0, 1, (clientX - rect.left) / rect.width);
+    const ratio = clamp(0, 1, (clientX - rect.left) / rect.width);
     const { playbackRateMin, playbackRateMax, playbackRateStep } = AUDIO_PLAYER_PRESENTATION;
     const raw = playbackRateMin + ratio * (playbackRateMax - playbackRateMin);
     const stepped = Math.round(raw / playbackRateStep) * playbackRateStep;
@@ -78,11 +72,11 @@ export function PlaybackSpeedPopover({
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    onChange(rateFromPointer(event.clientX, event.clientY));
+    onChange(rateFromPointer(event.clientX));
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onChange(rateFromPointer(event.clientX, event.clientY));
+    onChange(rateFromPointer(event.clientX));
   };
 
   const fraction = clamp(
@@ -104,43 +98,10 @@ export function PlaybackSpeedPopover({
       aria-label="Playback controls"
     >
       {view === 'controls' ? <div className="audio-playback-settings-row">
-        {speedOpen ? <div className="audio-speed-vertical-control"><div
-            ref={trackRef}
-            className="audio-speed-track audio-speed-track-vertical"
-            role="slider"
-            tabIndex={0}
-            aria-orientation="vertical"
-            aria-label="Playback speed value"
-            aria-valuemin={AUDIO_PLAYER_PRESENTATION.playbackRateMin}
-            aria-valuemax={AUDIO_PLAYER_PRESENTATION.playbackRateMax}
-            aria-valuenow={playbackRate}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                onClose();
-              }
-              if (['ArrowUp', 'ArrowDown'].includes(event.key)) {
-                event.preventDefault();
-                onChange(clamp(AUDIO_PLAYER_PRESENTATION.playbackRateMin, AUDIO_PLAYER_PRESENTATION.playbackRateMax, Number((playbackRate + (event.key === 'ArrowUp' ? 0.05 : -0.05)).toFixed(2))));
-              }
-              if (event.key === 'Home' || event.key === 'End') {
-                event.preventDefault();
-                onChange(event.key === 'Home' ? AUDIO_PLAYER_PRESENTATION.playbackRateMin : AUDIO_PLAYER_PRESENTATION.playbackRateMax);
-              }
-            }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={releaseCapture}
-            onPointerCancel={releaseCapture}
-          >
-            <div className="audio-speed-fill" style={{ height: `calc(${fraction * 100}% - ${fraction * 16}px)` }} />
-            <div className="audio-speed-thumb" style={{ bottom: `calc(8px + ${fraction * 100}% - ${fraction * 16}px)` }} />
-          </div>
-          <output className="audio-speed-readout">{playbackRate.toFixed(2)}x</output>
-        </div> : <button type="button" className="audio-playback-option" aria-label="Playback speed" aria-expanded="false" onClick={onToggleSpeed}>
+        <button type="button" className="audio-playback-option" aria-label="Playback speed" aria-expanded="false" onClick={onToggleSpeed}>
           <AudioGlassIcon name="speed" />
-        </button>}
-        {!speedOpen ? <button
+        </button>
+        <button
           type="button"
           className="audio-playback-option"
           aria-label="Loop audio"
@@ -161,7 +122,7 @@ export function PlaybackSpeedPopover({
           }}
         >
           <AudioGlassIcon name="loop" />
-        </button> : null}
+        </button>
       </div> : null}
       {view === 'editor' && speedOpen ? <div className="audio-speed-editor">
         <div
