@@ -16,9 +16,11 @@ interface AudioScrubberProps {
   bookmarks: number[];
   disabled: boolean;
   magnifierOpen: boolean;
+  precisionPanelOpen?: boolean;
   showTimestamp?: boolean;
   bookmarkButton?: ReactNode;
   speedButton?: ReactNode;
+  playbackControls?: ReactNode;
   speedControls?: ReactNode;
   onMagnifierOpen: () => void;
   onMagnifierClose: () => void;
@@ -56,9 +58,11 @@ export function AudioScrubber({
   bookmarks,
   disabled,
   magnifierOpen,
+  precisionPanelOpen = magnifierOpen,
   showTimestamp = DEFAULT_APPEARANCE.showAudioTimestamp,
   bookmarkButton,
   speedButton,
+  playbackControls,
   speedControls,
   onMagnifierOpen,
   onMagnifierClose,
@@ -207,7 +211,7 @@ export function AudioScrubber({
           aria-valuenow={currentTime}
           aria-valuetext={formatPreciseTime(currentTime)}
         >
-          {magnifierOpen && !speedControls ? (
+          {precisionPanelOpen && !speedControls ? (
             <div
               className="audio-scrubber-window"
               style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
@@ -223,9 +227,11 @@ export function AudioScrubber({
           ))}
           <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
         </div>
-        {magnifierOpen ? speedButton : null}
+        {magnifierOpen ? <div className="audio-playback-controls-slot">
+          {playbackControls ?? speedButton}
+        </div> : null}
       </div>
-      {magnifierOpen ? (
+      {precisionPanelOpen ? (
         <div className="audio-precision-panel">
         {speedControls ?? <>
           <div

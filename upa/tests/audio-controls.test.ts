@@ -74,9 +74,9 @@ test('timestamp defaults off but remains optional and accessible during precisio
   }
 });
 
-test('bookmark and speed buttons flank the scrubber and only mount while the magnifier is open', () => {
+test('bookmark and playback settings buttons flank the scrubber and only mount while the magnifier is open', () => {
   const bookmarkButton = createElement('button', { className: 'audio-bookmark-button', 'aria-label': 'Bookmarks' });
-  const speedButton = createElement('button', { className: 'audio-speed-button', 'aria-label': 'Playback speed' });
+  const speedButton = createElement('button', { className: 'audio-speed-button', 'aria-label': 'Playback settings' });
   for (const open of [false, true, false]) {
     const markup = renderToStaticMarkup(createElement(AudioScrubber, {
       ...scrubberProps, magnifierOpen: open, showTimestamp: true, bookmarkButton, speedButton,
@@ -85,60 +85,72 @@ test('bookmark and speed buttons flank the scrubber and only mount while the mag
     assert.equal(markup.includes('class="audio-precision-panel"'), open);
     assert.equal(markup.includes('class="audio-scrubber-window"'), open);
     assert.equal(markup.includes('aria-label="Bookmarks"'), open);
-    assert.equal(markup.includes('aria-label="Playback speed"'), open);
+    assert.equal(markup.includes('aria-label="Playback settings"'), open);
     assert.match(markup, /aria-label="Audio position"/);
     if (open) {
       const row = markup.match(/class="audio-scrubber-row"[\s\S]*?class="audio-precision-panel"/)?.[0] ?? '';
       // Bookmark precedes the scrubber bar, which precedes the speed button, within the same row.
       assert.ok(row.indexOf('aria-label="Bookmarks"') < row.indexOf('aria-label="Audio position"'));
-      assert.ok(row.indexOf('aria-label="Audio position"') < row.indexOf('aria-label="Playback speed"'));
+      assert.ok(row.indexOf('aria-label="Audio position"') < row.indexOf('aria-label="Playback settings"'));
       assert.ok(markup.indexOf('class="audio-magnifier-track"') < markup.indexOf('class="audio-magnifier-time"'));
     }
   }
 });
 
-test('speed replaces the waveform and highlight until toggled back', () => {
-  const speedControls = createElement(PlaybackSpeedPopover, {
-    playbackRate: 0.8, onChange: () => {}, onClose: () => {}, dismissOnOutside: false,
-  });
+test('playback settings reveal speed and loop before the speed editor opens', () => {
   let mode = precisionControls('closed', 'open');
-  for (const action of ['toggle-speed', 'toggle-speed', 'toggle-speed', 'close'] as const) {
+  for (const action of ['toggle-controls', 'toggle-speed', 'close-speed', 'toggle-controls', 'close'] as const) {
     mode = precisionControls(mode, action);
+    const playbackControls = createElement(PlaybackSpeedPopover, {
+      playbackRate: 0.8, onChange: () => {}, onClose: () => {}, dismissOnOutside: false,
+      view: 'controls', speedOpen: mode === 'speed', onToggleSpeed: () => {},
+    });
     const markup = renderToStaticMarkup(createElement(AudioScrubber, {
       ...scrubberProps, magnifierOpen: mode !== 'closed',
-      speedControls: mode === 'speed' ? speedControls : undefined,
+      precisionPanelOpen: mode !== 'speed' && mode !== 'closed',
+      playbackControls: mode === 'controls' || mode === 'speed' ? playbackControls : undefined,
     }));
-    assert.equal(markup.includes('class="audio-speed-popover"'), mode === 'speed');
-    assert.equal(markup.includes('class="audio-magnifier-track"'), mode === 'magnifier');
-    assert.equal(markup.includes('class="audio-scrubber-window"'), mode === 'magnifier');
+    assert.equal(markup.includes('audio-speed-popover-controls'), mode === 'controls' || mode === 'speed');
+    assert.equal(markup.includes('audio-speed-track-vertical'), mode === 'speed');
+    assert.equal(markup.includes('class="audio-magnifier-track"'), mode === 'magnifier' || mode === 'controls');
+    assert.equal(markup.includes('class="audio-scrubber-window"'), mode === 'magnifier' || mode === 'controls');
     assert.match(markup, /aria-label="Audio position"/);
+    if (mode === 'controls' || mode === 'speed') {
+      assert.match(markup, /aria-label="Playback controls"/);
+      assert.equal(markup.includes('aria-label="Playback speed"'), mode === 'controls');
+      assert.equal(/aria-label="Loop audio"[^>]*aria-pressed="false"[^>]*data-loop-mode="off"/.test(markup), mode === 'controls');
+      assert.doesNotMatch(markup, /aria-label="Loop from bookmark"/);
+      assert.equal(markup.includes('aria-label="Playback speed value"'), mode === 'speed');
+    }
     if (mode === 'speed') {
-      assert.match(markup, /aria-orientation="horizontal"/);
-      const width = Number(markup.match(/class="audio-speed-fill" style="width:([\d.]+)%"/)?.[1]);
-      const left = Number(markup.match(/class="audio-speed-thumb" style="left:([\d.]+)%"/)?.[1]);
-      assert.ok(Math.abs(width - 50) < 1e-9);
-      assert.ok(Math.abs(left - 50) < 1e-9);
-      assert.match(markup, /0\.80x/);
+      assert.match(markup, /aria-orientation="vertical"/);
+      assert.doesNotMatch(markup, /class="audio-magnifier-track"/);
+      assert.match(markup, /class="audio-speed-readout">0\.80x/);
+      assert.doesNotMatch(markup, /aria-label="Loop audio"/);
     }
   }
 });
 
 test('precision mode cannot leave speed open or reopen the magnifier after dismissal', () => {
   assert.equal(precisionControls('closed', 'toggle-speed'), 'closed');
+  assert.equal(precisionControls('closed', 'toggle-controls'), 'closed');
   const magnifier = precisionControls('closed', 'open');
   assert.equal(magnifier, 'magnifier');
-  const speed = precisionControls(magnifier, 'toggle-speed');
+  const controls = precisionControls(magnifier, 'toggle-controls');
+  assert.equal(controls, 'controls');
+  const speed = precisionControls(controls, 'toggle-speed');
   assert.equal(speed, 'speed');
-  assert.equal(precisionControls(speed, 'toggle-speed'), 'magnifier');
-  assert.equal(precisionControls(speed, 'close-speed'), 'magnifier');
+  assert.equal(precisionControls(speed, 'toggle-speed'), 'controls');
+  assert.equal(precisionControls(speed, 'close-speed'), 'controls');
+  assert.equal(precisionControls(controls, 'toggle-controls'), 'magnifier');
   const dismissed = precisionControls(speed, 'close');
   assert.equal(dismissed, 'closed');
   assert.equal(precisionControls(dismissed, 'close-speed'), 'closed');
   assert.equal(precisionControls(magnifier, 'close'), 'closed');
 });
 
-test('glass icon masks reuse the SVG geometry, including the stroked speed icon', () => {
-  for (const name of ['play', 'pause', 'speed', 'bookmark'] as const) {
+test('glass icon masks reuse the SVG geometry, including playback and loop icons', () => {
+  for (const name of ['play', 'pause', 'speed', 'bookmark', 'loop', 'bookmarkLoop'] as const) {
     const markup = renderToStaticMarkup(createElement(AudioGlassIcon, { name }));
     const encoded = markup.match(/data:image\/svg\+xml,([^&"]+)/)?.[1];
     assert.ok(encoded);

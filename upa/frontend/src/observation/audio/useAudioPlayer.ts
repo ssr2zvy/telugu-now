@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
 import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';
 import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';
-import { deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark } from './bookmarks';
+import { bookmarkLoopRange, deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark, type BookmarkLoopRange } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
 import { observePlaybackFeedback } from './playback-feedback';
@@ -17,6 +17,7 @@ export interface AudioPlayerState {
   currentTime: number;
   duration: number;
   playbackRate: number;
+  loopMode: 'off' | 'all' | 'bookmark';
   waveformPeaks: number[];
   bookmarks: number[];
   bookmarksBusy: boolean;
@@ -29,6 +30,8 @@ export interface AudioPlayerState {
   updatePointerSeek: (time: number) => void;
   endPointerSeek: () => void;
   setPlaybackRate: (rate: number) => void;
+  toggleWholeLoop: () => void;
+  toggleBookmarkLoop: () => void;
   clickBookmarkButton: () => void;
 }
 
@@ -48,6 +51,7 @@ export function useAudioPlayer(
   const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
   const wantsPlaybackRef = useRef(true);
   const naturallyCompletedRef = useRef(false);
+  const bookmarkLoopRef = useRef<BookmarkLoopRange | null>(null);
   const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
@@ -59,6 +63,7 @@ export function useAudioPlayer(
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));
+  const [loopMode, setLoopMode] = useState<'off' | 'all' | 'bookmark'>('off');
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
   // Persistence remains in original speech seconds, including pending retries.
   const [bookmarks, setBookmarks] = useState<number[]>([]);
@@ -135,6 +140,9 @@ export function useAudioPlayer(
     setDuration(0);
     setWaveformPeaks([]);
     setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));
+    setLoopMode('off');
+    bookmarkLoopRef.current = null;
+    element.loop = false;
     playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);
     element.preservesPitch = true;
     const legacy = element as HTMLAudioElement & { webkitPreservesPitch?: boolean };
@@ -194,6 +202,10 @@ export function useAudioPlayer(
     });
     const sync = () => {
       if (!element.getAttribute('src')) return;
+      const loop = bookmarkLoopRef.current;
+      if (loop && !element.paused && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+        element.currentTime = loop.start;
+      }
       setCurrentTime(element.currentTime);
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
     };
@@ -210,6 +222,12 @@ export function useAudioPlayer(
       sync();
     };
     const onEnded = () => {
+      const loop = bookmarkLoopRef.current;
+      if (loop) {
+        element.currentTime = loop.start;
+        requestPlayback(element);
+        return;
+      }
       naturallyCompletedRef.current = true;
       onPause();
     };
@@ -237,7 +255,14 @@ export function useAudioPlayer(
     if (!playing) return;
     let frame: number;
     const tick = () => {
-      if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+      const element = audioRef.current;
+      if (element) {
+        const loop = bookmarkLoopRef.current;
+        if (loop && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+          element.currentTime = loop.start;
+        }
+        setCurrentTime(element.currentTime);
+      }
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -331,6 +356,30 @@ export function useAudioPlayer(
     }
   };
 
+  const toggleWholeLoop = () => {
+    const element = audioRef.current;
+    if (!element) return;
+    const enabled = loopMode !== 'all';
+    bookmarkLoopRef.current = null;
+    element.loop = enabled;
+    setLoopMode(enabled ? 'all' : 'off');
+  };
+
+  const toggleBookmarkLoop = () => {
+    const element = audioRef.current;
+    if (!element || duration <= 0) return;
+    element.loop = false;
+    if (loopMode === 'bookmark') {
+      bookmarkLoopRef.current = null;
+      setLoopMode('off');
+      return;
+    }
+    const range = bookmarkLoopRange(bookmarks.map(toPlayerTime), element.currentTime, duration);
+    bookmarkLoopRef.current = range;
+    setLoopMode('bookmark');
+    seek(range.start);
+  };
+
   const persistBookmarks = async (next: number[]) => {
     if (!profileCode || !sourceId || !sourceKey || bookmarkWriteInFlight.current) return;
     const version = bookmarkVersion.current;
@@ -372,12 +421,12 @@ export function useAudioPlayer(
   return {
     audioRef, playing, loading, playbackStatus,
     playbackError: mediaError ?? playbackError,
-    currentTime, duration, playbackRate, waveformPeaks,
+    currentTime, duration, playbackRate, loopMode, waveformPeaks,
     bookmarks: bookmarks.map(toPlayerTime),
     bookmarksBusy: bookmarksLoading || bookmarksSaving,
     bookmarkError,
     retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
     togglePlay, pause, seek, beginPointerSeek, updatePointerSeek, endPointerSeek,
-    setPlaybackRate: applyPlaybackRate, clickBookmarkButton,
+    setPlaybackRate: applyPlaybackRate, toggleWholeLoop, toggleBookmarkLoop, clickBookmarkButton,
   };
 }

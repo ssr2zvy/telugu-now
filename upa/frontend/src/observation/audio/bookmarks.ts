@@ -32,3 +32,15 @@ export function deleteNearestPriorBookmark(bookmarks: readonly number[], current
   if (target === null) return sortedUnique(bookmarks);
   return sortedUnique(bookmarks.filter((bookmark) => bookmark !== target));
 }
+
+export interface BookmarkLoopRange {
+  start: number;
+  end: number;
+}
+
+export function bookmarkLoopRange(bookmarks: readonly number[], currentTime: number, duration: number): BookmarkLoopRange {
+  const ordered = sortedUnique(bookmarks).filter(bookmark => bookmark < duration);
+  const start = nearestPriorBookmark(ordered, currentTime) ?? 0;
+  const end = ordered.find(bookmark => bookmark > start + NEAREST_PRIOR_EPSILON_SECONDS) ?? duration;
+  return { start, end };
+}

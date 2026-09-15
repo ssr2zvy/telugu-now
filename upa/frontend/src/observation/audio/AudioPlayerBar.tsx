@@ -8,6 +8,7 @@ import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
 import { precisionControls } from './precision-controls';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
+import { SettingsIcon } from '../../components/icons';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio | null;
@@ -52,6 +53,7 @@ export function AudioPlayerBar({
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, 'closed');
   const magnifierOpen = precisionMode !== 'closed';
   const speedPopoverOpen = precisionMode === 'speed';
+  const playbackControlsOpen = precisionMode === 'controls' || speedPopoverOpen;
   const playerRef = useRef<HTMLDivElement>(null);
   const speedButtonRef = useRef<HTMLButtonElement>(null);
   const { appearance } = useAppearance();
@@ -59,7 +61,7 @@ export function AudioPlayerBar({
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const closePrecision = () => {
     onPrecisionInteraction?.();
-    if (document.activeElement?.closest('.audio-magnifier-track, .audio-magnifier-time, .audio-speed-popover, .audio-bookmark-button, .audio-speed-button')) {
+    if (document.activeElement?.closest('.audio-magnifier-track, .audio-magnifier-time, .audio-speed-popover, .audio-bookmark-button, .audio-speed-button, .audio-playback-option')) {
       playerRef.current?.querySelector<HTMLElement>('.audio-scrubber')?.focus({ preventScroll: true });
     }
     dispatchPrecision('close');
@@ -133,13 +135,21 @@ export function AudioPlayerBar({
         bookmarks={player.bookmarks}
         disabled={player.duration <= 0}
         magnifierOpen={magnifierOpen}
+        precisionPanelOpen={magnifierOpen && !speedPopoverOpen}
         showTimestamp={appearance.showAudioTimestamp}
-        speedControls={speedPopoverOpen ? <PlaybackSpeedPopover
+        playbackControls={playbackControlsOpen ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
+          view="controls"
+          speedOpen={speedPopoverOpen}
+          onToggleSpeed={() => dispatchPrecision('toggle-speed')}
+          loopMode={player.loopMode}
+          onToggleWholeLoop={player.toggleWholeLoop}
+          onToggleBookmarkLoop={player.toggleBookmarkLoop}
+          bookmarkLoopDisabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
           onClose={closeSpeed}
           controlsRef={speedButtonRef}
-          dismissOnOutside={false}
+          dismissOnOutside={speedPopoverOpen}
         /> : undefined}
         bookmarkButton={
           <button
@@ -157,11 +167,11 @@ export function AudioPlayerBar({
             ref={speedButtonRef}
             className="audio-transport-button audio-speed-button"
             type="button"
-            aria-label="ప్లేబ్యాక్ వేగం"
-            aria-expanded={speedPopoverOpen}
-            onClick={() => dispatchPrecision('toggle-speed')}
+            aria-label="ప్లేబ్యాక్ అమరికలు"
+            aria-expanded={playbackControlsOpen}
+            onClick={() => dispatchPrecision('toggle-controls')}
           >
-            <AudioGlassIcon name="speed" />
+            <SettingsIcon />
           </button>
         }
         onMagnifierOpen={() => {

@@ -17,4 +17,5 @@ export const AUDIO_PLAYER_PRESENTATION = {
   // A run of clicks on the bookmark button is only resolved once no further
   // click arrives within this window.
   bookmarkClickWindowMs: 220,
+  loopClickWindowMs: 220,
 } as const;

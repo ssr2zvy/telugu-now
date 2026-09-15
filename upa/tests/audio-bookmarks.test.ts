@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  bookmarkLoopRange,
   deleteNearestPriorBookmark,
   insertBookmark,
   nearestPriorBookmark,
@@ -45,6 +46,13 @@ test('deleteNearestPriorBookmark removes only the nearest prior bookmark', () =>
 
 test('deleteNearestPriorBookmark is a no-op when there is no prior bookmark', () => {
   assert.deepEqual(deleteNearestPriorBookmark([5, 8], 1), [5, 8]);
+});
+
+test('bookmark loops start at the nearest prior bookmark and end at the next boundary', () => {
+  assert.deepEqual(bookmarkLoopRange([2, 6, 10], 8, 20), { start: 6, end: 10 });
+  assert.deepEqual(bookmarkLoopRange([2, 6, 10], 12, 20), { start: 10, end: 20 });
+  assert.deepEqual(bookmarkLoopRange([2, 6, 10], 1, 20), { start: 0, end: 2 });
+  assert.deepEqual(bookmarkLoopRange([], 12, 20), { start: 0, end: 20 });
 });
 
 test('bookmark API writes are ordered per user and source and reads use that user', async context => {

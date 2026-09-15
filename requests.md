@@ -52,7 +52,7 @@ to leave native mobile selection unchanged.
 
 ## Loop button and bookmark loops
 
-- Add a Loop button next to the playback-speed button.
+- make the current playback speed button have a play icon icon but when its clicked, it expands to the right (the whole time the main audio bar is centered to the middle), and it expands to show a speed icon and a loop icon. 
 - Single-clicking Loop toggles looping of the entire audio without restarting
   playback, moving the cursor, or jumping back to a bookmark.
 - Double-clicking Loop uses the closest bookmark before the playback cursor as
@@ -76,7 +76,7 @@ to leave native mobile selection unchanged.
 - Keep the existing hold/hard-press trigger on the main audio scrubber to open
   the magnifier. The user's phrase "little scroll part" refers to this existing
   trigger, not a newly specified scroll gesture.
-- Opening the magnifier also shows the speed, bookmark, and loop controls.
+- Opening the magnifier also shows the playback and bookmark controls.
 - If the magnifier and those controls are open, middle double-tap closes the
   magnifier and all three controls together.
 - This is the only gesture for closing an opened magnifier; remove the old

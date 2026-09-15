@@ -958,7 +958,7 @@ test('audio seeking anchors thumb grabs, preserves clicks, pauses drags after 1m
   await page.mouse.up();
   await expect(audio).toHaveJSProperty('paused', false);
 
-  await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
   const speed = page.locator('.audio-speed-popover');
   await withinViewport(speed, page);
   expect(fixture.errors).toEqual([]);
@@ -1003,6 +1003,83 @@ test('seeking backward after natural completion resumes, while deliberate endpoi
   await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = element.duration; });
   await page.mouse.click(bounds.x + bounds.width * 0.1, bounds.y + bounds.height / 2);
   await expect(audio).toHaveJSProperty('paused', true);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('playback settings toggle whole-audio and bookmark loops with stable cursor semantics', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  const audio = page.locator('audio');
+  const reader = page.getByRole('main');
+  const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+  const setPlaying = async (playing: boolean) => {
+    if (await audio.evaluate((element: HTMLAudioElement) => element.paused) === playing) {
+      await reader.focus();
+      await page.keyboard.press('Space');
+    }
+    await expect(audio).toHaveJSProperty('paused', !playing);
+  };
+  const setTime = async (time: number) => {
+    await audio.evaluate((element: HTMLAudioElement, nextTime) => {
+      element.currentTime = nextTime;
+      element.dispatchEvent(new Event('timeupdate'));
+    }, time);
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(time, 3);
+  };
+  const saveBookmark = async (time: number) => {
+    await setTime(time);
+    const saved = page.waitForResponse(response =>
+      new URL(response.url()).pathname.endsWith('/bookmarks') && response.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'బుక్‌మార్క్‌లు', exact: true }).dblclick();
+    await saved;
+  };
+
+  await setPlaying(false);
+  await setTime(8);
+  await scrubber.press('Enter');
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
+  const wholeLoop = page.getByRole('button', { name: 'Loop audio', exact: true });
+  const bookmarkLoop = page.getByRole('button', { name: 'Loop from bookmark', exact: true });
+  await wholeLoop.click();
+  await expect(wholeLoop).toHaveAttribute('aria-pressed', 'true');
+  await expect(audio).toHaveJSProperty('loop', true);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(8, 3);
+  await wholeLoop.click();
+  await expect(wholeLoop).toHaveAttribute('aria-pressed', 'false');
+  await expect(audio).toHaveJSProperty('loop', false);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(8, 3);
+
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
+  for (const time of [2, 6, 10]) await saveBookmark(time);
+  await setTime(8);
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
+  await bookmarkLoop.click();
+  await expect(bookmarkLoop).toHaveAttribute('aria-pressed', 'true');
+  await expect(wholeLoop).toHaveAttribute('aria-pressed', 'false');
+  await expect(audio).toHaveJSProperty('paused', true);
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(6, 2);
+
+  await setPlaying(true);
+  await audio.evaluate((element: HTMLAudioElement) => {
+    element.currentTime = 10;
+    element.dispatchEvent(new Event('timeupdate'));
+  });
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(7);
+  await setPlaying(false);
+  const beforeDisable = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+  await bookmarkLoop.click();
+  await expect(bookmarkLoop).toHaveAttribute('aria-pressed', 'false');
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(beforeDisable, 3);
+
+  await setTime(12);
+  await bookmarkLoop.click();
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(10, 2);
+  await setPlaying(true);
+  await audio.evaluate((element: HTMLAudioElement) => {
+    element.currentTime = element.duration;
+    element.dispatchEvent(new Event('timeupdate'));
+  });
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(11);
   expect(fixture.errors).toEqual([]);
 });
 
@@ -1328,7 +1405,7 @@ test('prepared audio resume, seeks, slow pitch-preserving rates and replay all k
   const source = await audio.getAttribute('src');
   const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
   await scrubber.press('Enter');
-  await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+  await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
   const rate = page.getByRole('slider', { name: 'Playback speed', exact: true });
   for (let step = 0; step < 10; step++) await rate.press('ArrowDown');
   await expect(audio).toHaveJSProperty('playbackRate', 0.5);
@@ -1904,11 +1981,11 @@ test.describe('touch navigation', () => {
       element.addEventListener('timeupdate', event => event.stopImmediatePropagation(), true);
     });
     for (const rate of [0.1, 1, 1.5]) {
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).tap();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await speed.press('Home');
       for (let step = 0; step < Math.round((rate - 0.1) / 0.05); step += 1) await speed.press('ArrowUp');
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).tap();
       await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 3; });
       await page.getByTitle('Play', { exact: true }).tap();
       await expect(audio).toHaveAttribute('src', /^blob:/);
@@ -1967,7 +2044,7 @@ test.describe('touch navigation', () => {
     await expect(next).toBeEnabled();
     await expect(page.locator('.audio-player-bar')).toHaveCSS('opacity', '0');
     await page.locator('.observation-text').tap();
-    await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).tap();
+    await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).tap();
     await next.tap();
     await next.tap();
     await expect(page.getByRole('slider', { name: 'Playback speed', exact: true })).toHaveCount(0);
@@ -1993,8 +2070,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.keyboard.press('Enter');
       await expect(page.getByRole('slider', { name: 'Precise audio position', exact: true })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('keyboard-player.png') });
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true })).toHaveCSS('outline-style', 'none');
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true })).toHaveCSS('outline-style', 'none');
       await page.keyboard.press('Tab');
       await expectKeyboardOutline(page.locator(':focus'));
       await page.mouse.click(10, 10);
@@ -2432,7 +2509,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         if (magnifierPosition === 'above') expect(panel.y + panel.height).toBeLessThan(coarse.y);
         else expect(panel.y).toBeGreaterThan(coarse.y + coarse.height);
         await page.getByRole('slider', { name: 'Precise audio position' }).press('Escape');
-        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
       }
       expect(fixture.errors).toEqual([]);
@@ -2480,7 +2557,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(bar).toHaveCSS('opacity', '1');
       await expect(audio).toHaveJSProperty('paused', false);
       await scrubber.press('Enter');
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
       await expect(page.locator('.audio-speed-popover')).toBeVisible();
       await swipeReader(page, 1);
       await expect(bar).toHaveCSS('opacity', '0');
@@ -2550,7 +2627,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(bar).toHaveCSS('opacity', '1');
         await scrubber.press('Enter');
         await expect(page.locator('.audio-magnifier')).toBeVisible();
-        if (mode === 'speed') await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+        if (mode === 'speed') await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
         const exiting = await sampleSlide(-100);
         expect(exiting.transforms).toBe(2);
         expect(exiting.x).toBeGreaterThan(-56);
@@ -2630,7 +2707,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await scrubber.click({ position: { x: coarse.width / 2, y: coarse.height / 2 } });
         await page.getByRole('slider', { name: 'Precise audio position', exact: true }).press('ArrowRight');
         await page.screenshot({ path: testInfo.outputPath('continuous-magnifier.png') });
-        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
         await withinViewport(page.locator('.audio-speed-popover'), page);
         await expect(lens).toHaveCount(0);
         await expect(page.locator('.audio-scrubber-window')).toHaveCount(0);
@@ -2646,15 +2723,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.15);
         await speed.click({ position: { x: speedBox.width / 2, y: speedBox.height / 2 } });
         await expect(page.locator('audio')).toHaveJSProperty('playbackRate', 0.8);
-        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
         await expect(speed).toHaveCount(0);
         await expect(lens).toBeVisible();
         await expect(page.locator('.audio-scrubber-window')).toBeVisible();
         expect((await actions.boundingBox())!.y).toBeCloseTo(buttons.y);
-        await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+        await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
         await speed.press('Escape');
         await expect(lens).toBeVisible();
-        await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true })).toBeFocused();
+        await expect(page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true })).toBeFocused();
         expect(fixture.errors).toEqual([]);
       });
     }
@@ -2756,7 +2833,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.mouse.move(bar.x + bar.width + 1, bar.y + bar.height / 2);
       await page.mouse.up();
       await expect(scrubber).toHaveAttribute('aria-valuenow', '20');
-      const speedButton = (await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).boundingBox())!;
+      const speedButton = (await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).boundingBox())!;
       const bookmarkButton = (await player.locator('.audio-bookmark-button').boundingBox())!;
       const playButton = (await page.getByTitle('Play', { exact: true }).boundingBox())!;
       const endThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
@@ -2777,7 +2854,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const startThumb = (await player.locator('.audio-scrubber-thumb').boundingBox())!;
       expect(startThumb.x + startThumb.width / 2).toBeCloseTo(bar.x, 0);
 
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
       const speed = page.getByRole('slider', { name: 'Playback speed', exact: true });
       await withinViewport(page.locator('.audio-speed-popover'), page);
       await withinViewport(page.locator('.audio-speed-readout'), page);
@@ -2830,7 +2907,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const settings = (await page.locator('.settings-trigger').boundingBox())!;
       expect(viewport.width - settings.x - settings.width).toBe(20);
       expect(viewport.height - settings.y - settings.height).toBe(16);
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
       await page.locator('.nav-zone-right').click();
       await expect(speed).toHaveCount(0);
       expect(fixture.navigationCount()).toBe(0);
@@ -2937,7 +3014,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(page.locator('audio')).toHaveJSProperty('paused', false);
       await revealControls(page, true);
       await page.getByTitle('Pause', { exact: true }).click();
-      await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
+      await page.getByRole('button', { name: 'ప్లేబ్యాక్ అమరికలు', exact: true }).click();
       await page.mouse.move(160, 120);
       await page.clock.fastForward(5000);
       await expect(player).toHaveCSS('opacity', '1');
