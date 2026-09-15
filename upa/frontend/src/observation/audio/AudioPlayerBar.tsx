@@ -170,10 +170,12 @@ export function AudioPlayerBar({
         }}
         onMagnifierClose={closePrecision}
         onSeek={player.seek}
-        onPrecisionSeek={() => {
-          player.pause();
+        onPointerSeekStart={(time) => {
           dispatchPrecision('close-speed');
+          player.beginPointerSeek(time);
         }}
+        onPointerSeekMove={player.updatePointerSeek}
+        onPointerSeekEnd={player.endPointerSeek}
       />
       {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
         {player.playbackStatus}

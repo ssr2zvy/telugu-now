@@ -6,7 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
-import { precisionSeekTime } from '../../../../shared/audio';
+import { magnifierSeekTime, precisionSeekTime } from '../../../../shared/audio';
 import { DEFAULT_APPEARANCE } from '../../../../shared/appearance';
 
 interface AudioScrubberProps {
@@ -23,7 +23,9 @@ interface AudioScrubberProps {
   onMagnifierOpen: () => void;
   onMagnifierClose: () => void;
   onSeek: (time: number) => void;
-  onPrecisionSeek: () => void;
+  onPointerSeekStart: (time: number) => void;
+  onPointerSeekMove: (time: number) => void;
+  onPointerSeekEnd: () => void;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -45,6 +47,8 @@ function formatPreciseTime(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
 }
 
+const SCRUBBER_THUMB_GRAB_RADIUS_PX = 22;
+
 export function AudioScrubber({
   currentTime,
   duration,
@@ -59,9 +63,12 @@ export function AudioScrubber({
   onMagnifierOpen,
   onMagnifierClose,
   onSeek,
-  onPrecisionSeek,
+  onPointerSeekStart,
+  onPointerSeekMove,
+  onPointerSeekEnd,
 }: AudioScrubberProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
+  const barDrag = useRef<{ clientX: number; time: number; grabbedThumb: boolean } | null>(null);
   const fineDrag = useRef<{ clientX: number; time: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearHold = () => {
@@ -91,7 +98,12 @@ export function AudioScrubber({
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    onSeek(timeFromClientX(event.clientX));
+    const rect = event.currentTarget.getBoundingClientRect();
+    const thumbClientX = rect.left + (duration > 0 ? currentTime / duration : 0) * rect.width;
+    const grabbedThumb = Math.abs(event.clientX - thumbClientX) <= SCRUBBER_THUMB_GRAB_RADIUS_PX;
+    const time = grabbedThumb ? currentTime : timeFromClientX(event.clientX);
+    barDrag.current = { clientX: event.clientX, time, grabbedThumb };
+    onPointerSeekStart(time);
     clearHold();
     if (!magnifierOpen) {
       holdTimer.current = setTimeout(openMagnifier, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
@@ -100,13 +112,22 @@ export function AudioScrubber({
   };
 
   const handleBarPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onSeek(timeFromClientX(event.clientX));
+    const drag = barDrag.current;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId) || !drag) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const time = drag.grabbedThumb && rect.width > 0
+      ? clamp(0, duration, drag.time + ((event.clientX - drag.clientX) / rect.width) * duration)
+      : timeFromClientX(event.clientX);
+    onPointerSeekMove(time);
     if (!magnifierOpen && event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
   };
 
   const releaseBarCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     clearHold();
+    if (barDrag.current) {
+      barDrag.current = null;
+      onPointerSeekEnd();
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -129,15 +150,19 @@ export function AudioScrubber({
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    onPrecisionSeek();
-    fineDrag.current = { clientX: event.clientX, time: currentTime };
+    const rect = event.currentTarget.getBoundingClientRect();
+    const time = magnifierSeekTime(event.clientX, rect.left, rect.width, windowStart, windowEnd);
+    fineDrag.current = { clientX: event.clientX, time };
+    onPointerSeekStart(time);
   };
   const handleMagnifierPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.currentTarget.hasPointerCapture(event.pointerId) || !fineDrag.current) return;
-    onSeek(precisionSeekTime(fineDrag.current.time, event.clientX - fineDrag.current.clientX, duration));
+    onPointerSeekMove(precisionSeekTime(fineDrag.current.time, event.clientX - fineDrag.current.clientX, duration));
   };
   const releaseMagnifierCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!fineDrag.current) return;
     fineDrag.current = null;
+    onPointerSeekEnd();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -159,7 +184,7 @@ export function AudioScrubber({
           onPointerMove={handleBarPointerMove}
           onPointerUp={releaseBarCapture}
           onPointerCancel={releaseBarCapture}
-          onLostPointerCapture={clearHold}
+          onLostPointerCapture={(event) => releaseBarCapture(event)}
           role="slider"
           tabIndex={disabled ? -1 : 0}
           aria-disabled={disabled}
@@ -222,7 +247,6 @@ export function AudioScrubber({
               if (disabled || duration <= 0) return;
               if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                 event.preventDefault();
-                onPrecisionSeek();
                 onSeek(precisionSeekTime(currentTime, event.key === 'ArrowRight' ? 10 : -10, duration));
               }
             }}
@@ -230,7 +254,11 @@ export function AudioScrubber({
             onPointerMove={handleMagnifierPointerMove}
             onPointerUp={releaseMagnifierCapture}
             onPointerCancel={releaseMagnifierCapture}
-            onLostPointerCapture={() => { fineDrag.current = null; }}
+            onLostPointerCapture={() => {
+              if (!fineDrag.current) return;
+              fineDrag.current = null;
+              onPointerSeekEnd();
+            }}
           >
             {magnifierPeaks.map((peak, index) => (
               <span

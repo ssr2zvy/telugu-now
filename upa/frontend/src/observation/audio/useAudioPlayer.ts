@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
-import { clampPlaybackRate } from '../../../../shared/audio';
+import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';
 import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';
 import { deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
@@ -25,6 +25,9 @@ export interface AudioPlayerState {
   togglePlay: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  beginPointerSeek: (time: number) => void;
+  updatePointerSeek: (time: number) => void;
+  endPointerSeek: () => void;
   setPlaybackRate: (rate: number) => void;
   clickBookmarkButton: () => void;
 }
@@ -44,6 +47,8 @@ export function useAudioPlayer(
   const playRequestRef = useRef(0);
   const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
   const wantsPlaybackRef = useRef(true);
+  const naturallyCompletedRef = useRef(false);
+  const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -66,7 +71,10 @@ export function useAudioPlayer(
   const bookmarkWriteInFlight = useRef(false);
 
   const requestPlayback = (element: HTMLAudioElement) => {
+    naturallyCompletedRef.current = false;
     wantsPlaybackRef.current = true;
+    naturallyCompletedRef.current = false;
+    pointerSeekRef.current = null;
     setPlaybackError(null);
     setMediaError(null);
     setPlaybackStatus('Loading audio…');
@@ -201,6 +209,10 @@ export function useAudioPlayer(
       if (leaseRef.current?.value()) setPlaybackStatus(null);
       sync();
     };
+    const onEnded = () => {
+      naturallyCompletedRef.current = true;
+      onPause();
+    };
     const onWaiting = () => { if (!element.paused) setPlaybackStatus('Loading audio…'); };
     element.addEventListener('playing', onPlaying);
     element.addEventListener('pause', onPause);
@@ -208,7 +220,7 @@ export function useAudioPlayer(
     element.addEventListener('loadedmetadata', sync);
     element.addEventListener('timeupdate', sync);
     element.addEventListener('seeked', sync);
-    element.addEventListener('ended', onPause);
+    element.addEventListener('ended', onEnded);
     return () => {
       stopFeedback();
       element.removeEventListener('playing', onPlaying);
@@ -217,7 +229,7 @@ export function useAudioPlayer(
       element.removeEventListener('loadedmetadata', sync);
       element.removeEventListener('timeupdate', sync);
       element.removeEventListener('seeked', sync);
-      element.removeEventListener('ended', onPause);
+      element.removeEventListener('ended', onEnded);
     };
   }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
@@ -233,6 +245,8 @@ export function useAudioPlayer(
   }, [playing]);
 
   const pause = () => {
+    naturallyCompletedRef.current = false;
+    pointerSeekRef.current = null;
     wantsPlaybackRef.current = false;
     playRequestRef.current++;
     audioRef.current?.pause();
@@ -259,12 +273,45 @@ export function useAudioPlayer(
     requestPlayback(element);
   };
 
-  const seek = (time: number) => {
+  const seekTo = (time: number, resumeNaturalCompletion: boolean) => {
     const element = audioRef.current;
     if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
     const safeTime = Math.min(Math.max(0, time), duration);
+    const shouldResume = resumeNaturalCompletion && naturallyCompletedRef.current
+      && safeTime < duration - PRECISION_DRAG_THRESHOLD_SECONDS;
     element.currentTime = safeTime;
     setCurrentTime(safeTime);
+    if (shouldResume) requestPlayback(element);
+  };
+  const seek = (time: number) => seekTo(time, true);
+
+  const beginPointerSeek = (time: number) => {
+    const element = audioRef.current;
+    if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+    const wasPlaying = (!element.paused && !element.ended) || naturallyCompletedRef.current;
+    pointerSeekRef.current = { startTime: time, wasPlaying, dragging: false };
+    seekTo(time, true);
+  };
+
+  const updatePointerSeek = (time: number) => {
+    const interaction = pointerSeekRef.current;
+    const element = audioRef.current;
+    if (!interaction || !element || !Number.isFinite(time)) return;
+    if (!interaction.dragging && exceedsPrecisionDragThreshold(interaction.startTime, time)) {
+      interaction.dragging = true;
+      playRequestRef.current++;
+      element.pause();
+      setPlaying(false);
+      setPlaybackStatus(null);
+    }
+    seekTo(time, !interaction.dragging);
+  };
+
+  const endPointerSeek = () => {
+    const interaction = pointerSeekRef.current;
+    pointerSeekRef.current = null;
+    const element = audioRef.current;
+    if (interaction?.dragging && interaction.wasPlaying && element) requestPlayback(element);
   };
 
   const applyPlaybackRate = (rate: number) => {
@@ -330,6 +377,7 @@ export function useAudioPlayer(
     bookmarksBusy: bookmarksLoading || bookmarksSaving,
     bookmarkError,
     retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
-    togglePlay, pause, seek, setPlaybackRate: applyPlaybackRate, clickBookmarkButton,
+    togglePlay, pause, seek, beginPointerSeek, updatePointerSeek, endPointerSeek,
+    setPlaybackRate: applyPlaybackRate, clickBookmarkButton,
   };
 }

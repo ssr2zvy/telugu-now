@@ -22,7 +22,6 @@
 # The existing typecheck includes test sources.
 !upa/tests/
 !upa/tests/**
-
 # Never include local state or credentials, even inside allowed directories.
 **/node_modules
 **/dist

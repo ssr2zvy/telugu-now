@@ -877,39 +877,132 @@ test('each export requests a fresh batch even when the count stays the same', as
   expect(fixture.errors).toEqual([]);
 });
 
-test('fixed precision seeking pauses playback and speed stays inside the viewport', async ({ page }) => {
+test('audio seeking anchors thumb grabs, preserves clicks, pauses drags after 1ms, and restores prior playback state', async ({ page }) => {
   const fixture = await loadFixture(page);
   await revealControls(page);
   const audio = page.locator('audio');
-  const precise = page.getByRole('slider', { name: 'Precise audio position' });
-  for (const activation of ['keyboard', 'pointer']) {
-    await page.getByTitle('Play', { exact: true }).click();
-    await expect(audio).toHaveAttribute('src', /^blob:/);
-    await expect(audio).toHaveJSProperty('paused', false);
-    const startedAt = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
-    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(startedAt);
-    await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
-    if (activation === 'keyboard') await precise.press('ArrowRight');
-    else {
-      const bounds = (await precise.boundingBox())!;
-      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-      await page.mouse.down();
+  const reader = page.getByRole('main');
+  const setPlaying = async (playing: boolean) => {
+    if (await audio.evaluate((element: HTMLAudioElement) => element.paused) === playing) {
+      await reader.focus();
+      await page.keyboard.press('Space');
     }
-    await expect(precise).toBeVisible();
-    await expect(audio).toHaveJSProperty('paused', true);
-    if (activation === 'pointer') await page.mouse.up();
-    const panel = (await page.locator('.audio-magnifier').boundingBox())!;
-    const bar = (await page.locator('.audio-scrubber').boundingBox())!;
-    expect(panel.y).toBeGreaterThanOrEqual(bar.y + bar.height);
-    await precise.focus();
-    await expect(precise).toHaveCSS('box-shadow', 'none');
-    await precise.press('Escape');
-    await expect(precise).toBeHidden();
-  }
-  await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+    await expect(audio).toHaveJSProperty('paused', !playing);
+  };
+  const coarse = page.getByRole('slider', { name: 'Audio position', exact: true });
+  await setPlaying(false);
+  await audio.evaluate((element: HTMLAudioElement) => {
+    element.currentTime = 10;
+    element.dispatchEvent(new Event('timeupdate'));
+  });
+  await expect.poll(async () => Number(await coarse.getAttribute('aria-valuenow'))).toBeCloseTo(10, 3);
+  let thumb = (await page.locator('.audio-scrubber-thumb').boundingBox())!;
+  const thumbEdge = { x: thumb.x + 1, y: thumb.y + thumb.height / 2 };
+  const beforeThumbGrab = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+  await page.mouse.move(thumbEdge.x, thumbEdge.y);
+  await page.mouse.down();
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeCloseTo(beforeThumbGrab, 6);
+  await page.mouse.move(thumbEdge.x - 30, thumbEdge.y);
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(beforeThumbGrab - 0.1);
+  await page.mouse.up();
+  await expect(audio).toHaveJSProperty('paused', true);
+
+  await setPlaying(true);
+  thumb = (await page.locator('.audio-scrubber-thumb').boundingBox())!;
+  await page.mouse.move(thumb.x + thumb.width / 2, thumb.y + thumb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(thumb.x + thumb.width / 2 - 30, thumb.y + thumb.height / 2);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await page.mouse.up();
+  await expect(audio).toHaveJSProperty('paused', false);
+
+  await setPlaying(true);
+  await coarse.press('Enter');
+  const precise = page.getByRole('slider', { name: 'Precise audio position', exact: true });
+  const bounds = (await precise.boundingBox())!;
+
+  const playingBeforeClick = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+  await page.mouse.click(bounds.x + bounds.width * 0.1, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(playingBeforeClick - 0.05);
+
+  await setPlaying(false);
+  const pausedBeforeClick = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+  await page.mouse.click(bounds.x + bounds.width * 0.9, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeGreaterThan(pausedBeforeClick + 0.05);
+
+  await setPlaying(true);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 1, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', false);
+  await page.mouse.move(bounds.x + bounds.width / 2 + 3, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await page.mouse.up();
+  await expect(audio).toHaveJSProperty('paused', false);
+
+  await setPlaying(false);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 3, bounds.y + bounds.height / 2);
+  await page.mouse.up();
+  await expect(audio).toHaveJSProperty('paused', true);
+
+  await setPlaying(true);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 3, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', true);
+  await precise.dispatchEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+  await page.mouse.up();
+  await expect(audio).toHaveJSProperty('paused', false);
+
   await page.getByRole('button', { name: 'ప్లేబ్యాక్ వేగం', exact: true }).click();
   const speed = page.locator('.audio-speed-popover');
   await withinViewport(speed, page);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('seeking backward after natural completion resumes, while deliberate endpoint pause remains paused', async ({ page }) => {
+  const fixture = await loadFixture(page);
+  await revealControls(page);
+  const audio = page.locator('audio');
+  const reader = page.getByRole('main');
+  const setPlaying = async (playing: boolean) => {
+    if (await audio.evaluate((element: HTMLAudioElement) => element.paused) === playing) {
+      await reader.focus();
+      await page.keyboard.press('Space');
+    }
+    await expect(audio).toHaveJSProperty('paused', !playing);
+  };
+  await setPlaying(true);
+  await page.getByRole('slider', { name: 'Audio position', exact: true }).press('Enter');
+  const precise = page.getByRole('slider', { name: 'Precise audio position', exact: true });
+  const bounds = (await precise.boundingBox())!;
+
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = element.duration - 0.02; });
+  await expect(audio).toHaveJSProperty('ended', true);
+  await page.mouse.click(bounds.x + bounds.width * 0.1, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', false);
+
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 2; });
+  const bookmarks = page.getByRole('button', { name: 'బుక్‌మార్క్‌లు', exact: true });
+  const bookmarkSaved = page.waitForResponse(response =>
+    new URL(response.url()).pathname.endsWith('/bookmarks') && response.request().method() === 'PUT');
+  await bookmarks.dblclick();
+  await bookmarkSaved;
+  await expect(bookmarks).toBeEnabled();
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = element.duration - 0.02; });
+  await expect(audio).toHaveJSProperty('ended', true);
+  await bookmarks.click();
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(3);
+  await expect(audio).toHaveJSProperty('paused', false);
+
+  await setPlaying(false);
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = element.duration; });
+  await page.mouse.click(bounds.x + bounds.width * 0.1, bounds.y + bounds.height / 2);
+  await expect(audio).toHaveJSProperty('paused', true);
   expect(fixture.errors).toEqual([]);
 });
 

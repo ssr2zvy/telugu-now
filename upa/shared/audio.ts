@@ -9,6 +9,19 @@ export function precisionSeekTime(startTime: number, deltaPixels: number, durati
   return Math.min(duration, Math.max(0, startTime + deltaPixels * 0.001));
 }
 
+export const PRECISION_DRAG_THRESHOLD_SECONDS = 0.001;
+
+export function magnifierSeekTime(clientX: number, left: number, width: number, windowStart: number, windowEnd: number): number {
+  if (width <= 0 || windowEnd <= windowStart) return windowStart;
+  const ratio = Math.min(1, Math.max(0, (clientX - left) / width));
+  return windowStart + ratio * (windowEnd - windowStart);
+}
+
+export function exceedsPrecisionDragThreshold(startTime: number, nextTime: number): boolean {
+  const tolerance = Number.EPSILON * Math.max(1, Math.abs(startTime), Math.abs(nextTime)) * 4;
+  return Math.abs(nextTime - startTime) > PRECISION_DRAG_THRESHOLD_SECONDS + tolerance;
+}
+
 export interface AudioBookmarkRecord {
   sourceId: string;
   sourceKey: string;

@@ -18,7 +18,9 @@ const scrubberProps = {
   bookmarks: [1],
   disabled: false,
   onSeek: () => {},
-  onPrecisionSeek: () => {},
+  onPointerSeekStart: () => {},
+  onPointerSeekMove: () => {},
+  onPointerSeekEnd: () => {},
   onMagnifierOpen: () => {},
   onMagnifierClose: () => {},
 };
