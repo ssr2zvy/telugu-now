@@ -159,7 +159,7 @@ export function appearanceKeyboardGradient(appearance: Pick<AppearanceSettings, 
   };
 }
 
-export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradient'>) {
+export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradient'>, opacityScale = 1) {
   const targetLightness = rgbToHsl(colorChannels(appearanceAudioColor(appearance)))[2];
   const palette = appearance.gradient.map(color => rgbToHsl(colorChannels(color)));
   const hex = (channels: number[]) => `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
@@ -172,7 +172,11 @@ export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradi
     hex(hslToRgb(hue, saturation, lightness + (targetLightness - lightness) * blendAt(positions[index]!))));
   const [hue, saturation, lightness] = palette[1]!;
   const highlight = hex(hslToRgb(hue, saturation, Math.min(0.96, Math.max(lightness, targetLightness) + 0.14)));
-  const stops = positions.map((offset, index) => ({ offset, color: shades[index]!, opacity: opacityAt(offset) }));
+  const stops = positions.map((offset, index) => ({
+    offset,
+    color: shades[index]!,
+    opacity: Math.min(1, opacityAt(offset) * opacityScale),
+  }));
   return {
     stops,
     gradient: `linear-gradient(135deg, ${stops.map(stop =>

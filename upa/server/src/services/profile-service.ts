@@ -302,7 +302,10 @@ function audioObjectUrl(objectKey: string): string {
 
 function questionPhase(raw: string): QuestionPhase {
   try {
-    return (JSON.parse(raw) as { questionPhase?: unknown }).questionPhase === 'answer' ? 'answer' : 'question';
+    const phase = (JSON.parse(raw) as { questionPhase?: unknown }).questionPhase;
+    if (phase === 'comparison' || phase === 'observation') return phase;
+    if (phase === 'answer') return 'comparison';
+    return 'question';
   } catch { return 'question'; }
 }
 
@@ -532,8 +535,10 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     upcomingAudio: upcomingAudio(code, profile.current_position),
     upcomingPresentation: upcomingPresentation(code, profile.current_position),
     previousPresentation: previousPresentation(code, profile.current_position),
-    canBack: adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
-    canNext: displayedObservation?.question?.phase === 'question' || inHistoricalForwardPath || nextQueue?.status === 'ready',
+    canBack: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'question')
+      || adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
+    canNext: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
+      || inHistoricalForwardPath || nextQueue?.status === 'ready',
     nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),
     queue: queueSummary(code),
     timing: timingSummary(code, now),
@@ -591,9 +596,10 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
       `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
-      if (current?.observation_kind === 'question' && questionPhase(current.presentation_state_json) === 'answer') {
+      const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
+      if (phase === 'comparison' || phase === 'observation') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
-          .run(JSON.stringify({ questionPhase: 'question' }), code, profile.current_position);
+          .run(JSON.stringify({ questionPhase: phase === 'observation' ? 'comparison' : 'question' }), code, profile.current_position);
         return;
       }
     }
@@ -634,9 +640,10 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
       `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
-      if (current?.observation_kind === 'question' && questionPhase(current.presentation_state_json) === 'question') {
+      const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
+      if (phase === 'question' || phase === 'comparison') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
-          .run(JSON.stringify({ questionPhase: 'answer' }), code, profile.current_position);
+          .run(JSON.stringify({ questionPhase: phase === 'question' ? 'comparison' : 'observation' }), code, profile.current_position);
         return;
       }
     }

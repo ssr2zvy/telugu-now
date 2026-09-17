@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CircleDot, Mic } from 'lucide-react';
 import type { ObservationAudio, QuestionKeyboard, QuestionMode } from '../../../shared/contracts';
 import { appearanceAudioGlass, useAppearance } from '../appearance';
@@ -22,11 +22,13 @@ interface QuestionControlsProps {
   onSubmit: () => void;
 }
 
+const singleLineAnswer = (value: string) => value.replace(/\r\n?|\n/g, ' ');
+
 export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, responseAudio, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
-  const [text, setText] = useState(initialText);
+  const [text, setText] = useState(() => singleLineAnswer(initialText));
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -37,13 +39,14 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   const recordingSession = useRef(0);
   const preRoll = useRef<{ timer: number; resolve: () => void } | null>(null);
   const dirtyText = useRef(false);
-  const latestText = useRef(initialText);
+  const latestText = useRef(singleLineAnswer(initialText));
   const textObservationId = useRef(observationId);
   useEffect(() => {
     if (textObservationId.current === observationId) return;
     textObservationId.current = observationId;
-    setText(initialText);
-    latestText.current = initialText;
+    const nextText = singleLineAnswer(initialText);
+    setText(nextText);
+    latestText.current = nextText;
     dirtyText.current = false;
   }, [observationId, initialText]);
 
@@ -67,11 +70,36 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   }, [profileCode, observationId]);
 
   const changeText = (value: string) => {
+    const nextText = singleLineAnswer(value);
     setError(false);
     dirtyText.current = true;
-    latestText.current = value;
-    setText(value);
+    latestText.current = nextText;
+    setText(nextText);
   };
+  const submitText = useCallback(async () => {
+    if (dirtyText.current) {
+      dirtyText.current = false;
+      try {
+        await updateQuestionText(profileCode, observationId, { text: latestText.current });
+      } catch {
+        dirtyText.current = true;
+        setError(true);
+        return;
+      }
+    }
+    onSubmit();
+  }, [profileCode, observationId, onSubmit]);
+  useEffect(() => {
+    if (mode !== 'audio-given') return;
+    const submitFromPhysicalKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.repeat || event.isComposing) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void submitText();
+    };
+    window.addEventListener('keydown', submitFromPhysicalKeyboard, true);
+    return () => window.removeEventListener('keydown', submitFromPhysicalKeyboard, true);
+  }, [mode, submitText]);
 
   const stopRecording = () => {
     recordingSession.current += 1;
@@ -152,7 +180,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   </div>;
 
   return <div className="question-controls question-keyboard-controls" data-visible={visible} aria-hidden={!visible} inert={!visible}>
-    <GoogleTeluguKeyboard value={text} onChange={changeText} onSubmit={onSubmit} />
+    <GoogleTeluguKeyboard value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
     {error ? <div className="question-response-error" role="alert">Answer could not be saved.</div> : null}
   </div>;
 }

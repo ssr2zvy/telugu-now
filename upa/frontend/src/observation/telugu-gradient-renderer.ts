@@ -1,4 +1,5 @@
 import { OBSERVATION_FONTS, type ObservationFontFamily } from '../presentation';
+import fontModelManifest from '../generated/telugu-font-model-manifest.json' with { type: 'json' };
 
 const VIRAMA = '\u0c4d';
 const SIZE = 360;
@@ -12,6 +13,9 @@ const TEXTURE_PADDING = 3;
 const CLEAN_RADIUS = 2 * ANALYSIS_SCALE;
 const VOWELS = [...'అఆఇఈఉఊఋౠఌౡఎఏఐఒఓఔ'];
 const CONSONANTS = [...'కఖగఘఙచఛజఝఞటఠడఢణతథదధనపఫబభమయరఱలళవశషసహ'];
+const SIMPLE_VOWEL_SIGNS = [...'ాిీుూృౄౢౣెేైొోౌ'];
+const SIMPLE_FORMS = CONSONANTS.flatMap(consonant => SIMPLE_VOWEL_SIGNS.map(sign => `${consonant}${sign}`));
+const SIMPLE_FORM_SET = new Set(SIMPLE_FORMS);
 const BASE_LETTERS = new Set([...VOWELS, ...CONSONANTS]);
 // These consonants' inherent-"a" form has no separable checkmark stroke; that form is already their base.
 const CONSONANTS_A_BASE_IS_BASE = new Set([...'టజఱలణఙఖఞబ']);
@@ -24,7 +28,22 @@ const ALIGN_COARSE_STEP = 3;
 
 interface FontEntry { bare: ImageData; virama: ImageData }
 interface AlphaMask { data: Uint8ClampedArray; width: number; height: number }
-interface FontModel { bases: Map<string, AlphaMask> }
+interface Alignment { dx: number; dy: number }
+interface FontModel { bases: Map<string, AlphaMask>; simpleAlignments: Map<string, Alignment> }
+interface SerializedAlphaMask { width: number; height: number; rle: string }
+interface SimpleAlignmentArtifact {
+  version: number;
+  simpleFormCount: number;
+  fontFamily: string;
+  fontSha256: string;
+  bases: Record<string, SerializedAlphaMask>;
+  alignments: Record<string, [number, number]>;
+}
+interface FontModelManifest {
+  version: number;
+  simpleFormCount: number;
+  fonts: Record<string, { fontSha256: string; url: string }>;
+}
 export interface TeluguGradientTexture {
   url: string;
   widthEm: number;
@@ -40,6 +59,7 @@ type CacheState = 'not-started' | 'pending' | 'loaded' | 'failed';
 interface CacheEntryStatus { state: Exclude<CacheState, 'not-started'>; startedAt: number; completedAt: number | null }
 const modelStatus = new Map<string, CacheEntryStatus>();
 const textureStatus = new Map<string, CacheEntryStatus>();
+const simpleAlignmentStatus = new Map<string, number>();
 
 export function hasTeluguGradientTexture(
   text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string,
@@ -50,11 +70,13 @@ export function hasTeluguGradientTexture(
 export interface TeluguGradientCacheSnapshot {
   models: Array<{ fontFamily: ObservationFontFamily; state: CacheState; startedAt: number | null; completedAt: number | null }>;
   textures: { total: number; pending: number; loaded: number; failed: number };
+  simpleAlignments: { total: number; prepared: number };
 }
 
 export function getTeluguGradientCacheSnapshot(): TeluguGradientCacheSnapshot {
   const textures = { total: textureStatus.size, pending: 0, loaded: 0, failed: 0 };
   for (const status of textureStatus.values()) textures[status.state] += 1;
+  const preparedSimpleAlignments = [...simpleAlignmentStatus.values()].reduce((total, count) => total + count, 0);
   return {
     models: OBSERVATION_FONTS.map(fontFamily => {
       const status = modelStatus.get(fontFamily);
@@ -66,7 +88,71 @@ export function getTeluguGradientCacheSnapshot(): TeluguGradientCacheSnapshot {
       };
     }),
     textures,
+    simpleAlignments: { total: SIMPLE_FORMS.length * modelCache.size, prepared: preparedSimpleAlignments },
   };
+}
+
+function artifactAlignments(artifact: SimpleAlignmentArtifact): Map<string, Alignment> {
+  return new Map(Object.entries(artifact.alignments).flatMap(([text, value]) =>
+    Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
+      ? [[text, { dx: value[0], dy: value[1] }]]
+      : []));
+}
+
+function encodeAlphaMask(mask: AlphaMask): SerializedAlphaMask {
+  const encoded: number[] = [];
+  for (let start = 0; start < mask.data.length;) {
+    const value = mask.data[start]!;
+    let count = 1;
+    while (start + count < mask.data.length && mask.data[start + count] === value && count < 0xffff) count += 1;
+    encoded.push(value, count & 0xff, count >>> 8);
+    start += count;
+  }
+  let binary = '';
+  for (let offset = 0; offset < encoded.length; offset += 0x8000) {
+    binary += String.fromCharCode(...encoded.slice(offset, offset + 0x8000));
+  }
+  return { width: mask.width, height: mask.height, rle: btoa(binary) };
+}
+
+function decodeAlphaMask(serialized: SerializedAlphaMask): AlphaMask | null {
+  try {
+    const encoded = Uint8Array.from(atob(serialized.rle), character => character.charCodeAt(0));
+    const data = new Uint8ClampedArray(serialized.width * serialized.height);
+    let output = 0;
+    for (let offset = 0; offset + 2 < encoded.length; offset += 3) {
+      const value = encoded[offset]!;
+      const count = encoded[offset + 1]! | encoded[offset + 2]! << 8;
+      data.fill(value, output, output + count);
+      output += count;
+    }
+    return output === data.length ? { data, width: serialized.width, height: serialized.height } : null;
+  } catch {
+    return null;
+  }
+}
+
+function artifactBases(artifact: SimpleAlignmentArtifact): Map<string, AlphaMask> {
+  return new Map(Object.entries(artifact.bases).flatMap(([letter, serialized]) => {
+    const mask = decodeAlphaMask(serialized);
+    return mask ? [[letter, mask]] : [];
+  }));
+}
+
+async function loadFontModelArtifact(fontFamily: ObservationFontFamily): Promise<SimpleAlignmentArtifact> {
+  const manifest = fontModelManifest as FontModelManifest;
+  const entry = manifest.version === 2 && manifest.simpleFormCount === SIMPLE_FORMS.length
+    ? manifest.fonts[fontFamily]
+    : null;
+  if (!entry) throw new Error(`Missing font model manifest entry for ${fontFamily}`);
+  const response = await fetch(entry.url, { cache: 'force-cache' });
+  if (!response.ok) throw new Error(`Failed to load font model for ${fontFamily}: ${response.status}`);
+  const artifact = await response.json() as SimpleAlignmentArtifact;
+  if (artifact.version !== manifest.version || artifact.simpleFormCount !== SIMPLE_FORMS.length
+    || artifact.fontFamily !== fontFamily || artifact.fontSha256 !== entry.fontSha256) {
+    throw new Error(`Invalid font model artifact for ${fontFamily}`);
+  }
+  return artifact;
 }
 
 function canvasContext(width = SIZE * RENDER_SCALE, height = SIZE * RENDER_SCALE): CanvasRenderingContext2D {
@@ -231,26 +317,17 @@ async function fontModel(fontFamily: ObservationFontFamily): Promise<FontModel> 
     const status: CacheEntryStatus = { state: 'pending', startedAt: Date.now(), completedAt: null };
     modelStatus.set(fontFamily, status);
     pending = (async () => {
-      await document.fonts.load(`400 ${FONT_SIZE}px "${fontFamily}"`, `${VOWELS.join('')}${CONSONANTS.join('')}${VIRAMA}`);
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
-      const entries = new Map<string, FontEntry>();
-      for (const consonant of CONSONANTS) {
-        const virama = `${consonant}${VIRAMA}`;
-        const width = rasterWidth([consonant, virama], fontFamily, ANALYSIS_SCALE);
-        entries.set(consonant, {
-          bare: rasterize(consonant, fontFamily, ANALYSIS_SCALE, width),
-          virama: rasterize(virama, fontFamily, ANALYSIS_SCALE, width),
-        });
-      }
-      const profile = trainProfile(entries.values());
+      const [artifact] = await Promise.all([
+        loadFontModelArtifact(fontFamily),
+        document.fonts.load(`400 ${FONT_SIZE}px "${fontFamily}"`, `${VOWELS.join('')}${CONSONANTS.join('')}${VIRAMA}`),
+      ]);
+      const bases = artifactBases(artifact);
+      if (bases.size !== CONSONANTS.length) throw new Error(`Missing bundled base masks for ${fontFamily}`);
+      const simpleAlignments = artifactAlignments(artifact);
+      simpleAlignmentStatus.set(fontFamily, simpleAlignments.size);
       return {
-        bases: new Map([...entries].map(([consonant, entry]) => [
-          consonant,
-          alphaMask(downsample(
-            overlapBase(principalBase(entry, profile), checkmarkBase(entry, consonant)),
-            ANALYSIS_SCALE / RENDER_SCALE,
-          )),
-        ])),
+        bases,
+        simpleAlignments,
       };
     })().then(model => {
       status.state = 'loaded'; status.completedAt = Date.now();
@@ -465,8 +542,8 @@ function alignBase(target: ImageData, base: AlphaMask): { dx: number; dy: number
   return { dx: bestDx, dy: bestDy };
 }
 
-function adjustedBase(target: ImageData, base: AlphaMask): { image: ImageData; modifier: Uint8Array } {
-  const { dx, dy } = alignBase(target, base);
+function adjustedBase(target: ImageData, base: AlphaMask, alignment?: Alignment): { image: ImageData; modifier: Uint8Array } {
+  const { dx, dy } = alignment ?? alignBase(target, base);
   const intersection = new Uint8Array(target.width * target.height);
   for (let pixel = 0; pixel < intersection.length; pixel += 1) {
     const x = pixel % target.width; const y = Math.floor(pixel / target.width);
@@ -533,6 +610,48 @@ function baseFor(text: string, fontFamily: ObservationFontFamily, model: FontMod
   return base;
 }
 
+async function generateBaseMasks(fontFamily: ObservationFontFamily): Promise<Map<string, AlphaMask>> {
+  await document.fonts.load(`400 ${FONT_SIZE}px "${fontFamily}"`, `${VOWELS.join('')}${CONSONANTS.join('')}${VIRAMA}`);
+  const entries = new Map<string, FontEntry>();
+  for (const consonant of CONSONANTS) {
+    const virama = `${consonant}${VIRAMA}`;
+    const width = rasterWidth([consonant, virama], fontFamily, ANALYSIS_SCALE);
+    entries.set(consonant, {
+      bare: rasterize(consonant, fontFamily, ANALYSIS_SCALE, width),
+      virama: rasterize(virama, fontFamily, ANALYSIS_SCALE, width),
+    });
+  }
+  const profile = trainProfile(entries.values());
+  return new Map([...entries].map(([consonant, entry]) => [
+    consonant,
+    alphaMask(downsample(
+      overlapBase(principalBase(entry, profile), checkmarkBase(entry, consonant)),
+      ANALYSIS_SCALE / RENDER_SCALE,
+    )),
+  ]));
+}
+
+export async function generateTeluguFontModelArtifact(fontFamily: ObservationFontFamily, fontSha256: string) {
+  if (!OBSERVATION_FONTS.includes(fontFamily)) throw new Error(`Unknown observation font: ${fontFamily}`);
+  const bases = await generateBaseMasks(fontFamily);
+  const model: FontModel = { bases, simpleAlignments: new Map() };
+  const alignments: Record<string, [number, number]> = {};
+  for (const text of SIMPLE_FORMS) {
+    const target = rasterize(text, fontFamily);
+    const { dx, dy } = alignBase(target, baseFor(text, fontFamily, model));
+    alignments[text] = [dx, dy];
+    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+  }
+  return {
+    version: 2,
+    simpleFormCount: SIMPLE_FORMS.length,
+    fontFamily,
+    fontSha256,
+    bases: Object.fromEntries([...bases].map(([letter, mask]) => [letter, encodeAlphaMask(mask)])),
+    alignments,
+  };
+}
+
 export function renderTeluguGradientTexture(
   text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string,
 ): Promise<TeluguGradientTexture> {
@@ -545,7 +664,13 @@ export function renderTeluguGradientTexture(
       const model = await fontModel(fontFamily);
       const base = baseFor(text, fontFamily, model);
       const target = rasterize(text, fontFamily);
-      const classified = adjustedBase(target, base);
+      let alignment = model.simpleAlignments.get(text);
+      if (!alignment && SIMPLE_FORM_SET.has(text)) {
+        alignment = alignBase(target, base);
+        model.simpleAlignments.set(text, alignment);
+        simpleAlignmentStatus.set(fontFamily, model.simpleAlignments.size);
+      }
+      const classified = adjustedBase(target, base, alignment);
       const depth = gradientDepth(classified.modifier, classified.image);
       const start = channels(foreground); const end = channels(endColor);
       const painted = new ImageData(target.width, target.height);

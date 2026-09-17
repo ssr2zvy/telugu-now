@@ -165,14 +165,19 @@ test('Settings structure uses distinct playback sections and Appearance visual g
   assert.match(css, /\.appearance-color-row, \.appearance-switch-row \{[^}]*font-size: \.81rem/);
 });
 
-test('question and answer observations expose distinct compact phase icons', () => {
+test('questions expose a compact phase icon and a dedicated comparison view', () => {
   const observation = read('frontend/src/observation/ObservationView.tsx');
+  const comparison = read('frontend/src/observation/QuestionComparison.tsx');
   const css = read('frontend/src/styles/observation-layout.css');
   assert.match(observation, /CircleHelp aria-hidden="true"/);
-  assert.match(observation, /Check aria-hidden="true"/);
-  assert.match(observation, /aria-label=\{observation\.question\?\.phase === 'answer' \? 'Answer' : 'Question'\}/);
+  assert.match(observation, /GitCompareArrows aria-hidden="true"/);
+  assert.match(observation, /Eye aria-hidden="true"/);
+  assert.match(observation, /<QuestionComparison/);
   assert.match(css, /\.question-phase-indicator \{[^}]*top: max\(16px, env\(safe-area-inset-top\)\);[^}]*right: max\(20px, env\(safe-area-inset-right\)\);[^}]*width: 36px; height: 36px;[^}]*color: var\(--corner-control-color\);[^}]*pointer-events: none/);
-  assert.match(observation, /phase === 'answer' \? <Check aria-hidden="true" \/> : <CircleHelp aria-hidden="true" \/>/);
+  assert.match(comparison, /className="question-comparison-pane question-comparison-correct"[\s\S]*className="question-comparison-pane question-comparison-user"/);
+  assert.match(comparison, /correctPlayer\.current\?\.pause\(\)[\s\S]*userPlayer\.current\?\.togglePlay\(\)/);
+  assert.match(css, /grid-template-areas: 'user correct'/);
+  assert.match(css, /grid-template-areas: 'correct' 'user'/);
 });
 
 test('Question sampling remains a dedicated three-probability Settings section', () => {

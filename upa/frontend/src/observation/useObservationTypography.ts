@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,6 +25,33 @@ interface CachedTypography {
 }
 const typographyCache = new Map<string, CachedTypography>();
 const TYPOGRAPHY_CACHE_LIMIT = 100;
+const FONT_LOAD_TIMEOUT_MS = 3000;
+const TYPOGRAPHY_READY_DEADLINE_MS = 4000;
+
+interface TypographyDiagnostics {
+  stage: string;
+  effectRuns: number;
+  fitRequests: number;
+  fitsCommitted: number;
+  effectCleanups: number;
+  container: { width: number; height: number } | null;
+  hasTextElement: boolean;
+}
+
+async function waitForTypographyFont(font: string, text: string): Promise<boolean> {
+  if (document.fonts.check(font, text)) return true;
+  let timeout = 0;
+  try {
+    return await Promise.race([
+      document.fonts.load(font, text).then(() => true),
+      new Promise<boolean>(resolve => { timeout = window.setTimeout(() => resolve(false), FONT_LOAD_TIMEOUT_MS); }),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
 
 function rememberTypography(key: string, typography: CachedTypography): void {
   typographyCache.delete(key);
@@ -105,13 +133,7 @@ async function computeTypographyFit(
     OBSERVATION_PRESENTATION.preferredMinimumFontSizePx,
     desired,
   )}px "${fontFamily}"`;
-  try {
-    if (!document.fonts.check(font, observation.text.slice(0, 64))) {
-      await document.fonts.load(font, observation.text.slice(0, 64));
-    }
-  } catch {
-    // The local fallback stack remains usable if a font cannot be loaded.
-  }
+  const fontReady = await waitForTypographyFont(font, observation.text.slice(0, 64));
   element.style.fontSize = `${OBSERVATION_PRESENTATION.fitMinimumFontSizePx}px`;
   const minimumSize = element.scrollHeight > availableHeight + 1 || element.scrollWidth > element.clientWidth + 1
     ? 1 : OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
@@ -145,7 +167,7 @@ async function computeTypographyFit(
   const offset = Math.max(topLimit - textBounds.top, Math.min(bottomLimit - textBounds.bottom, baselineOffset + textOffset));
   element.style.translate = `0 ${offset}px`;
   const result: CachedTypography = { fontSizePx: finalSize, offsetPx: offset };
-  rememberTypography(cacheKey, result);
+  if (fontReady) rememberTypography(cacheKey, result);
   return result;
 }
 
@@ -240,15 +262,21 @@ export interface ObservationTypography {
   textRef: RefObject<HTMLDivElement | null>;
   fontFamily: ObservationFontFamily;
   ready: boolean;
+  diagnostics: () => TypographyDiagnostics;
   style: CSSProperties;
 }
 export function useObservationTypography(
   observation: DisplayObservation | null,
   assignedFontFamily: ObservationFontFamily,
+  textVisible: boolean,
 ): ObservationTypography {
   const { appearance } = useAppearance();
   const containerRef = useRef<HTMLElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
+  const diagnosticsRef = useRef<TypographyDiagnostics>({
+    stage: 'initial', effectRuns: 0, fitRequests: 0, fitsCommitted: 0, effectCleanups: 0,
+    container: null, hasTextElement: false,
+  });
   const [presentation, setPresentation] = useState<ObservationPresentation>(
     () => ({
       observationId: observation?.id ?? null,
@@ -273,41 +301,107 @@ export function useObservationTypography(
     });
     setReady(false);
   }
+  useEffect(() => {
+    if (!observation || !textVisible || ready) return;
+    const timer = window.setTimeout(() => {
+      const container = containerRef.current;
+      const element = textRef.current;
+      if (!container || !element) return;
+      const bounds = container.getBoundingClientRect();
+      const fallbackSize = preferredObservationFontSizePx(
+        observation.text,
+        bounds.width,
+        bounds.height,
+        appearance.fontScale,
+      );
+      element.style.fontSize = `${fallbackSize}px`;
+      element.style.translate = `0 ${appearance.textOffset}px`;
+      setFontSizePx(fallbackSize);
+      diagnosticsRef.current.stage = 'deadline-fallback';
+      setReady(true);
+      console.warn('[telugu-now] typography readiness deadline used fallback', {
+        observationId: observation.id,
+        fontFamily: presentation.fontFamily,
+        diagnostics: diagnosticsRef.current,
+      });
+    }, TYPOGRAPHY_READY_DEADLINE_MS);
+    return () => window.clearTimeout(timer);
+  }, [observation?.id, observation?.text, presentation.fontFamily, appearance.fontScale, appearance.textOffset, textVisible, ready]);
   useLayoutEffect(() => {
     const container = containerRef.current;
     const element = textRef.current;
-    if (!observation || !container || !element) {
+    diagnosticsRef.current.effectRuns += 1;
+    diagnosticsRef.current.hasTextElement = Boolean(element);
+    diagnosticsRef.current.container = container ? (() => {
+      const bounds = container.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height };
+    })() : null;
+    if (!observation || !textVisible || !container || !element) {
+      diagnosticsRef.current.stage = 'missing-elements';
       setReady(false);
       return;
     }
+    diagnosticsRef.current.stage = 'effect-ready';
     let cancelled = false;
-    let fitGeneration = 0;
+    let fitting = false;
+    let refitRequested = false;
+    let forceRefitRequested = false;
     let fittedWidth = -1;
     let fittedHeight = -1;
     let fittedAudioTop = -1;
     let resizeObserver: ResizeObserver | null = null;
-    const fit = async () => {
-      const containerRect = container.getBoundingClientRect();
-      const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
-      const audioTop = audioBounds?.top ?? Infinity;
-      if (containerRect.width === fittedWidth && containerRect.height === fittedHeight && audioTop === fittedAudioTop) return;
-      fittedWidth = containerRect.width;
-      fittedHeight = containerRect.height;
-      fittedAudioTop = audioTop;
-      const generation = ++fitGeneration;
-      const result = await computeTypographyFit(
-        container,
-        element,
-        observation,
-        presentation.fontFamily,
-        appearance.fontScale,
-        appearance.textOffset,
-      );
-      if (cancelled || generation !== fitGeneration) return;
-      element.style.fontSize = `${result.fontSizePx}px`;
-      element.style.translate = `0 ${result.offsetPx}px`;
-      setFontSizePx(result.fontSizePx);
-      setReady(true);
+    const fit = async (force = false) => {
+      diagnosticsRef.current.fitRequests += 1;
+      if (fitting) {
+        refitRequested = true;
+        forceRefitRequested ||= force;
+        return;
+      }
+      fitting = true;
+      diagnosticsRef.current.stage = 'fitting';
+      let forceCurrentFit = force;
+      try {
+        do {
+          refitRequested = false;
+          const containerRect = container.getBoundingClientRect();
+          const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
+          const audioTop = audioBounds?.top ?? Infinity;
+          if (forceCurrentFit || containerRect.width !== fittedWidth || containerRect.height !== fittedHeight || audioTop !== fittedAudioTop) {
+            fittedWidth = containerRect.width;
+            fittedHeight = containerRect.height;
+            fittedAudioTop = audioTop;
+            let result: CachedTypography;
+            try {
+              result = await computeTypographyFit(
+                container,
+                element,
+                observation,
+                presentation.fontFamily,
+                appearance.fontScale,
+                appearance.textOffset,
+              );
+            } catch (error) {
+              if (cancelled) return;
+              console.warn('[telugu-now] typography fit failed; using fallback metrics', { observationId: observation.id, error });
+              result = {
+                fontSizePx: preferredObservationFontSizePx(observation.text, containerRect.width, containerRect.height, appearance.fontScale),
+                offsetPx: appearance.textOffset,
+              };
+            }
+            if (cancelled) return;
+            element.style.fontSize = `${result.fontSizePx}px`;
+            element.style.translate = `0 ${result.offsetPx}px`;
+            setFontSizePx(result.fontSizePx);
+            diagnosticsRef.current.fitsCommitted += 1;
+            diagnosticsRef.current.stage = 'committed';
+            setReady(true);
+          }
+          forceCurrentFit = forceRefitRequested;
+          forceRefitRequested = false;
+        } while (refitRequested && !cancelled);
+      } finally {
+        fitting = false;
+      }
     };
     void fit();
     resizeObserver = new ResizeObserver(() => {
@@ -316,13 +410,19 @@ export function useObservationTypography(
     resizeObserver.observe(container);
     const player = container.querySelector('.audio-player-bar');
     if (player) resizeObserver.observe(player);
+    const refitLoadedFont = () => { void fit(true); };
+    document.fonts.addEventListener('loadingdone', refitLoadedFont);
     return () => {
       cancelled = true;
+      diagnosticsRef.current.effectCleanups += 1;
+      diagnosticsRef.current.stage = 'cleaned-up';
       resizeObserver?.disconnect();
+      document.fonts.removeEventListener('loadingdone', refitLoadedFont);
     };
   }, [
     observation?.id,
     observation?.text,
+    textVisible,
     presentation.fontFamily,
     appearance.fontScale,
     appearance.textOffset,
@@ -334,6 +434,7 @@ export function useObservationTypography(
     textRef,
     fontFamily: presentation.fontFamily,
     ready,
+    diagnostics: () => diagnosticsRef.current,
     style: {
       fontFamily:
         `"${presentation.fontFamily}", ` +

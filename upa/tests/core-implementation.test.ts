@@ -320,7 +320,7 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     });
   });
 
-  await suite.test('questions reveal their answer before consuming the next observation', () => {
+  await suite.test('questions show comparison and observation stages before consuming the next observation', () => {
     resetDatabase();
     const [questionId, nextId] = seedQueue(['ready', 'ready']);
     db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'audio-given', question_keyboard = 'mac-standard' WHERE observation_id = ?`).run(questionId);
@@ -331,14 +331,21 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     const queueCount = queueService.getQueueCount('001');
     const position = question.currentPosition;
 
-    const answer = profileService.navigateNext('001', false);
-    assert.equal(answer.currentObservation?.id, questionId);
-    assert.equal(answer.currentObservation?.question?.phase, 'answer');
-    assert.equal(answer.currentPosition, position);
+    const comparison = profileService.navigateNext('001', false);
+    assert.equal(comparison.currentObservation?.id, questionId);
+    assert.equal(comparison.currentObservation?.question?.phase, 'comparison');
+    assert.equal(comparison.currentPosition, position);
+    assert.equal(comparison.canBack, true);
     assert.equal(queueService.getQueueCount('001'), queueCount);
 
     const restoredQuestion = profileService.navigateBack('001', false);
     assert.equal(restoredQuestion.currentObservation?.question?.phase, 'question');
+    profileService.navigateNext('001', false);
+    const observation = profileService.navigateNext('001', false);
+    assert.equal(observation.currentObservation?.id, questionId);
+    assert.equal(observation.currentObservation?.question?.phase, 'observation');
+    assert.equal(observation.canBack, true);
+    assert.equal(profileService.navigateBack('001', false).currentObservation?.question?.phase, 'comparison');
     profileService.navigateNext('001', false);
     assert.equal(profileService.navigateNext('001', false).currentObservation?.id, nextId);
   });

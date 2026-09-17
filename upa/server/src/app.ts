@@ -159,6 +159,10 @@ app.onError((error, c) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
+  app.use('/font-models/*', async (c, next) => {
+    await next();
+    if (c.res.ok) c.header('Cache-Control', 'public, max-age=31536000, immutable');
+  });
   app.use('/*', serveStatic({ root: './dist/client' }));
   app.get('*', serveStatic({ path: './dist/client/index.html' }));
 }

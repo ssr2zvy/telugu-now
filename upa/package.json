@@ -19,8 +19,9 @@
     "start": "NODE_ENV=production node dist/server/index.js",
     "test": "tsx --test tests/*.test.ts",
     "fonts:sync": "node scripts/sync-fonts.mjs",
-    "predev:client": "npm run fonts:sync",
-    "prebuild:client": "npm run fonts:sync"
+    "generate:telugu-alignments": "node scripts/generate-telugu-alignments.mjs",
+    "predev:client": "npm run fonts:sync && npm run generate:telugu-alignments",
+    "prebuild:client": "npm run fonts:sync && npm run generate:telugu-alignments"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1130.0",

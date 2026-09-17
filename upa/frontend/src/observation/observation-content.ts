@@ -4,6 +4,7 @@ type ObservationContent = Pick<DisplayObservation, 'text' | 'audio' | 'kind' | '
 
 export function observationShowsText(observation: ObservationContent | null): boolean {
   if (!observation?.text.trim()) return false;
+  if (observation.kind === 'question' && observation.question?.phase === 'comparison') return false;
   const activeQuestion = observation.kind === 'question' && observation.question?.phase === 'question'
     ? observation.question
     : null;
@@ -14,5 +15,6 @@ export function observationShowsPhaseIndicator(
   observation: ObservationContent | null,
   visibleAudio: ObservationAudio | null,
 ): boolean {
+  if (observation?.kind === 'question' && observation.question?.phase === 'comparison') return true;
   return observation?.kind === 'question' && (observationShowsText(observation) || Boolean(visibleAudio));
 }

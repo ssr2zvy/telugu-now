@@ -11,6 +11,7 @@ export function useReaderScroll(
   observationId: string | undefined,
   onScroll: (direction: ScrollDirection) => void,
   cancelTaps: () => void,
+  captureOwnGestures = false,
 ) {
   const [gesture] = useState(() => new ReaderScroll());
   const callbacks = useRef({ onScroll, cancelTaps });
@@ -49,6 +50,7 @@ export function useReaderScroll(
     if (update.moved) callbacks.current.cancelTaps();
     if (update.handled) {
       event.preventDefault();
+      if (captureOwnGestures) event.stopPropagation();
       window.getSelection()?.removeAllRanges();
       if (event.type !== 'pointerup' && !event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -59,7 +61,7 @@ export function useReaderScroll(
   return {
     onPointerDownCapture: (event: PointerEvent<HTMLElement>) => {
       gesture.newPointer();
-      if (!enabled || !event.isPrimary || event.button !== 0 || hasOwnGesture(event.target)) return;
+      if (!enabled || !event.isPrimary || event.button !== 0 || (!captureOwnGestures && hasOwnGesture(event.target))) return;
       gesture.begin(event.pointerId, event.clientX, event.clientY);
     },
     onPointerMoveCapture: move,

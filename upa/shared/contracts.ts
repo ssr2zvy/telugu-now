@@ -6,7 +6,7 @@ export type ObservationKind = 'normal' | 'question';
 export type QuestionMode = 'audio-given' | 'text-given';
 export type QuestionPool = 'seen' | 'unseen';
 export type QuestionKeyboard = 'windows-inscript' | 'mac-standard' | 'chromebook-dictation';
-export type QuestionPhase = 'question' | 'answer';
+export type QuestionPhase = 'question' | 'comparison' | 'observation';
 
 export interface ProfileEon {
   id: string;

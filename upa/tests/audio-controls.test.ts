@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { keyboardKeyDisplay } from '../frontend/src/observation/GoogleTeluguKeyboard';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -212,49 +211,45 @@ test('record control overrides the shared transport glyph size', () => {
   assert.doesNotMatch(css, /data-question-mode='text-given'\] \.(?:observation-text|audio-player-bar)/);
 });
 
-test('audio-given keyboard follows the selected trigger and fills the bottom viewport edges', () => {
+test('audio-given questions keep the compact keyboard permanently visible', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   const controls = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
   const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(controls, /if \(!visible\) return null/);
   assert.match(controls, /question-keyboard-controls" data-visible=\{visible\} aria-hidden=\{!visible\} inert=\{!visible\}/);
-  assert.match(observation, /visible=\{questionControlsVisible\}/);
-  assert.match(observation, /appearance\.toggleTrigger === 'scroll'[\s\S]*setQuestionControlsVisible/);
-  assert.match(observation, /activeQuestion && appearance\.toggleTrigger === 'tap'[\s\S]*setQuestionControlsVisible/);
-  assert.match(css, /data-question-mode='audio-given'\] \.question-controls \{ inset: calc\(35% \+ 50px\) 0 0; width: auto; transform: none; \}/);
-  assert.match(css, /data-question-mode='audio-given'\] :is\(\.question-keyboard-controls, \.google-telugu-input\) \{ height: 100%; \}/);
-  assert.match(css, /\.question-keyboard \{[^}]*grid-template-rows: repeat\(5, auto\);[^}]*height: clamp\(260px, 38dvh, 390px\);[^}]*background: var\(--keyboard-gradient\)/);
-  assert.match(css, /\.question-keyboard-row \{[^}]*width: min\(100%, 1120px\); margin-inline: auto;/);
+  assert.match(controls, /GoogleTeluguKeyboard value=\{text\} onChange=\{changeText\} onSubmit=/);
+  assert.match(controls, /await updateQuestionText\(profileCode, observationId, \{ text: latestText\.current \}\);[\s\S]*onSubmit\(\)/);
+  assert.match(observation, /const questionControlsAreVisible = activeQuestion\?\.mode === 'audio-given' \|\| questionControlsVisible/);
+  assert.match(observation, /visible=\{questionControlsAreVisible\}/);
+  assert.match(observation, /onSubmit=\{\(\) => \{ if \(canNext\) void move\('next'\); \}\}/);
+  assert.match(observation, /appearance\.toggleTrigger === 'scroll' && !audioGivenQuestionPhase/);
+  assert.doesNotMatch(observation, /if \(audioGivenQuestionPhase\) \{\s*setQuestionControlsVisible/);
+  assert.doesNotMatch(observation, /Boolean\(audioGivenQuestionPhase\)\)\);/);
+  assert.match(observation, /activeQuestion\?\.mode === 'text-given' && appearance\.toggleTrigger === 'tap'/);
+  assert.match(css, /data-question-mode='audio-given'\] \.question-controls \{ top: calc\(35% \+ 50px\); bottom: max\(0px, env\(safe-area-inset-bottom\)\); width: min\(860px, calc\(100vw - 2rem\)\); overflow: hidden; \}/);
+  assert.match(css, /\.question-answer-editor \{[^}]*width: min\(100%, 725px\); height: 72px;[^}]*font-size: 25px; line-height: 33px;/);
+  assert.match(css, /\.question-keyboard \{[^}]*gap: 7px 0; padding: 7px;[^}]*border-radius: 11px;/);
+  assert.match(css, /\.question-keyboard-row button \{[^}]*flex: 0 1 58px;[^}]*height: 48px;/);
+  assert.doesNotMatch(css, /\.question-keyboard-row button[^\n]*::after/);
+  assert.doesNotMatch(css, /\.google-telugu-input \{[^}]*transform: scale/);
+  assert.match(css, /\.question-keyboard-controls \{[^}]*contain: paint;[^}]*transform: translate3d\(-50%, 32px, 0\);[^}]*will-change: transform;/);
+  assert.match(css, /\.question-keyboard-controls\[data-visible='true'\] \{[^}]*transform: translate3d\(-50%, 0, 0\);/);
+  assert.match(css, /data-question-mode='audio-given'\][\s\S]*\.question-keyboard-controls \{\s*bottom: max\(0px, env\(safe-area-inset-bottom\)\);\s*align-content: end;/);
 });
 
-test('question keyboard Enter submits and combining marks share an explicit dotted-circle anchor', () => {
+test('physical and on-screen Enter submit from above the right Shift key', () => {
   const keyboard = readFileSync(new URL('../frontend/src/observation/GoogleTeluguKeyboard.tsx', import.meta.url), 'utf8');
   const controls = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
-  const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
-  assert.equal(keyboardKeyDisplay('ి'), '◌ి');
-  assert.equal(keyboardKeyDisplay('్ర'), '◌్ర');
-  assert.equal(keyboardKeyDisplay('క'), 'క');
-  assert.match(keyboard, /event\.key === 'Enter'[^}]*event\.preventDefault\(\)[^}]*!event\.repeat[^}]*onSubmit\(\)/);
-  assert.match(keyboard, /className="question-enter-key" aria-label="Show answer" onClick=\{onSubmit\}/);
-  assert.match(controls, /GoogleTeluguKeyboard value=\{text\} onChange=\{changeText\} onSubmit=\{onSubmit\}/);
-  assert.match(observation, /onSubmit=\{\(\) => \{ if \(canNext\) void move\('next'\); \}\}/);
-  assert.match(observation, /activeQuestion\?\.mode === 'audio-given' && event\.key === 'Enter'[\s\S]{0,300}!event\.repeat && canNext\) void move\('next'\)/);
-  assert.match(css, /\.question-keyboard-row button span \{[^}]*display: inline-grid;[^}]*place-items: center;[^}]*font-family: 'Noto Sans Telugu'[^}]*line-height: 1\.4;/);
-  assert.match(keyboard, /const ANSWER_FONT_MAX_PX = 34;[\s\S]*const ANSWER_FONT_MIN_PX = 16;/);
-  assert.match(keyboard, /function fitAnswerEditor\([\s\S]*element\.scrollHeight <= element\.clientHeight \+ 1[\s\S]*useLayoutEffect/);
-  assert.match(css, /\.question-answer-editor \{[^}]*font-size: 34px; line-height: 45px;/);
-});
-
-test('keyboard keeps its calculated surface while using compact staggered interaction zones', () => {
-  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
-  const keyboard = readFileSync(new URL('../frontend/src/observation/GoogleTeluguKeyboard.tsx', import.meta.url), 'utf8');
-  assert.match(css, /\.question-keyboard \{[^}]*background: var\(--keyboard-gradient\); color: var\(--keyboard-ink\);/);
-  assert.doesNotMatch(css, /button:not\(:last-child\)::after/);
-  assert.match(css, /\.question-top-row \{ padding-inline: 1\.7%; \}[\s\S]*\.question-home-row \{ padding-inline: 3\.8%; \}[\s\S]*\.question-bottom-row \{ padding-inline: 6%; \}/);
-  assert.match(css, /button:not\(\[aria-disabled='true'\]\):hover \{ background: radial-gradient/);
-  assert.match(css, /button:not\(\[aria-disabled='true'\]\):active[^}]*transform: scale\(\.94\)/);
-  assert.doesNotMatch(keyboard, /useAppearance|keyFontFamily|OBSERVATION_FONTS/);
+  assert.match(keyboard, /event\.key === 'Enter'[\s\S]*event\.preventDefault\(\);[\s\S]*onSubmit\(\)/);
+  assert.ok(keyboard.indexOf("event.key === 'Enter'") < keyboard.indexOf('event.ctrlKey || event.metaKey || event.altKey || event.shiftKey'));
+  assert.match(keyboard, /event\.target\.value\.replace\(\/\\r\\n\?\|\\n\/g, ' '\)/);
+  assert.match(keyboard, /className="question-enter-key" aria-label="Show comparison" onClick=\{onSubmit\}/);
+  assert.match(keyboard, /question-home-row">\{homeRow\.map\(characterKey\)\}\{enterKey\}<\/div>[\s\S]*question-bottom-row">\{shiftKey\}/);
+  assert.match(keyboard, /question-keyboard-actions">\{controlKey\}[\s\S]*\{controlKey\}<\/div>/);
+  assert.match(css, /\.question-home-row \.question-enter-key \{[^}]*flex-basis: 104px;/);
+  assert.match(controls, /window\.addEventListener\('keydown', submitFromPhysicalKeyboard, true\)/);
+  assert.match(controls, /event\.key !== 'Enter' \|\| event\.repeat \|\| event\.isComposing[\s\S]*event\.preventDefault\(\);[\s\S]*void submitText\(\)/);
 });
 
 test('recording freezes the exact media cursor before a 500ms pre-roll', () => {
@@ -412,7 +407,7 @@ test('scroll controls enter and exit through directional slits', () => {
   assert.match(css, /audio-enter-right[^}]*translateX\(calc\(-50% - 72px\)\)[\s\S]*audio-exit-right[^}]*translateX\(-50%\)/);
   assert.match(css, /audio-enter-left[^}]*translateX\(calc\(-50% \+ 72px\)\)[\s\S]*audio-exit-left[^}]*translateX\(-50%\)/);
   assert.doesNotMatch(css, /clip-path: inset\(0 50%\)/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*:is\(\.audio-player-bar, \.question-record-controls, \.question-keyboard-controls\) \{ animation: none; transition: none;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*:is\(\.audio-player-bar, \.question-record-controls\) \{ animation: none; transition: none;/);
   assert.match(observation, /data-audio-motion=\{audioMotion\}/);
   assert.match(observation, /data-swipe-direction=\{audioMotionDirection === 1 \? 'right' : 'left'\}/);
 });

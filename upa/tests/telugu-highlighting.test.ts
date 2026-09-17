@@ -35,8 +35,28 @@ test('reports immutable renderer cache status for every bundled font', () => {
   assert.equal(snapshot.models.length, 10);
   assert.ok(snapshot.models.every(model => model.state === 'not-started'));
   assert.deepEqual(snapshot.textures, { total: 0, pending: 0, loaded: 0, failed: 0 });
+  assert.deepEqual(snapshot.simpleAlignments, { total: 0, prepared: 0 });
   snapshot.models.pop();
   assert.equal(getTeluguGradientCacheSnapshot().models.length, 10);
+});
+
+test('maps every locked font to a content-addressed static model', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../frontend/src/generated/telugu-font-model-manifest.json', import.meta.url), 'utf8'));
+  const lock = JSON.parse(readFileSync(new URL('../frontend/public/fonts/font-assets.lock.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.version, 2);
+  assert.equal(manifest.simpleFormCount, 525);
+  assert.equal(Object.keys(manifest.fonts).length, lock.fonts.length);
+  for (const font of lock.fonts) {
+    const entry = manifest.fonts[font.family];
+    assert.equal(entry?.fontSha256, font.fontSha256);
+    assert.match(entry?.url ?? '', /^\/font-models\/[a-f0-9]{64}\.json$/);
+    const artifact = JSON.parse(readFileSync(new URL(`../frontend/public${entry.url}`, import.meta.url), 'utf8'));
+    assert.equal(artifact.fontFamily, font.family);
+    assert.equal(Object.keys(artifact.bases ?? {}).length, 35);
+    assert.equal(Object.keys(artifact.alignments ?? {}).length, manifest.simpleFormCount);
+  }
+  const server = readFileSync(new URL('../server/src/app.ts', import.meta.url), 'utf8');
+  assert.match(server, /app\.use\('\/font-models\/\*'[\s\S]*Cache-Control', 'public, max-age=31536000, immutable'/);
 });
 
 test('builds selectable raster runs while preserving the original text', () => {
@@ -46,13 +66,20 @@ test('builds selectable raster runs while preserving the original text', () => {
   assert.deepEqual(runs.filter(run => run.highlighted).map(run => run.text), ['మ్మ', 'కు']);
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   const renderer = readFileSync(new URL('../frontend/src/observation/telugu-gradient-renderer.ts', import.meta.url), 'utf8');
+  const runtimeFontModel = renderer.slice(renderer.indexOf('async function fontModel'), renderer.indexOf('function principalBase'));
   assert.match(css, /\.telugu-gradient-text\.is-ready::before[\s\S]*background: var\(--telugu-gradient-image\)/);
   assert.match(css, /\.telugu-gradient-text[^{]*\{[^}]*display: inline-block[^}]*vertical-align: baseline[^}]*line-height: inherit[^}]*overflow: visible/);
   assert.match(renderer, /const modelCache = new Map<string, Promise<FontModel>>/);
   assert.match(renderer, /const ANALYSIS_SCALE = 2/);
   assert.match(renderer, /const RENDER_SCALE = 1/);
-  assert.match(renderer, /alphaMask\(downsample\(\s*overlapBase\(principalBase\(entry, profile\), checkmarkBase\(entry, consonant\)\),\s*ANALYSIS_SCALE \/ RENDER_SCALE,\s*\)\)/);
+  assert.match(renderer, /async function generateBaseMasks[\s\S]*alphaMask\(downsample\(\s*overlapBase\(principalBase\(entry, profile\), checkmarkBase\(entry, consonant\)\),\s*ANALYSIS_SCALE \/ RENDER_SCALE,\s*\)\)/);
+  assert.match(renderer, /const bases = artifactBases\(artifact\);[\s\S]*if \(bases\.size !== CONSONANTS\.length\) throw/);
+  assert.doesNotMatch(runtimeFontModel, /trainProfile|principalBase|checkmarkBase|overlapBase|rasterize\(consonant/);
   assert.match(renderer, /Math\.max\(metrics\.width, metrics\.actualBoundingBoxRight\)/);
   assert.match(renderer, /canvasContext\(painted\.width, painted\.height\)/);
   assert.match(renderer, /Math\.pow\(Math\.min\(1,[\s\S]*\.925\)[\s\S]*\.42\)/);
+  assert.match(renderer, /const SIMPLE_FORMS = CONSONANTS\.flatMap/);
+  assert.match(renderer, /fetch\(entry\.url, \{ cache: 'force-cache' \}\)/);
+  assert.match(renderer, /generateTeluguFontModelArtifact\([\s\S]*alignments\[text\] = \[dx, dy\]/);
+  assert.match(renderer, /adjustedBase\(target, base, alignment\)/);
 });
