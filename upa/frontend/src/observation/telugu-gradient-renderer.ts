@@ -41,6 +41,12 @@ interface CacheEntryStatus { state: Exclude<CacheState, 'not-started'>; startedA
 const modelStatus = new Map<string, CacheEntryStatus>();
 const textureStatus = new Map<string, CacheEntryStatus>();
 
+export function hasTeluguGradientTexture(
+  text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string,
+): boolean {
+  return textureCache.has(`${fontFamily}\0${text}\0${foreground}\0${endColor}`);
+}
+
 export interface TeluguGradientCacheSnapshot {
   models: Array<{ fontFamily: ObservationFontFamily; state: CacheState; startedAt: number | null; completedAt: number | null }>;
   textures: { total: number; pending: number; loaded: number; failed: number };

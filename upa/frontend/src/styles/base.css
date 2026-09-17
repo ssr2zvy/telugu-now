@@ -106,9 +106,10 @@ button, [role="button"] {
 .loading-slit-window { position: relative; display: block; width: 64px; height: 10px; overflow: hidden; }
 .loading-slit output { color: color-mix(in srgb, currentColor 76%, var(--foreground)); font: 500 .68rem/18px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 .loading-slit-window i { position: absolute; z-index: 2; top: 2px; left: -6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0; animation: loading-slit-dot 2.7s linear infinite; }
-.loading-slit-window i:nth-child(2) { animation-delay: 180ms; }
-.loading-slit-window i:nth-child(3) { animation-delay: 360ms; }
-.loading-slit-window i:nth-child(4) { animation-delay: 540ms; }
+.loading-slit-window i:nth-child(1) { animation-delay: -720ms; }
+.loading-slit-window i:nth-child(2) { animation-delay: -540ms; }
+.loading-slit-window i:nth-child(3) { animation-delay: -360ms; }
+.loading-slit-window i:nth-child(4) { animation-delay: -180ms; }
 @keyframes loading-slit-dot { 0% { opacity: 0; transform: translateX(0) scale(.65); } 7% { opacity: 1; } 30% { transform: translateX(35px) scale(1); } 52% { opacity: 1; } 58% { opacity: 0; transform: translateX(76px) scale(.65); } 100% { opacity: 0; transform: translateX(76px) scale(.65); } }
 @media (prefers-reduced-motion: reduce) { .loading-slit-window { display: flex; align-items: center; justify-content: center; gap: 6px; } .loading-slit-window i { position: static; opacity: .7; animation: none; } }
 /* Shade each control once, including compound fields, without dimming page content.

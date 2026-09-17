@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { ArrowUp, Delete } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { ArrowUp, CornerDownLeft, Delete } from 'lucide-react';
 import { useAppearance } from '../appearance';
 import { OBSERVATION_FONTS } from '../presentation';
 
@@ -95,13 +95,39 @@ const SHIFT_CTRL_ALT_HOME_ROW = HOME_ROW.map(key => ({ code: key.code, output: k
 const SHIFT_CTRL_ALT_BOTTOM_ROW = BOTTOM_ROW.map(key => ({ code: key.code, output: key.code === '.' ? 'ఽ' : '' }));
 const KEY_OUTPUT = new Map([...NUMBER_ROW, ...TOP_ROW, ...HOME_ROW, ...BOTTOM_ROW].map(key => [key.code, key.output]));
 const CARET_IDLE_DELAY_MS = 500;
+const COMBINING_MARK = /^\p{M}/u;
+const ANSWER_FONT_MAX_PX = 34;
+const ANSWER_FONT_MIN_PX = 16;
+
+function fitAnswerEditor(element: HTMLTextAreaElement): void {
+  let low = ANSWER_FONT_MIN_PX;
+  let high = ANSWER_FONT_MAX_PX;
+  let best = low;
+  for (let iteration = 0; iteration < 6; iteration += 1) {
+    const candidate = (low + high) / 2;
+    element.style.fontSize = `${candidate}px`;
+    element.style.lineHeight = `${Math.ceil(candidate * 1.3)}px`;
+    if (element.scrollHeight <= element.clientHeight + 1) {
+      best = candidate;
+      low = candidate;
+    } else {
+      high = candidate;
+    }
+  }
+  element.style.fontSize = `${best}px`;
+  element.style.lineHeight = `${Math.ceil(best * 1.3)}px`;
+}
+
+export function keyboardKeyDisplay(output: string): string {
+  return COMBINING_MARK.test(output) ? `\u25cc${output}` : output;
+}
 
 function removeLastGrapheme(value: string): string {
   const segments = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(value)];
   return value.slice(0, segments.at(-1)?.index ?? 0);
 }
 
-export function GoogleTeluguKeyboard({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: string; onChange: (value: string) => void; onSubmit: () => void }) {
   const { appearance } = useAppearance();
   const [keyFontFamily] = useState(() => {
     const pool = appearance.fonts.length ? appearance.fonts : OBSERVATION_FONTS;
@@ -147,13 +173,21 @@ export function GoogleTeluguKeyboard({ value, onChange }: { value: string; onCha
     }
     syncScrolledUp();
   }, [value]);
+  useLayoutEffect(() => {
+    const element = editor.current;
+    if (element) fitAnswerEditor(element);
+  }, [value]);
   useEffect(() => {
     // The Telugu webfont swaps in with font-display: swap well after mount,
     // silently changing line metrics without any value change to re-trigger
     // the snap above -- this is what "settles after a bit of typing" was:
     // the box looked fine on the fallback font, then clipped once it swapped.
     let cancelled = false;
-    void document.fonts.ready.then(() => { if (!cancelled) snapIfAtEnd(); });
+    void document.fonts.ready.then(() => {
+      if (cancelled) return;
+      if (editor.current) fitAnswerEditor(editor.current);
+      snapIfAtEnd();
+    });
     return () => { cancelled = true; };
   }, []);
   if (value !== latestPropValue.current) {
@@ -205,14 +239,16 @@ export function GoogleTeluguKeyboard({ value, onChange }: { value: string; onCha
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (event.key === 'Enter') { event.preventDefault(); if (!event.repeat) onSubmit(); return; }
     if (event.key === 'Backspace') { event.preventDefault(); backspace(); return; }
     if (event.key === ' ') { event.preventDefault(); edit(' '); return; }
     const output = KEY_OUTPUT.get(event.key.toLowerCase());
     if (output) { event.preventDefault(); edit(output); }
   };
-  const characterKey = (key: CharacterKey) => <button type="button" key={key.code} aria-label={key.output ? `${key.code}: ${key.output}` : `${key.code}: unavailable`} aria-disabled={!key.output} onClick={() => { if (key.output) edit(key.output); }}><span>{key.output || '\u00a0'}</span></button>;
+  const characterKey = (key: CharacterKey) => <button type="button" key={key.code} aria-label={key.output ? `${key.code}: ${key.output}` : `${key.code}: unavailable`} aria-disabled={!key.output} onClick={() => { if (key.output) edit(key.output); }}><span>{key.output ? keyboardKeyDisplay(key.output) : '\u00a0'}</span></button>;
   const shiftKey = <button type="button" className="question-shift-key" aria-label={shifted ? 'Show unshifted keys' : 'Show shifted keys'} aria-pressed={shifted} onClick={() => setShifted(current => !current)}><ArrowUp aria-hidden="true" strokeWidth={1.5} /></button>;
   const controlKey = <button type="button" className="question-control-key" aria-label={controlAlt ? 'Disable Control Alt' : 'Enable Control Alt'} aria-pressed={controlAlt} onClick={() => setControlAlt(current => !current)}>కంట్రోల్ + ఆల్ట్</button>;
+  const enterKey = <button type="button" className="question-enter-key" aria-label="Show answer" onClick={onSubmit}><CornerDownLeft aria-hidden="true" strokeWidth={1.5} /></button>;
   const numberRow = shifted && controlAlt ? SHIFT_CTRL_ALT_NUMBER_ROW : shifted ? SHIFT_NUMBER_ROW : controlAlt ? CTRL_ALT_NUMBER_ROW : NUMBER_ROW;
   const topRow = shifted && controlAlt ? SHIFT_CTRL_ALT_TOP_ROW : shifted ? SHIFT_TOP_ROW : controlAlt ? CTRL_ALT_TOP_ROW : TOP_ROW;
   const homeRow = shifted && controlAlt ? SHIFT_CTRL_ALT_HOME_ROW : shifted ? SHIFT_HOME_ROW : controlAlt ? CTRL_ALT_HOME_ROW : HOME_ROW;
@@ -225,7 +261,7 @@ export function GoogleTeluguKeyboard({ value, onChange }: { value: string; onCha
       <div className="question-keyboard-row question-top-row">{topRow.map(characterKey)}</div>
       <div className="question-keyboard-row question-home-row">{homeRow.map(characterKey)}</div>
       <div className="question-keyboard-row question-bottom-row">{shiftKey}{bottomRow.map(characterKey)}{shiftKey}</div>
-      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}</div>
+      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}{enterKey}</div>
     </div>
   </div>;
 }

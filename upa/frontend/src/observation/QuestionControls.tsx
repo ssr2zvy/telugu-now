@@ -19,9 +19,10 @@ interface QuestionControlsProps {
   durationSeconds: () => number;
   onAudioSaved: (audio: ObservationAudio, cursorSeconds: number) => void;
   onRecordingChange: (range: RecordingTimeline | null) => void;
+  onSubmit: () => void;
 }
 
-export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, responseAudio, beginRecording, durationSeconds, onAudioSaved, onRecordingChange }: QuestionControlsProps) {
+export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, responseAudio, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
@@ -150,9 +151,8 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
     {error ? <div className="question-response-error" role="alert">Recording could not be saved.</div> : null}
   </div>;
 
-  if (!visible) return null;
-  return <div className="question-controls question-keyboard-controls">
-    <GoogleTeluguKeyboard value={text} onChange={changeText} />
+  return <div className="question-controls question-keyboard-controls" data-visible={visible} aria-hidden={!visible} inert={!visible}>
+    <GoogleTeluguKeyboard value={text} onChange={changeText} onSubmit={onSubmit} />
     {error ? <div className="question-response-error" role="alert">Answer could not be saved.</div> : null}
   </div>;
 }

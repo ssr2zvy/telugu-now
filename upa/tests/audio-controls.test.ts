@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { keyboardKeyDisplay } from '../frontend/src/observation/GoogleTeluguKeyboard';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -211,6 +212,40 @@ test('record control overrides the shared transport glyph size', () => {
   assert.doesNotMatch(css, /data-question-mode='text-given'\] \.(?:observation-text|audio-player-bar)/);
 });
 
+test('audio-given keyboard follows the selected trigger and fills the bottom viewport edges', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  const controls = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
+  const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(controls, /if \(!visible\) return null/);
+  assert.match(controls, /question-keyboard-controls" data-visible=\{visible\} aria-hidden=\{!visible\} inert=\{!visible\}/);
+  assert.match(observation, /visible=\{questionControlsVisible\}/);
+  assert.match(observation, /appearance\.toggleTrigger === 'scroll'[\s\S]*setQuestionControlsVisible/);
+  assert.match(observation, /activeQuestion && appearance\.toggleTrigger === 'tap'[\s\S]*setQuestionControlsVisible/);
+  assert.match(css, /data-question-mode='audio-given'\] \.question-controls \{ inset: calc\(35% \+ 50px\) 0 0; width: auto; transform: none; \}/);
+  assert.match(css, /data-question-mode='audio-given'\] :is\(\.question-keyboard-controls, \.google-telugu-input\) \{ height: 100%; \}/);
+  assert.match(css, /\.question-keyboard \{[^}]*grid-template-rows: repeat\(5, minmax\(0, 1fr\)\);[^}]*border-radius: 10px 10px 0 0;/);
+  assert.match(css, /data-question-mode='audio-given'\] \.question-keyboard-row button \{ flex-grow: 1; height: 100%; \}/);
+});
+
+test('question keyboard Enter submits and combining marks share an explicit dotted-circle anchor', () => {
+  const keyboard = readFileSync(new URL('../frontend/src/observation/GoogleTeluguKeyboard.tsx', import.meta.url), 'utf8');
+  const controls = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
+  const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.equal(keyboardKeyDisplay('ి'), '◌ి');
+  assert.equal(keyboardKeyDisplay('్ర'), '◌్ర');
+  assert.equal(keyboardKeyDisplay('క'), 'క');
+  assert.match(keyboard, /event\.key === 'Enter'[^}]*event\.preventDefault\(\)[^}]*!event\.repeat[^}]*onSubmit\(\)/);
+  assert.match(keyboard, /className="question-enter-key" aria-label="Show answer" onClick=\{onSubmit\}/);
+  assert.match(controls, /GoogleTeluguKeyboard value=\{text\} onChange=\{changeText\} onSubmit=\{onSubmit\}/);
+  assert.match(observation, /onSubmit=\{\(\) => \{ if \(canNext\) void move\('next'\); \}\}/);
+  assert.match(observation, /activeQuestion\?\.mode === 'audio-given' && event\.key === 'Enter'[\s\S]{0,300}!event\.repeat && canNext\) void move\('next'\)/);
+  assert.match(css, /\.question-keyboard-row button span \{[^}]*display: inline-grid;[^}]*place-items: center;[^}]*line-height: 1\.35;/);
+  assert.match(keyboard, /const ANSWER_FONT_MAX_PX = 34;[\s\S]*const ANSWER_FONT_MIN_PX = 16;/);
+  assert.match(keyboard, /function fitAnswerEditor\([\s\S]*element\.scrollHeight <= element\.clientHeight \+ 1[\s\S]*useLayoutEffect/);
+  assert.match(css, /\.question-answer-editor \{[^}]*font-size: 34px; line-height: 45px;/);
+});
+
 test('recording freezes the exact media cursor before a 500ms pre-roll', () => {
   const playerSource = readFileSync(new URL('../frontend/src/observation/audio/AudioPlayerBar.tsx', import.meta.url), 'utf8');
   const controlsSource = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
@@ -366,7 +401,17 @@ test('scroll controls enter and exit through directional slits', () => {
   assert.match(css, /audio-enter-right[^}]*translateX\(calc\(-50% - 72px\)\)[\s\S]*audio-exit-right[^}]*translateX\(-50%\)/);
   assert.match(css, /audio-enter-left[^}]*translateX\(calc\(-50% \+ 72px\)\)[\s\S]*audio-exit-left[^}]*translateX\(-50%\)/);
   assert.doesNotMatch(css, /clip-path: inset\(0 50%\)/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*:is\(\.audio-player-bar, \.question-record-controls\) \{ animation: none; transition: none;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*:is\(\.audio-player-bar, \.question-record-controls, \.question-keyboard-controls\) \{ animation: none; transition: none;/);
   assert.match(observation, /data-audio-motion=\{audioMotion\}/);
   assert.match(observation, /data-swipe-direction=\{audioMotionDirection === 1 \? 'right' : 'left'\}/);
+});
+
+test('mobile observation controls are larger and text wraps only between words', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /\.observation-text \{[^}]*overflow-wrap: normal; word-break: normal;/);
+  const desktopTouchAction = css.indexOf('.observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }');
+  const mobileTouchAction = css.indexOf('.observation-screen[data-scroll-mode="true"] { touch-action: pan-x pinch-zoom; }');
+  assert.ok(mobileTouchAction > desktopTouchAction, 'mobile touch action must override the desktop rule');
+  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.audio-player-bar \{ grid-template-rows: 56px 112px; width: min\(520px, calc\(100vw - 24px\)\); \}/);
+  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.audio-precision-panel \{ --audio-detail-track-height: 44px; --audio-detail-track-width: 64%; \}/);
 });

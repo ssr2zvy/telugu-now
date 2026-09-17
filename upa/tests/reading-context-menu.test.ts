@@ -70,6 +70,9 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(css, /\.word-image-preview img \{[^}]*object-fit: cover/);
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*grid-template-columns: minmax\(0, 1fr\); grid-template-rows: minmax\(180px, 40dvh\) minmax\(0, 1fr\)/);
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-profile-gradient \{ clip-path: inset\(0 0 60% 0\); \}/);
+  assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-profile-header h2 \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+  assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-image-gallery \{ display: flex; flex-direction: column; align-items: center;/);
+  assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-image-gallery button \{[^}]*width: min\(44vw, 180px\);/);
 });
 
 test('errors enter over the bottom-right corner and fade within fifteen seconds', () => {

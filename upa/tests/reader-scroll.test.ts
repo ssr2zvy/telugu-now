@@ -19,9 +19,9 @@ test('every horizontal swipe toggles the audio bar regardless of direction', () 
 test('horizontal swipes fire once, suppress their click, and leave the next intentional tap alone', () => {
   const scroll = new ReaderScroll();
   scroll.begin(1, 100, 100);
-  assert.deepEqual(scroll.move(1, 104, 102), { moved: false, horizontal: false, direction: null });
-  assert.deepEqual(scroll.move(1, 120, 102), { moved: true, horizontal: true, direction: null });
-  assert.deepEqual(scroll.move(1, 160, 102), { moved: true, horizontal: true, direction: 1 });
+  assert.deepEqual(scroll.move(1, 104, 102), { moved: false, handled: false, direction: null });
+  assert.deepEqual(scroll.move(1, 120, 102), { moved: true, handled: true, direction: null });
+  assert.deepEqual(scroll.move(1, 160, 102), { moved: true, handled: true, direction: 1 });
   assert.equal(scroll.move(1, 200, 102).direction, null);
   assert.equal(scroll.move(1, 20, 102).direction, null);
   scroll.end(1);
@@ -36,11 +36,22 @@ test('horizontal swipes fire once, suppress their click, and leave the next inte
   assert.equal(scroll.consumeClick(), false);
 });
 
-test('vertical drags, cancellation, other pointers, and tiny movements never reveal audio', () => {
+test('vertical touch swipes reveal audio without changing horizontal desktop gestures', () => {
+  const scroll = new ReaderScroll();
+  scroll.begin(1, 100, 100);
+  assert.deepEqual(scroll.move(1, 104, 120, 'vertical'), { moved: true, handled: true, direction: null });
+  assert.deepEqual(scroll.move(1, 104, 160, 'vertical'), { moved: true, handled: true, direction: 1 });
+  scroll.end(1);
+  scroll.newPointer();
+  scroll.begin(2, 100, 200);
+  assert.equal(scroll.move(2, 100, 140, 'vertical').direction, -1);
+});
+
+test('off-axis drags, cancellation, other pointers, and tiny movements never reveal audio', () => {
   const scroll = new ReaderScroll();
   scroll.begin(1, 100, 100);
   assert.equal(scroll.move(2, 200, 100).direction, null);
-  assert.deepEqual(scroll.move(1, 104, 130), { moved: true, horizontal: false, direction: null });
+  assert.deepEqual(scroll.move(1, 104, 130), { moved: true, handled: false, direction: null });
   assert.equal(scroll.move(1, 250, 130).direction, null);
   scroll.end(1);
   assert.equal(scroll.move(1, 300, 130).direction, null);

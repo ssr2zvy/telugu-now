@@ -1,7 +1,7 @@
 .observation-screen { --nav-width: max(3.5rem, 16vw); --audio-base-bottom: var(--audio-placement-bottom); --audio-min-bottom: var(--audio-placement-bottom); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
 .observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }
 .observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-base-bottom) + 60px); }
-.observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
+.observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
 .telugu-gradient-text { position: relative; display: inline-block; vertical-align: baseline; line-height: inherit; overflow: visible; color: var(--foreground); }
 .telugu-gradient-text.is-ready { color: transparent; }
 .telugu-gradient-text.is-ready::before { content: ''; position: absolute; left: var(--telugu-gradient-left); top: var(--telugu-gradient-top); width: var(--telugu-gradient-width); height: var(--telugu-gradient-height); background: var(--telugu-gradient-image) center / 100% 100% no-repeat; pointer-events: none; }
@@ -34,6 +34,9 @@
 .audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px 92px; align-items: center; gap: var(--audio-timestamp-gap, 1px) 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
 .audio-player-bar[data-has-audio="false"] { display: none; }
 .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
+@media (hover: none) and (pointer: coarse) {
+  .observation-screen[data-scroll-mode="true"] { touch-action: pan-x pinch-zoom; }
+}
 .observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="right"].controls-visible .audio-player-bar { animation: audio-enter-right var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
 .observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="left"].controls-visible .audio-player-bar { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
 .observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="right"]:not(.controls-visible) .audio-player-bar { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
@@ -42,12 +45,20 @@
 .observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="enter"][data-swipe-direction="left"] .question-record-controls[data-visible="true"] { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
 .observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="exit"][data-swipe-direction="right"] .question-record-controls[data-visible="false"] { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
 .observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="exit"][data-swipe-direction="left"] .question-record-controls[data-visible="false"] { animation: audio-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
+.observation-screen[data-scroll-mode="true"][data-question-mode="audio-given"][data-audio-motion="enter"][data-swipe-direction="right"] .question-keyboard-controls[data-visible="true"] { animation: question-keyboard-enter-right var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
+.observation-screen[data-scroll-mode="true"][data-question-mode="audio-given"][data-audio-motion="enter"][data-swipe-direction="left"] .question-keyboard-controls[data-visible="true"] { animation: question-keyboard-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
+.observation-screen[data-scroll-mode="true"][data-question-mode="audio-given"][data-audio-motion="exit"][data-swipe-direction="right"] .question-keyboard-controls[data-visible="false"] { animation: question-keyboard-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
+.observation-screen[data-scroll-mode="true"][data-question-mode="audio-given"][data-audio-motion="exit"][data-swipe-direction="left"] .question-keyboard-controls[data-visible="false"] { animation: question-keyboard-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
 @keyframes audio-enter-right { from { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
 @keyframes audio-enter-left { from { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
 @keyframes audio-exit-right { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } }
 @keyframes audio-exit-left { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } }
+@keyframes question-keyboard-enter-right { from { opacity: 0; transform: translateX(-72px); } to { opacity: 1; transform: none; } }
+@keyframes question-keyboard-enter-left { from { opacity: 0; transform: translateX(72px); } to { opacity: 1; transform: none; } }
+@keyframes question-keyboard-exit-right { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(72px); } }
+@keyframes question-keyboard-exit-left { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-72px); } }
 @media (prefers-reduced-motion: reduce) {
-  .observation-screen[data-scroll-mode="true"] :is(.audio-player-bar, .question-record-controls) { animation: none; transition: none; }
+  .observation-screen[data-scroll-mode="true"] :is(.audio-player-bar, .question-record-controls, .question-keyboard-controls) { animation: none; transition: none; }
 }
 .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: 92px 48px; }
 .audio-transport-button { display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; touch-action: manipulation; }
@@ -124,15 +135,17 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-controls { position: absolute; z-index: 6; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); width: min(760px, calc(100vw - 2rem)); transform: translateX(-50%); }
 .observation-screen[data-question-mode='audio-given'] .observation-center:has(.audio-player-bar[data-has-audio='true']) { margin-bottom: 0; }
 .observation-screen[data-question-mode='audio-given'] .audio-player-bar { top: 35%; bottom: auto; transform: translate(-50%, -50%); }
-.observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 50px); bottom: auto; }
+.observation-screen[data-question-mode='audio-given'] .question-controls { inset: calc(35% + 50px) 0 0; width: auto; transform: none; }
 .observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: calc(var(--audio-bottom) + 140px); }
 .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .question-record-button { width: 48px; height: 48px; }
 .question-record-button .control-icon { width: 25px; height: 25px; }
 .question-response-error { padding: 5px 8px; background: var(--surface); color: #b42318; font-size: .8rem; }
-.question-keyboard-controls, .google-telugu-input { display: grid; gap: 8px; }
-.google-telugu-input { position: relative; }
+.question-keyboard-controls { display: grid; min-height: 0; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+.question-keyboard-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
+.google-telugu-input { position: relative; display: grid; grid-template-rows: 64px minmax(0, 1fr); gap: 8px; min-height: 0; }
+.observation-screen[data-question-mode='audio-given'] :is(.question-keyboard-controls, .google-telugu-input) { height: 100%; }
 /* Floats above the text box when earlier lines are scrolled out of view. */
 .question-answer-more { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 18px; line-height: 1; letter-spacing: 2px; pointer-events: none; }
 /* A plain visible textarea between the audio bar and the keyboard: fixed
@@ -141,17 +154,18 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
    line is geometrically impossible in any scroll position. The taller
    line-height (vs. the 22px font) gives Telugu's stacked vowel signs room
    so they don't read as sitting above the caret's vertical center. */
-.question-answer-editor { display: block; box-sizing: border-box; justify-self: center; width: min(100%, 640px); height: 64px; padding: 2px 16px; border: 0; outline: 0; background: transparent; color: var(--foreground); font-family: 'Noto Sans Telugu', sans-serif; font-size: 22px; line-height: 30px; text-align: center; overflow-y: auto; overscroll-behavior: contain; resize: none; scrollbar-width: none; }
+.question-answer-editor { display: block; box-sizing: border-box; justify-self: center; width: min(100%, 640px); height: 64px; padding: 2px 16px; border: 0; outline: 0; background: transparent; color: var(--foreground); font-family: 'Noto Sans Telugu', sans-serif; font-size: 34px; line-height: 45px; text-align: center; overflow-y: auto; overscroll-behavior: contain; resize: none; scrollbar-width: none; }
 .question-answer-editor::-webkit-scrollbar { display: none; }
 .question-answer-editor:focus, .question-answer-editor:focus-visible { border: 0; outline: 0; box-shadow: none; }
 /* A visible border makes the inset between edge keys and the panel outline
    read as an intentional frame rather than a dead strip. */
-.question-keyboard { display: grid; gap: 6px 0; padding: 6px; border: 0; border-radius: 10px; background: var(--keyboard-gradient); color: var(--keyboard-ink); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--keyboard-glow) 30%, transparent), inset 0 0 30px color-mix(in srgb, var(--keyboard-glow) 12%, transparent), 0 8px 24px rgb(0 0 0 / .09); overflow: hidden; }
+.question-keyboard { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 6px 0; min-height: 0; padding: 6px max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); border: 0; border-radius: 10px 10px 0 0; background: var(--keyboard-gradient); color: var(--keyboard-ink); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--keyboard-glow) 30%, transparent), inset 0 0 30px color-mix(in srgb, var(--keyboard-glow) 12%, transparent), 0 8px 24px rgb(0 0 0 / .09); overflow: hidden; }
 .question-keyboard-row { position: relative; display: flex; justify-content: center; gap: 0; }
 /* No box or border ever needs to reach the panel edge: hovering/pressing a
    key never paints a box, it only recolors the glyph itself, same as the
    audio bar's icon hover treatment. */
 .question-keyboard-row button { position: relative; display: grid; grid-template-columns: 1fr; place-items: center; flex: 0 1 52px; min-width: 32px; height: 43px; padding: 3px 7px; border: 0; border-radius: 6px; background: transparent; color: color-mix(in srgb, var(--keyboard-ink) 55%, gray 45%); font: inherit; cursor: pointer; box-shadow: none; }
+.observation-screen[data-question-mode='audio-given'] .question-keyboard-row button { flex-grow: 1; height: 100%; }
 /* Barely-there divider between keys, not a visible grid. */
 .question-keyboard-row button:not(:last-child)::after { content: ''; position: absolute; top: 20%; right: 0; bottom: 20%; width: 1px; background: currentColor; opacity: .08; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -159,19 +173,40 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 }
 .question-keyboard-row button:not([aria-disabled='true']):active, .question-keyboard-row button[aria-pressed='true'] { color: color-mix(in srgb, var(--keyboard-ink) 35%, var(--keyboard-accent) 65%); }
 .question-keyboard-row button[aria-disabled='true'] { cursor: default; }
-.question-keyboard-row button span { font-family: var(--question-keyboard-font, 'Noto Sans Telugu'), 'Noto Sans Telugu', sans-serif; font-size: 1.35rem; line-height: 1; }
+.question-keyboard-row button span { display: inline-grid; min-width: 1.6em; place-items: center; font-family: var(--question-keyboard-font, 'Noto Sans Telugu'), 'Noto Sans Telugu', sans-serif; font-size: 1.35rem; line-height: 1.35; text-align: center; }
 .question-number-row .question-backspace-key { grid-template-columns: 1fr; flex-basis: 92px; }
 .question-bottom-row .question-shift-key { grid-template-columns: 1fr; flex-basis: 104px; }
 .question-shift-key svg { width: 17px; height: 17px; justify-self: center; }
 .question-backspace-key svg { width: 21px; height: 21px; justify-self: center; }
 .question-keyboard-actions .question-control-key { display: grid; grid-template-columns: 1fr; flex-basis: 140px; }
 .question-keyboard-actions .question-space-key { display: grid; grid-template-columns: 1fr; flex-basis: 440px; }
+.question-keyboard-actions .question-enter-key { flex-basis: 92px; }
 .question-keyboard-actions svg { width: 17px; height: 17px; justify-self: center; }
 .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
 @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
   .audio-glass-icon { background: var(--audio-glass-gradient); -webkit-mask-image: var(--audio-icon-mask); mask-image: var(--audio-icon-mask); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); filter: brightness(var(--control-brightness, .85)); }
   .audio-glass-icon > svg { opacity: 0; }
 }
-@media (max-width: 600px) { .observation-screen { --nav-width: 13vw; } .question-controls { width: calc(100vw - .5rem); } .question-keyboard { padding: 3px; } .question-keyboard-row button { min-width: 0; height: 36px; padding-inline: 2px; } .question-keyboard-row button span { font-size: 1.05rem; } .question-number-row .question-backspace-key { flex-basis: 64px; } .question-bottom-row .question-shift-key { flex-basis: 60px; } .question-keyboard-actions .question-control-key { flex-basis: 104px; font-size: .61rem; white-space: nowrap; } .question-keyboard-actions .question-space-key { flex-basis: 240px; } }
+@media (max-width: 600px) and (hover: none) and (pointer: coarse) {
+  .audio-player-bar { grid-template-rows: 56px 112px; width: min(520px, calc(100vw - 24px)); }
+  .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: 112px 56px; }
+  .audio-precision-panel { --audio-detail-track-height: 44px; --audio-detail-track-width: 64%; }
+  .audio-transport-button, .audio-bookmark-controls-slot, .audio-playback-controls-slot { width: 56px; height: 56px; }
+  .audio-transport-button .control-icon, .audio-glass-icon { width: 22px; height: 22px; }
+  .audio-bookmark-button .control-icon { width: 24px; height: 24px; }
+  .audio-scrubber { height: 56px; }
+}
+@media (max-width: 600px) {
+  .observation-screen { --nav-width: 13vw; }
+  .question-controls { width: calc(100vw - .5rem); }
+  .question-keyboard { padding: 3px; }
+  .question-keyboard-row button { min-width: 0; height: 36px; padding-inline: 2px; }
+  .question-keyboard-row button span { font-size: 1.05rem; }
+  .question-number-row .question-backspace-key { flex-basis: 64px; }
+  .question-bottom-row .question-shift-key { flex-basis: 60px; }
+  .question-keyboard-actions .question-control-key { flex-basis: 104px; font-size: .61rem; white-space: nowrap; }
+  .question-keyboard-actions .question-space-key { flex-basis: 240px; }
+  .question-keyboard-actions .question-enter-key { flex-basis: 56px; }
+}
 @media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
 @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }

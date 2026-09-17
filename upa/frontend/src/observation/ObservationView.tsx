@@ -31,7 +31,7 @@ import { addBlacklistEntry } from '../api';
 import { QuestionControls } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguGradientText } from './TeluguGradientText';
-import { renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
+import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
 import { observationShowsPhaseIndicator, observationShowsText } from './observation-content';
 import { visibleWordAtPoint } from './visible-glyph-hit-testing';
 
@@ -187,9 +187,10 @@ export function ObservationView({
       assignedFont,
     );
   const showsObservationText = observationShowsText(observation);
-  const highlightRuns = showsObservationText && appearance.highlightMods && observation
+  const presentationHighlightRuns = appearance.highlightMods && observation
     ? teluguHighlightRuns(observation.text)
     : null;
+  const highlightRuns = showsObservationText ? presentationHighlightRuns : null;
   const gradientEndColor = appearanceModificationColor(appearance);
   // The rolling prewarm window covers every deck entry adjacent to the
   // current observation - the one behind and the one ahead - so that by the
@@ -205,7 +206,7 @@ export function ObservationView({
     }
     let cancelled = false;
     const waitForIdle = () => new Promise<void>(resolve => {
-      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve());
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
       else window.setTimeout(resolve, 0);
     });
     const worker = async () => {
@@ -272,11 +273,42 @@ export function ObservationView({
     initialGateAppliedRef.current = true;
     setInitialGateResolved(true);
   }, [observation?.id, neighborsPrewarmed]);
-  const gradientKey = highlightRuns?.some(run => run.highlighted) && observation
+  const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
     ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, observation.text].join('\0')
     : null;
+  const gradientKey = showsObservationText ? presentationGradientKey : null;
   useEffect(() => {
-    if (!gradientKey || !highlightRuns) return;
+    if (showsObservationText || !observation) return;
+    const hiddenObservation = observation;
+    let cancelled = false;
+    const waitForIdle = () => new Promise<void>(resolve => {
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+      else window.setTimeout(resolve, 0);
+    });
+    const run = async () => {
+      await document.fonts.load(`400 220px "${typography.fontFamily}"`, hiddenObservation.text.slice(0, 64));
+      if (!presentationGradientKey || !presentationHighlightRuns
+        || gradientPresentation?.key === presentationGradientKey) return;
+      const textures: Array<TeluguGradientTexture | null> = [];
+      for (const highlightRun of presentationHighlightRuns) {
+        if (cancelled) return;
+        if (!highlightRun.highlighted) {
+          textures.push(null);
+          continue;
+        }
+        await waitForIdle();
+        if (cancelled) return;
+        textures.push(await renderTeluguGradientTexture(
+          highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+        ));
+      }
+      if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
+    };
+    void run().catch(() => {});
+    return () => { cancelled = true; };
+  }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor]);
+  useEffect(() => {
+    if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
     let cancelled = false;
     const total = highlightRuns.filter(run => run.highlighted).length;
     setGradientProgress({ key: gradientKey, completed: 0, total });
@@ -290,7 +322,9 @@ export function ObservationView({
       for (const highlightRun of highlightRuns) {
         if (cancelled) return;
         if (highlightRun.highlighted) {
-          await nextFrame();
+          if (!hasTeluguGradientTexture(
+            highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+          )) await nextFrame();
           if (cancelled) return;
           const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor);
           textures.push(texture);
@@ -304,7 +338,7 @@ export function ObservationView({
     };
     void run().catch(() => { if (!cancelled) setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) }); });
     return () => { cancelled = true; };
-  }, [gradientKey]);
+  }, [gradientKey, gradientPresentation?.key]);
   const gradientsReady = !gradientKey || gradientPresentation?.key === gradientKey;
   const textReady = typography.ready && gradientsReady;
   const audioLoading = Boolean(audioReadinessKey)
@@ -333,6 +367,29 @@ export function ObservationView({
       ? [neighborPrewarmReadyIds.size / neighborAssignments.length] : []),
   ];
   const entryProgress = entryReady ? 1 : progressParts.reduce((sum, progress) => sum + progress, 0) / Math.max(1, progressParts.length);
+  useEffect(() => {
+    if (entryReady || !observation) return;
+    const timer = window.setTimeout(() => {
+      console.warn('[telugu-now] observation readiness stalled', {
+        observationId: observation.id,
+        progress: Math.round(entryProgress * 100),
+        gates: {
+          initialPrewarm: initialGateResolved,
+          typography: !showsObservationText || typography.ready,
+          gradients: !gradientKey || gradientPresentation?.key === gradientKey,
+          gradientProgress: gradientKey && gradientProgress?.key === gradientKey
+            ? { completed: gradientProgress.completed, total: gradientProgress.total }
+            : null,
+          audio: !audioReadinessKey || !audioLoading,
+          audioProgress: audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : null,
+        },
+        gradientCache: getTeluguGradientCacheSnapshot(),
+      });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [entryReady, observation?.id, entryProgress, initialGateResolved, showsObservationText,
+    typography.ready, gradientKey, gradientPresentation?.key, gradientProgress,
+    audioReadinessKey, audioLoading, audioReadiness]);
   const canBack =
     Boolean(state?.canBack) &&
     !busy &&
@@ -383,6 +440,13 @@ export function ObservationView({
       }}
       onKeyDownCapture={(event) => {
         if (observation && !entryReady) return;
+        if (activeQuestion?.mode === 'audio-given' && event.key === 'Enter'
+          && !(event.target instanceof Element && event.target.closest('button:not(.question-enter-key), a'))) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!event.repeat && canNext) void move('next');
+          return;
+        }
         if (event.target === event.currentTarget && (event.key === ' ' || event.key === 'Enter')) {
           event.preventDefault();
           if (!event.repeat) playerRef.current?.togglePlay();
@@ -396,7 +460,7 @@ export function ObservationView({
       }}
       tabIndex={0}
       aria-label={appearance.scrollMode
-        ? 'Reader. Tap to play or pause. Swipe left or right to show or hide audio controls.'
+        ? 'Reader. Tap to play or pause. Swipe to show or hide audio controls.'
         : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
       onContextMenu={(event) => {
         if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
@@ -598,7 +662,7 @@ export function ObservationView({
             observationId={observation.id}
             mode={activeQuestion.mode}
             keyboard={activeQuestion.keyboard}
-            visible={activeQuestion.mode === 'audio-given' || questionControlsVisible}
+            visible={questionControlsVisible}
             initialText={activeQuestion.responseText}
             responseAudio={responseAudio}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}
@@ -610,6 +674,7 @@ export function ObservationView({
               setControlsVisible(true);
             }}
             onRecordingChange={setRecordingRange}
+            onSubmit={() => { if (canNext) void move('next'); }}
           /> : null}
       </section>
       <div className="nav-region">

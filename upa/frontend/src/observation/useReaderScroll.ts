@@ -40,9 +40,14 @@ export function useReaderScroll(
 
   const move = (event: PointerEvent<HTMLElement>) => {
     if (!enabled) return;
-    const update = gesture.move(event.pointerId, event.clientX, event.clientY);
+    const update = gesture.move(
+      event.pointerId,
+      event.clientX,
+      event.clientY,
+      event.pointerType === 'touch' ? 'vertical' : 'horizontal',
+    );
     if (update.moved) callbacks.current.cancelTaps();
-    if (update.horizontal) {
+    if (update.handled) {
       event.preventDefault();
       window.getSelection()?.removeAllRanges();
       if (event.type !== 'pointerup' && !event.currentTarget.hasPointerCapture(event.pointerId)) {

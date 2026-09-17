@@ -1,4 +1,5 @@
 export type ScrollDirection = -1 | 1;
+export type ScrollAxis = 'horizontal' | 'vertical';
 const INTENT_DISTANCE = 12;
 const REVEAL_DISTANCE = 48;
 const WHEEL_IDLE_MS = 180;
@@ -24,9 +25,9 @@ export class ReaderScroll {
     this.pointer = null;
   }
 
-  move(id: number, x: number, y: number): { moved: boolean; horizontal: boolean; direction: ScrollDirection | null } {
+  move(id: number, x: number, y: number, triggerAxis: ScrollAxis = 'horizontal'): { moved: boolean; handled: boolean; direction: ScrollDirection | null } {
     const pointer = this.pointer;
-    if (!pointer || pointer.id !== id) return { moved: false, horizontal: false, direction: null };
+    if (!pointer || pointer.id !== id) return { moved: false, handled: false, direction: null };
     const dx = x - pointer.x;
     const dy = y - pointer.y;
     const moved = Math.hypot(dx, dy) >= INTENT_DISTANCE;
@@ -34,10 +35,11 @@ export class ReaderScroll {
     if (pointer.axis === 'pending' && moved) {
       pointer.axis = Math.abs(dx) > Math.abs(dy) * 1.25 ? 'horizontal' : 'vertical';
     }
-    const horizontal = pointer.axis === 'horizontal';
-    const direction = horizontal && !pointer.fired && Math.abs(dx) >= REVEAL_DISTANCE ? (dx > 0 ? 1 : -1) : null;
+    const handled = pointer.axis === triggerAxis;
+    const distance = triggerAxis === 'horizontal' ? dx : dy;
+    const direction = handled && !pointer.fired && Math.abs(distance) >= REVEAL_DISTANCE ? (distance > 0 ? 1 : -1) : null;
     if (direction) pointer.fired = true;
-    return { moved, horizontal, direction };
+    return { moved, handled, direction };
   }
 
   end(id: number): void {

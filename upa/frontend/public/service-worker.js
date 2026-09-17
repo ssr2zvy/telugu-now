@@ -17,13 +17,18 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).then(response => {
       const copy = response.clone();
-      void caches.open(CACHE).then(cache => cache.put('/', copy));
+      void caches.open(CACHE).then(cache => cache.put('/', copy))
+        .catch(error => console.warn('[telugu-now] shell cache write failed', error));
       return response;
     }).catch(() => caches.match('/')));
     return;
   }
   event.respondWith(caches.match(request).then(cached => cached ?? fetch(request).then(response => {
-    if (response.ok) void caches.open(CACHE).then(cache => cache.put(request, response.clone()));
+    if (response.ok) {
+      const copy = response.clone();
+      void caches.open(CACHE).then(cache => cache.put(request, copy))
+        .catch(error => console.warn('[telugu-now] asset cache write failed', request.url, error));
+    }
     return response;
   })));
 });

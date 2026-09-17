@@ -67,7 +67,31 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
 test('loading dots leave a blank interval between trains', () => {
   const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
   assert.match(css, /loading-slit-dot 2\.7s linear infinite/);
+  assert.match(css, /i:nth-child\(1\) \{ animation-delay: -720ms; \}/);
+  assert.match(css, /i:nth-child\(4\) \{ animation-delay: -180ms; \}/);
   assert.match(css, /58% \{ opacity: 0; transform: translateX\(76px\)[^}]*\} 100% \{ opacity: 0/);
+});
+
+test('hidden question answers prewarm gradients and cached textures render without frame delays', () => {
+  const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  assert.match(view, /const presentationHighlightRuns = appearance\.highlightMods && observation/);
+  assert.match(view, /if \(showsObservationText \|\| !observation\) return;/);
+  assert.match(view, /document\.fonts\.load\([^;]+hiddenObservation\.text\.slice\(0, 64\)\)/);
+  assert.match(view, /requestIdleCallback\(\(\) => resolve\(\), \{ timeout: 250 \}\)/);
+  assert.match(view, /if \(!hasTeluguGradientTexture\([\s\S]{0,180}\)\) await nextFrame\(\)/);
+  assert.match(view, /const textReady = typography\.ready && gradientsReady;/);
+  assert.match(view, /gradientProgress\.completed \/ gradientProgress\.total/);
+});
+
+test('stalled observation readiness reports each gate and gradient cache state', () => {
+  const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  assert.match(view, /setTimeout\(\(\) => \{\s*console\.warn\('\[telugu-now\] observation readiness stalled'/);
+  assert.match(view, /observationId: observation\.id/);
+  for (const gate of ['initialPrewarm', 'typography', 'gradients', 'gradientProgress', 'audio', 'audioProgress']) {
+    assert.match(view, new RegExp(`${gate}:`));
+  }
+  assert.match(view, /gradientCache: getTeluguGradientCacheSnapshot\(\)/);
+  assert.match(view, /\}, 5000\)/);
 });
 
 test('profile digits match loader numerals without darkening filled or focused slots', () => {
