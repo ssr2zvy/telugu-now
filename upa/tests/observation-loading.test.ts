@@ -21,7 +21,7 @@ function observation(overrides: Partial<DisplayObservation> = {}): DisplayObserv
 test('audio questions without prompt audio reveal their text instead of an icon-only screen', () => {
   const item = observation({
     kind: 'question',
-    question: { mode: 'audio-given', keyboard: 'windows-inscript', phase: 'question', responseText: '', responseAudio: null },
+    question: { mode: 'audio-given', requestedPool: null, keyboard: 'windows-inscript', phase: 'question', responseText: '', responseAudio: null },
   });
   assert.equal(observationShowsText(item), true);
   assert.equal(observationShowsPhaseIndicator(item, null), true);
@@ -32,7 +32,7 @@ test('audio questions hide text only when prompt audio exists', () => {
   const item = observation({
     audio,
     kind: 'question',
-    question: { mode: 'audio-given', keyboard: 'windows-inscript', phase: 'question', responseText: '', responseAudio: null },
+    question: { mode: 'audio-given', requestedPool: null, keyboard: 'windows-inscript', phase: 'question', responseText: '', responseAudio: null },
   });
   assert.equal(observationShowsText(item), false);
   assert.equal(observationShowsPhaseIndicator(item, audio), true);
@@ -42,7 +42,7 @@ test('contentless question payloads show neither stray phase icon', () => {
   const item = observation({
     text: '   ',
     kind: 'question',
-    question: { mode: 'text-given', keyboard: null, phase: 'answer', responseText: '', responseAudio: null },
+    question: { mode: 'text-given', requestedPool: null, keyboard: null, phase: 'answer', responseText: '', responseAudio: null },
   });
   assert.equal(observationShowsText(item), false);
   assert.equal(observationShowsPhaseIndicator(item, null), false);
@@ -59,10 +59,22 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
   assert.doesNotMatch(gradient, /useEffect|useState|renderTeluguGradientTexture/);
   assert.match(loader, /loading-slit-window[\s\S]*<i \/><i \/><i \/><i \/>/);
   assert.match(css, /@keyframes loading-slit-dot/);
+  assert.doesNotMatch(view, /setTimeout\(\(\) => \{[\s\S]{0,200}setInitialGateResolved\(true\)/);
+  assert.match(view, /requestAnimationFrame\(\(\) => \{[\s\S]{0,200}requestAnimationFrame\(\(\) => setPaintedObservationId/);
+  assert.match(view, /const entryReady = entryPrepared && paintedObservationId === observation\?\.id/);
 });
 
 test('loading dots leave a blank interval between trains', () => {
   const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
   assert.match(css, /loading-slit-dot 2\.7s linear infinite/);
   assert.match(css, /58% \{ opacity: 0; transform: translateX\(76px\)[^}]*\} 100% \{ opacity: 0/);
+});
+
+test('profile digits match loader numerals without darkening filled or focused slots', () => {
+  const baseCss = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
+  const profileCss = readFileSync(new URL('../frontend/src/styles/profile.css', import.meta.url), 'utf8');
+  assert.match(baseCss, /\.loading-slit output \{[^}]*font: 500 \.68rem\/18px ui-monospace, monospace/);
+  assert.match(profileCss, /\.entry-digit \{[^}]*font-family: ui-monospace, monospace/);
+  assert.doesNotMatch(profileCss, /\.entry-digit\[data-filled='true'\][^{]*\{[^}]*border-color/);
+  assert.doesNotMatch(profileCss, /\.entry-digit\[data-active='true'\][^{]*\{[^}]*border-color/);
 });

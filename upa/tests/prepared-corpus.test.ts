@@ -344,6 +344,10 @@ test('prepared corpus store and data source expose indexed metadata', async () =
         duration_seconds: 1.25,
       },
     );
+    assert.equal(store.wordsContaining('తె').length, 3);
+    assert.ok(store.wordsContaining('తె').every(match => match.word === 'తెలుగు'
+      && match.complexity === 2 && match.wordGraphemeCount === 3));
+    assert.deepEqual(store.wordsContaining('త'), []);
     assert.throws(
       () =>
         store.sourceInfo(

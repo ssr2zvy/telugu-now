@@ -8,10 +8,11 @@ const SERPER_IMAGES_URL = 'https://google.serper.dev/images';
 const TARGET_RESULTS = 8;
 const MAX_SEARCH_PAGES = 10;
 const MAX_SEARCH_DURATION_MS = 90_000;
-const MAX_SOURCE_PAGE_BYTES = 1024 * 1024;
+const MAX_METADATA_BYTES = 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 15_000;
 const CC_4_URL = /^https?:\/\/(?:www\.)?creativecommons\.org\/licenses\/(by|by-sa)\/4\.0\/?(?:[?#].*)?$/i;
+const WIKIMEDIA_IMAGE_HOSTS = new Set(['upload.wikimedia.org', 'thumb.wikimedia.org']);
 
 export const MISSING_SERPER_KEY_MESSAGE = 'Set serper_api_key in the server environment (Fly secret). For local dev, export it in local-machine/dev-secrets.env and restart dev.';
 
@@ -153,6 +154,48 @@ export function findCc4License(html: string): Pick<SerperSearchImage, 'license' 
   return null;
 }
 
+function findCc4LicenseInText(value: string): Pick<SerperSearchImage, 'license' | 'licenseUrl'> | null {
+  const urls = value.match(/https?:\/\/(?:www\.)?creativecommons\.org\/licenses\/(?:by|by-sa)\/4\.0\/?(?:[?#][^\s"'<>]*)?/ig) ?? [];
+  for (const licenseUrl of urls) {
+    const match = licenseUrl.match(CC_4_URL);
+    if (match) return { license: match[1]!.toLowerCase() === 'by-sa' ? 'CC BY-SA 4.0' : 'CC BY 4.0', licenseUrl };
+  }
+  return null;
+}
+
+function wikimediaFileName(imageUrl: string): string | null {
+  const url = new URL(imageUrl);
+  if (!WIKIMEDIA_IMAGE_HOSTS.has(url.hostname) || !url.pathname.includes('/wikipedia/commons/')) return null;
+  const segments = url.pathname.split('/').filter(Boolean);
+  const encoded = segments.includes('thumb') ? segments.at(-2) : segments.at(-1);
+  if (!encoded) return null;
+  try { return decodeURIComponent(encoded); }
+  catch { return null; }
+}
+
+async function wikimediaCc4License(imageUrl: string, request: typeof fetch,
+  validate: (url: URL) => Promise<void>): Promise<Pick<SerperSearchImage, 'license' | 'licenseUrl'> | null> {
+  const fileName = wikimediaFileName(imageUrl);
+  if (!fileName) return null;
+  const api = new URL('https://commons.wikimedia.org/w/api.php');
+  api.search = new URLSearchParams({
+    action: 'query', format: 'json', formatversion: '2', prop: 'imageinfo', iiprop: 'extmetadata', titles: `File:${fileName}`,
+  }).toString();
+  const response = await fetchPublic(api.href, request, validate, 'application/json');
+  if (!response.ok || !(response.headers.get('content-type') ?? '').toLowerCase().includes('json')) {
+    await response.body?.cancel();
+    return null;
+  }
+  const body: unknown = JSON.parse((await boundedBytes(response, MAX_METADATA_BYTES)).toString('utf8'));
+  if (!body || typeof body !== 'object' || !('query' in body)) return null;
+  const pages = (body as { query?: { pages?: unknown } }).query?.pages;
+  if (!Array.isArray(pages)) return null;
+  const metadata = (pages[0] as { imageinfo?: Array<{ extmetadata?: Record<string, { value?: unknown }> }> } | undefined)
+    ?.imageinfo?.[0]?.extmetadata;
+  const licenseUrl = metadata?.LicenseUrl?.value;
+  return typeof licenseUrl === 'string' ? findCc4License(`<a href="${licenseUrl}"></a>`) : null;
+}
+
 async function serperPage(word: string, key: string, page: number, request: typeof fetch): Promise<SerperCandidate[]> {
   const response = await request(SERPER_IMAGES_URL, {
     method: 'POST',
@@ -173,7 +216,7 @@ async function serperPage(word: string, key: string, page: number, request: type
     const candidate = value as Partial<SerperCandidate>;
     return typeof candidate.title === 'string' && typeof candidate.imageUrl === 'string' && typeof candidate.link === 'string'
       ? [{ title: candidate.title, imageUrl: candidate.imageUrl, link: candidate.link,
-        resultIndex: index,
+        resultIndex: (page - 1) * 1000 + index,
         ...(typeof candidate.source === 'string' ? { source: candidate.source } : {}),
         ...(typeof candidate.domain === 'string' ? { domain: candidate.domain } : {}) }]
       : [];
@@ -183,14 +226,7 @@ async function serperPage(word: string, key: string, page: number, request: type
 async function resolveCandidate(candidate: SerperCandidate, request: typeof fetch,
   validate: (url: URL) => Promise<void>): Promise<CandidateResolution> {
   try {
-    const sourceResponse = await fetchPublic(candidate.link, request, validate, 'text/html,application/xhtml+xml');
-    if (!sourceResponse.ok || !(sourceResponse.headers.get('content-type') ?? '').toLowerCase().includes('text/html')) {
-      await sourceResponse.body?.cancel();
-      return { reason: !sourceResponse.ok ? `source-http-${sourceResponse.status}` : 'source-not-html' };
-    }
-    const sourceBytes = await boundedBytes(sourceResponse, MAX_SOURCE_PAGE_BYTES);
-    const licensing = findCc4License(sourceBytes.toString('utf8'));
-    if (!licensing) return { reason: 'no-exact-cc4-license' };
+    let licensing = await wikimediaCc4License(candidate.imageUrl, request, validate);
     const imageResponse = await fetchPublic(candidate.imageUrl, request, validate, 'image/png,image/jpeg,image/webp');
     if (!imageResponse.ok) {
       await imageResponse.body?.cancel();
@@ -199,6 +235,11 @@ async function resolveCandidate(candidate: SerperCandidate, request: typeof fetc
     const image = await boundedBytes(imageResponse, MAX_IMAGE_BYTES);
     const mimeType = imageType(image);
     if (!mimeType) return { reason: 'unsupported-image' };
+    licensing ??= findCc4LicenseInText([
+      imageResponse.headers.get('link'), imageResponse.headers.get('license'), imageResponse.headers.get('x-license-url'),
+      image.toString('latin1'),
+    ].filter((value): value is string => Boolean(value)).join('\n'));
+    if (!licensing) return { reason: 'no-image-level-cc4-license' };
     return { image: {
       record: { image, mimeType },
       title: candidate.title.slice(0, 500),

@@ -211,15 +211,15 @@ export function ObservationView({
     const worker = async () => {
       for (const assignment of neighborAssignments) {
         if (cancelled) return;
-        await waitForIdle();
-        if (cancelled) return;
-        await document.fonts.load(`400 220px "${assignment.fontFamily}"`, assignment.text.slice(0, 64));
-        if (cancelled) return;
-        const container = typography.containerRef.current;
-        if (container) {
-          const containerRect = container.getBoundingClientRect();
-          const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
-          try {
+        try {
+          await waitForIdle();
+          if (cancelled) return;
+          await document.fonts.load(`400 220px "${assignment.fontFamily}"`, assignment.text.slice(0, 64));
+          if (cancelled) return;
+          const container = typography.containerRef.current;
+          if (container) {
+            const containerRect = container.getBoundingClientRect();
+            const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
             await prewarmObservationTypography({
               id: assignment.id,
               text: assignment.text,
@@ -234,53 +234,43 @@ export function ObservationView({
               },
               audioTop: audioBounds ? audioBounds.top : null,
             });
-          } catch {
-            // Falls back to fitting on-demand once this observation becomes current.
           }
-        }
-        if (cancelled) return;
-        if (appearance.highlightMods) {
-          const runs = teluguHighlightRuns(assignment.text).filter(run => run.highlighted);
-          for (const run of runs) {
-            if (cancelled) return;
-            await waitForIdle();
-            if (cancelled) return;
-            await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor);
+          if (cancelled) return;
+          if (appearance.highlightMods) {
+            const runs = teluguHighlightRuns(assignment.text).filter(run => run.highlighted);
+            for (const run of runs) {
+              if (cancelled) return;
+              await waitForIdle();
+              if (cancelled) return;
+              await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor);
+            }
           }
+        } catch {
+          // The current observation can still fit or render this item on demand.
+        } finally {
+          if (!cancelled) setNeighborPrewarmReadyIds(current => {
+            if (current.has(assignment.id)) return current;
+            const next = new Set(current);
+            next.add(assignment.id);
+            return next;
+          });
         }
-        if (cancelled) return;
-        setNeighborPrewarmReadyIds(current => {
-          if (current.has(assignment.id)) return current;
-          const next = new Set(current);
-          next.add(assignment.id);
-          return next;
-        });
       }
     };
     void worker().catch(() => {});
     return () => { cancelled = true; };
   }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor]);
   const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
-  // On the very first load of a session, hold the entry gate open until both
-  // neighbors have finished their full prewarm pass (not just fonts/gradients,
-  // but the size-fitting pass too) so the site never reveals a page whose
-  // immediate back/forward neighbors would still stutter on their first
-  // real fit. A timeout keeps this from hanging indefinitely if a neighbor
-  // fails to prewarm (e.g. missing previous/next entry, DOM measurement error).
+  // On the first load, do not reveal an interactive reader while prewarm work
+  // can still monopolize the main thread. Individual failures are marked done
+  // above and fall back to on-demand rendering, so no timeout escape is needed.
   const initialGateAppliedRef = useRef(false);
   const [initialGateResolved, setInitialGateResolved] = useState(false);
   useEffect(() => {
     if (initialGateAppliedRef.current || !observation) return;
-    if (neighborsPrewarmed) {
-      initialGateAppliedRef.current = true;
-      setInitialGateResolved(true);
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      initialGateAppliedRef.current = true;
-      setInitialGateResolved(true);
-    }, 4000);
-    return () => window.clearTimeout(timeout);
+    if (!neighborsPrewarmed) return;
+    initialGateAppliedRef.current = true;
+    setInitialGateResolved(true);
   }, [observation?.id, neighborsPrewarmed]);
   const gradientKey = highlightRuns?.some(run => run.highlighted) && observation
     ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, observation.text].join('\0')
@@ -320,7 +310,20 @@ export function ObservationView({
   const audioLoading = Boolean(audioReadinessKey)
     && audioReadinessKey !== seamlessAudioKey.current
     && (audioReadiness?.key !== audioReadinessKey || audioReadiness.loading);
-  const entryReady = Boolean(observation) && (!showsObservationText || textReady) && !audioLoading && initialGateResolved;
+  const entryPrepared = Boolean(observation) && (!showsObservationText || textReady) && !audioLoading && initialGateResolved;
+  const [paintedObservationId, setPaintedObservationId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!entryPrepared || !observation) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setPaintedObservationId(observation.id));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [entryPrepared, observation?.id]);
+  const entryReady = entryPrepared && paintedObservationId === observation?.id;
   const progressParts = [
     ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
     ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
@@ -631,6 +634,9 @@ export function ObservationView({
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
+          onBlacklist={(text) => {
+            if (state) void addBlacklistEntry(state.profileCode, text).catch(() => {});
+          }}
           onClose={() => setSelectedWord(null)} />
       ) : null}
       {readingMenu ? (

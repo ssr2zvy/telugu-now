@@ -6,7 +6,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { Hono } from 'hono';
 import { wordImageRoutes } from '../server/src/services/word-image-service';
-import { migrateLegacyWordImages, wordImageStore } from '../server/src/services/word-image-store';
+import { migrateLegacyWordImages, migrateLegacyWordImageSearchState, wordImageStore } from '../server/src/services/word-image-store';
 import { analyzeWord, wordAtOffset, wordDisplayParts } from '../frontend/src/observation/word/word-analysis';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt } from '../shared/image-settings';
 
@@ -40,6 +40,26 @@ test('legacy image data transfers to global files before its table is removed', 
     assert.equal(gallery.length, 2);
     assert.deepEqual({ createdAt: gallery[1]!.createdAt, vendor: gallery[1]!.vendor }, { createdAt: 123, vendor: 'Legacy' });
     migrateLegacyWordImages(database, directory);
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('legacy search state transfers from the user database to global word files', () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'search-state-transfer-'));
+  try {
+    database.exec(`
+      CREATE TABLE word_image_search_rejections_v2 (root TEXT, image_url TEXT, reason TEXT, rejected_at INTEGER);
+      CREATE TABLE word_image_search_state_v2 (root TEXT PRIMARY KEY, next_page INTEGER NOT NULL);
+      INSERT INTO word_image_search_rejections_v2 VALUES ('tree', 'https://example.test/rejected.png', 'missing-license', 123);
+      INSERT INTO word_image_search_state_v2 VALUES ('tree', 7);
+    `);
+    migrateLegacyWordImageSearchState(database, directory);
+    assert.deepEqual(wordImageStore(directory).readSearchState('tree'), {
+      nextPage: 7,
+      rejections: [{ imageUrl: 'https://example.test/rejected.png', reason: 'missing-license', rejectedAt: 123 }],
+    });
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'word_image_search_rejections_v2'").get(), undefined);
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'word_image_search_state_v2'").get(), undefined);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -399,35 +419,46 @@ test('word image search streams each licensed image after it is persisted with a
 });
 
 test('word image search skips candidates rejected by an earlier search', async () => {
-  const database = profileDatabase();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-search-rejections-'));
   const failedUrl = 'https://images.example.test/unlicensed.png';
   let calls = 0;
   try {
-    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
-      imageDirectory: directory,
-      readSearchKey: () => 'fixture-key',
-      search: async (_root, _key, excluded, _onImage, options) => {
-        calls += 1;
-        if (calls === 1) {
-          assert.equal(options?.startPage, 1);
-          assert.equal(excluded.has(failedUrl), false);
-          options?.onRejected?.({ imageUrl: failedUrl, reason: 'no-exact-cc4-license' });
-        } else {
-          assert.equal(options?.startPage, 2);
-          assert.equal(excluded.has(failedUrl), true);
-        }
-        options?.onComplete?.({ accepted: 0, candidatesSeen: calls === 1 ? 1 : 0, pagesSearched: 1, nextPage: calls + 1 });
-        return 0;
-      },
-    }));
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      const database = profileDatabase();
+      const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+        imageDirectory: directory,
+        readSearchKey: () => 'fixture-key',
+        search: async (_root, _key, excluded, _onImage, options) => {
+          calls += 1;
+          if (calls === 1) {
+            assert.equal(options?.startPage, 1);
+            assert.equal(excluded.has(failedUrl), false);
+            options?.onRejected?.({ imageUrl: failedUrl, reason: 'no-exact-cc4-license' });
+          } else {
+            assert.equal(options?.startPage, 2);
+            assert.equal(excluded.has(failedUrl), true);
+          }
+          options?.onComplete?.({ accepted: 0, candidatesSeen: calls === 1 ? 1 : 0, pagesSearched: 1, nextPage: calls + 1 });
+          return 0;
+        },
+      }));
       const response = await app.request('/api/word-images/search?root=tree&profile=001', { method: 'POST' });
       assert.equal(response.status, 200);
       await response.text();
+      database.close();
     }
     assert.equal(calls, 2);
-  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+    const store = wordImageStore(directory);
+    store.save('tree', { image: png, mimeType: 'image/png' });
+    assert.deepEqual(store.get('tree')?.image, png);
+    assert.equal(store.remove('tree', store.list('tree')[0]!.id), true);
+    const state = store.readSearchState('tree');
+    assert.equal(state.nextPage, 3);
+    assert.deepEqual(state.rejections.map(({ imageUrl, reason }) => ({ imageUrl, reason })), [
+      { imageUrl: failedUrl, reason: 'no-exact-cc4-license' },
+    ]);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('damaged word image files return a safe error without regenerating', async () => {

@@ -31,6 +31,17 @@ export interface WordImageMetadata {
   batchIndex?: number;
 }
 
+export interface WordImageSearchRejection {
+  imageUrl: string;
+  reason: string;
+  rejectedAt: number;
+}
+
+export interface WordImageSearchState {
+  nextPage: number;
+  rejections: WordImageSearchRejection[];
+}
+
 type WordImageDetails = Pick<WordImageMetadata, 'method' | 'vendor'>
   & Partial<Pick<WordImageMetadata, 'title' | 'sourceName' | 'sourceUrl' | 'originalUrl' | 'license' | 'licenseUrl'
     | 'batchId' | 'batchCreatedAt' | 'batchIndex'>>
@@ -52,6 +63,40 @@ export function migrateLegacyWordImages(database: Database.Database, directory =
     }
   }
   database.exec('DROP TABLE word_images');
+}
+
+export function migrateLegacyWordImageSearchState(database: Database.Database, directory = defaultWordImageDirectory()): void {
+  const hasRejections = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_image_search_rejections_v2'").get();
+  const hasPages = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_image_search_state_v2'").get();
+  if (!hasRejections && !hasPages) return;
+  const store = wordImageStore(directory);
+  const roots = new Set<string>();
+  if (hasRejections) {
+    const records = database.prepare('SELECT root FROM word_image_search_rejections_v2').all() as Array<{ root: string }>;
+    for (const record of records) roots.add(record.root);
+  }
+  if (hasPages) {
+    const records = database.prepare('SELECT root FROM word_image_search_state_v2').all() as Array<{ root: string }>;
+    for (const record of records) roots.add(record.root);
+  }
+  for (const root of roots) {
+    const page = hasPages
+      ? database.prepare('SELECT next_page FROM word_image_search_state_v2 WHERE root = ?').get(root) as { next_page: number } | undefined
+      : undefined;
+    const rejections = hasRejections
+      ? database.prepare(`SELECT image_url, reason, rejected_at FROM word_image_search_rejections_v2
+          WHERE root = ? ORDER BY rejected_at DESC LIMIT 4096`).all(root) as Array<{ image_url: string; reason: string; rejected_at: number }>
+      : [];
+    const existing = store.readSearchState(root);
+    store.writeSearchState(root, {
+      nextPage: Math.max(existing.nextPage, page?.next_page ?? 1),
+      rejections: [...existing.rejections, ...rejections.map(record => ({
+        imageUrl: record.image_url, reason: record.reason, rejectedAt: record.rejected_at,
+      }))],
+    });
+  }
+  database.exec(`${hasRejections ? 'DROP TABLE word_image_search_rejections_v2;' : ''}
+    ${hasPages ? 'DROP TABLE word_image_search_state_v2;' : ''}`);
 }
 
 export function defaultWordImageDirectory(): string {
@@ -107,6 +152,7 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
         });
       }
       const metadataPath = path.join(folder, 'metadata.json');
+      if (!fs.existsSync(metadataPath)) return [];
       if (fs.statSync(metadataPath).size > 4096) throw new Error('Invalid metadata');
       const value: unknown = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
       if (!value || typeof value !== 'object' || !('root' in value) || value.root !== root.normalize('NFC').trim()
@@ -186,6 +232,49 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     try { fs.renameSync(temporary, path.join(folder, 'gallery.json')); }
     finally { fs.rmSync(temporary, { force: true }); }
   };
+  const readSearchState = (root: string): WordImageSearchState => {
+    const file = path.join(imageDirectory(root), 'search-state.json');
+    if (!fs.existsSync(file)) return { nextPage: 1, rejections: [] };
+    try {
+      if (fs.statSync(file).size > 2 * 1024 * 1024) throw new Error('Invalid search state');
+      const value: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!value || typeof value !== 'object') throw new Error('Invalid search state');
+      const state = value as Partial<WordImageSearchState>;
+      if (!Number.isSafeInteger(state.nextPage) || Number(state.nextPage) < 1 || !Array.isArray(state.rejections)) throw new Error('Invalid search state');
+      const rejections = state.rejections.map(rejection => {
+        if (!rejection || typeof rejection !== 'object' || typeof rejection.imageUrl !== 'string'
+          || typeof rejection.reason !== 'string' || typeof rejection.rejectedAt !== 'number') throw new Error('Invalid search state');
+        return rejection;
+      });
+      return { nextPage: Number(state.nextPage), rejections };
+    } catch {
+      throw new Error('Could not read word image search state.');
+    }
+  };
+  const writeSearchState = (root: string, state: WordImageSearchState): void => {
+    const newest = new Map<string, WordImageSearchRejection>();
+    for (const rejection of state.rejections) {
+      const current = newest.get(rejection.imageUrl);
+      if (!current || rejection.rejectedAt > current.rejectedAt) newest.set(rejection.imageUrl, rejection);
+    }
+    const normalized = {
+      nextPage: Number.isSafeInteger(state.nextPage) && state.nextPage >= 1 ? state.nextPage : 1,
+      rejections: [...newest.values()].sort((left, right) => right.rejectedAt - left.rejectedAt).slice(0, 4096),
+    };
+    const folder = imageDirectory(root);
+    fs.mkdirSync(folder, { recursive: true });
+    const temporary = path.join(folder, `.search-state-${process.pid}-${randomUUID()}.json`);
+    fs.writeFileSync(temporary, JSON.stringify(normalized, null, 2) + '\n', { flag: 'wx' });
+    try { fs.renameSync(temporary, path.join(folder, 'search-state.json')); }
+    finally { fs.rmSync(temporary, { force: true }); }
+  };
+  const rememberSearchRejection = (root: string, rejection: WordImageSearchRejection): void => {
+    const state = readSearchState(root);
+    writeSearchState(root, { ...state, rejections: [rejection, ...state.rejections] });
+  };
+  const writeSearchPage = (root: string, nextPage: number): void => {
+    writeSearchState(root, { ...readSearchState(root), nextPage });
+  };
   const add = (root: string, record: WordImageRecord, details: WordImageDetails): WordImageRecord => {
     if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
     const existing = list(root);
@@ -217,7 +306,13 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     if (!removed) return false;
     const remaining = entries.filter(entry => entry.id !== id);
     if (remaining.length) writeGallery(root, remaining);
-    else fs.rmSync(imageDirectory(root), { recursive: true, force: true });
+    else {
+      const folder = imageDirectory(root);
+      for (const file of fs.readdirSync(folder)) {
+        if (file !== 'search-state.json') fs.rmSync(path.join(folder, file), { recursive: true, force: true });
+      }
+      if (!fs.existsSync(path.join(folder, 'search-state.json'))) fs.rmdirSync(folder);
+    }
     if (remaining.length && !remaining.some(entry => entry.file === removed.file)) fs.rmSync(path.join(imageDirectory(root), removed.file), { force: true });
     return true;
   };
@@ -254,6 +349,16 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
         fs.renameSync(temporary, imageDirectory(root));
       } catch (error) {
         if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+        const folder = imageDirectory(root);
+        if (!fs.existsSync(path.join(folder, 'metadata.json')) && !fs.existsSync(path.join(folder, 'gallery.json'))) {
+          const source = path.join(temporary, imageFiles[record.mimeType]);
+          const target = path.join(folder, imageFiles[record.mimeType]);
+          try { fs.renameSync(source, target); }
+          catch (publishError) {
+            if ((publishError as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(target).equals(record.image)) throw publishError;
+          }
+          fs.renameSync(path.join(temporary, 'metadata.json'), path.join(folder, 'metadata.json'));
+        }
       }
       const saved = get(root);
       if (!saved) throw new Error('Missing saved image');
@@ -262,5 +367,6 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
   }
-  return { get, list, save, add, remove, replace: (root: string, record: WordImageRecord) => save(root, record, Date.now(), true) };
+  return { get, list, save, add, remove, readSearchState, writeSearchState, rememberSearchRejection, writeSearchPage,
+    replace: (root: string, record: WordImageRecord) => save(root, record, Date.now(), true) };
 }

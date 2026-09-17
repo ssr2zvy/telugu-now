@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../../../shared/image-settings';
 import { generatePollinationsImage, readPollinationsKey, MISSING_POLLINATIONS_KEY_MESSAGE } from './pollinations-service';
-import { imageType, wordImageId, wordImageStore, type WordImageMetadata, type WordImageRecord } from './word-image-store';
+import { imageType, migrateLegacyWordImageSearchState, wordImageId, wordImageStore, type WordImageMetadata, type WordImageRecord } from './word-image-store';
 import { MISSING_SERPER_KEY_MESSAGE, readSerperKey, searchSerperCc4Images, type SerperSearchImage } from './serper-image-search-service';
 import { config } from '../config/config';
 import { profilePreferencesStore } from './profile-preferences-service';
@@ -34,32 +34,13 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
   const pending = new Map<string, Promise<WordImageRecord>>();
   const unsaved = new Map<string, WordImageRecord>();
   const pendingSearches = new Set<string>();
+  migrateLegacyWordImageSearchState(database, dependencies.imageDirectory);
   database.exec(`
     CREATE TABLE IF NOT EXISTS image_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       prompt TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS word_image_search_rejections (
-      root TEXT NOT NULL,
-      image_url TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      rejected_at INTEGER NOT NULL,
-      PRIMARY KEY (root, image_url)
-    );
-    CREATE TABLE IF NOT EXISTS word_image_search_state (
-      root TEXT PRIMARY KEY,
-      next_page INTEGER NOT NULL
-    );
   `);
-  const rejectedImageUrls = database.prepare('SELECT image_url FROM word_image_search_rejections WHERE root = ?');
-  const rememberRejectedImage = database.prepare(`INSERT INTO word_image_search_rejections (root, image_url, reason, rejected_at)
-    VALUES (?, ?, ?, ?) ON CONFLICT (root, image_url) DO UPDATE SET reason = excluded.reason, rejected_at = excluded.rejected_at`);
-  const pruneRejectedImages = database.prepare(`DELETE FROM word_image_search_rejections WHERE root = ? AND image_url NOT IN (
-    SELECT image_url FROM word_image_search_rejections WHERE root = ? ORDER BY rejected_at DESC LIMIT 4096
-  )`);
-  const readSearchPage = database.prepare('SELECT next_page FROM word_image_search_state WHERE root = ?');
-  const writeSearchPage = database.prepare(`INSERT INTO word_image_search_state (root, next_page) VALUES (?, ?)
-    ON CONFLICT (root) DO UPDATE SET next_page = excluded.next_page`);
   database.prepare('INSERT OR IGNORE INTO image_settings (id, prompt) VALUES (1, ?)').run(DEFAULT_IMAGE_PROMPT);
   const preferences = profilePreferencesStore(database);
   const validProfile = (code: string | undefined): code is string => Boolean(code
@@ -204,13 +185,12 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           catch { closed = true; }
         };
         const existing = images.list(root);
-        const rejectedUrls = rejectedImageUrls.all(root) as Array<{ image_url: string }>;
+        const searchState = images.readSearchState(root);
         const excluded = new Set([
           ...existing.flatMap(image => image.originalUrl ? [image.originalUrl] : []),
-          ...rejectedUrls.map(rejection => rejection.image_url),
+          ...searchState.rejections.map(rejection => rejection.imageUrl),
         ]);
-        const state = readSearchPage.get(root) as { next_page: number } | undefined;
-        const startPage = state?.next_page ?? 1;
+        const startPage = searchState.nextPage;
         let inspected = 0;
         let pagesSearched = 0;
         void search(root, key, excluded, (result: SerperSearchImage) => {
@@ -229,14 +209,13 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
         }, {
           log: event => imageLog({ ...event, batchId }),
           onRejected: rejection => {
-            rememberRejectedImage.run(root, rejection.imageUrl, rejection.reason, Date.now());
-            pruneRejectedImages.run(root, root);
+            images.rememberSearchRejection(root, { imageUrl: rejection.imageUrl, reason: rejection.reason, rejectedAt: Date.now() });
           },
           startPage,
           onComplete: summary => {
             inspected = summary.candidatesSeen;
             pagesSearched = summary.pagesSearched;
-            writeSearchPage.run(root, summary.nextPage);
+            images.writeSearchPage(root, summary.nextPage);
           },
         }).then(added => {
           inspected = Math.max(inspected, added);

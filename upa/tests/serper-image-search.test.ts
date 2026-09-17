@@ -5,11 +5,14 @@ import { findCc4License, readSerperKey, searchSerperCc4Images } from '../server/
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
 const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
 
-function response(bytes: string | Buffer, contentType: string): Response {
+function response(bytes: string | Buffer, contentType: string, headers: Record<string, string> = {}): Response {
   return new Response(typeof bytes === 'string' ? bytes : new Uint8Array(bytes), {
-    status: 200, headers: { 'Content-Type': contentType },
+    status: 200, headers: { 'Content-Type': contentType, ...headers },
   });
 }
+
+const ccBy = { Link: '<https://creativecommons.org/licenses/by/4.0/>; rel="license"' };
+const ccBySa = { Link: '<https://creativecommons.org/licenses/by-sa/4.0/>; rel="license"' };
 
 test('Serper key is read only from the server environment and trimmed', () => {
   const original = process.env.serper_api_key;
@@ -51,13 +54,11 @@ test('Serper image search requests India and Telugu and emits each verified imag
         { title: 'Second', imageUrl: 'https://images.example/second.jpg', link: 'https://source.example/second', domain: 'source.example' },
       ] });
     }
-    if (url === 'https://source.example/first') return response('<a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC</a>', 'text/html');
-    if (url === 'https://source.example/second') {
+    if (url === 'https://images.example/second.jpg') {
       await secondGate;
-      return response('<meta property="license" content="https://creativecommons.org/licenses/by-sa/4.0/">', 'text/html');
+      return response(jpeg, 'image/jpeg', ccBySa);
     }
-    if (url === 'https://images.example/first.png') return response(png, 'image/png');
-    if (url === 'https://images.example/second.jpg') return response(jpeg, 'image/jpeg');
+    if (url === 'https://images.example/first.png') return response(png, 'image/png', ccBy);
     throw new Error(`Unexpected URL: ${url}`);
   };
   const accepted: string[] = [];
@@ -82,9 +83,37 @@ test('Serper image search requests India and Telugu and emits each verified imag
   assert.equal(await task, 2);
   assert.deepEqual(new Set(accepted), new Set(['First', 'Second']));
   assert.ok(calls.includes('https://images.example/first.png'));
+  assert.equal(calls.some(url => url.startsWith('https://source.example/')), false);
   assert.ok(logs.some(event => event.event === 'page' && event.returned === 2));
   assert.ok(logs.some(event => event.event === 'complete' && event.accepted === 2));
   assert.doesNotMatch(JSON.stringify(logs), /fixture-key|images\.example/);
+});
+
+test('Wikimedia images use image metadata instead of an oversized Wikipedia article', async () => {
+  const calls: string[] = [];
+  const request = async (input: string | URL | Request): Promise<Response> => {
+    const url = String(input);
+    calls.push(url);
+    if (url === 'https://google.serper.dev/images') return Response.json({ images: [{
+      title: 'President Barack Obama',
+      imageUrl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8d/President_Barack_Obama.jpg/1280px-President_Barack_Obama.jpg',
+      link: 'https://en.wikipedia.org/wiki/Barack_Obama',
+      source: 'Wikipedia',
+    }] });
+    if (url.startsWith('https://commons.wikimedia.org/w/api.php?')) return response(JSON.stringify({ query: { pages: [{
+      imageinfo: [{ extmetadata: { LicenseUrl: { value: 'https://creativecommons.org/licenses/by/4.0/' } } }],
+    }] } }), 'application/json');
+    if (url.startsWith('https://thumb.wikimedia.org/')) return response(png, 'image/png');
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+  const accepted: string[] = [];
+  const count = await searchSerperCc4Images('అధ్యక్షుడు', 'fixture-key', new Set(), image => {
+    accepted.push(image.title);
+    return true;
+  }, { request: request as typeof fetch, assertPublicUrl: async () => {}, maxPages: 1, log: () => {} });
+  assert.equal(count, 1);
+  assert.deepEqual(accepted, ['President Barack Obama']);
+  assert.equal(calls.includes('https://en.wikipedia.org/wiki/Barack_Obama'), false);
 });
 
 test('Serper image search stops after eight qualifying results from a page', async () => {
@@ -99,8 +128,7 @@ test('Serper image search stops after eight qualifying results from a page', asy
       assert.equal('num' in (JSON.parse(String(init?.body)) as Record<string, unknown>), false);
       return Response.json({ images: candidates });
     }
-    if (url.startsWith('https://source.example/')) return response('<a href="https://creativecommons.org/licenses/by/4.0/">CC</a>', 'text/html');
-    if (url.startsWith('https://images.example/')) return response(png, 'image/png');
+    if (url.startsWith('https://images.example/')) return response(png, 'image/png', ccBy);
     throw new Error(`Unexpected URL: ${url}`);
   };
   const accepted: string[] = [];
@@ -125,8 +153,7 @@ test('Serper image search continues across pages until eight images qualify', as
         link: `https://source.example/${page}-${index}`,
       })) });
     }
-    if (url.startsWith('https://source.example/')) return response('<a href="https://creativecommons.org/licenses/by/4.0/">CC</a>', 'text/html');
-    if (url.startsWith('https://images.example/')) return response(png, 'image/png');
+    if (url.startsWith('https://images.example/')) return response(png, 'image/png', ccBy);
     throw new Error(`Unexpected URL: ${url}`);
   };
   let nextPage = 0;
@@ -151,7 +178,9 @@ test('Serper image search caps a batch at ten pages when fewer than eight qualif
       pages.push(page);
       return Response.json({ images: [{ title: `Image ${page}`, imageUrl: `https://images.example/${page}.png`, link: `https://source.example/${page}` }] });
     }
-    if (url.startsWith('https://source.example/')) return response('<a href="https://creativecommons.org/licenses/by/3.0/">CC</a>', 'text/html');
+    if (url.startsWith('https://images.example/')) return response(png, 'image/png', {
+      Link: '<https://creativecommons.org/licenses/by/3.0/>; rel="license"',
+    });
     throw new Error(`Unexpected URL: ${url}`);
   };
   const count = await searchSerperCc4Images('చెట్టు', 'fixture-key', new Set(), () => true, {
@@ -184,7 +213,9 @@ test('Serper image search excludes repeats and images without exact CC 4.0 evide
       { title: 'Repeat', imageUrl: 'https://images.example/repeat.png', link: 'https://source.example/repeat' },
       { title: 'Old license', imageUrl: 'https://images.example/old.png', link: 'https://source.example/old' },
     ] });
-    if (url === 'https://source.example/old') return response('<a href="https://creativecommons.org/licenses/by/3.0/">CC</a>', 'text/html');
+    if (url === 'https://images.example/old.png') return response(png, 'image/png', {
+      Link: '<https://creativecommons.org/licenses/by/3.0/>; rel="license"',
+    });
     throw new Error(`Unexpected URL: ${url}`);
   };
   const accepted: string[] = [];
@@ -197,8 +228,8 @@ test('Serper image search excludes repeats and images without exact CC 4.0 evide
     });
   assert.equal(count, 0);
   assert.deepEqual(accepted, []);
-  assert.ok(logs.some(event => event.event === 'rejected' && event.reason === 'no-exact-cc4-license'));
+  assert.ok(logs.some(event => event.event === 'rejected' && event.reason === 'no-image-level-cc4-license'));
   assert.ok(logs.some(event => event.event === 'complete'
-    && (event.rejected as Record<string, number>)['no-exact-cc4-license'] === 1));
-  assert.deepEqual(rejected, [{ imageUrl: 'https://images.example/old.png', reason: 'no-exact-cc4-license' }]);
+    && (event.rejected as Record<string, number>)['no-image-level-cc4-license'] === 1));
+  assert.deepEqual(rejected, [{ imageUrl: 'https://images.example/old.png', reason: 'no-image-level-cc4-license' }]);
 });

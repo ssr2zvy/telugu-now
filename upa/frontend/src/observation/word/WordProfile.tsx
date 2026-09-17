@@ -240,13 +240,14 @@ function WordImage({ root }: { root: string }) {
   );
 }
 
-export function WordProfile({ word, fontFamily, playbackRate, onClose }: {
+export function WordProfile({ word, fontFamily, playbackRate, onBlacklist, onClose }: {
   word: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
+  onBlacklist: (word: string) => void;
   onClose: () => void;
 }) {
-  const { appearance } = useAppearance();
+  const { appearance, profileCode } = useAppearance();
   const analysis = analyzeWord(word);
   const parts = wordDisplayParts(analysis);
   const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(analysis.word) : null;
@@ -297,8 +298,10 @@ export function WordProfile({ word, fontFamily, playbackRate, onClose }: {
       }}>
       <CustomCursor />
       <div className="gradient-field word-profile-gradient" aria-hidden="true"><div /><div /><div /></div>
-      {selectedGrapheme ? <LetterProfile letter={selectedGrapheme} fontFamily={fontFamily}
-        playbackRate={playbackRate} onBack={() => setSelectedGrapheme(null)} /> : <>
+      {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme}
+        profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
+        onCopy={text => void copyWord(text)} onBlacklist={onBlacklist}
+        onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
         if (!hit) { letterTaps.cancel(); return; }

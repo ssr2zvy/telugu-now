@@ -48,8 +48,12 @@
 .word-profile[data-letter-page='true'] { display: block; }
 .word-profile[data-letter-page='true'] .word-profile-gradient { clip-path: none; }
 .letter-profile-page { position: absolute; z-index: 1; inset: 0; display: grid; min-width: 0; min-height: 0; place-items: center; }
+.letter-profile-page > .loading-slit { position: relative; z-index: 2; }
 .letter-profile-center { position: absolute; inset: 0; display: grid; place-items: center; min-width: 0; min-height: 0; padding: 72px 20px; text-align: center; }
-.letter-profile-center h2 { margin: 0; color: var(--foreground); font-size: clamp(5rem, 22vmin, 14rem); font-weight: 400; line-height: 1.2; }
+.letter-profile-center[data-ready='false'] { visibility: hidden; pointer-events: none; }
+.letter-profile-center h2 { max-width: calc(100vw - 40px); margin: 0; color: var(--foreground); font-size: clamp(2.5rem, calc(82vw / var(--word-graphemes)), 10rem); font-weight: 400; line-height: 1.2; white-space: nowrap; }
+.letter-profile-focus { color: var(--letter-focus-color); }
+.letter-profile-focus .telugu-gradient-text { color: var(--letter-focus-color); }
 .letter-profile-center:has(.audio-player-bar[data-has-audio='true']) { padding-bottom: calc(var(--audio-base-bottom) + 100px); }
 @keyframes word-image-spin { to { transform: rotate(360deg); } }
 @media (max-width: 700px) {

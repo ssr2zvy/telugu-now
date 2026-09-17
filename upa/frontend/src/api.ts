@@ -2,6 +2,7 @@ import type {
   DataSourcesResponse,
   ExportRequest,
   ExportResponse,
+  GraphemeWord,
   LoadProfileRequest,
   NavigationRequest,
   ProfileAudioSettings,
@@ -50,6 +51,13 @@ export async function addBlacklistEntry(code: string, text: string): Promise<Pro
 export async function removeBlacklistEntry(code: string, text: string): Promise<ProfileBlacklistResponse> {
   return parseJson<ProfileBlacklistResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/blacklist`, {
     method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+  }));
+}
+
+export async function getGraphemeWord(code: string, grapheme: string, signal?: AbortSignal): Promise<GraphemeWord> {
+  return parseJson<GraphemeWord>(await fetch(`/api/profiles/${encodeURIComponent(code)}/grapheme-word`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, ...(signal ? { signal } : {}),
+    body: JSON.stringify({ grapheme }),
   }));
 }
 

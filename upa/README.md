@@ -233,9 +233,11 @@ output is requested by the default prompt but is not guaranteed by the model.
 The Search action calls Serper's Google Images endpoint with the Telugu core word,
 India region (`gl=in`), Telugu language (`hl=te`) and
 Google's broad Creative Commons usage-rights filter. Serper does not return license
-metadata or guarantee a license version, so the server fetches each result's source
-page and accepts only pages containing an exact CC BY 4.0 or CC BY-SA 4.0 license
-URL. It then downloads and validates the image server-side. Results without that
+metadata or guarantee a license version. The server downloads only Serper's image
+URL, never the linked article or website. It accepts only images whose response
+headers, embedded metadata or provider image-metadata API proves an exact CC BY 4.0
+or CC BY-SA 4.0 license. Wikimedia-hosted images use the file's Wikimedia Commons
+metadata API. Results without that
 evidence are discarded. Accepted images are saved and streamed into the gallery
 one at a time while the remaining candidates are still resolving. The request does
 not set a result count. One Search action continues through successive result pages
@@ -261,7 +263,10 @@ including when the API key is unavailable. Different senses currently share one
 image. Changing a personal prompt affects only future generation or explicit
 regeneration, never existing images automatically. Prior generated and searched
 images are retained in an ordered gallery without automatic pruning. Back up this
-directory separately.
+directory separately. Each word's Serper rejection history and next-page cursor
+are also stored there in `search-state.json`, so search progress is shared across
+all profiles and does not belong to the user database. Existing SQLite search
+state is migrated into these files when the server starts.
 Generation is an explicit paid provider operation; keep the prototype behind
 access controls. Provider calls are mocked in tests, which do not spend credits
 or verify live model quality. API, publication, and retry details are recorded in

@@ -162,6 +162,15 @@ export interface ObservationAudio {
   durationSeconds: number;
 }
 
+export interface GraphemeWord {
+  word: string;
+  complexity: number;
+  wordGraphemeCount: number;
+  sourceId: string;
+  sourceKey: string;
+  audio: ObservationAudio;
+}
+
 export interface DisplayObservation {
   id: string;
   sourceId: string;

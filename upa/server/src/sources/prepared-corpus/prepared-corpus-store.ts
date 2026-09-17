@@ -17,6 +17,17 @@ interface CanonicalRow {
   duration_seconds: number;
 }
 
+export interface CorpusGraphemeWord {
+  word: string;
+  complexity: number;
+  wordGraphemeCount: number;
+  sourceId: string;
+  sourceKey: string;
+  audioObjectKey: string;
+  audioMimeType: string;
+  durationSeconds: number;
+}
+
 export class PreparedCorpusStore {
   private readonly db: Database.Database | null;
   private availability: Database.Database | null = null;
@@ -197,6 +208,41 @@ export class PreparedCorpusStore {
     `).get(sourceId, sourceKey) as CanonicalRow | undefined;
     if (!row) throw new Error(`CORPUS_ROW_MISSING:${sourceId}/${sourceKey}`);
     return row;
+  }
+
+  wordsContaining(grapheme: string): CorpusGraphemeWord[] {
+    if (!this.db) return [];
+    const target = grapheme.normalize('NFC');
+    const graphemeSegmenter = new Intl.Segmenter('te', { granularity: 'grapheme' });
+    if ([...graphemeSegmenter.segment(target)].length !== 1) return [];
+    const wordSegmenter = new Intl.Segmenter('te', { granularity: 'word' });
+    const rows = this.db.prepare(`
+      SELECT r.source_id, r.source_key, r.text, r.grapheme_count, r.audio_sha256,
+             r.audio_object_key, r.audio_mime_type, r.duration_seconds
+      FROM source_rows r JOIN sources s ON s.source_id = r.source_id
+      WHERE s.status = 'ready' AND s.complexity_metric = 'grapheme-count' AND instr(r.text, ?) > 0
+      ORDER BY r.source_id ASC, r.source_key ASC
+    `).iterate(target) as Iterable<CanonicalRow>;
+    const matches: CorpusGraphemeWord[] = [];
+    for (const row of rows) {
+      if (this.validation.invalidReason(row.audio_object_key)) continue;
+      for (const segment of wordSegmenter.segment(row.text.normalize('NFC'))) {
+        if (!segment.isWordLike || ![...graphemeSegmenter.segment(segment.segment)].some(part => part.segment === target)) continue;
+        matches.push({
+          word: segment.segment,
+          complexity: row.grapheme_count,
+          wordGraphemeCount: [...graphemeSegmenter.segment(segment.segment)].length,
+          sourceId: row.source_id,
+          sourceKey: row.source_key,
+          audioObjectKey: row.audio_object_key,
+          audioMimeType: row.audio_mime_type,
+          durationSeconds: row.duration_seconds,
+        });
+      }
+    }
+    return matches.sort((left, right) => Math.abs(left.complexity - 10) - Math.abs(right.complexity - 10)
+      || left.complexity - right.complexity || left.word.localeCompare(right.word, 'te')
+      || left.sourceId.localeCompare(right.sourceId) || left.sourceKey.localeCompare(right.sourceKey));
   }
 }
 

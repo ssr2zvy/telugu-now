@@ -68,6 +68,10 @@ export function appearanceModificationColor(appearance: Pick<AppearanceSettings,
   return appearance.modificationColor ?? appearanceAudioColor(appearance);
 }
 
+export function appearanceFocusedLetterColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground' | 'modificationColor'>): string {
+  return contrastingPaletteColor(appearance, appearanceModificationColor(appearance));
+}
+
 // A quick-select preset: the reading color shifted lighter/darker against its
 // background, independent of the audio icon color used as the default above.
 export function appearanceModificationTextShiftColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground' | 'modificationLightness'>): string {
