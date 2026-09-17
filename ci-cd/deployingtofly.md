@@ -119,8 +119,16 @@ this policy. Fly does not watch GitHub itself.
 
 To redeploy code already on `main`, run the controller again to create a fresh
 deployment tag. Do not move or force-update existing deployment tags. Manual
-dispatch is retained only for **Actions > Fly deployment > Run workflow > main >
-stop**. A local variable such as `DEPLOY=true git push` does not trigger deployment.
+dispatch is retained only for stopping. Use **Actions > Fly deployment > Run
+workflow > main > stop**, or dispatch the same workflow through the controller:
+
+```bash
+bash local-machine/control_local.sh deploy --option stop
+```
+
+This requires an authenticated `gh` CLI with Actions write access. It requests
+the stop but does not wait for completion. A local variable such as `DEPLOY=true
+git push` does not trigger deployment.
 
 ## Direct deployment alternative
 

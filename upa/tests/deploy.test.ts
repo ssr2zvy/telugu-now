@@ -142,7 +142,7 @@ esac
   fs.writeFileSync(path.join(root, 'bin/gh'), `#!/usr/bin/env bash
 [[ -z "\${TEST_LOCAL_SECRET:-}" ]] || exit 98
 printf '%s|gh %s\\n' "$PWD" "$*" >> "$CALL_LOG"
-exit 97
+exit "\${GH_EXIT:-97}"
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(root, 'bin/date'), '#!/usr/bin/env bash\nprintf "20260914T120000123456789Z\\n"\n', { mode: 0o755 });
   const revision = '1234567890abcdef1234567890abcdef12345678';
@@ -174,6 +174,16 @@ exit 97
     `${root}|git push --atomic origin ${revision}:refs/heads/main refs/tags/${tag}:refs/tags/${tag}`,
   ]);
   assert.ok(success.stdout.includes(`Deployment requested by tag ${tag}, not yet completed`));
+  const stop = run(['--option', 'stop'], { GH_EXIT: '0' });
+  assert.equal(stop.status, 0, stop.stderr);
+  assert.deepEqual(stop.calls, [
+    `${root}|gh workflow run deploy.yml --repo ssr2zvy/telugu-now --ref main -f action=stop`,
+  ]);
+  assert.match(stop.stdout, /Stop requested through GitHub Actions, not yet completed/);
+  const rejectedStop = run(['--option', 'stop'], { GH_EXIT: '24' });
+  assert.equal(rejectedStop.status, 24);
+  assert.equal(rejectedStop.calls.length, 1);
+  assert.doesNotMatch(rejectedStop.stdout, /Stop requested/);
   for (const branch of ['feature', '']) {
     const wrongBranch = run([], { TEST_BRANCH: branch });
     assert.equal(wrongBranch.status, 1);
@@ -196,7 +206,7 @@ exit 97
   assert.equal(rejectedTag.status, 17);
   assert.equal(rejectedTag.calls.length, 4);
   assert.doesNotMatch(rejectedTag.stdout, /Deployment requested/);
-  for (const args of [['--help'], ['extra'], ['--option', 'start']]) {
+  for (const args of [['--help'], ['extra'], ['--option'], ['--option', 'start']]) {
     const result = run(args);
     assert.equal(result.status, args[0] === '--help' ? 0 : 2);
     assert.deepEqual(result.calls, []);

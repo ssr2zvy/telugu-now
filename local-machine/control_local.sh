@@ -26,7 +26,7 @@ Usage:
   ./local-machine/$SCRIPT_NAME build [--option start|abort|exit]
   ./local-machine/$SCRIPT_NAME dev [--option start|stop|exit]
   ./local-machine/$SCRIPT_NAME data [--option samples|prepare|all|exit] [--rows N|all] [--batch-rows N]
-  ./local-machine/$SCRIPT_NAME deploy [--help]
+  ./local-machine/$SCRIPT_NAME deploy [--option stop|--help]
 USAGE
 }
 
@@ -34,11 +34,21 @@ run_deploy() {
   local branch changes tool revision timestamp tag rc
 
   if [[ $# -eq 1 && "$1" == "--help" ]]; then
-    printf 'Usage: ./%s deploy\nTag a clean main checkout and push main plus the deployment tag to origin.\n' "$SCRIPT_NAME"
+    printf 'Usage: ./%s deploy [--option stop]\nWithout an option, tag a clean main checkout and push main plus the deployment tag to origin.\nWith --option stop, dispatch the GitHub stop workflow on main.\n' "$SCRIPT_NAME"
+    return 0
+  fi
+  if [[ $# -eq 2 && "$1" == "--option" && "$2" == "stop" ]]; then
+    if ! command -v gh >/dev/null 2>&1; then
+      printf 'ERROR: Required command not found: gh\n' >&2
+      return 1
+    fi
+    cd "$REPO_DIR" || return $?
+    gh workflow run deploy.yml --repo ssr2zvy/telugu-now --ref main -f action=stop || return $?
+    printf 'Stop requested through GitHub Actions, not yet completed. Check the Fly deployment workflow for the result.\n'
     return 0
   fi
   if [[ $# -ne 0 ]]; then
-    printf 'ERROR: deploy takes no arguments; use --help for usage.\n' >&2
+    printf 'ERROR: deploy accepts only --option stop; use --help for usage.\n' >&2
     return 2
   fi
   for tool in git date; do

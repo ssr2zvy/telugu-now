@@ -1,4 +1,6 @@
 - when we right click and the menu shows up, and we hover over the icon, we do not want it to bring up a higlihght box, we want it to change the icon color itself, just like how all the other icons in the app work. 
 - the above point concern about the icon handling -- this also applies to the back button for the settings back betting to get out. 
-- when user starts a recording they may speak too soon so in the plyabck some of their audio gets cut off; needs solution
+- when user starts a recording they may speak too soon so
+ in the plyabck some of their audio gets cut off; needs solution
 - adding the allignment logic (many areas of integration, many many)
+- for some reason, on a questions comp page, scroll/swipe still works to move audio bars and it leads to this half state..........I mean you want me to describe the half state -- bars hanging in a limbo state often half off screen, etc, etc
