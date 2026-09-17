@@ -27,8 +27,13 @@ export interface AppearanceSettings {
   timestampMagnifierGap: number;
   controlDarkness: number;
   showAudioTimestamp: boolean;
+  showMagnifierHighlight: boolean;
+  highlightMods: boolean;
+  modificationLightness: number;
+  modificationColor: string | null;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
+  toggleTrigger: 'scroll' | 'tap';
   autoFadeSeconds: number;
   fonts: ObservationFontFamily[];
 }
@@ -46,14 +51,20 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   timestampMagnifierGap: 1,
   controlDarkness: 15,
   showAudioTimestamp: false,
+  showMagnifierHighlight: true,
+  highlightMods: true,
+  modificationLightness: 24,
+  modificationColor: null,
   magnifierPosition: 'below',
   scrollMode: true,
+  toggleTrigger: 'scroll',
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
 export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
 export const CONTROL_DARKNESS_LIMITS = { min: 0, max: 60 } as const;
+export const MODIFICATION_LIGHTNESS_LIMITS = { min: 0, max: 40 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
@@ -83,9 +94,20 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       : DEFAULT_APPEARANCE.controlDarkness,
     showAudioTimestamp: typeof candidate.showAudioTimestamp === 'boolean'
       ? candidate.showAudioTimestamp : DEFAULT_APPEARANCE.showAudioTimestamp,
+    showMagnifierHighlight: typeof candidate.showMagnifierHighlight === 'boolean'
+      ? candidate.showMagnifierHighlight : DEFAULT_APPEARANCE.showMagnifierHighlight,
+    highlightMods: typeof candidate.highlightMods === 'boolean'
+      ? candidate.highlightMods : DEFAULT_APPEARANCE.highlightMods,
+    modificationLightness: typeof candidate.modificationLightness === 'number' && Number.isFinite(candidate.modificationLightness)
+      ? Math.round(Math.max(MODIFICATION_LIGHTNESS_LIMITS.min, Math.min(MODIFICATION_LIGHTNESS_LIMITS.max, candidate.modificationLightness)))
+      : DEFAULT_APPEARANCE.modificationLightness,
+    modificationColor: isColor(candidate.modificationColor) ? candidate.modificationColor : null,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
-    scrollMode: typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,
+    scrollMode: candidate.toggleTrigger === 'tap' ? false : candidate.toggleTrigger === 'scroll' ? true
+      : typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,
+    toggleTrigger: candidate.toggleTrigger === 'scroll' || candidate.toggleTrigger === 'tap'
+      ? candidate.toggleTrigger : candidate.scrollMode === false ? 'tap' : DEFAULT_APPEARANCE.toggleTrigger,
     autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
       ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
       : DEFAULT_APPEARANCE.autoFadeSeconds,

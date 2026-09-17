@@ -17,11 +17,16 @@ export interface DiagnosticSection {
   rows: DiagnosticRow[];
 }
 export type DiagnosticSectionKey =
+  | 'questions'
   | 'trigger'
   | 'source'
   | 'complexity'
   | 'global';
 const DIAGNOSTIC_SECTION_LABELS = {
+  questions: {
+    en: 'Questions',
+    te: 'ప్రశ్నలు',
+  },
   trigger: {
     en: 'Trigger & acquisition',
     te: 'ట్రిగర్ & సేకరణ',
@@ -48,6 +53,21 @@ export function diagnosticSectionLabel(
   ][language];
 }
 const DIAGNOSTIC_LABELS = {
+  observationKind: { en: 'Current observation kind', te: 'ప్రస్తుత పరిశీలన రకం' },
+  questionMode: { en: 'Question mode', te: 'ప్రశ్న విధానం' },
+  questionRequestedPool: { en: 'Requested source pool', te: 'అభ్యర్థించిన మూల సమూహం' },
+  questionPhase: { en: 'Question phase', te: 'ప్రశ్న దశ' },
+  questionKeyboard: { en: 'Keyboard profile', te: 'కీబోర్డ్ ప్రొఫైల్' },
+  questionPromptAudio: { en: 'Prompt audio', te: 'ప్రాంప్ట్ ఆడియో' },
+  questionResponseText: { en: 'Response text', te: 'సమాధాన వచనం' },
+  questionResponseAudio: { en: 'Response audio', te: 'సమాధాన ఆడియో' },
+  normalObservationWeight: { en: 'Normal observation weight', te: 'సాధారణ పరిశీలన బరువు' },
+  questionWeight: { en: 'Question weight', te: 'ప్రశ్న బరువు' },
+  seenQuestionWeight: { en: 'Seen-source question weight', te: 'చూసిన మూల ప్రశ్న బరువు' },
+  unseenQuestionWeight: { en: 'Unseen-source question weight', te: 'చూడని మూల ప్రశ్న బరువు' },
+  audioGivenWeight: { en: 'Audio-given weight', te: 'ఆడియో ఇచ్చిన ప్రశ్న బరువు' },
+  textGivenWeight: { en: 'Text-given weight', te: 'వచనం ఇచ్చిన ప్రశ్న బరువు' },
+  keyboardWeights: { en: 'Keyboard selection weights', te: 'కీబోర్డ్ ఎంపిక బరువులు' },
   recordingRepeat: { en: 'Repeat recording?', te: 'రికార్డింగ్ పునరావృతమా?' },
   recordingOccurrence: { en: 'Times shown (recorded)', te: 'నమోదైన ప్రదర్శనల సంఖ్య' },
   recordingPreviousSeen: { en: 'Previously shown', te: 'గత ప్రదర్శన' },
@@ -613,6 +633,33 @@ export function buildDiagnosticSections(
     DiagnosticSection[] = [
     { key: 'trigger', rows: triggerRows },
   ];
+  const question = observation.question;
+  const questionProbability = state.selectionSettings.questionProbability ?? .3;
+  const seenProbability = state.selectionSettings.seenQuestionProbability ?? .75;
+  const audioGivenProbability = state.selectionSettings.audioGivenQuestionProbability ?? .6;
+  const keyboardName = question?.keyboard === 'windows-inscript' ? 'Windows InScript'
+    : question?.keyboard === 'mac-standard' ? 'macOS Telugu'
+      : question?.keyboard === 'chromebook-dictation' ? 'Chromebook dictation' : '—';
+  sections.push({
+    key: 'questions',
+    rows: [
+      { key: 'observationKind', value: observation.kind },
+      { key: 'questionMode', value: question?.mode ?? '—' },
+      { key: 'questionRequestedPool', value: question?.requestedPool ?? '—' },
+      { key: 'questionPhase', value: question?.phase ?? '—' },
+      { key: 'questionKeyboard', value: keyboardName },
+      { key: 'questionPromptAudio', value: observation.audio ? t(language, 'yes') : t(language, 'no') },
+      { key: 'questionResponseText', value: question?.responseText || '—' },
+      { key: 'questionResponseAudio', value: question?.responseAudio ? t(language, 'yes') : t(language, 'no') },
+      { key: 'normalObservationWeight', value: formatPercent(1 - questionProbability) },
+      { key: 'questionWeight', value: formatPercent(questionProbability) },
+      { key: 'seenQuestionWeight', value: formatPercent(seenProbability) },
+      { key: 'unseenQuestionWeight', value: formatPercent(1 - seenProbability) },
+      { key: 'audioGivenWeight', value: formatPercent(audioGivenProbability) },
+      { key: 'textGivenWeight', value: formatPercent(1 - audioGivenProbability) },
+      { key: 'keyboardWeights', value: 'Windows InScript 33.3333% · macOS Telugu 33.3333% · Chromebook dictation 33.3333%' },
+    ],
+  });
   const selection =
     diagnostic.selection;
   sections.push({

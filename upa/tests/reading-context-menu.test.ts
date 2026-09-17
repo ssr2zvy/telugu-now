@@ -1,0 +1,100 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+import { readingContextMenuState } from '../frontend/src/observation/ReadingContextMenu';
+import { settingsGroups, settingsPageLabel } from '../frontend/src/settings/navigation';
+
+test('right-click menu targets either one word or reader settings', () => {
+  assert.deepEqual(readingContextMenuState(120, 80, 'తెలుగు'), {
+    kind: 'word',
+    text: 'తెలుగు',
+    x: 120,
+    y: 80,
+  });
+  assert.deepEqual(readingContextMenuState(40, 30, null), {
+    kind: 'settings',
+    x: 40,
+    y: 30,
+  });
+});
+
+test('word and settings context menus expose disjoint actions', () => {
+  const source = readFileSync(new URL('../frontend/src/observation/ReadingContextMenu.tsx', import.meta.url), 'utf8');
+  assert.match(source, /menu\.kind === 'word'/);
+  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklist\(menu\.text\)[\s\S]*:\s*<button/);
+});
+
+test('word profiles fill the viewport with word and image columns', () => {
+  const source = readFileSync(new URL('../frontend/src/observation/word/WordProfile.tsx', import.meta.url), 'utf8');
+  const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  const letter = readFileSync(new URL('../frontend/src/observation/word/LetterProfile.tsx', import.meta.url), 'utf8');
+  const hitTesting = readFileSync(new URL('../frontend/src/observation/visible-glyph-hit-testing.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/styles/word-profile.css', import.meta.url), 'utf8');
+  assert.match(source, /<CustomCursor \/>[\s\S]*<header className="word-profile-header" onClick=/);
+  assert.match(source, /className="gradient-field word-profile-gradient"[^>]*><div \/><div \/><div \/>/);
+  assert.match(source, /appearance\.highlightMods \? teluguHighlightRuns\(analysis\.word\)/);
+  assert.match(source, /renderTeluguGradientTexture\(run\.text, fontFamily, appearance\.foreground, gradientEndColor\)/);
+  assert.match(source, /<TeluguGradientText key=\{index\} text=\{run\.text\} texture=/);
+  assert.doesNotMatch(source, /title=\{analysis\.root\}/);
+  assert.match(source, /className="word-profile-back" aria-label="Back to reading"/);
+  assert.match(source, /<ReadingContextMenu[\s\S]*onCopy=[\s\S]*onClose=/);
+  assert.doesNotMatch(source, /<ReadingContextMenu[\s\S]*onBlacklist=/);
+  assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, analysis\.word, event\.clientX, event\.clientY\)/);
+  assert.match(source, /letterTaps\.tap\(`grapheme:\$\{hit\.start\}`/);
+  assert.match(source, /<LetterProfile letter=\{selectedGrapheme\}/);
+  assert.match(observation, /visibleWordAtPoint\(element, observation\.text, event\.clientX, event\.clientY\)/);
+  assert.doesNotMatch(observation, /caretPositionFromPoint|caretRangeFromPoint/);
+  assert.match(hitTesting, /context\.getImageData/);
+  assert.match(hitTesting, /pixels\[pixel \* 4 \+ 3\]! < alphaThreshold/);
+  assert.match(letter, /silentLeadInUrl\(\)/);
+  assert.match(letter, /<AudioPlayerBar[\s\S]*audio=\{dummyAudio\}/);
+  assert.match(css, /\.word-profile \{[^}]*position: fixed; inset: 0;[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.match(css, /width: 100vw; max-width: none; height: 100dvh; max-height: none/);
+  assert.match(source, /new Intl\.Segmenter\('te', \{ granularity: 'grapheme' \}\)/);
+  assert.match(source, /'--word-graphemes': Math\.max\(1, graphemeCount\)/);
+  assert.match(css, /\.word-profile-header \{[^}]*container-type: inline-size;[^}]*place-items: center;[^}]*user-select: none/);
+  assert.match(css, /\.word-profile-gradient \{ position: fixed; z-index: 0; clip-path: inset\(0 50% 0 0\); \}/);
+  assert.match(css, /\.word-profile-header h2 \{[^}]*font-size: clamp\(\.75rem, calc\(80cqi \/ var\(--word-graphemes\)\), 9rem\)[^}]*white-space: nowrap; text-align: center/);
+  assert.match(css, /\.word-profile-header h2 \{[^}]*line-height: 1\.2; font-weight: 400/);
+  assert.match(css, /\.letter-profile-center h2 \{[^}]*font-weight: 400; line-height: 1\.2/);
+  assert.match(css, /\.word-image-preview \{[^}]*width: 100%; height: 100%/);
+  assert.match(css, /\.word-image-preview img \{[^}]*object-fit: cover/);
+  assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*grid-template-columns: minmax\(0, 1fr\); grid-template-rows: minmax\(180px, 40dvh\) minmax\(0, 1fr\)/);
+  assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-profile-gradient \{ clip-path: inset\(0 0 60% 0\); \}/);
+});
+
+test('errors are foreground-only top-left notices that fade after thirty seconds', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
+  assert.match(css, /\.appearance-root :is\(\[role='alert'\], \.settings-error\) \{[^}]*position: fixed;[^}]*top: max\(16px, env\(safe-area-inset-top\)\);[^}]*left: max\(20px, env\(safe-area-inset-left\)\)/);
+  assert.match(css, /background: transparent;[^}]*box-shadow: none;[^}]*color: var\(--foreground\)/);
+  assert.match(css, /animation: app-error-notice 31s linear forwards/);
+  assert.match(css, /0%, 96\.774% \{ opacity: 1; \}[\s\S]*100% \{ opacity: 0; visibility: hidden; \}/);
+
+  for (const relativePath of [
+    '../frontend/src/appearance.tsx',
+    '../frontend/src/observation/audio/AudioPlayerBar.tsx',
+    '../frontend/src/observation/word/WordProfile.tsx',
+    '../frontend/src/settings/pages/EonsPage.tsx',
+    '../frontend/src/settings/pages/BlacklistPage.tsx',
+  ]) {
+    const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /role="alert"[\s\S]{0,300}<button/, relativePath);
+  }
+});
+
+test('modification lightness has visible searchable settings text', () => {
+  const source = readFileSync(new URL('../frontend/src/settings/pages/OrganizedAppearancePage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /<label htmlFor="appearance-modification-lightness">\{text\('Modification Lightness'/);
+  assert.match(source, /text\('Automatic End Color'/);
+  assert.match(source, /text\('Gradient End Color'/);
+  assert.match(source, /type="color"[\s\S]*modificationColor/);
+});
+
+test('queue diagnostics are available under the Diagnostic settings group', () => {
+  assert.ok(settingsGroups.diagnostic?.includes('queue'));
+  assert.equal(settingsPageLabel('queue', 'en'), 'View the Queue');
+  const view = readFileSync(new URL('../frontend/src/settings/pages/QueueViewPage.tsx', import.meta.url), 'utf8');
+  assert.match(view, /data\.slots\.map/);
+  assert.match(view, /getTeluguGradientCacheSnapshot/);
+  assert.match(view, /Font render/);
+});

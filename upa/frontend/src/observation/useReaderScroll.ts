@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type R
 import { ReaderScroll, type ScrollDirection } from './reader-scroll';
 
 function hasOwnGesture(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest('[role="slider"], button:not(.nav-zone), input, a, .word-profile'));
+  return target instanceof Element && Boolean(target.closest('[role="slider"], button:not(.nav-zone), input, textarea, a, .word-profile, .question-controls'));
 }
 
 export function useReaderScroll(

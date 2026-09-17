@@ -50,8 +50,10 @@ async function loadFixture(page: Page, realAudioUrl?: string, enterProfile = tru
     nextStatus: 'ready', queue: { unseenCount: 10, readyCount: 10, preparingCount: 0, pendingCount: 0 },
     timing: null,
     selectionSettings: { sourceWeights: { fixture: 1 }, complexityPercentileTarget: 0.5, complexityPercentileSpread: 0.25, complexityReferenceVersion: 2 },
-    audioSettings: { playbackRate: 1 },
+    audioSettings: { playbackRate: 1, autoplay: true },
     currentObservation: {
+      kind: 'normal',
+      question: null,
       id: 'observation-1', sourceId: 'fixture', sourceKey: 'row-1', text: observationText,
       audio: { url: realAudioUrl ?? '/api/test-audio.wav', mimeType: realAudioUrl && new URL(realAudioUrl, baseUrl).pathname.endsWith('.flac') ? 'audio/flac' : 'audio/wav', durationSeconds: 20 },
       diagnostic: {
@@ -691,6 +693,50 @@ async function swipeReader(page: Page, direction: -1 | 1) {
   await page.mouse.down();
   await page.mouse.move(center + direction * 60, 20, { steps: 8 });
   await page.mouse.up();
+}
+
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 568 }]) {
+  test(`text-given question aligns prompt, response audio, and record control ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const fixture = await loadFixture(page, undefined, false);
+    fixture.state.currentObservation = {
+      ...fixture.state.currentObservation!,
+      kind: 'question',
+      audio: null,
+      question: {
+        mode: 'text-given', requestedPool: null, keyboard: null, phase: 'question', responseText: '',
+        responseAudio: { url: '/api/test-audio.wav', mimeType: 'audio/wav', durationSeconds: 20 },
+      },
+    };
+    await page.locator('.profile-input').fill('001');
+    const screen = page.locator('.observation-screen');
+    const prompt = page.locator('.observation-text');
+    const scrubber = page.getByRole('slider', { name: 'Audio position', exact: true });
+    const record = page.getByRole('button', { name: 'Record', exact: true });
+    await expect(prompt).toHaveCSS('opacity', '1');
+    await expect(record).toHaveCount(1);
+    await expect(record).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(record).toHaveCSS('border-top-width', '0px');
+    expect(await record.textContent()).toBe('');
+
+    const promptBounds = (await prompt.boundingBox())!;
+    const scrubberBounds = (await scrubber.boundingBox())!;
+    await expect(page.locator('.audio-player-bar')).toHaveCSS('bottom', /px/);
+    expect(promptBounds.y).toBeGreaterThan(0);
+
+    await screen.evaluate(async element => {
+      element.dispatchEvent(new WheelEvent('wheel', { deltaX: 100, bubbles: true, cancelable: true }));
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
+    await expect(record).toBeEnabled();
+    const recordBounds = (await record.boundingBox())!;
+    expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(scrubberBounds.y + 1);
+    await expect(screen).toHaveAttribute('data-audio-motion', 'enter');
+    await expect(screen).toHaveAttribute('data-swipe-direction', 'right');
+    expect(await page.locator('.question-record-controls').evaluate(element => element.getAnimations().some(animation => animation instanceof CSSAnimation && animation.animationName === 'audio-enter-right'))).toBe(true);
+    expect(fixture.errors).toEqual([]);
+  });
 }
 
 async function eonsFixture(page: Page) {

@@ -94,9 +94,6 @@ if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioVali
   throw new Error('User, corpus, availability, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
-  source1: parseUnitInterval(process.env.SOURCE1_WEIGHT, 1),
-  source2: parseUnitInterval(process.env.SOURCE2_WEIGHT, 1),
-  source3: parseUnitInterval(process.env.SOURCE3_WEIGHT, 1),
   'fleurs-te': parseUnitInterval(process.env.FLEURS_TE_WEIGHT, 1),
   'shrutilipi-te': parseUnitInterval(process.env.SHRUTILIPI_TE_WEIGHT, 1),
   'indicvoices-te': parseUnitInterval(process.env.INDICVOICES_TE_WEIGHT, 1),

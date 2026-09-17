@@ -10,6 +10,7 @@ export function useClickOutsideToClose(
   active: boolean,
   containers: readonly ElementRef[],
   onClose: () => void,
+  passThroughSelector?: string,
 ): void {
   const containersRef = useRef(containers);
   containersRef.current = containers;
@@ -24,6 +25,10 @@ export function useClickOutsideToClose(
         (ref) => ref.current && target && ref.current.contains(target),
       );
       if (inside) return;
+      if (target instanceof Element && passThroughSelector && target.closest(passThroughSelector)) {
+        onCloseRef.current();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       consumeDismissalGesture(document, event.pointerId);
@@ -38,5 +43,5 @@ export function useClickOutsideToClose(
       document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [active]);
+  }, [active, passThroughSelector]);
 }

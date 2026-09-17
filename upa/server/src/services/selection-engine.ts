@@ -29,6 +29,9 @@ export interface SelectionResult {
   snapshot: SelectionSnapshot;
 }
 
+type WeightedSelectionSettings = Pick<ProfileSelectionSettings,
+  'sourceWeights' | 'complexityPercentileTarget' | 'complexityPercentileSpread' | 'complexityReferenceVersion'>;
+
 export interface ComplexityReferenceDescription {
   version: number;
   totalRows: number;
@@ -174,7 +177,7 @@ export class SelectionEngine {
     });
   }
 
-  select(settings: ProfileSelectionSettings): SelectionResult {
+  select(settings: WeightedSelectionSettings): SelectionResult {
     this.refreshReference();
     if (!SUPPORTED_REFERENCE_VERSIONS.has(settings.complexityReferenceVersion)) {
       throw new Error(`Unsupported complexity reference version ${settings.complexityReferenceVersion}.`);
@@ -254,6 +257,14 @@ export class SelectionEngine {
       complexityValue,
       snapshot,
     };
+  }
+
+  selectMatching(settings: WeightedSelectionSettings, accept: (selection: SelectionResult) => boolean, attempts = 256): SelectionResult | null {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const selected = this.select(settings);
+      if (accept(selected)) return selected;
+    }
+    return null;
   }
 }
 

@@ -7,10 +7,12 @@ import type {
   ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
+  QueueViewResponse,
   ProfileEonsResponse,
   ProfileBlacklistResponse,
   UpdateAudioSettingsRequest,
   UpdateSelectionSettingsRequest,
+  UpdateQuestionResponseRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
 import type { ProfilePreferences, UpdateProfilePreferences } from '../../shared/appearance';
@@ -118,6 +120,10 @@ export async function getProfileState(code: string, visible: boolean): Promise<P
   );
 }
 
+export async function getQueueView(code: string, signal?: AbortSignal): Promise<QueueViewResponse> {
+  return parseJson<QueueViewResponse>(await fetch(`/api/profiles/${encodeURIComponent(code)}/queue`, signal ? { signal } : {}));
+}
+
 export async function navigate(
   code: string,
   direction: 'back' | 'next',
@@ -171,6 +177,20 @@ export async function updateAudioSettings(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
   }));
+}
+
+export async function updateQuestionText(code: string, observationId: string, request: UpdateQuestionResponseRequest): Promise<void> {
+  const response = await fetch(`/api/profiles/${encodeURIComponent(code)}/questions/${encodeURIComponent(observationId)}/response`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(request),
+  });
+  if (!response.ok) throw new Error(String(response.status));
+}
+
+export async function updateQuestionAudio(code: string, observationId: string, audio: Blob): Promise<void> {
+  const response = await fetch(`/api/profiles/${encodeURIComponent(code)}/questions/${encodeURIComponent(observationId)}/audio`, {
+    method: 'PUT', headers: { 'content-type': audio.type || 'audio/webm' }, body: audio,
+  });
+  if (!response.ok) throw new Error(String(response.status));
 }
 
 export async function generateExport(

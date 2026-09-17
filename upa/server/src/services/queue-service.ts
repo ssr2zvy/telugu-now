@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/database';
-import type { AcquisitionTriggerKind, PreparationGroupKind } from '../../../shared/contracts';
+import type { AcquisitionTriggerKind, ObservationKind, PreparationGroupKind, QuestionKeyboard, QuestionMode, QuestionPool } from '../../../shared/contracts';
 import { selectionEngine } from './selection-engine';
 import { getProfileSelectionSettings } from './selection-settings-service';
 
@@ -17,6 +17,34 @@ interface SelectionContext {
   legacyGroupKind: PreparationGroupKind;
   legacyGroupSize: number;
   legacyGroupPosition: number;
+}
+
+export interface ObservationPlan {
+  kind: ObservationKind;
+  requestedPool: QuestionPool | null;
+  questionMode: QuestionMode | null;
+  keyboard: QuestionKeyboard | null;
+}
+
+export function chooseObservationPlan(
+  random: () => number = Math.random,
+  probabilities = { question: 0.3, seen: 0.75, audioGiven: 0.6 },
+): ObservationPlan {
+  if (random() >= probabilities.question) return { kind: 'normal', requestedPool: null, questionMode: null, keyboard: null };
+  const questionMode: QuestionMode = random() < probabilities.audioGiven ? 'audio-given' : 'text-given';
+  const keyboards: QuestionKeyboard[] = ['windows-inscript', 'mac-standard', 'chromebook-dictation'];
+  return {
+    kind: 'question',
+    requestedPool: random() < probabilities.seen ? 'seen' : 'unseen',
+    questionMode,
+    keyboard: questionMode === 'audio-given' ? keyboards[Math.min(2, Math.floor(random() * 3))]! : null,
+  };
+}
+
+function seenRecordingKeys(profileCode: string): Set<string> {
+  const rows = db.prepare(`SELECT source_id, source_key FROM recording_displays WHERE profile_code = ? AND occurrence_count > 0`)
+    .all(profileCode) as Array<{ source_id: string; source_key: string }>;
+  return new Set(rows.map(row => `${row.source_id}\u0000${row.source_key}`));
 }
 
 function queueCount(profileCode: string): number {
@@ -79,8 +107,8 @@ const insertAcquisition = db.prepare(`
     observation_id, profile_code, acquisition_number, trigger_kind,
     trigger_observation_id, trigger_history_position, triggered_at,
     waiting_ahead_at_trigger, preparation_in_flight_at_trigger,
-    selection_snapshot_json
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    selection_snapshot_json, observation_kind, question_requested_pool, question_mode, question_keyboard
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 function appendSelectedObservation(
@@ -89,7 +117,24 @@ function appendSelectedObservation(
   reserved?: { acquisitionNumber: number; queuePosition: number },
 ): string {
   const settings = getProfileSelectionSettings(profileCode);
-  const selected = selectionEngine.select(settings);
+  const plan = chooseObservationPlan(Math.random, {
+    question: settings.questionProbability ?? 0.3,
+    seen: settings.seenQuestionProbability ?? 0.75,
+    audioGiven: settings.audioGivenQuestionProbability ?? 0.6,
+  });
+  let selected;
+  if (plan.kind === 'question') {
+    const seen = seenRecordingKeys(profileCode);
+    const inRequestedPool = (candidate: { sourceId: string; sourceKey: string }) =>
+      seen.has(`${candidate.sourceId}\u0000${candidate.sourceKey}`) === (plan.requestedPool === 'seen');
+    selected = seen.size === 0
+      ? selectionEngine.select(settings)
+      : selectionEngine.selectMatching(settings, inRequestedPool)
+        ?? selectionEngine.selectMatching(settings, candidate => !inRequestedPool(candidate))
+        ?? selectionEngine.select(settings);
+  } else {
+    selected = selectionEngine.select(settings);
+  }
   const observationId = randomUUID();
   const acquisitionNumber = reserved?.acquisitionNumber ?? nextAcquisitionNumber(profileCode);
   const queuePosition = reserved?.queuePosition ?? nextQueuePosition(profileCode);
@@ -118,6 +163,10 @@ function appendSelectedObservation(
     waitingAhead,
     inFlight ? 1 : 0,
     JSON.stringify(selected.snapshot),
+    plan.kind,
+    plan.requestedPool,
+    plan.questionMode,
+    plan.keyboard,
   );
 
   insertQueue.run(profileCode, queuePosition, observationId);

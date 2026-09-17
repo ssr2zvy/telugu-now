@@ -10,10 +10,13 @@ import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
 import { profileEonsRoutes } from './services/eon-service';
 import { profileBlacklistRoutes } from './services/blacklist-service';
+import { getQuestionAudio, InvalidQuestionResponseError, updateQuestionAudio, updateQuestionText } from './services/question-response-service';
 import {
   InvalidProfileCodeError,
   NavigationUnavailableError,
+  assertValidProfileCode,
   getProfileState,
+  getQueueView,
   loadProfile,
   navigateBack,
   navigateNext,
@@ -33,6 +36,7 @@ import type {
   NavigationRequest,
   UpdateAudioSettingsRequest,
   UpdateSelectionSettingsRequest,
+  UpdateQuestionResponseRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
 
@@ -63,6 +67,8 @@ app.get('/api/profiles/:code/state', (c) => {
   const visible = c.req.query('visible') === '1';
   return c.json(getProfileState(c.req.param('code'), visible));
 });
+
+app.get('/api/profiles/:code/queue', (c) => c.json(getQueueView(c.req.param('code'))));
 
 app.post('/api/profiles/:code/visibility', async (c) => {
   const body = await c.req.json<VisibilityRequest>();
@@ -97,6 +103,30 @@ app.put('/api/profiles/:code/audio-settings', async (c) => {
   return c.json(updateProfileAudioSettings(code, body));
 });
 
+app.patch('/api/profiles/:code/questions/:observationId/response', async (c) => {
+  const code = c.req.param('code');
+  assertValidProfileCode(code);
+  const body = await c.req.json<UpdateQuestionResponseRequest>();
+  updateQuestionText(db, code, c.req.param('observationId'), body);
+  return c.body(null, 204);
+});
+
+app.put('/api/profiles/:code/questions/:observationId/audio', async (c) => {
+  const code = c.req.param('code');
+  assertValidProfileCode(code);
+  const mimeType = c.req.header('content-type') ?? '';
+  updateQuestionAudio(db, code, c.req.param('observationId'), new Uint8Array(await c.req.arrayBuffer()), mimeType);
+  return c.body(null, 204);
+});
+
+app.get('/api/profiles/:code/questions/:observationId/audio', (c) => {
+  const code = c.req.param('code');
+  assertValidProfileCode(code);
+  const audio = getQuestionAudio(db, code, c.req.param('observationId'));
+  if (!audio) return c.body(null, 404);
+  return c.body(new Uint8Array(audio.bytes), 200, { 'Content-Type': audio.mimeType, 'Content-Length': String(audio.bytes.byteLength) });
+});
+
 app.post('/api/profiles/:code/export', async (c) => {
   const body = await c.req.json<ExportRequest>();
   return c.json(await generateExport(c.req.param('code'), body.count));
@@ -114,6 +144,9 @@ app.onError((error, c) => {
   }
   if (error instanceof InvalidAudioSettingsError) {
     return c.json({ error: 'invalid-audio-settings' }, 400);
+  }
+  if (error instanceof InvalidQuestionResponseError) {
+    return c.json({ error: 'invalid-question-response' }, 400);
   }
   if (error instanceof InvalidExportRequestError) {
     return c.json({ error: 'invalid-export-request' }, 400);

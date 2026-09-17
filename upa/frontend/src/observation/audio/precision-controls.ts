@@ -2,10 +2,12 @@ export interface PrecisionMode {
   surface: 'closed' | 'controls' | 'magnifier';
   playback: 'closed' | 'controls' | 'speed';
 }
-export type PrecisionAction = 'open' | 'close' | 'toggle-visibility' | 'toggle-controls' | 'toggle-speed' | 'close-speed';
+export type PrecisionAction = 'open' | 'close' | 'toggle-visibility' | 'toggle-controls' | 'toggle-speed' | 'close-speed'
+  | { type: 'restore'; mode: PrecisionMode };
 export const CLOSED_PRECISION_MODE: PrecisionMode = { surface: 'closed', playback: 'closed' };
 
 export function precisionControls(mode: PrecisionMode, action: PrecisionAction): PrecisionMode {
+  if (typeof action !== 'string') return action.mode;
   switch (action) {
     case 'open': return { ...mode, surface: 'magnifier' };
     case 'close': return CLOSED_PRECISION_MODE;

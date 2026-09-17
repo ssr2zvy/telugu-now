@@ -1,6 +1,7 @@
 export type SettingsPage =
   | 'index'
   | 'sampling'
+  | 'questions'
   | 'display'
   | 'appearance'
   | 'images'
@@ -10,19 +11,27 @@ export type SettingsPage =
   | 'source'
   | 'complexityInfo'
   | 'global'
+  | 'questionInfo'
+  | 'queue'
   | 'complexity'
   | 'sources'
   | 'playback'
   | 'diagnostic'
   | 'dataSources'
   | 'blacklist'
-  | 'export';
+  | 'export'
+  | 'import'
+  | 'controlsGuide'
+  | 'about';
 export type UiLanguage =
   | 'en'
   | 'te';
 export interface SettingsDraft {
   targetPercent: string;
   spreadPercent: string;
+  questionPercent?: string;
+  seenQuestionPercent?: string;
+  audioGivenQuestionPercent?: string;
   sourceWeights:
     Record<string, string>;
 }

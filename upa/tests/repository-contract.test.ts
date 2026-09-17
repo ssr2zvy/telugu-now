@@ -64,6 +64,7 @@ test('Settings fields use a single rounded focus surface and compact accessible 
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { ComplexityPage } = await import('../frontend/src/settings/pages/ComplexityPage');
   const { SourceWeightsPage } = await import('../frontend/src/settings/pages/SourceWeightsPage');
+  const { QuestionsPage } = await import('../frontend/src/settings/pages/QuestionsPage');
   const { PlaybackSpeedPage } = await import('../frontend/src/settings/pages/PlaybackSpeedPage');
   const props = {
     language: 'en' as const, draft: { targetPercent: '50', spreadPercent: '25', sourceWeights: { 'fleurs-te': '1' } },
@@ -77,14 +78,24 @@ test('Settings fields use a single rounded focus surface and compact accessible 
   assert.match(complexity, /aria-label="Target"/);
   assert.match(complexity, /aria-label="Spread"/);
   assert.match(renderToStaticMarkup(createElement(SourceWeightsPage, props)), /inputMode="decimal"/);
-  assert.match(renderToStaticMarkup(createElement(PlaybackSpeedPage, {
-    language: 'en', rate: '1', saving: false, error: false, onRateChange: () => {}, onClearError: () => {}, onSave: () => {},
-  })), /inputMode="decimal"/);
+  const questions = renderToStaticMarkup(createElement(QuestionsPage, {
+    ...props,
+    draft: { ...props.draft, questionPercent: '30', seenQuestionPercent: '75', audioGivenQuestionPercent: '60' },
+  }));
+  assert.equal((questions.match(/inputMode="decimal"/g) ?? []).length, 3);
+  assert.match(questions, /Questions[\s\S]*30% \/ 70% Normal/);
+  assert.match(questions, /Previously Seen[\s\S]*75% \/ 25% Not Seen/);
+  assert.match(questions, /Audio Given[\s\S]*60% \/ 40% Text Given/);
+  const playback = renderToStaticMarkup(createElement(PlaybackSpeedPage, {
+    language: 'en', rate: '1', autoplay: true, saving: false, error: false, onRateChange: () => {}, onAutoplayChange: () => {}, onClearError: () => {}, onSave: () => {},
+  }));
+  assert.match(playback, /inputMode="decimal"[\s\S]*class="settings-switch-row"[\s\S]*role="switch"/);
   const css = read('frontend/src/styles/settings-layout.css');
   assert.match(css, /\.settings-form \.field-value \{[^}]*height: 44px;[^}]*gap: 3px;[^}]*border-radius: 6px/);
   assert.match(css, /\.field-value \.field-unit \{[^}]*font-size: 11px/);
   assert.match(css, /\.settings-form \.field-value:focus-within,[^{]+\{[^}]*box-shadow: 0 0 0 2px/);
   assert.match(css, /\.settings-form \.field-value input \{[^}]*background: transparent; box-shadow: none/);
+  assert.doesNotMatch(css, /\.settings-form (?:input|\.field-value):hover/);
   assert.doesNotMatch(css, /border-bottom-color/);
 });
 test('Settings editable controls retain a real 16px font floor without disabling zoom or keyboard access', () => {
@@ -117,11 +128,60 @@ test('Settings secondary labels and inset dividers preserve localized hierarchy'
   const css = read('frontend/src/styles/settings-layout.css');
   assert.match(css, /--muted: color-mix\(in srgb, var\(--foreground\) 74%, var\(--surface\)\)/);
   assert.match(css, /--line: color-mix\(in srgb, var\(--foreground\) 7%, transparent\)/);
-  assert.match(css, /\.settings-context \{[^}]*font-weight: 600/);
-  assert.match(css, /\.settings-screen\[lang='en'\] \.settings-context \{ letter-spacing: \.035em/);
+  assert.doesNotMatch(css, /\.settings-context/);
+  assert.doesNotMatch(read('frontend/src/settings/SettingsShell.tsx'), /className="settings-context"/);
   assert.match(css, /\.settings-entry-meta \{[^}]*font-weight: 500/);
   assert.match(css, /\.settings-rail-child \{[^}]*font-weight: 500/);
   assert.match(css, /\.settings-index button:not\(:last-child\)::after \{[^}]*inset-inline: 54px 12px;[^}]*height: 1px/);
+  assert.match(css, /\.settings-index \{[^}]*width: calc\(100% \+ 24px\); margin-inline: -12px/);
+  assert.match(css, /\.settings-index button \{[^}]*width: 100%/);
+  const index = read('frontend/src/settings/pages/SettingsIndex.tsx');
+  assert.doesNotMatch(index, /aria-describedby|aria-label=\{settingsPageLabel/);
+  assert.doesNotMatch(read('frontend/src/settings/SettingsShell.tsx'), /aria-label=\{`\$\{nested/);
+});
+test('Settings structure uses distinct playback sections and Appearance visual groups', () => {
+  const navigation = read('frontend/src/settings/navigation.ts');
+  const appearance = read('frontend/src/settings/pages/OrganizedAppearancePage.tsx');
+  const player = read('frontend/src/observation/audio/useAudioPlayer.ts');
+  assert.match(navigation, /'Playback Settings'/);
+  assert.match(navigation, /'Image Generation'/);
+  for (const group of ['Background', 'Reading Text & Icons', 'Audio Controls', 'Settings & Popovers']) {
+    assert.ok(appearance.includes(group), `${group} must be an Appearance group`);
+  }
+  assert.match(appearance, /Automatic Surface[\s\S]*Derive a readable surface from the background/);
+  assert.match(appearance, /appearance\.highlightMods \? teluguHighlightRuns\(previewText\)/);
+  assert.match(appearance, /<CollapsibleSettingsSection className="appearance-element"/);
+  const dataSources = read('frontend/src/settings/pages/DataSourcesPage.tsx');
+  const eons = read('frontend/src/settings/pages/EonsPage.tsx');
+  assert.match(dataSources, /<CollapsibleSettingsSection className="data-source-card"/);
+  assert.match(eons, /<CollapsibleSettingsSection[\s\S]*className=\{active \? 'eon-active' : 'eon-current'\}/);
+  assert.match(eons, /<CollapsibleSettingsSection className="eon-history"/);
+  assert.match(player, /wantsPlaybackRef\.current = autoplay/);
+  assert.doesNotMatch(player, /\[audio\?\.url, sourceId, sourceKey, observationId, attempt, autoplay\]/);
+  const css = read('frontend/src/styles/settings-layout.css');
+  assert.match(css, /\.appearance-element \.settings-collapsible-heading h2 \{[^}]*font-size: 1\.1rem/);
+  assert.match(css, /\.settings-collapsible-section:not\(\[open\]\) \.settings-collapsible-heading > svg \{ transform: rotate\(-90deg\); \}/);
+  assert.match(css, /\.appearance-subsection h3 \{[^}]*font-size: \.88rem/);
+  assert.match(css, /\.appearance-color-row, \.appearance-switch-row \{[^}]*font-size: \.81rem/);
+});
+
+test('question and answer observations expose distinct compact phase icons', () => {
+  const observation = read('frontend/src/observation/ObservationView.tsx');
+  const css = read('frontend/src/styles/observation-layout.css');
+  assert.match(observation, /CircleHelp aria-hidden="true"/);
+  assert.match(observation, /Check aria-hidden="true"/);
+  assert.match(observation, /aria-label=\{observation\.question\?\.phase === 'answer' \? 'Answer' : 'Question'\}/);
+  assert.match(css, /\.question-phase-indicator \{[^}]*top: max\(16px, env\(safe-area-inset-top\)\);[^}]*right: max\(20px, env\(safe-area-inset-right\)\);[^}]*width: 36px; height: 36px;[^}]*color: var\(--corner-control-color\);[^}]*pointer-events: none/);
+  assert.match(observation, /phase === 'answer' \? <Check aria-hidden="true" \/> : <CircleHelp aria-hidden="true" \/>/);
+});
+
+test('Question sampling remains a dedicated three-probability Settings section', () => {
+  const navigation = read('frontend/src/settings/navigation.ts');
+  const page = read('frontend/src/settings/pages/QuestionsPage.tsx');
+  assert.match(navigation, /sampling: \['questions', 'complexity', 'sources', 'dataSources'\]/);
+  assert.match(page, /questionPercent/);
+  assert.match(page, /seenQuestionPercent/);
+  assert.match(page, /audioGivenQuestionPercent/);
 });
 test(
   'local controller lives under local-machine with no obsolete controller names',
@@ -234,6 +294,9 @@ test(
       'frontend/src/settings/pages/SourceWeightsPage.tsx',
       'frontend/src/settings/pages/DiagnosticPage.tsx',
       'frontend/src/settings/pages/ExportPage.tsx',
+      'frontend/src/settings/pages/ImportPage.tsx',
+      'frontend/src/settings/pages/ControlsGuidePage.tsx',
+      'frontend/src/settings/pages/AboutPage.tsx',
       'frontend/src/settings/pages/DataSourcesPage.tsx',
       'server/src/sources/prepared-corpus/prepared-corpus-store.ts',
       'server/src/sources/prepared-corpus/prepared-corpus-data-source.ts',
@@ -314,6 +377,29 @@ test(
     );
   },
 );
+test('Settings routes import, export, controls, and deployment information independently', () => {
+  const settingsView = read('frontend/src/settings/SettingsView.tsx');
+  const navigation = read('frontend/src/settings/navigation.ts');
+  const exportPage = read('frontend/src/settings/pages/ExportPage.tsx');
+  const importPage = read('frontend/src/settings/pages/ImportPage.tsx');
+  const controlsGuide = read('frontend/src/settings/pages/ControlsGuidePage.tsx');
+  const aboutPage = read('frontend/src/settings/pages/AboutPage.tsx');
+  const styles = read('frontend/src/styles/settings-layout.css');
+
+  for (const page of ['export', 'import', 'controlsGuide', 'about']) {
+    assert.ok(settingsView.includes(`if (page === '${page}')`), `${page} needs an explicit route`);
+  }
+  assert.match(navigation, /'export', 'import', 'controlsGuide', 'about'/);
+  assert.doesNotMatch(exportPage, /importAppArchive|type="file"/);
+  assert.match(importPage, /importAppArchive\(file\)/);
+  assert.match(importPage, /type="file"/);
+  assert.match(importPage, /className="secondary-action import-file-action"/);
+  assert.match(styles, /\.import-page input\[type='file'\] \{ display: none; \}/);
+  assert.match(controlsGuide, /className="controls-guide-list"/);
+  assert.match(aboutPage, /fetch\('\/version\.json'\)/);
+  assert.match(aboutPage, /metadata\.deployedAt/);
+  assert.match(settingsView, /return null;\s*\n}/);
+});
 test(
   'Settings export uses a transient format chooser and keeps format out of selection',
   () => {

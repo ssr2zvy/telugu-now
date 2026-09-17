@@ -5,10 +5,17 @@ import type {
   DisplayObservation,
   MediaItem,
   ObservationAudio,
+  ObservationKind,
   ObservationStatus,
   ProfileSelectionSettings,
   ProfileStateResponse,
   QueueSummary,
+  QueueViewResponse,
+  QueueViewSlot,
+  QuestionKeyboard,
+  QuestionMode,
+  QuestionPool,
+  QuestionPhase,
   SelectionSnapshot,
   TimingSummary,
   UpdateSelectionSettingsRequest,
@@ -55,6 +62,13 @@ interface ObservationRow {
   selection_snapshot_json: string;
   media_json: string | null;
   repeat_snapshot_json: string | null;
+  presentation_state_json: string;
+  observation_kind: ObservationKind;
+  question_requested_pool: QuestionPool | null;
+  question_mode: QuestionMode | null;
+  question_keyboard: QuestionKeyboard | null;
+  response_text: string | null;
+  response_audio_mime_type: string | null;
 }
 
 interface CountRow { count: number }
@@ -67,6 +81,62 @@ export class NavigationUnavailableError extends Error {}
 
 export function assertValidProfileCode(code: string): void {
   if (!config.profileCodes.has(code)) throw new InvalidProfileCodeError('Invalid profile code.');
+}
+
+export function getQueueView(code: string): QueueViewResponse {
+  assertValidProfileCode(code);
+  const rows = db.prepare(`
+    SELECT q.queue_position, o.id AS observation_id, o.source_id, o.source_key,
+           COALESCE(o.text, sr.text) AS text, o.status, o.selected_at, o.prepared_at,
+           o.request_started_at, o.request_completed_at, o.request_duration_ms, o.cache_hit,
+           o.preparation_attempts, o.preparation_retry_at, o.preparation_error,
+           a.acquisition_number, a.trigger_kind, a.observation_kind, a.question_mode,
+           sr.media_json
+    FROM queue_items q
+    JOIN observations o ON o.id = q.observation_id
+    JOIN observation_acquisitions a ON a.observation_id = o.id
+    LEFT JOIN source_records sr
+      ON sr.profile_code = q.profile_code AND sr.source_id = o.source_id AND sr.source_key = o.source_key
+    WHERE q.profile_code = ?
+    ORDER BY q.queue_position
+  `).all(code) as Array<{
+    queue_position: number; observation_id: string; source_id: string; source_key: string;
+    text: string | null; status: ObservationStatus; selected_at: number; prepared_at: number | null;
+    request_started_at: number | null; request_completed_at: number | null; request_duration_ms: number | null;
+    cache_hit: number | null; preparation_attempts: number; preparation_retry_at: number | null;
+    preparation_error: string | null; acquisition_number: number; trigger_kind: AcquisitionTriggerKind;
+    observation_kind: ObservationKind; question_mode: QuestionMode | null; media_json: string | null;
+  }>;
+  const slots: QueueViewSlot[] = Array.from({ length: 10 }, (_, index) => {
+    const row = rows[index];
+    if (!row) return {
+      slot: index + 1, phase: 'empty', queuePosition: null, observationId: null, sourceId: null,
+      sourceKey: null, text: null, selectedAt: null, preparedAt: null, requestStartedAt: null,
+      requestCompletedAt: null, requestDurationMs: null, cacheHit: null, preparationAttempts: 0,
+      preparationRetryAt: null, preparationError: null, acquisitionNumber: null, triggerKind: null,
+      observationKind: null, questionMode: null, hasAudio: false, fontRenderPhase: 'not-scheduled',
+    };
+    const phase = row.status === 'ready' ? 'ready'
+      : row.status === 'preparing' ? 'preparing'
+        : row.preparation_error && row.preparation_retry_at ? 'retry-waiting'
+          : row.preparation_error ? 'failed' : 'pending';
+    let hasAudio = false;
+    try {
+      hasAudio = (JSON.parse(row.media_json ?? '[]') as MediaItem[]).some(item => item.kind === 'audio');
+    } catch { /* malformed media is reported as unavailable */ }
+    return {
+      slot: index + 1, phase, queuePosition: row.queue_position, observationId: row.observation_id,
+      sourceId: row.source_id, sourceKey: row.source_key, text: row.text, selectedAt: row.selected_at,
+      preparedAt: row.prepared_at, requestStartedAt: row.request_started_at,
+      requestCompletedAt: row.request_completed_at, requestDurationMs: row.request_duration_ms,
+      cacheHit: row.cache_hit === null ? null : row.cache_hit === 1,
+      preparationAttempts: row.preparation_attempts, preparationRetryAt: row.preparation_retry_at,
+      preparationError: row.preparation_error, acquisitionNumber: row.acquisition_number,
+      triggerKind: row.trigger_kind, observationKind: row.observation_kind,
+      questionMode: row.question_mode, hasAudio, fontRenderPhase: 'not-scheduled',
+    };
+  });
+  return { generatedAt: Date.now(), capacity: 10, slots };
 }
 
 export function ensureProfileRow(code: string): void {
@@ -230,6 +300,16 @@ function audioObjectUrl(objectKey: string): string {
   return `/api/audio/${objectKey.split('/').map(encodeURIComponent).join('/')}?v=2`;
 }
 
+function questionPhase(raw: string): QuestionPhase {
+  try {
+    return (JSON.parse(raw) as { questionPhase?: unknown }).questionPhase === 'answer' ? 'answer' : 'question';
+  } catch { return 'question'; }
+}
+
+function questionAudioUrl(profileCode: string, observationId: string): string {
+  return `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
+}
+
 export function parseObservationAudio(raw: string | null): ObservationAudio | null {
   if (!raw) return null;
   try {
@@ -254,12 +334,15 @@ function currentObservation(code: string, currentPosition: number | null): Displ
            a.preparation_in_flight_at_trigger,
            a.selection_snapshot_json,
            o.request_started_at, o.request_completed_at, o.request_duration_ms,
-           o.cache_hit, sr.media_json, o.repeat_snapshot_json
+           o.cache_hit, sr.media_json, o.repeat_snapshot_json,
+           h.presentation_state_json, a.observation_kind, a.question_requested_pool, a.question_mode, a.question_keyboard,
+           qr.response_text, qr.response_audio_mime_type
     FROM history_entries h
     JOIN observations o ON o.id = h.observation_id
     JOIN observation_acquisitions a ON a.observation_id = o.id
     LEFT JOIN observation_acquisitions ta ON ta.observation_id = a.trigger_observation_id
     LEFT JOIN source_records sr ON sr.profile_code = h.profile_code AND sr.source_id = o.source_id AND sr.source_key = o.source_key
+    LEFT JOIN question_responses qr ON qr.profile_code = h.profile_code AND qr.observation_id = o.id
     WHERE h.profile_code = ? AND h.history_position = ?
   `).get(code, currentPosition) as ObservationRow | undefined;
 
@@ -270,6 +353,19 @@ function currentObservation(code: string, currentPosition: number | null): Displ
     sourceKey: row.source_key,
     text: row.text,
     audio: parseObservationAudio(row.media_json),
+    kind: row.observation_kind,
+    question: row.observation_kind === 'question' && row.question_mode ? {
+      mode: row.question_mode,
+      requestedPool: row.question_requested_pool,
+      keyboard: row.question_keyboard,
+      phase: questionPhase(row.presentation_state_json),
+      responseText: row.response_text ?? '',
+      responseAudio: row.response_audio_mime_type ? {
+        url: questionAudioUrl(code, row.id),
+        mimeType: row.response_audio_mime_type,
+        durationSeconds: 0,
+      } : null,
+    } : null,
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
@@ -343,6 +439,36 @@ function upcomingAudio(code: string, position: number | null): ObservationAudio[
   });
 }
 
+function upcomingPresentation(code: string, position: number | null): Array<{ id: string; text: string }> {
+  return db.prepare(`
+    SELECT o.id, o.text
+    FROM (
+      SELECT h.observation_id, 0 AS kind, h.history_position AS position
+      FROM history_entries h WHERE h.profile_code = ? AND h.history_position > ?
+      UNION ALL
+      SELECT q.observation_id, 1 AS kind, q.queue_position AS position
+      FROM queue_items q JOIN observations queued ON queued.id = q.observation_id
+      WHERE q.profile_code = ? AND queued.status = 'ready'
+    ) upcoming
+    JOIN observations o ON o.id = upcoming.observation_id
+    WHERE o.text IS NOT NULL
+    ORDER BY upcoming.kind, upcoming.position
+    LIMIT 1
+  `).all(code, position ?? -1, code) as Array<{ id: string; text: string }>;
+}
+
+function previousPresentation(code: string, position: number | null): { id: string; text: string } | null {
+  const previousPosition = adjacentHistoryPosition(code, position, 'back');
+  if (previousPosition === null) return null;
+  const row = db.prepare(`
+    SELECT o.id, o.text
+    FROM history_entries h
+    JOIN observations o ON o.id = h.observation_id
+    WHERE h.profile_code = ? AND h.history_position = ? AND o.text IS NOT NULL
+  `).get(code, previousPosition) as { id: string; text: string } | undefined;
+  return row ?? null;
+}
+
 function timingSummary(code: string, now: number): TimingSummary | null {
   const tail = tailRow(code);
   if (!tail) return null;
@@ -396,15 +522,18 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   const inHistoricalForwardPath = profile.current_position !== null
     && tailPosition !== null
     && profile.current_position < tailPosition;
+  const displayedObservation = currentObservation(code, profile.current_position);
 
   return {
     profileCode: code,
     currentPosition: profile.current_position,
     historyLength: length,
-    currentObservation: currentObservation(code, profile.current_position),
+    currentObservation: displayedObservation,
     upcomingAudio: upcomingAudio(code, profile.current_position),
+    upcomingPresentation: upcomingPresentation(code, profile.current_position),
+    previousPresentation: previousPresentation(code, profile.current_position),
     canBack: adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
-    canNext: inHistoricalForwardPath || nextQueue?.status === 'ready',
+    canNext: displayedObservation?.question?.phase === 'question' || inHistoricalForwardPath || nextQueue?.status === 'ready',
     nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),
     queue: queueSummary(code),
     timing: timingSummary(code, now),
@@ -456,6 +585,18 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
   ensureProfileRow(code);
   db.transaction(() => {
     const profile = profileRow(code);
+    if (profile.current_position !== null) {
+      const current = db.prepare(`
+        SELECT h.presentation_state_json, a.observation_kind
+        FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
+        WHERE h.profile_code = ? AND h.history_position = ?
+      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      if (current?.observation_kind === 'question' && questionPhase(current.presentation_state_json) === 'answer') {
+        db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
+          .run(JSON.stringify({ questionPhase: 'question' }), code, profile.current_position);
+        return;
+      }
+    }
     const previousPosition = adjacentHistoryPosition(code, profile.current_position, 'back');
     if (previousPosition === null) {
       throw new NavigationUnavailableError('Back is unavailable.');
@@ -486,6 +627,19 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     const now = Date.now();
     const profile = profileRow(code);
     const tailPosition = historyTailPosition(code);
+
+    if (profile.current_position !== null) {
+      const current = db.prepare(`
+        SELECT h.presentation_state_json, a.observation_kind
+        FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
+        WHERE h.profile_code = ? AND h.history_position = ?
+      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      if (current?.observation_kind === 'question' && questionPhase(current.presentation_state_json) === 'question') {
+        db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
+          .run(JSON.stringify({ questionPhase: 'answer' }), code, profile.current_position);
+        return;
+      }
+    }
 
     // History mode: walk right through already-seen entries and do not consume queue.
     if (

@@ -1,41 +1,68 @@
-import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, RefreshCw, Sparkles, X } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { ArrowLeft, Ban, Copy, Images, Info, LoaderCircle, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
-import { existingWordImage, generateWordImage, wordImageError, wordImageSettings } from './word-images';
-import { useAppearance } from '../../appearance';
+import { generateWordImage, removeWordImage, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
+import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
+import { CustomCursor } from '../../components/CustomCursor';
+import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
+import { teluguHighlightRuns } from '../telugu-highlighting';
+import { TeluguGradientText } from '../TeluguGradientText';
+import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
+import type { ObservationFontFamily } from '../../presentation';
+import { visibleGraphemeAtPoint } from '../visible-glyph-hit-testing';
+import { ReaderTaps } from '../reader-taps';
+import { LetterProfile } from './LetterProfile';
+
+async function copyWord(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
+  }
+}
+
+async function copyImage(blob: Blob): Promise<void> {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Image copying is not supported by this browser.');
+  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+}
+
+type ImagePane = 'action' | 'image' | 'gallery' | 'info';
 
 function WordImage({ root }: { root: string }) {
-  const { profileCode } = useAppearance();
-  const [image, setImage] = useState<Blob | null>(null);
-  const [source, setSource] = useState<string | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'saved' | 'error'>('loading');
+  const { appearance, profileCode } = useAppearance();
+  const [images, setImages] = useState<WordImageMetadata[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [pane, setPane] = useState<ImagePane>('action');
+  const [boundary, setBoundary] = useState<'before' | 'after'>('after');
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'error'>('loading');
   const [error, setError] = useState('');
-  const [allowRegeneration, setAllowRegeneration] = useState(false);
-  const [settingsError, setSettingsError] = useState(false);
-  const [settingsAttempt, setSettingsAttempt] = useState(0);
   const active = useRef(true);
   const running = useRef(false);
+  const current = images[currentIndex];
+  const currentThumbnail = useRef<HTMLButtonElement>(null);
+  const paintId = `word-image-glass-${useId().replace(/:/g, '')}`;
+  const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   useEffect(() => {
     active.current = true;
     return () => { active.current = false; };
   }, []);
   useEffect(() => {
-    if (!profileCode) return;
-    let cancelled = false;
-    setAllowRegeneration(false);
-    setSettingsError(false);
-    void wordImageSettings(profileCode).then(settings => {
-      if (!cancelled) setAllowRegeneration(settings.allowRegeneration);
-    }).catch(() => { if (!cancelled) setSettingsError(true); });
-    return () => { cancelled = true; };
-  }, [profileCode, settingsAttempt]);
-  useEffect(() => {
     let cancelled = false;
     setStatus('loading');
     setError('');
-    void existingWordImage(root).then(saved => {
+    void wordImageGallery(root).then(saved => {
       if (cancelled) return;
-      if (saved) { setImage(saved); setStatus('saved'); return; }
+      setImages(saved);
+      setCurrentIndex(0);
+      setPane(saved.length ? 'image' : 'action');
       setStatus('ready');
     }).catch(reason => {
       if (!cancelled) { setError(wordImageError(reason)); setStatus('error'); }
@@ -43,66 +70,178 @@ function WordImage({ root }: { root: string }) {
     return () => { cancelled = true; };
   }, [root]);
   useEffect(() => {
-    if (!image) return;
-    const url = URL.createObjectURL(image);
-    setSource(url);
-    return () => URL.revokeObjectURL(url);
-  }, [image]);
-  const generate = async (regenerate = false) => {
+    if (pane === 'gallery') currentThumbnail.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [pane, currentIndex]);
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [menu]);
+  const generate = async () => {
     if (running.current || !profileCode) return;
-    if (regenerate && (!allowRegeneration || !window.confirm('Replace the shared image for this core word? This affects all profiles.'))) return;
     running.current = true;
     setStatus('generating');
     setError('');
     try {
-      const saved = await generateWordImage(root, profileCode, regenerate);
-      if (active.current) { setImage(saved); setStatus('saved'); }
+      await generateWordImage(root, profileCode, false, images.length > 0);
+      const saved = await wordImageGallery(root);
+      if (active.current) {
+        setImages(saved);
+        setCurrentIndex(Math.max(0, saved.length - 1));
+        setPane(saved.length ? 'image' : 'action');
+        setStatus('ready');
+      }
     } catch (reason) {
       if (active.current) { setError(wordImageError(reason)); setStatus('error'); }
     } finally {
       running.current = false;
     }
   };
+  const navigate = (direction: -1 | 1) => {
+    setMenu(null);
+    if (pane === 'action') {
+      if (!images.length) return;
+      setCurrentIndex(direction < 0 ? images.length - 1 : 0);
+      setPane('image');
+      return;
+    }
+    if (pane !== 'image') return;
+    const next = currentIndex + direction;
+    if (next < 0 || next >= images.length) {
+      setBoundary(next < 0 ? 'before' : 'after');
+      setPane('action');
+      return;
+    }
+    setCurrentIndex(next);
+  };
+  const navigateFromDoubleClick = (event: MouseEvent<HTMLElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    navigate(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+  };
+  const blacklist = async () => {
+    if (!profileCode || !current) return;
+    setMenu(null);
+    setError('');
+    try {
+      await removeWordImage(root, profileCode, current.id);
+      const saved = images.filter(image => image.id !== current.id);
+      setImages(saved);
+      if (!saved.length) { setCurrentIndex(0); setPane('action'); return; }
+      setCurrentIndex(Math.min(currentIndex, saved.length - 1));
+      setPane('image');
+    } catch (reason) { setError(wordImageError(reason)); }
+  };
+  const copyCurrent = async () => {
+    if (!current) return;
+    setMenu(null);
+    setError('');
+    try { await copyImage(await wordImageBlob(root, current.id)); }
+    catch (reason) { setError(wordImageError(reason)); }
+  };
   const busy = status === 'loading' || status === 'generating';
   return (
-    <section className="word-image-section" aria-label="Concept image">
-      <div className="word-image-preview" aria-busy={busy}>
-        {source ? <img src={source} alt={`Drawing of the concept of ${root}`} /> : (
-          <button className="word-profile-action" type="button" disabled={busy} onClick={() => void generate()}>
-            {busy ? <LoaderCircle className="word-image-spinner" size={16} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
-            {status === 'loading' ? 'Loading' : status === 'generating' ? 'Generating' : status === 'error' ? 'Retry' : 'Generate'}
-          </button>
-        )}
+    <section className="word-image-section" aria-label="Concept images" aria-busy={busy}
+      style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}
+      onDoubleClick={event => { event.stopPropagation(); navigateFromDoubleClick(event); }}>
+      <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs><linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
+          {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
+        </linearGradient></defs>
+      </svg>
+      {pane === 'image' && current ? <div className="word-image-preview" onContextMenu={event => {
+        event.preventDefault();
+        setMenu({ x: event.clientX, y: event.clientY });
+      }}>
+        <img src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
+      </div> : null}
+      {pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
+        <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
+          aria-label={images.length ? 'Generate another image' : 'Generate image'} title={images.length ? 'Generate another image' : 'Generate image'}
+          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>
+          {busy ? <LoaderCircle className="word-image-spinner" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+        </button>
+        <button className="word-image-glass-action" type="button" aria-label="Search for an image" title="Search for an image"
+          onDoubleClick={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><Search aria-hidden="true" /></button>
       </div>
-      {source && allowRegeneration ? <button className="word-profile-action word-image-regenerate" type="button" disabled={busy} onClick={() => void generate(true)}>
-        {busy ? <LoaderCircle className="word-image-spinner" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
-        {busy ? 'Regenerating...' : status === 'error' ? 'Retry regeneration' : 'Regenerate'}
-      </button> : null}
+      : null}
+      {pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">
+        {images.map((image, index) => <button key={image.id} ref={index === currentIndex ? currentThumbnail : undefined}
+          type="button" aria-label={`Open image ${index + 1}`} aria-current={index === currentIndex}
+          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCurrentIndex(index); setPane('image'); }}>
+          <img src={wordImageUrl(root, image.id)} alt="" />
+        </button>)}
+      </div> : null}
+      {pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
+        <dl><div><dt>Retrieval</dt><dd>{current.method === 'generation' ? 'Generated' : 'Source'}</dd></div>
+          <div><dt>Vendor</dt><dd>{current.vendor}</dd></div>
+          <div><dt>Added</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd></div></dl>
+        <button type="button" onClick={() => setPane('image')}>Close</button>
+      </div> : null}
+      {menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
+        style={{ left: menu.x, top: menu.y }} onPointerDown={event => event.stopPropagation()}>
+        <button className="reading-context-menu-action" role="menuitem" type="button" title="Copy" aria-label="Copy image" onClick={() => void copyCurrent()}><Copy size={18} /></button>
+        <button className="reading-context-menu-action" role="menuitem" type="button" title="Blacklist" aria-label="Blacklist image" onClick={() => void blacklist()}><Ban size={18} /></button>
+        <button className="reading-context-menu-action" role="menuitem" type="button" title="Gallery" aria-label="Open gallery" onClick={() => { setMenu(null); setPane('gallery'); }}><Images size={18} /></button>
+        <button className="reading-context-menu-action" role="menuitem" type="button" title="Info" aria-label="Image information" onClick={() => { setMenu(null); setPane('info'); }}><Info size={18} /></button>
+        <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
+      </div> : null}
       <div className="word-image-status" role="status" aria-live="polite">
-        {status === 'loading' ? 'Checking saved image' : status === 'generating' ? image ? 'Regenerating image' : 'Generating image' : status === 'saved' ? 'Image ready' : ''}
+        {status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : ''}
       </div>
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
-      {settingsError ? <div className="word-profile-error" role="alert">
-        Could not load image settings.
-        <button className="word-profile-action" type="button" aria-label="Retry image settings"
-          onClick={() => setSettingsAttempt(attempt => attempt + 1)}><RefreshCw size={16} aria-hidden="true" /></button>
-      </div> : null}
     </section>
   );
 }
 
-export function WordProfile({ word, onClose }: { word: string; onClose: () => void }) {
+export function WordProfile({ word, fontFamily, playbackRate, onClose }: {
+  word: string;
+  fontFamily: ObservationFontFamily;
+  playbackRate: number;
+  onClose: () => void;
+}) {
+  const { appearance } = useAppearance();
   const analysis = analyzeWord(word);
   const parts = wordDisplayParts(analysis);
+  const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(analysis.word) : null;
+  const gradientEndColor = appearanceModificationColor(appearance);
+  const gradientKey = highlightRuns?.some(run => run.highlighted)
+    ? [analysis.word, fontFamily, appearance.foreground, gradientEndColor].join('\0')
+    : null;
+  const [gradientPresentation, setGradientPresentation] = useState<{
+    key: string;
+    textures: Array<TeluguGradientTexture | null>;
+  } | null>(null);
+  const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(analysis.word)].length;
+  const [copyMenu, setCopyMenu] = useState<ReadingContextMenuState | null>(null);
+  const [selectedGrapheme, setSelectedGrapheme] = useState<string | null>(null);
+  const [letterTaps] = useState(() => new ReaderTaps());
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
-    return () => { element?.close(); };
-  }, []);
+    return () => { letterTaps.cancel(); element?.close(); };
+  }, [letterTaps]);
+  useEffect(() => {
+    if (!gradientKey || !highlightRuns) return;
+    let cancelled = false;
+    void Promise.all(highlightRuns.map(run => run.highlighted
+      ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor)
+      : Promise.resolve(null))).then(textures => {
+        if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
+      }).catch(() => {
+        if (!cancelled) setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+      });
+    return () => { cancelled = true; };
+  }, [gradientKey]);
   return (
-    <dialog ref={dialog} className="word-profile" aria-labelledby="word-profile-title"
-      onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
+    <dialog ref={dialog} className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
+      onCancel={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (selectedGrapheme) setSelectedGrapheme(null);
+        else onClose();
+      }}
       onDoubleClick={event => event.stopPropagation()}
       onClick={event => {
         event.stopPropagation();
@@ -110,13 +249,36 @@ export function WordProfile({ word, onClose }: { word: string; onClose: () => vo
         const bounds = event.currentTarget.getBoundingClientRect();
         if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
       }}>
-      <header className="word-profile-header">
-        <h2 id="word-profile-title" lang="te" aria-label={analysis.word} title={analysis.root}>
-          <span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span>
+      <CustomCursor />
+      <div className="gradient-field word-profile-gradient" aria-hidden="true"><div /><div /><div /></div>
+      {selectedGrapheme ? <LetterProfile letter={selectedGrapheme} fontFamily={fontFamily}
+        playbackRate={playbackRate} onBack={() => setSelectedGrapheme(null)} /> : <>
+      <header className="word-profile-header" onClick={event => {
+        const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
+        if (!hit) { letterTaps.cancel(); return; }
+        letterTaps.tap(`grapheme:${hit.start}`, event.clientX, event.clientY, () => {
+          setCopyMenu(null);
+          setSelectedGrapheme(hit.text);
+        }, () => {});
+      }} onContextMenu={event => {
+        event.preventDefault();
+        setCopyMenu(readingContextMenuState(event.clientX, event.clientY, analysis.word));
+      }}>
+        <h2 id="word-profile-title" lang="te" aria-label={analysis.word}
+          style={{ '--word-graphemes': Math.max(1, graphemeCount), fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
+          {highlightRuns ? highlightRuns.map((run, index) => run.highlighted
+            ? <TeluguGradientText key={index} text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
+            : run.text) : <><span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span></>}
         </h2>
-        <button type="button" className="word-profile-close" aria-label="Close word profile" onClick={onClose}><X size={20} aria-hidden="true" /></button>
       </header>
+      <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
       <WordImage key={analysis.root} root={analysis.root} />
+      {copyMenu ? <ReadingContextMenu
+        menu={copyMenu}
+        onCopy={(text) => void copyWord(text)}
+        onClose={() => setCopyMenu(null)}
+      /> : null}
+      </>}
     </dialog>
   );
 }

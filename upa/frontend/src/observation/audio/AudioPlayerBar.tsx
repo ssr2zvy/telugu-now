@@ -1,14 +1,14 @@
 import { useEffect, useId, useImperativeHandle, useMemo, useReducer, useRef, type CSSProperties, type Ref } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
-import { AudioGlassIcon } from './AudioGlassIcon';
-import { AudioScrubber } from './AudioScrubber';
+import { AudioScrubber, type RecordingTimeline } from './AudioScrubber';
 import { PlaybackSpeedPopover } from './PlaybackSpeedPopover';
 import { useAudioPlayer } from './useAudioPlayer';
-import { RotateCw } from 'lucide-react';
 import { appearanceAudioGlass, useAppearance } from '../../appearance';
 import { CLOSED_PRECISION_MODE, precisionControls } from './precision-controls';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
-import { SettingsIcon } from '../../components/icons';
+import { toPlayerTime, toSpeechTime } from './prepared-audio';
+import { AudioIcon, SettingsIcon } from '../../components/icons';
+import { isBookmarkAtTime } from './bookmarks';
 
 interface AudioPlayerBarProps {
   audio: ObservationAudio | null;
@@ -17,10 +17,15 @@ interface AudioPlayerBarProps {
   observationId?: string | null;
   ref?: Ref<AudioPlayerBarHandle>;
   defaultPlaybackRate: number;
+  autoplay?: boolean;
   controlsVisible: boolean;
+  playbackEnabled?: boolean;
   onPrecisionInteraction?: () => void;
-  onLoadingChange?: (loading: boolean) => void;
+  readinessKey?: string | null;
+  onLoadingChange?: (key: string | null, loading: boolean, progress: number) => void;
   onPlaybackErrorChange?: (error: string | null) => void;
+  recordingRange?: RecordingTimeline | null;
+  reserveAudioSpace?: boolean;
 }
 
 export interface AudioPlayerBarHandle {
@@ -28,6 +33,10 @@ export interface AudioPlayerBarHandle {
   isPlaying: () => boolean;
   pause: () => void;
   resume: () => void;
+  currentTime: () => number;
+  duration: () => number;
+  beginRecording: () => number;
+  prepareAudioReplacement: (cursorSeconds: number) => void;
   isPrecisionOpen: () => boolean;
   dismissPrecision: () => boolean;
   toggleAssociatedControls: () => boolean;
@@ -40,23 +49,30 @@ export function AudioPlayerBar({
   observationId,
   ref,
   defaultPlaybackRate,
+  autoplay = true,
   controlsVisible,
+  playbackEnabled = true,
   onPrecisionInteraction,
+  readinessKey = null,
   onLoadingChange,
   onPlaybackErrorChange,
+  recordingRange = null,
+  reserveAudioSpace = false,
 }: AudioPlayerBarProps) {
-  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId);
+  const recordingActive = Boolean(recordingRange);
+  const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId, autoplay, playbackEnabled);
   useEffect(() => {
-    onLoadingChange?.(player.loading);
-    return () => onLoadingChange?.(false);
-  }, [player.loading, onLoadingChange]);
+    onLoadingChange?.(readinessKey, player.loading, player.preparationProgress);
+  }, [player.loading, player.preparationProgress, readinessKey, onLoadingChange]);
   useEffect(() => { onPlaybackErrorChange?.(player.playbackError); }, [player.playbackError, onPlaybackErrorChange]);
   const [precisionMode, dispatchPrecision] = useReducer(precisionControls, CLOSED_PRECISION_MODE);
   const [playbackInteraction, notePlaybackInteraction] = useReducer((value: number) => value + 1, 0);
-  const associatedControlsOpen = precisionMode.surface !== 'closed';
-  const magnifierOpen = precisionMode.surface === 'magnifier';
-  const speedPopoverOpen = precisionMode.playback === 'speed';
-  const playbackControlsOpen = precisionMode.playback === 'controls' || speedPopoverOpen;
+  const precisionBeforeRecording = useRef<typeof precisionMode | null>(null);
+  const presentedPrecisionMode = recordingActive ? CLOSED_PRECISION_MODE : precisionMode;
+  const associatedControlsOpen = presentedPrecisionMode.surface !== 'closed';
+  const magnifierOpen = presentedPrecisionMode.surface === 'magnifier';
+  const speedPopoverOpen = presentedPrecisionMode.playback === 'speed';
+  const playbackControlsOpen = presentedPrecisionMode.playback === 'controls' || speedPopoverOpen;
   const playerRef = useRef<HTMLDivElement>(null);
   const speedButtonRef = useRef<HTMLButtonElement>(null);
   const { appearance } = useAppearance();
@@ -80,6 +96,16 @@ export function AudioPlayerBar({
     isPlaying: () => player.playing,
     pause: player.pause,
     resume: () => { if (!player.playing) player.togglePlay(); },
+    currentTime: () => toSpeechTime(player.currentTime),
+    duration: () => player.duration,
+    beginRecording: () => {
+      const exactPlayerTime = player.audioRef.current?.currentTime ?? player.currentTime;
+      precisionBeforeRecording.current = precisionMode;
+      dispatchPrecision('close');
+      player.pause();
+      return toSpeechTime(exactPlayerTime);
+    },
+    prepareAudioReplacement: player.prepareReplacementAt,
     isPrecisionOpen: () => magnifierOpen,
     dismissPrecision: () => {
       if (!controlsVisible || !associatedControlsOpen) return false;
@@ -104,19 +130,30 @@ export function AudioPlayerBar({
   }, [controlsVisible, appearance.scrollMode]);
   useEffect(() => { dispatchPrecision('close'); }, [observationId]);
   useEffect(() => {
-    if (precisionMode.playback !== 'controls') return;
+    if (recordingActive || !precisionBeforeRecording.current) return;
+    dispatchPrecision({ type: 'restore', mode: precisionBeforeRecording.current });
+    precisionBeforeRecording.current = null;
+  }, [recordingActive]);
+  useEffect(() => {
+    if (recordingActive || precisionMode.playback !== 'controls') return;
     const timer = window.setTimeout(() => dispatchPrecision('toggle-controls'), appearance.autoFadeSeconds * 1000);
     return () => window.clearTimeout(timer);
-  }, [precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
+  }, [recordingActive, precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
   const bookmarkError = associatedControlsOpen ? player.bookmarkError : null;
-
+  const bookmarkSelected = isBookmarkAtTime(player.bookmarks, player.currentTime);
+  const playerRecordingRange = recordingRange ? {
+    start: audio ? toPlayerTime(recordingRange.start) : recordingRange.start,
+    end: audio ? toPlayerTime(recordingRange.end) : recordingRange.end,
+    span: recordingRange.span,
+  } : null;
+  const timelineDuration = playerRecordingRange?.span ?? player.duration;
   return (
     <div
       ref={playerRef}
       className="audio-player-bar"
       data-magnifier-position={appearance.magnifierPosition}
       data-speed-open={speedPopoverOpen}
-      data-has-audio={Boolean(audio)}
+      data-has-audio={Boolean(audio || recordingActive || reserveAudioSpace)}
       style={{
         '--audio-icon-paint': `url(#${paintId})`,
         '--audio-glass-gradient': glass.gradient,
@@ -144,14 +181,16 @@ export function AudioPlayerBar({
       <audio ref={player.audioRef} preload="auto" />
       <AudioScrubber
         currentTime={player.currentTime}
-        duration={player.duration}
+        duration={timelineDuration}
         waveformPeaks={player.waveformPeaks}
         bookmarks={player.bookmarks}
-        disabled={player.duration <= 0}
+        disabled={recordingActive || player.duration <= 0}
+        recordingRange={playerRecordingRange}
         magnifierOpen={associatedControlsOpen}
         precisionPanelOpen={magnifierOpen || speedPopoverOpen}
         showTimestamp={appearance.showAudioTimestamp}
-        playbackControls={precisionMode.playback === 'controls' ? <PlaybackSpeedPopover
+        showMagnifierHighlight={appearance.showMagnifierHighlight}
+        playbackControls={presentedPrecisionMode.playback === 'controls' ? <PlaybackSpeedPopover
           playbackRate={player.playbackRate}
           onChange={player.setPlaybackRate}
           view="controls"
@@ -179,10 +218,11 @@ export function AudioPlayerBar({
             className="audio-transport-button audio-bookmark-button"
             type="button"
             aria-label="బుక్‌మార్క్‌లు"
+            aria-pressed={bookmarkSelected}
             disabled={player.bookmarksBusy || Boolean(player.bookmarkError)}
             onClick={player.clickBookmarkButton}
           >
-            <AudioGlassIcon name="bookmark" />
+            <AudioIcon name="bookmark" filled={bookmarkSelected} />
           </button>
         }
         speedButton={speedPopoverOpen ? null :
@@ -192,9 +232,10 @@ export function AudioPlayerBar({
             type="button"
             aria-label="ప్లేబ్యాక్ అమరికలు"
             aria-expanded={playbackControlsOpen}
+            aria-pressed={playbackControlsOpen}
             onClick={() => dispatchPrecision('toggle-controls')}
           >
-            <SettingsIcon />
+            <SettingsIcon filled={playbackControlsOpen} />
           </button>
         }
         onMagnifierOpen={() => {
@@ -215,8 +256,6 @@ export function AudioPlayerBar({
       </div> : null}
       {bookmarkError || (!onPlaybackErrorChange && player.playbackError) ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
-        {bookmarkError ? <button type="button" className="audio-transport-button" aria-label="Retry bookmarks"
-          disabled={player.bookmarksBusy} onClick={player.retryBookmarks}><RotateCw size={16} aria-hidden="true" /></button> : null}
       </div> : null}
     </div>
   );

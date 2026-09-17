@@ -100,6 +100,10 @@ db.exec(`
     waiting_ahead_at_trigger INTEGER NOT NULL DEFAULT 0,
     preparation_in_flight_at_trigger INTEGER NOT NULL DEFAULT 0 CHECK (preparation_in_flight_at_trigger IN (0, 1)),
     selection_snapshot_json TEXT NOT NULL DEFAULT '{}',
+    observation_kind TEXT NOT NULL DEFAULT 'normal' CHECK (observation_kind IN ('normal', 'question')),
+    question_requested_pool TEXT CHECK (question_requested_pool IS NULL OR question_requested_pool IN ('seen', 'unseen')),
+    question_mode TEXT CHECK (question_mode IS NULL OR question_mode IN ('audio-given', 'text-given')),
+    question_keyboard TEXT CHECK (question_keyboard IS NULL OR question_keyboard IN ('windows-inscript', 'mac-standard', 'chromebook-dictation')),
     UNIQUE (profile_code, acquisition_number),
     FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE,
@@ -112,6 +116,9 @@ db.exec(`
     profile_code TEXT PRIMARY KEY,
     complexity_percentile_target REAL NOT NULL,
     complexity_percentile_spread REAL NOT NULL,
+    question_probability REAL NOT NULL DEFAULT 0.3,
+    seen_question_probability REAL NOT NULL DEFAULT 0.75,
+    audio_given_question_probability REAL NOT NULL DEFAULT 0.6,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
@@ -127,6 +134,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS profile_audio_settings (
     profile_code TEXT PRIMARY KEY,
     playback_rate REAL NOT NULL,
+    autoplay INTEGER NOT NULL DEFAULT 1 CHECK (autoplay IN (0, 1)),
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
@@ -143,6 +151,41 @@ function columnExists(table: string, column: string): boolean {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   return rows.some((row) => row.name === column);
 }
+
+if (!columnExists('profile_audio_settings', 'autoplay')) {
+  db.exec(`ALTER TABLE profile_audio_settings ADD COLUMN autoplay INTEGER NOT NULL DEFAULT 1 CHECK (autoplay IN (0, 1));`);
+}
+
+for (const [column, definition] of [
+  ['question_probability', 'REAL NOT NULL DEFAULT 0.3'],
+  ['seen_question_probability', 'REAL NOT NULL DEFAULT 0.75'],
+  ['audio_given_question_probability', 'REAL NOT NULL DEFAULT 0.6'],
+] as const) {
+  if (!columnExists('profile_selection_settings', column)) db.exec(`ALTER TABLE profile_selection_settings ADD COLUMN ${column} ${definition};`);
+}
+
+for (const [column, definition] of [
+  ['observation_kind', "TEXT NOT NULL DEFAULT 'normal' CHECK (observation_kind IN ('normal', 'question'))"],
+  ['question_requested_pool', "TEXT CHECK (question_requested_pool IS NULL OR question_requested_pool IN ('seen', 'unseen'))"],
+  ['question_mode', "TEXT CHECK (question_mode IS NULL OR question_mode IN ('audio-given', 'text-given'))"],
+  ['question_keyboard', "TEXT CHECK (question_keyboard IS NULL OR question_keyboard IN ('windows-inscript', 'mac-standard', 'chromebook-dictation'))"],
+] as const) {
+  if (!columnExists('observation_acquisitions', column)) db.exec(`ALTER TABLE observation_acquisitions ADD COLUMN ${column} ${definition};`);
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS question_responses (
+    profile_code TEXT NOT NULL,
+    observation_id TEXT NOT NULL,
+    response_text TEXT NOT NULL DEFAULT '',
+    response_audio BLOB,
+    response_audio_mime_type TEXT,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (profile_code, observation_id),
+    FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE,
+    FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+  );
+`);
 
 // Iteration 1 made (source_id, source_key) unique on observations. Iteration 2 permits
 // repeated selections, so remove that table-level uniqueness without destroying rows.

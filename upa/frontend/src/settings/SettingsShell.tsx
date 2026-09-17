@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import { parentSettingsPage, settingsGroups, settingsPageIcons, settingsPageLabel } from './navigation';
+import { settingsGroups, settingsPageIcons, settingsPageLabel } from './navigation';
 import {
   LanguageIcon,
 } from '../components/icons';
@@ -42,7 +42,6 @@ export function SettingsShell({
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLElement>(null);
-  const parent = parentSettingsPage(page);
   const overviewOpen = !railCollapsed;
   const overviewIsFullScreen = page === 'index';
   const railToggleLabel = language === 'en'
@@ -102,7 +101,6 @@ export function SettingsShell({
         key={destination}
         className={`settings-rail-link${nested ? ' settings-rail-child' : ''}`}
         type="button"
-        aria-label={`${nested ? settingsPageLabel(parentSettingsPage(destination), language) : t(language, 'settings')}: ${label}`}
         aria-current={page === destination ? 'page' : undefined}
         onClick={() => {
           if (page !== destination) {
@@ -206,11 +204,6 @@ export function SettingsShell({
           ) : null}
         </div>
         <div className="settings-heading">
-          <div className="settings-context">
-            {page === 'index'
-              ? `${language === 'en' ? 'Profile' : 'ప్రొఫైల్'} ${profileCode}`
-              : settingsPageLabel(parent, language)}
-          </div>
           <h1 ref={heading} tabIndex={-1}>{title}</h1>
         </div>
       </header>

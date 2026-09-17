@@ -2,6 +2,11 @@ export type PreparationGroupKind = 'launch-fill' | 'rolling-replenishment';
 export type AcquisitionTriggerKind = 'initial-fill' | 'observation-consumed';
 export type ObservationStatus = 'pending' | 'preparing' | 'ready';
 export type ComplexityMetric = 'word-count' | 'grapheme-count';
+export type ObservationKind = 'normal' | 'question';
+export type QuestionMode = 'audio-given' | 'text-given';
+export type QuestionPool = 'seen' | 'unseen';
+export type QuestionKeyboard = 'windows-inscript' | 'mac-standard' | 'chromebook-dictation';
+export type QuestionPhase = 'question' | 'answer';
 
 export interface ProfileEon {
   id: string;
@@ -29,6 +34,9 @@ export interface ProfileSelectionSettings {
   sourceWeights: Record<string, number>;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
+  questionProbability?: number;
+  seenQuestionProbability?: number;
+  audioGivenQuestionProbability?: number;
   complexityReferenceVersion: number;
 }
 
@@ -36,14 +44,19 @@ export interface UpdateSelectionSettingsRequest {
   sourceWeights: Record<string, number>;
   complexityPercentileTarget: number;
   complexityPercentileSpread: number;
+  questionProbability?: number;
+  seenQuestionProbability?: number;
+  audioGivenQuestionProbability?: number;
 }
 
 export interface ProfileAudioSettings {
   playbackRate: number;
+  autoplay: boolean;
 }
 
 export interface UpdateAudioSettingsRequest {
   playbackRate: number;
+  autoplay?: boolean;
 }
 
 export interface SelectionSnapshot {
@@ -155,7 +168,20 @@ export interface DisplayObservation {
   sourceKey: string;
   text: string;
   audio: ObservationAudio | null;
+  kind: ObservationKind;
+  question: {
+    mode: QuestionMode;
+    requestedPool: QuestionPool | null;
+    keyboard: QuestionKeyboard | null;
+    phase: QuestionPhase;
+    responseText: string;
+    responseAudio: ObservationAudio | null;
+  } | null;
   diagnostic: ObservationDiagnostic;
+}
+
+export interface UpdateQuestionResponseRequest {
+  text: string;
 }
 
 export interface QueueSummary {
@@ -166,11 +192,49 @@ export interface QueueSummary {
   preparationError?: { code: string; attempts: number; retryAt: number | null } | null;
 }
 
+export type QueuePreparationPhase = 'empty' | 'pending' | 'retry-waiting' | 'preparing' | 'ready' | 'failed';
+
+export interface QueueViewSlot {
+  slot: number;
+  phase: QueuePreparationPhase;
+  queuePosition: number | null;
+  observationId: string | null;
+  sourceId: string | null;
+  sourceKey: string | null;
+  text: string | null;
+  selectedAt: number | null;
+  preparedAt: number | null;
+  requestStartedAt: number | null;
+  requestCompletedAt: number | null;
+  requestDurationMs: number | null;
+  cacheHit: boolean | null;
+  preparationAttempts: number;
+  preparationRetryAt: number | null;
+  preparationError: string | null;
+  acquisitionNumber: number | null;
+  triggerKind: AcquisitionTriggerKind | null;
+  observationKind: ObservationKind | null;
+  questionMode: QuestionMode | null;
+  hasAudio: boolean;
+  fontRenderPhase: 'not-scheduled';
+}
+
+export interface QueueViewResponse {
+  generatedAt: number;
+  capacity: number;
+  slots: QueueViewSlot[];
+}
+
 export interface TimingSummary {
   tailPosition: number | null;
   absoluteElapsedMs: number;
   visibleElapsedMs: number;
   finalized: boolean;
+}
+
+export interface UpcomingPresentationHint {
+  id: string;
+  text: string;
 }
 
 export interface ProfileStateResponse {
@@ -180,6 +244,10 @@ export interface ProfileStateResponse {
   currentObservation: DisplayObservation | null;
   /** Ordered forward-history/ready-queue audio hints; never consumes a reservation. */
   upcomingAudio?: ObservationAudio[];
+  /** The next displayable entry, used only for browser font and texture preparation. */
+  upcomingPresentation?: UpcomingPresentationHint[];
+  /** The prior history entry, used only for browser font and texture preparation. */
+  previousPresentation?: UpcomingPresentationHint | null;
   canBack: boolean;
   canNext: boolean;
   nextStatus: ObservationStatus | null;

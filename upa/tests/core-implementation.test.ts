@@ -39,6 +39,7 @@ let queueService: typeof import('../server/src/services/queue-service');
 let preparationService: typeof import('../server/src/services/preparation-service')['preparationService'];
 let settingsService: typeof import('../server/src/services/selection-settings-service');
 let audioSettingsService: typeof import('../server/src/services/audio-settings-service');
+let questionResponseService: typeof import('../server/src/services/question-response-service');
 let exportService: typeof import('../server/src/services/export-service');
 let sourceRecordService: typeof import('../server/src/services/source-record-service')['sourceRecordService'];
 let selectionModule: typeof import('../server/src/services/selection-engine');
@@ -68,6 +69,7 @@ before(async () => {
   ({ preparationService } = await import('../server/src/services/preparation-service'));
   settingsService = await import('../server/src/services/selection-settings-service');
   audioSettingsService = await import('../server/src/services/audio-settings-service');
+  questionResponseService = await import('../server/src/services/question-response-service');
   exportService = await import('../server/src/services/export-service');
   ({ sourceRecordService } = await import('../server/src/services/source-record-service'));
   selectionModule = await import('../server/src/services/selection-engine');
@@ -243,6 +245,28 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(state.canNext, true);
   });
 
+  await suite.test('reports all queue preparation phases and pads empty slots', () => {
+    resetDatabase();
+    const ids = seedQueue(['pending', 'pending', 'pending', 'preparing', 'ready']);
+    db.prepare('UPDATE observations SET preparation_error = ?, preparation_retry_at = ?, preparation_attempts = 1 WHERE id = ?')
+      .run('temporary', now + 1_000, ids[1]);
+    db.prepare('UPDATE observations SET preparation_error = ?, preparation_retry_at = NULL, preparation_attempts = 3 WHERE id = ?')
+      .run('exhausted', ids[2]);
+    db.prepare("UPDATE queue_items SET queue_position = queue_position + 35 WHERE profile_code = '001'").run();
+    const view = profileService.getQueueView('001');
+    assert.equal(view.capacity, 10);
+    assert.deepEqual(view.slots.map(slot => slot.phase), [
+      'pending', 'retry-waiting', 'failed', 'preparing', 'ready',
+      'empty', 'empty', 'empty', 'empty', 'empty',
+    ]);
+    assert.equal(view.slots[0]?.fontRenderPhase, 'not-scheduled');
+    assert.equal(view.slots[1]?.preparationAttempts, 1);
+    assert.equal(view.slots[2]?.preparationError, 'exhausted');
+    assert.equal(view.slots[4]?.observationId, ids[4]);
+    assert.equal(view.slots[0]?.queuePosition, 35);
+    assert.equal(view.slots[5]?.observationId, null);
+  });
+
   await suite.test('audio hints preserve ordered forward history and ready queue slots without consuming or exposing pending audio', context => {
     resetDatabase();
     context.mock.method(preparationService, 'checkQueue', () => {});
@@ -274,6 +298,64 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
       () => profileService.navigateBack('001', true),
       (error: unknown) => error instanceof profileService.NavigationUnavailableError,
     );
+  });
+
+  await suite.test('samples normal and question plans at the configured boundaries', () => {
+    const choose = (...values: number[]) => {
+      let index = 0;
+      return queueService.chooseObservationPlan(() => values[index++]!);
+    };
+    assert.equal(choose(0.3).kind, 'normal');
+    assert.deepEqual(choose(0.299, 0.599, 0.749, 0), {
+      kind: 'question', requestedPool: 'seen', questionMode: 'audio-given', keyboard: 'windows-inscript',
+    });
+    assert.deepEqual(choose(0, 0.6, 0.75), {
+      kind: 'question', requestedPool: 'unseen', questionMode: 'text-given', keyboard: null,
+    });
+    assert.equal(choose(0, 0, 0, 0.34).keyboard, 'mac-standard');
+    assert.equal(choose(0, 0, 0, 0.67).keyboard, 'chromebook-dictation');
+    assert.equal(queueService.chooseObservationPlan(() => 0.4, { question: 0.5, seen: 0.2, audioGiven: 0.1 }).kind, 'question');
+    assert.deepEqual(queueService.chooseObservationPlan(() => 0.15, { question: 1, seen: 0.1, audioGiven: 0.1 }), {
+      kind: 'question', requestedPool: 'unseen', questionMode: 'text-given', keyboard: null,
+    });
+  });
+
+  await suite.test('questions reveal their answer before consuming the next observation', () => {
+    resetDatabase();
+    const [questionId, nextId] = seedQueue(['ready', 'ready']);
+    db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'audio-given', question_keyboard = 'mac-standard' WHERE observation_id = ?`).run(questionId);
+
+    const question = profileService.navigateNext('001', false);
+    assert.equal(question.currentObservation?.id, questionId);
+    assert.equal(question.currentObservation?.question?.phase, 'question');
+    const queueCount = queueService.getQueueCount('001');
+    const position = question.currentPosition;
+
+    const answer = profileService.navigateNext('001', false);
+    assert.equal(answer.currentObservation?.id, questionId);
+    assert.equal(answer.currentObservation?.question?.phase, 'answer');
+    assert.equal(answer.currentPosition, position);
+    assert.equal(queueService.getQueueCount('001'), queueCount);
+
+    const restoredQuestion = profileService.navigateBack('001', false);
+    assert.equal(restoredQuestion.currentObservation?.question?.phase, 'question');
+    profileService.navigateNext('001', false);
+    assert.equal(profileService.navigateNext('001', false).currentObservation?.id, nextId);
+  });
+
+  await suite.test('question text and audio responses persist and reload with the question', () => {
+    resetDatabase();
+    const [questionId] = seedQueue(['ready']);
+    db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'text-given' WHERE observation_id = ?`).run(questionId);
+    profileService.navigateNext('001', false);
+
+    questionResponseService.updateQuestionText(db, '001', questionId!, { text: 'నా సమాధానం' });
+    questionResponseService.updateQuestionAudio(db, '001', questionId!, new Uint8Array([1, 2, 3]), 'audio/webm');
+    const reloaded = profileService.getProfileState('001', false).currentObservation?.question;
+    assert.equal(reloaded?.responseText, 'నా సమాధానం');
+    assert.equal(reloaded?.responseAudio?.url, `/api/profiles/001/questions/${questionId}/audio`);
+    assert.equal(reloaded?.responseAudio?.mimeType, 'audio/webm');
+    assert.deepEqual([...questionResponseService.getQuestionAudio(db, '001', questionId!)!.bytes], [1, 2, 3]);
   });
 
   await suite.test('history navigation preserves absolute and visible timing semantics', () => {
@@ -588,14 +670,35 @@ test(
         settings.complexityReferenceVersion,
         2,
       );
+      assert.equal(settings.questionProbability, 0.3);
+      assert.equal(settings.seenQuestionProbability, 0.75);
+      assert.equal(settings.audioGivenQuestionProbability, 0.6);
     },
   );
+
+  await suite.test('persists configurable question sampling probabilities', () => {
+    resetDatabase();
+    ensureProfile();
+    const current = settingsService.getProfileSelectionSettings('001');
+    const saved = settingsService.updateProfileSelectionSettings('001', {
+      sourceWeights: current.sourceWeights,
+      complexityPercentileTarget: current.complexityPercentileTarget,
+      complexityPercentileSpread: current.complexityPercentileSpread,
+      questionProbability: 0.45,
+      seenQuestionProbability: 0.2,
+      audioGivenQuestionProbability: 0.8,
+    });
+    assert.equal(saved.questionProbability, 0.45);
+    assert.equal(saved.seenQuestionProbability, 0.2);
+    assert.equal(saved.audioGivenQuestionProbability, 0.8);
+  });
 
   await suite.test('persists the configured default playback rate for a new profile and exposes it in profile state', () => {
     resetDatabase();
     ensureProfile();
     const settings = audioSettingsService.getProfileAudioSettings('001');
     assert.equal(settings.playbackRate, appConfig.defaultAudioPlaybackRate);
+    assert.equal(settings.autoplay, true);
 
     const state = profileService.getProfileState('001', false);
     assert.equal(state.audioSettings.playbackRate, appConfig.defaultAudioPlaybackRate);
@@ -609,7 +712,11 @@ test(
     assert.equal(minimum.playbackRate, 0.1);
     const saved = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.5 });
     assert.equal(saved.playbackRate, 1.5);
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
+    assert.equal(saved.autoplay, true);
+    const autoplayDisabled = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.5, autoplay: false });
+    assert.equal(autoplayDisabled.autoplay, false);
+    assert.equal(audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1 }).autoplay, false);
+    assert.deepEqual(audioSettingsService.getProfileAudioSettings('001'), { playbackRate: 1, autoplay: false });
 
     for (const invalid of [0.09, 1.51, Number.NaN, Number.POSITIVE_INFINITY]) {
       assert.throws(
@@ -618,7 +725,7 @@ test(
       );
     }
     // A rejected update leaves the previously persisted rate untouched.
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
+    assert.deepEqual(audioSettingsService.getProfileAudioSettings('001'), { playbackRate: 1, autoplay: false });
   });
 
   await suite.test('rejects every invalid settings family, including non-finite values and incomplete source maps', () => {

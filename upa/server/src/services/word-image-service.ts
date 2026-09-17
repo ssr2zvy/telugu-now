@@ -73,11 +73,21 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     const settings = preferences.update(code, { imagePrompt: prompt, ...(allowRegeneration === undefined ? {} : { allowImageRegeneration: allowRegeneration }) });
     return context.json({ prompt, allowRegeneration: settings.allowImageRegeneration, model: IMAGE_MODEL, keyConfigured: Boolean(readKey()) });
   });
+  app.get('/gallery', context => {
+    const root = normalizeRoot(context.req.query('root'));
+    if (!root) return context.json({ error: 'invalid-root' }, 400);
+    try {
+      context.header('Cache-Control', 'no-store');
+      return context.json({ images: images.list(root).map(({ file: _file, ...metadata }) => metadata) });
+    } catch {
+      return context.json({ error: 'Could not read the saved word images.' }, 500);
+    }
+  });
   app.get('/', context => {
     const root = normalizeRoot(context.req.query('root'));
     if (!root) return context.json({ error: 'invalid-root' }, 400);
     let record: WordImageRecord | undefined;
-    try { record = images.get(root); }
+    try { record = images.get(root, context.req.query('id')); }
     catch { return context.json({ error: 'Could not read the saved word image.' }, 500); }
     if (!record) {
       context.header('Cache-Control', 'no-store');
@@ -89,10 +99,11 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     const root = normalizeRoot(context.req.query('root'));
     if (!root) return context.json({ error: 'invalid-root' }, 400);
     const regenerate = context.req.query('regenerate') === '1';
+    const append = context.req.query('append') === '1';
     let cached: WordImageRecord | undefined;
     try { cached = images.get(root); }
     catch { return context.json({ error: 'Could not read the saved word image.' }, 500); }
-    if (cached && !regenerate) return imageResponse(cached);
+    if (cached && !regenerate && !append) return imageResponse(cached);
     const code = context.req.query('profile');
     if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
     const settings = preferences.get(code);
@@ -101,7 +112,7 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     let task = pending.get(root);
     if (!task) {
       const prompt = renderImagePrompt(settings.imagePrompt, root);
-      const unsavedKey = `${regenerate ? 'replace' : 'create'}:${root}`;
+      const unsavedKey = `${regenerate ? 'replace' : append ? 'append' : 'create'}:${root}`;
       task = (async () => {
         let record = unsaved.get(unsavedKey);
         if (!record) {
@@ -114,7 +125,9 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           unsaved.set(unsavedKey, record);
         }
         try {
-          const saved = regenerate ? images.replace(root, record) : images.save(root, record);
+          const saved = regenerate ? images.replace(root, record)
+            : append ? images.add(root, record, { method: 'generation', vendor: 'Pollinations' })
+              : images.save(root, record);
           unsaved.delete(unsavedKey);
           return saved;
         } catch {
@@ -127,6 +140,20 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
       return imageResponse(await task);
     } catch (error) {
       return context.json({ error: error instanceof Error ? error.message : 'Image generation failed.' }, 502);
+    }
+  });
+  app.delete('/', context => {
+    const root = normalizeRoot(context.req.query('root'));
+    const id = context.req.query('id');
+    const code = context.req.query('profile');
+    if (!root || !id) return context.json({ error: 'invalid-image' }, 400);
+    if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
+    try {
+      return images.remove(root, id)
+        ? context.json({ removed: true })
+        : context.json({ error: 'image-not-found' }, 404);
+    } catch {
+      return context.json({ error: 'Could not remove the saved word image.' }, 500);
     }
   });
   return app;

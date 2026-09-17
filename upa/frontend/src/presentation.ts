@@ -17,7 +17,7 @@ export const OBSERVATION_PRESENTATION = {
   widthReferencePx: 650,
   contentCharacterDivisor: 12,
   contentExponent: 0.33,
-  lineHeight: 1.3,
+  lineHeight: 1.2,
   // A fixed, font-agnostic sample covering vowels, consonants, matras, and a
   // conjunct, used to measure each font's own ascent/descent asymmetry.
   verticalMetricsSampleText:

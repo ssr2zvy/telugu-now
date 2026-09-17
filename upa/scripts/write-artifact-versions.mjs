@@ -1,4 +1,4 @@
-import { copyFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const appRoot = new URL('../', import.meta.url);
 const artifacts = new Map([
@@ -14,6 +14,11 @@ const files = requested.map(artifact => {
   return paths;
 });
 
+const deployedAt = new Date().toISOString();
 for (const [source, destination] of files) {
-  await copyFile(new URL(source, appRoot), new URL(destination, appRoot));
+  const sourceUrl = new URL(source, appRoot);
+  const destinationUrl = new URL(destination, appRoot);
+  const metadata = JSON.parse(await readFile(sourceUrl, 'utf8'));
+  await mkdir(new URL('./', destinationUrl), { recursive: true });
+  await writeFile(destinationUrl, `${JSON.stringify({ ...metadata, deployedAt }, null, 2)}\n`);
 }

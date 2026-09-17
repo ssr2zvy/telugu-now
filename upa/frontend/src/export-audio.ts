@@ -38,7 +38,7 @@ export async function prepareExportAudio(result: ExportResponse, format: ExportF
     if (!extension) throw new Error(`Unsupported export audio type: ${mimeType}`);
     const path = `audio/clip-${assets.length + 1}.${extension}`;
     assets.push({ path, mimeType, bytes });
-    urls.set(entry.audio.url, format === 'html' ? `data:${mimeType};base64,${bytesToBase64(bytes)}` : path);
+    urls.set(entry.audio.url, format === 'epub' ? path : `data:${mimeType};base64,${bytesToBase64(bytes)}`);
   }
   return {
     result: {

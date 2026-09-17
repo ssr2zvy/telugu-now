@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
-import { CircleAlert, LoaderCircle, ServerOff, UserRound } from 'lucide-react';
+import { CircleAlert, ServerOff, UserRound } from 'lucide-react';
+import { LoadingSlit } from '../components/LoadingSlit';
 interface ProfileEntryProps {
   invalidCode: boolean;
   loadUnavailable: boolean;
@@ -54,7 +55,7 @@ export function ProfileEntry({
           aria-label={submitting ? 'Loading profile' : invalidCode ? 'Invalid profile code' : loadUnavailable ? 'Profile server unavailable' : undefined}
           title={!submitting && loadUnavailable ? 'Profile server unavailable' : undefined}
         >
-          {submitting ? <LoaderCircle aria-hidden="true" /> : invalidCode ? <CircleAlert aria-hidden="true" /> : loadUnavailable ? <ServerOff aria-hidden="true" /> : <UserRound aria-hidden="true" />}
+          {submitting ? <LoadingSlit label="Loading profile" /> : invalidCode ? <CircleAlert aria-hidden="true" /> : loadUnavailable ? <ServerOff aria-hidden="true" /> : <UserRound aria-hidden="true" />}
         </div>
         <div className="entry-code" data-invalid={invalidCode} aria-busy={submitting}>
           <input

@@ -60,7 +60,10 @@ export function encodePreparedAudio(buffer: DecodedAudioLike & { sampleRate: num
 }
 
 let decoder: AudioContext | undefined;
-async function prepareAudio(url: string, signal: AbortSignal): Promise<PreparedAudio> {
+type ProgressListener = (progress: number) => void;
+
+async function prepareAudio(url: string, signal: AbortSignal, onProgress: ProgressListener = () => {}): Promise<PreparedAudio> {
+  onProgress(.02);
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`Audio download failed (${response.status}).`);
   if (Number(response.headers.get('content-length')) > MAX_INPUT_BYTES) throw new Error('Audio download is too large.');
@@ -68,6 +71,7 @@ async function prepareAudio(url: string, signal: AbortSignal): Promise<PreparedA
   if (!reader) throw new Error('Audio download is unavailable.');
   const chunks: Uint8Array[] = [];
   let size = 0;
+  const expectedBytes = Number(response.headers.get('content-length'));
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -75,6 +79,9 @@ async function prepareAudio(url: string, signal: AbortSignal): Promise<PreparedA
       size += value.byteLength;
       if (size > MAX_INPUT_BYTES) throw new Error('Audio download is too large.');
       chunks.push(value);
+      onProgress(Number.isFinite(expectedBytes) && expectedBytes > 0
+        ? .05 + Math.min(1, size / expectedBytes) * .6
+        : .05 + Math.min(.6, size / MAX_INPUT_BYTES * .6));
     }
   } finally {
     await reader.cancel().catch(() => {});
@@ -89,10 +96,13 @@ async function prepareAudio(url: string, signal: AbortSignal): Promise<PreparedA
   if (!Context) throw new Error('This browser cannot prepare audio.');
   // Decoding works while suspended. Never route native playback into this context.
   decoder ??= new Context({ sampleRate: 24000 });
+  onProgress(.7);
   const decoded = await decoder.decodeAudioData(input.buffer);
   signal.throwIfAborted();
+  onProgress(.84);
   const result = encodePreparedAudio(decoded);
   signal.throwIfAborted();
+  onProgress(.96);
   return {
     url: URL.createObjectURL(new Blob([result.bytes], { type: 'audio/wav' })),
     duration: result.duration,
@@ -110,6 +120,8 @@ type Entry = {
   controller: AbortController;
   value?: PreparedAudio;
   promise: Promise<PreparedAudio>;
+  progress: number;
+  progressListeners: Set<ProgressListener>;
   resolve: (value: PreparedAudio) => void;
   reject: (error: unknown) => void;
 };
@@ -117,6 +129,8 @@ type Entry = {
 export interface AudioLease {
   ready: Promise<PreparedAudio>;
   value: () => PreparedAudio | undefined;
+  progress: () => number;
+  subscribeProgress: (listener: ProgressListener) => () => void;
   release: () => void;
 }
 
@@ -143,7 +157,7 @@ export class PreparedAudioCache {
       let reject!: Entry['reject'];
       const promise = new Promise<PreparedAudio>((yes, no) => { resolve = yes; reject = no; });
       void promise.catch(() => {});
-      entry = { key, refs: 0, active: 0, order: ++this.sequence, state: 'queued',
+      entry = { key, refs: 0, active: 0, order: ++this.sequence, state: 'queued', progress: 0, progressListeners: new Set(),
         controller: new AbortController(), promise, resolve, reject };
       this.entries.set(key, entry);
     }
@@ -157,6 +171,12 @@ export class PreparedAudioCache {
     return {
       ready: owned.promise,
       value: () => owned.value,
+      progress: () => owned.progress,
+      subscribeProgress: listener => {
+        owned.progressListeners.add(listener);
+        listener(owned.progress);
+        return () => owned.progressListeners.delete(listener);
+      },
       release: () => {
         if (released) return;
         released = true;
@@ -199,7 +219,10 @@ export class PreparedAudioCache {
         entry.state = 'failed';
         entry.reject(new Error('Audio preparation timed out.'));
       }, this.timeoutMs);
-      void this.prepare(entry.key, entry.controller.signal).then(value => {
+      void this.prepare(entry.key, entry.controller.signal, progress => {
+        entry.progress = Math.max(entry.progress, Math.min(1, progress));
+        for (const listener of entry.progressListeners) listener(entry.progress);
+      }).then(value => {
         if (entry.controller.signal.aborted || this.entries.get(entry.key) !== entry) {
           this.revoke(value.url);
           return;
@@ -210,6 +233,8 @@ export class PreparedAudioCache {
         }
         entry.value = value;
         entry.state = 'ready';
+        entry.progress = 1;
+        for (const listener of entry.progressListeners) listener(1);
         entry.resolve(value);
       }).catch(error => {
         entry.controller.abort();

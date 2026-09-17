@@ -41,6 +41,26 @@ button, [role="button"] {
   overflow: hidden;
   background: transparent;
 }
+@media (hover: hover) and (pointer: fine) {
+  /* Also cover html/body: pointer-events: none on a disabled nav-zone lets the
+     hit-test fall through to whatever is beneath it, which is otherwise unstyled. */
+  html, body, .appearance-root, .appearance-root * { cursor: none !important; }
+}
+.custom-cursor {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--cursor-color);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  will-change: transform;
+}
 .appearance-root {
   --muted: color-mix(in srgb, var(--foreground) 64%, transparent);
   --line: color-mix(in srgb, var(--foreground) 10%, transparent);
@@ -49,10 +69,47 @@ button, [role="button"] {
   --control-color: var(--foreground);
   position: relative; isolation: isolate; width: 100%; height: 100%; color: var(--foreground); letter-spacing: 0;
 }
+.appearance-root :is([role='alert'], .settings-error) {
+  position: fixed;
+  z-index: 10000;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(20px, env(safe-area-inset-left));
+  width: min(34rem, calc(100vw - 40px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+  font-size: .8rem;
+  line-height: 1.55;
+  text-align: left;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: app-error-notice 31s linear forwards;
+}
+@keyframes app-error-notice {
+  0%, 96.774% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .appearance-root :is([role='alert'], .settings-error) { animation-duration: 30s; }
+}
 .gradient-field { position: absolute; inset: 0; overflow: hidden; z-index: -1; background: var(--gradient-middle); }
+.loading-slit { display: grid; grid-template-rows: 10px 18px; place-items: center; gap: 5px; width: 72px; min-height: 33px; color: color-mix(in srgb, var(--gradient-middle) 72%, var(--foreground)); }
+.loading-slit-window { position: relative; display: block; width: 64px; height: 10px; overflow: hidden; }
+.loading-slit output { color: color-mix(in srgb, currentColor 76%, var(--foreground)); font: 500 .68rem/18px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.loading-slit-window i { position: absolute; z-index: 2; top: 2px; left: -6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0; animation: loading-slit-dot 2.7s linear infinite; }
+.loading-slit-window i:nth-child(2) { animation-delay: 180ms; }
+.loading-slit-window i:nth-child(3) { animation-delay: 360ms; }
+.loading-slit-window i:nth-child(4) { animation-delay: 540ms; }
+@keyframes loading-slit-dot { 0% { opacity: 0; transform: translateX(0) scale(.65); } 7% { opacity: 1; } 30% { transform: translateX(35px) scale(1); } 52% { opacity: 1; } 58% { opacity: 0; transform: translateX(76px) scale(.65); } 100% { opacity: 0; transform: translateX(76px) scale(.65); } }
+@media (prefers-reduced-motion: reduce) { .loading-slit-window { display: flex; align-items: center; justify-content: center; gap: 6px; } .loading-slit-window i { position: static; opacity: .7; animation: none; } }
 /* Shade each control once, including compound fields, without dimming page content.
-   Audio paints are shaded individually to retain their glass backdrop filters. */
-.appearance-root :where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label):not(.audio-player-bar *):not(:where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label) *) {
+   Audio paints and keyboard keys are shaded individually or use a fixed accent,
+   so both are excluded to stay the same color as the audio bar they match. */
+.appearance-root :where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label):not(.audio-player-bar *):not(.question-keyboard *):not(:where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label) *) {
   filter: brightness(var(--control-brightness, .85));
 }
 .gradient-field > div { position: absolute; left: calc(50% - 100vmax); top: calc(50% - 100vmax); width: 200vmax; height: 200vmax; transition: transform 650ms cubic-bezier(.25,.1,.25,1); }
@@ -60,10 +117,13 @@ button, [role="button"] {
 .gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); }
 .gradient-field > div:nth-child(3) { background: linear-gradient(165deg, transparent 30%, var(--gradient-end) 85%); opacity: .45; transform: translateY(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-a, 0deg)); }
 :focus, :focus-visible { outline: none; }
-.appearance-root :is(.reading-context-menu-action, .observation-start, .audio-transport-button, .audio-playback-option, .word-profile-close, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
+.appearance-root :is(.reading-context-menu-action, .observation-start, .audio-transport-button, .audio-playback-option, .word-profile-back, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
   background: var(--wash);
 }
-.appearance-root :is(button, a[href], summary, [role="button"], [role="slider"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"], select):focus-visible {
+/* Only show the ring for focus driven by real keyboard navigation, so an
+   alt-tab back into the page followed by a click can never trigger it, while
+   Tab itself keeps working everywhere, including the audio bar. */
+html[data-input-modality="keyboard"] .appearance-root :is(button, a[href], summary, [role="button"], [role="slider"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"], select):focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: -3px;
 }
@@ -81,3 +141,6 @@ button, [role="button"] {
   fill: currentColor;
   stroke: none;
 }
+.settings-icon-fill-shape { fill: currentColor; stroke: none; opacity: 0; }
+.settings-icon.is-filled .settings-icon-fill-shape { opacity: 1; }
+.settings-icon.is-filled .settings-icon-outline-shape { opacity: 0; }

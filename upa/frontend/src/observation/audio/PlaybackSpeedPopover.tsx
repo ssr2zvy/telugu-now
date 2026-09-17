@@ -51,7 +51,12 @@ export function PlaybackSpeedPopover({
     if (loopClickTimer.current !== null) window.clearTimeout(loopClickTimer.current);
   }, []);
 
-  useClickOutsideToClose(dismissOnOutside, controlsRef ? [popoverRef, controlsRef] : [popoverRef], onClose);
+  useClickOutsideToClose(
+    dismissOnOutside,
+    controlsRef ? [popoverRef, controlsRef] : [popoverRef],
+    onClose,
+    view === 'editor' ? '.audio-scrubber' : undefined,
+  );
 
   const rateFromPointer = (clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();
@@ -102,12 +107,12 @@ export function PlaybackSpeedPopover({
       aria-label="Playback controls"
     >
       {view === 'controls' ? <div className="audio-playback-settings-row">
-        <button type="button" className="audio-playback-option" aria-label="Playback speed" aria-expanded="false" onClick={onToggleSpeed}>
+        <button type="button" className="audio-playback-option audio-speed-option" aria-label="Playback speed" aria-expanded="false" onClick={onToggleSpeed}>
           <AudioGlassIcon name="speed" />
         </button>
         <button
           type="button"
-          className="audio-playback-option"
+          className="audio-playback-option audio-loop-option"
           aria-label="Loop audio"
           aria-description="Click to loop all audio. Double-click to loop from the closest earlier bookmark."
           aria-pressed={loopMode !== 'off'}
@@ -125,7 +130,7 @@ export function PlaybackSpeedPopover({
             if (!bookmarkLoopDisabled) onToggleBookmarkLoop?.();
           }}
         >
-          <AudioGlassIcon name="loop" />
+          <AudioGlassIcon name={loopMode === 'bookmark' ? 'bookmarkLoop' : 'loop'} filled={loopMode !== 'off'} />
         </button>
       </div> : null}
       {view === 'editor' && speedOpen ? <div className="audio-speed-editor">

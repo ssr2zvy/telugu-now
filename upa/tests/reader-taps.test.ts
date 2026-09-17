@@ -87,7 +87,7 @@ test('a double crossing the bottom-third boundary never plays or toggles the bar
   assert.deepEqual(actions, ['settings', 'settings']);
 });
 
-test('a double crossing horizontal or word hitboxes consumes both singles', t => {
+test('taps crossing horizontal or visible-word hitboxes do not form a double', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const actions: string[] = [];
   const taps = new ReaderTaps(() => actions.push('single'));
@@ -97,7 +97,7 @@ test('a double crossing horizontal or word hitboxes consumes both singles', t =>
   taps.tap('center', 302, 100, () => actions.push('settings'));
   taps.tap('word:example', 303, 100, () => actions.push('image'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['settings', 'image']);
+  assert.deepEqual(actions, ['single', 'single', 'single', 'single']);
 });
 
 test('separate singles wait their whole window and preserve their own action', t => {

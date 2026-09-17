@@ -10,10 +10,15 @@ import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';
 import { SettingsIndex } from './pages/SettingsIndex';
 import { SourceWeightsPage } from './pages/SourceWeightsPage';
 import { settingsGroups, settingsPageLabel } from './navigation';
-import { AppearancePage } from './pages/AppearancePage';
+import { OrganizedAppearancePage } from './pages/OrganizedAppearancePage';
 import { ImageGenerationPage } from './pages/ImageGenerationPage';
 import { EonsPage } from './pages/EonsPage';
 import { BlacklistPage } from './pages/BlacklistPage';
+import { QuestionsPage } from './pages/QuestionsPage';
+import { QueueViewPage } from './pages/QueueViewPage';
+import { ImportPage } from './pages/ImportPage';
+import { ControlsGuidePage } from './pages/ControlsGuidePage';
+import { AboutPage } from './pages/AboutPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -33,6 +38,7 @@ export function SettingsView({
     queueResetting,
     queueResetError,
     playbackRateDraft,
+    playbackAutoplayDraft,
     playbackSaving,
     playbackError,
     exportCount,
@@ -71,7 +77,7 @@ export function SettingsView({
   }
   if (page === 'dataSources') {
     return (
-      <SettingsShell {...shellProps} title={t(language, 'dataSources')} onBack={controller.backToIndex}>
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <DataSourcesPage language={language} />
       </SettingsShell>
     );
@@ -79,7 +85,7 @@ export function SettingsView({
   if (page === 'appearance') {
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <AppearancePage language={language} />
+        <OrganizedAppearancePage language={language} />
       </SettingsShell>
     );
   }
@@ -104,21 +110,70 @@ export function SettingsView({
       </SettingsShell>
     );
   }
+  if (page === 'queue') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <QueueViewPage key={state.profileCode} profileCode={state.profileCode} language={language} />
+      </SettingsShell>
+    );
+  }
   if (page === 'playback') {
     return (
       <SettingsShell
         {...shellProps}
-        title={t(language, 'playbackSpeed')}
+        title={settingsPageLabel(page, language)}
         onBack={controller.backToIndex}
       >
         <PlaybackSpeedPage
           language={language}
           rate={playbackRateDraft}
+          autoplay={playbackAutoplayDraft}
           saving={playbackSaving}
           error={playbackError}
           onRateChange={controller.setPlaybackRateDraft}
+          onAutoplayChange={controller.setPlaybackAutoplayDraft}
           onClearError={controller.clearPlaybackError}
           onSave={() => void controller.savePlaybackSettings()}
+        />
+      </SettingsShell>
+    );
+  }
+  if (page === 'import') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <ImportPage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'controlsGuide') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <ControlsGuidePage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'about') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <AboutPage language={language} />
+      </SettingsShell>
+    );
+  }
+  if (page === 'export') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <ExportPage
+          language={language}
+          count={exportCount}
+          exporting={exporting}
+          phase={controller.exportPhase}
+          error={exportError}
+          formatChooserOpen={formatChooserOpen}
+          preparedArtifact={preparedArtifact}
+          onCountChange={controller.setExportCount}
+          onRequestExport={controller.requestExport}
+          onCancelFormatChoice={controller.cancelFormatChoice}
+          onChooseFormat={(format) => void controller.chooseExportFormat(format)}
         />
       </SettingsShell>
     );
@@ -146,11 +201,26 @@ export function SettingsView({
       </SettingsShell>
     );
   }
+  if (page === 'questions') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <QuestionsPage
+          language={language}
+          draft={draft}
+          saving={settingsSaving}
+          error={settingsError}
+          onDraftChange={controller.setDraft}
+          onClearError={controller.clearSettingsError}
+          onSave={() => void controller.saveQuestionSettings()}
+        />
+      </SettingsShell>
+    );
+  }
   if (page === 'sources') {
     return (
       <SettingsShell
         {...shellProps}
-        title={t(language, 'sourceWeights')}
+        title={settingsPageLabel(page, language)}
         onBack={controller.backToIndex}
       >
         <SourceWeightsPage
@@ -165,7 +235,7 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'trigger' || page === 'source' || page === 'complexityInfo' || page === 'global') {
+  if (page === 'trigger' || page === 'source' || page === 'complexityInfo' || page === 'global' || page === 'questionInfo') {
     return (
       <SettingsShell
         {...shellProps}
@@ -173,34 +243,12 @@ export function SettingsView({
         onBack={controller.backToIndex}
       >
         <DiagnosticPage
-          sectionKey={page === 'complexityInfo' ? 'complexity' : page}
+          sectionKey={page === 'complexityInfo' ? 'complexity' : page === 'questionInfo' ? 'questions' : page}
           state={state}
           language={language}
         />
       </SettingsShell>
     );
   }
-  return (
-    <SettingsShell
-      {...shellProps}
-      title={t(language, 'export')}
-      onBack={controller.backToIndex}
-    >
-      <ExportPage
-        language={language}
-        count={exportCount}
-        exporting={exporting}
-        phase={controller.exportPhase}
-        error={exportError}
-        formatChooserOpen={formatChooserOpen}
-        preparedArtifact={preparedArtifact}
-        onCountChange={controller.setExportCount}
-        onRequestExport={controller.requestExport}
-        onCancelFormatChoice={controller.cancelFormatChoice}
-        onChooseFormat={(format) =>
-          void controller.chooseExportFormat(format)
-        }
-      />
-    </SettingsShell>
-  );
+  return null;
 }

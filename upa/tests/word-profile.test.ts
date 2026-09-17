@@ -36,6 +36,9 @@ test('legacy image data transfers to global files before its table is removed', 
     const folder = path.join(directory, fs.readdirSync(directory)[0]!);
     const transferred = fs.readdirSync(folder).find(file => file.startsWith('image-'))!;
     assert.deepEqual(fs.readFileSync(path.join(folder, transferred)), image);
+    const gallery = wordImageStore(directory).list('tree');
+    assert.equal(gallery.length, 2);
+    assert.deepEqual({ createdAt: gallery[1]!.createdAt, vendor: gallery[1]!.vendor }, { createdAt: 123, vendor: 'Legacy' });
     migrateLegacyWordImages(database, directory);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
@@ -249,6 +252,71 @@ test('word image files preserve the first image and publish metadata and bytes t
     store.save('webp', { image: webp, mimeType: 'image/webp' });
     assert.deepEqual(store.get('webp'), { image: webp, mimeType: 'image/webp' });
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image galleries preserve order and metadata through append retries and removals', context => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const webp = Buffer.alloc(20);
+  webp.write('RIFF');
+  webp.write('WEBP', 8);
+  const store = wordImageStore(directory);
+  try {
+    store.save('tree', { image: png, mimeType: 'image/png' }, 123);
+    const legacy = store.list('tree');
+    assert.equal(legacy.length, 1);
+    assert.deepEqual({ createdAt: legacy[0]!.createdAt, method: legacy[0]!.method, vendor: legacy[0]!.vendor }, {
+      createdAt: 123, method: 'generation', vendor: 'Pollinations',
+    });
+    store.add('tree', { image: jpeg, mimeType: 'image/jpeg' }, { method: 'source', vendor: 'Wikimedia' });
+    const firstGallery = store.list('tree');
+    assert.deepEqual(firstGallery.map(image => image.mimeType), ['image/png', 'image/jpeg']);
+    assert.deepEqual(store.get('tree', firstGallery[1]!.id)?.image, jpeg);
+    const rename = fs.renameSync;
+    const failure = context.mock.method(fs, 'renameSync', (source: fs.PathLike, target: fs.PathLike) => {
+      if (String(target).endsWith('gallery.json')) throw new Error('Publication failed');
+      return rename(source, target);
+    });
+    assert.throws(() => store.add('tree', { image: webp, mimeType: 'image/webp' }, { method: 'source', vendor: 'Search' }), /Publication failed/);
+    assert.deepEqual(store.list('tree').map(image => image.id), firstGallery.map(image => image.id));
+    failure.mock.restore();
+    store.add('tree', { image: webp, mimeType: 'image/webp' }, { method: 'source', vendor: 'Search' });
+    const completed = store.list('tree');
+    assert.equal(completed.length, 3);
+    assert.equal(completed[2]!.id, store.list('tree')[2]!.id);
+    assert.equal(store.remove('tree', completed[0]!.id), true);
+    assert.deepEqual(store.get('tree')?.image, jpeg);
+    assert.equal(store.remove('tree', completed[1]!.id), true);
+    assert.equal(store.remove('tree', completed[2]!.id), true);
+    assert.deepEqual(store.list('tree'), []);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image gallery routes append, retrieve, list and remove ordered images', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-routes-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  let calls = 0;
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory, readKey: () => 'fixture', generate: async () => [png, jpeg][calls++]!,
+    }));
+    const imageUrl = '/api/word-images?root=tree&profile=001';
+    assert.equal((await app.request(imageUrl, { method: 'POST' })).status, 200);
+    assert.equal((await app.request(`${imageUrl}&append=1`, { method: 'POST' })).status, 200);
+    const galleryResponse = await app.request('/api/word-images/gallery?root=tree');
+    assert.equal(galleryResponse.status, 200);
+    const gallery = await galleryResponse.json() as { images: Array<{ id: string; mimeType: string; method: string; vendor: string; createdAt: number; file?: string }> };
+    assert.deepEqual(gallery.images.map(image => image.mimeType), ['image/png', 'image/jpeg']);
+    assert.ok(gallery.images.every(image => image.method === 'generation' && image.vendor === 'Pollinations' && typeof image.createdAt === 'number' && !('file' in image)));
+    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images?root=tree&id=${gallery.images[1]!.id}`)).arrayBuffer()), jpeg);
+    assert.equal((await app.request(`/api/word-images?root=tree&id=${gallery.images[0]!.id}&profile=001`, { method: 'DELETE' })).status, 200);
+    assert.deepEqual(Buffer.from(await (await app.request('/api/word-images?root=tree')).arrayBuffer()), jpeg);
+    assert.equal((await app.request(`/api/word-images?root=tree&id=${gallery.images[1]!.id}&profile=001`, { method: 'DELETE' })).status, 200);
+    assert.deepEqual(await (await app.request('/api/word-images/gallery?root=tree')).json(), { images: [] });
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('damaged word image files return a safe error without regenerating', async () => {

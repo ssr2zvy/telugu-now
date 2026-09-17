@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { LoaderCircle, RotateCw } from 'lucide-react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
+import { CustomCursor } from './components/CustomCursor';
+import { LoadingSlit } from './components/LoadingSlit';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
-export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
+export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, MODIFICATION_LIGHTNESS_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
 
-export function appearanceSurface(appearance: AppearanceSettings): string {
+export function appearanceSurface(appearance: Pick<AppearanceSettings, 'surface' | 'foreground'>): string {
   if (appearance.surface) return appearance.surface;
   const brightness = parseInt(appearance.foreground.slice(1, 3), 16) * 0.2126
     + parseInt(appearance.foreground.slice(3, 5), 16) * 0.7152
@@ -61,6 +62,27 @@ export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'grad
   return contrastingPaletteColor(appearance, appearanceAudioColor(appearance));
 }
 
+// The default gradient end color matches the shared audio icon color, so
+// letter highlights read as an extension of the playback/bookmark controls.
+export function appearanceModificationColor(appearance: Pick<AppearanceSettings, 'gradient' | 'modificationColor'>): string {
+  return appearance.modificationColor ?? appearanceAudioColor(appearance);
+}
+
+// A quick-select preset: the reading color shifted lighter/darker against its
+// background, independent of the audio icon color used as the default above.
+export function appearanceModificationTextShiftColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground' | 'modificationLightness'>): string {
+  const foregroundChannels = colorChannels(appearance.foreground);
+  const [hue, saturation, lightness] = rgbToHsl(foregroundChannels);
+  const backgroundLevel = appearance.gradient.reduce((total, color) => total + luminance(colorChannels(color)), 0)
+    / appearance.gradient.length;
+  const foregroundLevel = luminance(foregroundChannels);
+  const lightnessShift = appearance.modificationLightness / 100;
+  const shiftedLightness = foregroundLevel < backgroundLevel
+    ? Math.min(0.92, lightness + lightnessShift)
+    : Math.max(0.08, lightness - lightnessShift);
+  return `#${hslToRgb(hue, saturation, shiftedLightness).map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
   const palettes: Array<Pick<AppearanceSettings, 'gradient' | 'foreground'>> = [
     { gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c' },
@@ -95,6 +117,42 @@ export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradi
   });
   const best = candidates.sort((a, b) => b.contrast - a.contrast)[0]!;
   return `#${best.color.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Mirrors the CSS invert(1) filter audio icons get on hover, so settings can
+// preview and offer that exact hover shade as a quick-select preset.
+export function appearanceAudioHoverColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
+  const channels = colorChannels(appearanceAudioColor(appearance));
+  return `#${channels.map(channel => (255 - channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+// The magnifier bars and scrubber paint the translucent glass gradient over
+// the page gradient behind them, then a brightness() filter dims the result.
+// The keyboard reproduces that exact composite numerically -- alpha-blend each
+// glass stop over the page color at that stop, then apply the same brightness
+// -- so its opaque panel renders the same color those elements actually show.
+export function appearanceKeyboardGradient(appearance: Pick<AppearanceSettings, 'gradient' | 'controlDarkness'>) {
+  const glass = appearanceAudioGlass(appearance);
+  const brightness = 1 - appearance.controlDarkness / 100;
+  const hex = (channels: number[]) => `#${channels.map(channel => Math.round(Math.max(0, Math.min(255, channel))).toString(16).padStart(2, '0')).join('')}`;
+  const rendered = glass.stops.map((stop, index) => {
+    const page = colorChannels(appearance.gradient[index]!);
+    const paint = colorChannels(stop.color);
+    return page.map((channel, part) => (channel + (paint[part]! - channel) * stop.opacity) * brightness);
+  });
+  // Zoom into the middle of the spectrum: pull the endpoints most of the way
+  // toward the center stop so the panel shows the central band, not the full range.
+  const middle = rendered[1]!;
+  const shades = rendered.map(color => hex(color.map((channel, part) => middle[part]! + (channel - middle[part]!) * 0.35)));
+  const average = [0, 1, 2].map(part => rendered.reduce((total, color) => total + color[part]!, 0) / rendered.length);
+  const [hue, saturation, lightness] = rgbToHsl(average.map(Math.round));
+  const gloss = hex(hslToRgb(hue, saturation, Math.min(0.97, lightness + 0.16)));
+  return {
+    gradient: `linear-gradient(135deg, ${shades[0]} 0%, ${shades[1]} 50%, ${shades[2]} 100%)`,
+    glow: gloss,
+    ink: lightness > 0.5 ? '#14171a' : '#f4f6f8',
+    accent: hex(average),
+  };
 }
 
 export function appearanceAudioGlass(appearance: Pick<AppearanceSettings, 'gradient'>) {
@@ -160,6 +218,25 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   const pending = useRef<UpdateProfilePreferences>({});
   const saving = useRef(false);
   const appearanceRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // The browser's own :focus-visible heuristic re-arms after the document
+    // regains visibility, so a plain click right after alt-tabbing back in
+    // gets treated as keyboard-driven focus. Tracking modality ourselves from
+    // real key/pointer events avoids that false positive without ever
+    // disabling the ring for actual Tab navigation.
+    const root = document.documentElement;
+    const NAVIGATION_KEYS = new Set(['Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Home', 'End', 'PageUp', 'PageDown']);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (NAVIGATION_KEYS.has(event.key)) root.setAttribute('data-input-modality', 'keyboard');
+    };
+    const onPointerDown = () => root.setAttribute('data-input-modality', 'pointer');
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, []);
   useEffect(() => {
     let pressed: { button: HTMLButtonElement; pointerId: number } | null = null;
     const clear = () => {
@@ -252,14 +329,23 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     pending.current = { ...pending.current, language: next };
     void flush();
   };
+  const keyboard = appearanceKeyboardGradient(appearance);
   const style = {
     '--surface': appearanceSurface(appearance),
     '--control-brightness': 1 - appearance.controlDarkness / 100,
     '--audio-control-color': appearanceAudioColor(appearance),
+    // The keyboard's accent already reproduces the exact rendered color of the
+    // glass audio/magnifier/bookmark controls, so the cursor reuses it as-is.
+    '--cursor-color': keyboard.accent,
     '--gradient-start': appearance.gradient[0],
     '--gradient-middle': appearance.gradient[1],
     '--gradient-end': appearance.gradient[2],
+    '--keyboard-gradient': keyboard.gradient,
+    '--keyboard-glow': keyboard.glow,
+    '--keyboard-ink': keyboard.ink,
+    '--keyboard-accent': keyboard.accent,
     '--foreground': appearance.foreground,
+    '--modification-color': appearanceModificationColor(appearance),
     '--corner-control-color': appearanceCornerColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
     '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,
@@ -270,16 +356,16 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
       <div ref={appearanceRoot} className="appearance-root" style={style}>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
+        <CustomCursor />
         {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading">
           <div className="entry-wrap">
-            <div className="entry-status" data-state="loading" role="status" aria-label={error ? 'Could not load profile settings' : 'Loading profile settings'}>
-              {!error ? <LoaderCircle aria-hidden="true" /> : null}
+            <div className="entry-status" data-state="loading">
+              {!error ? <LoadingSlit label="Loading profile settings" /> : null}
             </div>
           </div>
         </main>}
         {error ? <div className="profile-preferences-error" role="alert">
-          <span>{loaded ? 'Settings not saved.' : 'Could not load profile settings.'}</span>
-          <button type="button" onClick={() => loaded ? void flush() : setLoadAttempt(current => current + 1)}><RotateCw size={16} aria-hidden="true" />Retry</button>
+          {loaded ? 'Settings not saved.' : 'Could not load profile settings.'}
         </div> : null}
       </div>
     </AppearanceContext.Provider>

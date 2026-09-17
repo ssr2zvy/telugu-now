@@ -22,8 +22,10 @@ export class ReaderTaps {
   }
 
   tap(region: string, x: number, y: number, onDouble: () => void, onSingle = this.onSingle, onTriple: () => void = () => {}): void {
-    // Nearby taps form one gesture even when they straddle a hitbox boundary.
-    if (this.pending && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE) {
+    // A double belongs to one resolved target. Nearby taps on different glyphs
+    // begin a new gesture instead of allowing the second target to win.
+    if (this.pending && this.pending.region === region
+      && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE) {
       clearTimeout(this.pending.timer);
       this.timers.delete(this.pending.timer);
       if (this.pending.count === 2) {
