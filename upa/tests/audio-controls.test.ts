@@ -252,22 +252,27 @@ test('physical and on-screen Enter submit from above the right Shift key', () =>
   assert.match(controls, /event\.key !== 'Enter' \|\| event\.repeat \|\| event\.isComposing[\s\S]*event\.preventDefault\(\);[\s\S]*void submitText\(\)/);
 });
 
-test('recording freezes the exact media cursor before a 500ms pre-roll', () => {
+test('recording replaces the response from zero and waits for explicit playback', () => {
   const playerSource = readFileSync(new URL('../frontend/src/observation/audio/AudioPlayerBar.tsx', import.meta.url), 'utf8');
   const controlsSource = readFileSync(new URL('../frontend/src/observation/QuestionControls.tsx', import.meta.url), 'utf8');
   const hookSource = readFileSync(new URL('../frontend/src/observation/audio/useAudioPlayer.ts', import.meta.url), 'utf8');
   const observationSource = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(playerSource, /const exactPlayerTime = player\.audioRef\.current\?\.currentTime \?\? player\.currentTime;[\s\S]*precisionBeforeRecording\.current = precisionMode;[\s\S]*dispatchPrecision\('close'\);[\s\S]*player\.pause\(\);[\s\S]*return toSpeechTime\(exactPlayerTime\)/);
+  assert.match(playerSource, /precisionBeforeRecording\.current = precisionMode;[\s\S]*dispatchPrecision\('close'\);[\s\S]*player\.pause\(\);[\s\S]*player\.seek\(0\);[\s\S]*return 0/);
   assert.match(playerSource, /const presentedPrecisionMode = recordingActive \? CLOSED_PRECISION_MODE : precisionMode/);
   assert.match(playerSource, /dispatchPrecision\(\{ type: 'restore', mode: precisionBeforeRecording\.current \}\)/);
   assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*setTimeout\([^,]+, 500\)/);
   assert.match(controlsSource, /requestAnimationFrame\(updateRecordingFeedback\)/);
   assert.doesNotMatch(controlsSource, /AnalyserNode|createAnalyser|recordingPeaks/);
-  assert.match(controlsSource, /onAudioSaved\([^;]+, recordCursor\.current\)/);
-  assert.match(observationSource, /prepareAudioReplacement\(cursorSeconds\);[\s\S]*seamlessAudioKey\.current = observation \? `\$\{observation\.id\}\\0\$\{audio\.url\}` : null;[\s\S]*setResponseAudio\(audio\)/);
+  assert.match(controlsSource, /updateQuestionAudio\(profileCode, observationId, raw\)[\s\S]*onAudioSaved\(\{ url:[\s\S]*mimeType: raw\.type/);
+  assert.doesNotMatch(controlsSource, /overwriteRecordingAtCursor|responseAudio/);
+  assert.match(observationSource, /prepareAudioReplacement\(0\);[\s\S]*seamlessAudioKey\.current = observation \? `\$\{observation\.id\}\\0\$\{audio\.url\}` : null;[\s\S]*setResponseAudio\(audio\)/);
   assert.match(observationSource, /audioReadinessKey !== seamlessAudioKey\.current/);
   assert.match(hookSource, /if \(!replacingAudio\) \{\s*setCurrentTime\(0\);\s*setDuration\(0\);\s*setWaveformPeaks\(\[\]\)/);
   assert.match(hookSource, /element\.pause\(\);\s*element\.currentTime = restoredTime;\s*setCurrentTime\(restoredTime\);\s*setPlaying\(false\)/);
+  assert.match(hookSource, /replacementCursorRef\.current = speechTime === 0 \? 0 : toPlayerTime\(speechTime\)/);
+  assert.match(hookSource, /suppressReplacementAutoplayRef\.current = true;\s*pause\(\)/);
+  assert.match(hookSource, /if \(suppressReplacementAutoplayRef\.current \|\| !playbackEnabled \|\| !autoplay/);
+  assert.match(hookSource, /const togglePlay = \(\) => \{\s*suppressReplacementAutoplayRef\.current = false/);
 });
 
 test('precision mode cannot leave speed open or reopen the magnifier after dismissal', () => {

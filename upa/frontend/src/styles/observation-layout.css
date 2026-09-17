@@ -174,7 +174,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-comparison-user { grid-area: user; }
 .question-comparison-text { max-width: 100%; font-size: clamp(2rem, 7vmin, 6rem); line-height: 1.25; overflow-wrap: normal; word-break: normal; }
 .question-comparison-audio { display: grid; place-items: center; width: 100%; height: 100%; cursor: pointer; }
-.question-comparison .audio-player-bar { position: relative; left: auto; bottom: auto; width: min(416px, 80%); opacity: 1; pointer-events: auto; transform: none; }
+.question-comparison .audio-player-bar { position: relative; left: auto; bottom: auto; justify-self: center; align-self: center; width: min(416px, 100%); opacity: 1; pointer-events: auto; transform: none; }
+.question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 48px 0; }
+.question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 0 48px; }
 .question-comparison-empty { color: var(--muted); font-size: .85rem; }
 .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
 @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
@@ -205,7 +207,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .question-comparison { grid-template: 1fr 1fr / 1fr; grid-template-areas: 'correct' 'user'; }
   .question-comparison::after { top: 50%; right: 8%; bottom: auto; left: 8%; width: auto; height: 1px; }
   .question-comparison-side { padding: clamp(.75rem, 4vw, 1.5rem); }
-  .question-comparison .audio-player-bar { width: min(416px, calc(100vw - 3rem)); }
+  .question-comparison .audio-player-bar { width: min(416px, 100%); }
+  .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 56px 0; }
+  .question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 0 56px; }
 }
 @media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
 @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }

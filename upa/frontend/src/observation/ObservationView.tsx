@@ -700,11 +700,10 @@ export function ObservationView({
             keyboard={activeQuestion.keyboard}
             visible={questionControlsAreVisible}
             initialText={activeQuestion.responseText}
-            responseAudio={responseAudio}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}
             durationSeconds={() => playerRef.current?.duration() ?? 0}
-            onAudioSaved={(audio, cursorSeconds) => {
-              playerRef.current?.prepareAudioReplacement(cursorSeconds);
+            onAudioSaved={(audio) => {
+              playerRef.current?.prepareAudioReplacement(0);
               seamlessAudioKey.current = observation ? `${observation.id}\0${audio.url}` : null;
               setResponseAudio(audio);
               setControlsVisible(true);

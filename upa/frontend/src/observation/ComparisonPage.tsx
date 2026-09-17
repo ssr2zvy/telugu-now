@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { DisplayObservation, ObservationAudio } from '../../../shared/contracts';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../appearance';
 import type { ObservationFontFamily } from '../presentation';
@@ -46,15 +46,16 @@ function ComparisonText({ text, fontFamily, onReady }: {
   </div>;
 }
 
-function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, onReady }: {
+function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, player, onToggle, onReady }: {
   audio: ObservationAudio | null;
   observationId: string;
   sourceId: string;
   sourceKey: string;
   playbackRate: number;
+  player: RefObject<AudioPlayerBarHandle | null>;
+  onToggle: () => void;
   onReady: () => void;
 }) {
-  const player = useRef<AudioPlayerBarHandle>(null);
   const clickTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!audio) onReady();
@@ -66,7 +67,7 @@ function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRa
     if (event.target instanceof Element && event.target.closest('button, [role="slider"]')) return;
     clickTimer.current = window.setTimeout(() => {
       clickTimer.current = null;
-      player.current?.togglePlay();
+      onToggle();
     }, 220);
   }} onDoubleClick={() => {
     if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
@@ -82,7 +83,7 @@ function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRa
       autoplay={false}
       controlsVisible
       onLoadingChange={(_key, loading) => { if (!loading) onReady(); }}
-    /> : <span className="question-comparison-empty">No response recorded</span>}
+    /> : <span className="question-comparison-empty" role="img" aria-label="No response recorded">—</span>}
   </div>;
 }
 
@@ -97,6 +98,8 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
   const { appearance } = useAppearance();
   const glass = useMemo(() => appearanceAudioGlass(appearance, 0.45), [appearance.gradient]);
   const question = observation.question!;
+  const correctPlayer = useRef<AudioPlayerBarHandle>(null);
+  const userPlayer = useRef<AudioPlayerBarHandle>(null);
   const [userReady, setUserReady] = useState(false);
   const [correctReady, setCorrectReady] = useState(false);
   const markUserReady = useCallback(() => setUserReady(true), []);
@@ -106,6 +109,14 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
   }, [userReady, correctReady, onReady]);
 
   const textComparison = question.mode === 'audio-given';
+  const toggleCorrectAudio = () => {
+    if (!correctPlayer.current?.isPlaying()) userPlayer.current?.pause();
+    correctPlayer.current?.togglePlay();
+  };
+  const toggleUserAudio = () => {
+    if (!userPlayer.current?.isPlaying()) correctPlayer.current?.pause();
+    userPlayer.current?.togglePlay();
+  };
   return <div className="question-comparison" data-ready={userReady && correctReady}
     style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}
     onClick={event => event.stopPropagation()}
@@ -122,14 +133,14 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
         ? <ComparisonText text={observation.text} fontFamily={fontFamily} onReady={markCorrectReady} />
         : <ComparisonAudio audio={observation.audio} observationId={`${observation.id}:correct`}
           sourceId={observation.sourceId} sourceKey={observation.sourceKey} playbackRate={playbackRate}
-          onReady={markCorrectReady} />}
+          player={correctPlayer} onToggle={toggleCorrectAudio} onReady={markCorrectReady} />}
     </section>
     <section className="question-comparison-side question-comparison-user" aria-label="Your answer">
       {textComparison
         ? <ComparisonText text={question.responseText || '—'} fontFamily={fontFamily} onReady={markUserReady} />
         : <ComparisonAudio audio={question.responseAudio} observationId={`${observation.id}:user`}
           sourceId="question-response" sourceKey={observation.id} playbackRate={playbackRate}
-          onReady={markUserReady} />}
+          player={userPlayer} onToggle={toggleUserAudio} onReady={markUserReady} />}
     </section>
   </div>;
 }

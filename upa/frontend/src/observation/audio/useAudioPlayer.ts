@@ -58,6 +58,7 @@ export function useAudioPlayer(
   const bookmarkLoopRef = useRef<BookmarkLoopRange | null>(null);
   const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);
   const replacementCursorRef = useRef<number | null>(null);
+  const suppressReplacementAutoplayRef = useRef(false);
   const retryPreparationRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -134,6 +135,7 @@ export function useAudioPlayer(
     let disposed = false;
     const replacementCursor = replacementCursorRef.current;
     const replacingAudio = replacementCursor !== null;
+    if (!replacingAudio) suppressReplacementAutoplayRef.current = false;
     playRequestRef.current++;
     wantsPlaybackRef.current = replacingAudio ? false : autoplay && playbackEnabled;
     element.pause();
@@ -213,7 +215,7 @@ export function useAudioPlayer(
 
   useEffect(() => {
     const element = audioRef.current;
-    if (!playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current?.value()) return;
+    if (suppressReplacementAutoplayRef.current || !playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current?.value()) return;
     wantsPlaybackRef.current = true;
     requestPlayback(element);
   }, [playbackEnabled, autoplay, loading, audio?.url]);
@@ -314,11 +316,13 @@ export function useAudioPlayer(
   };
 
   const prepareReplacementAt = (speechTime: number) => {
-    replacementCursorRef.current = toPlayerTime(speechTime);
+    replacementCursorRef.current = speechTime === 0 ? 0 : toPlayerTime(speechTime);
+    suppressReplacementAutoplayRef.current = true;
     pause();
   };
 
   const togglePlay = () => {
+    suppressReplacementAutoplayRef.current = false;
     const element = audioRef.current;
     if (!element || !audio) return;
     if (!element.paused) { pause(); return; }

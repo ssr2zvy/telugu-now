@@ -3,7 +3,6 @@ import { CircleDot, Mic } from 'lucide-react';
 import type { ObservationAudio, QuestionKeyboard, QuestionMode } from '../../../shared/contracts';
 import { appearanceAudioGlass, useAppearance } from '../appearance';
 import { updateQuestionAudio, updateQuestionText } from '../api';
-import { overwriteRecordingAtCursor } from './question-recording';
 import { GoogleTeluguKeyboard } from './GoogleTeluguKeyboard';
 import type { RecordingTimeline } from './audio/AudioScrubber';
 
@@ -14,17 +13,16 @@ interface QuestionControlsProps {
   keyboard: QuestionKeyboard | null;
   visible: boolean;
   initialText: string;
-  responseAudio: ObservationAudio | null;
   beginRecording: () => number;
   durationSeconds: () => number;
-  onAudioSaved: (audio: ObservationAudio, cursorSeconds: number) => void;
+  onAudioSaved: (audio: ObservationAudio) => void;
   onRecordingChange: (range: RecordingTimeline | null) => void;
   onSubmit: () => void;
 }
 
 const singleLineAnswer = (value: string) => value.replace(/\r\n?|\n/g, ' ');
 
-export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, responseAudio, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
+export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
@@ -150,10 +148,9 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         stream.current = null;
         recorder.current = null;
         setRecording(false);
-        void overwriteRecordingAtCursor(responseAudio?.url ?? null, raw, recordCursor.current).then(async audio => {
-          await updateQuestionAudio(profileCode, observationId, audio);
-          const responseUrl = responseAudio?.url.split('?')[0] ?? `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
-          onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: audio.type, durationSeconds: 0 }, recordCursor.current);
+        void updateQuestionAudio(profileCode, observationId, raw).then(() => {
+          const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
+          onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: raw.type, durationSeconds: 0 });
         }).catch(() => setError(true));
       };
       mediaRecorder.start();

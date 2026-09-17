@@ -99,11 +99,11 @@ export function AudioPlayerBar({
     currentTime: () => toSpeechTime(player.currentTime),
     duration: () => player.duration,
     beginRecording: () => {
-      const exactPlayerTime = player.audioRef.current?.currentTime ?? player.currentTime;
       precisionBeforeRecording.current = precisionMode;
       dispatchPrecision('close');
       player.pause();
-      return toSpeechTime(exactPlayerTime);
+      player.seek(0);
+      return 0;
     },
     prepareAudioReplacement: player.prepareReplacementAt,
     isPrecisionOpen: () => magnifierOpen,

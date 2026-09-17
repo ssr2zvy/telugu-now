@@ -60,9 +60,15 @@ test('comparison centers both answers and separates them with audio glass', () =
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   assert.match(comparison, /appearanceAudioGlass\(appearance, 0\.45\)/);
   assert.match(comparison, /'--audio-glass-gradient': glass\.gradient, '--audio-glass-edge': glass\.edge/);
+  assert.match(comparison, /className="question-comparison-empty" role="img" aria-label="No response recorded">—<\/span>/);
+  assert.doesNotMatch(comparison, />No response recorded<\/span>/);
+  assert.match(comparison, /if \(!correctPlayer\.current\?\.isPlaying\(\)\) userPlayer\.current\?\.pause\(\);\s*correctPlayer\.current\?\.togglePlay\(\)/);
+  assert.match(comparison, /if \(!userPlayer\.current\?\.isPlaying\(\)\) correctPlayer\.current\?\.pause\(\);\s*userPlayer\.current\?\.togglePlay\(\)/);
   assert.match(css, /\.question-comparison::after \{[^}]*top: 8%; bottom: 8%; left: 50%; width: 1px; background: var\(--audio-glass-gradient\); pointer-events: none;/);
   assert.doesNotMatch(css, /\.question-comparison::after \{[^}]*(?:box-shadow|filter):/);
   assert.doesNotMatch(css, /\.question-comparison-(?:user|correct) > \* \{ transform:/);
+  assert.match(css, /\.question-comparison \.audio-player-bar \{[^}]*justify-self: center; align-self: center; width: min\(416px, 100%\)/);
+  assert.match(css, /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: 48px 0; \}/);
   assert.match(css, /\.question-comparison::after \{ top: 50%; right: 8%; bottom: auto; left: 8%; width: auto; height: 1px; \}/);
 });
 
