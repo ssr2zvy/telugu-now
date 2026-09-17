@@ -223,8 +223,8 @@ test('audio-given keyboard follows the selected trigger and fills the bottom vie
   assert.match(observation, /activeQuestion && appearance\.toggleTrigger === 'tap'[\s\S]*setQuestionControlsVisible/);
   assert.match(css, /data-question-mode='audio-given'\] \.question-controls \{ inset: calc\(35% \+ 50px\) 0 0; width: auto; transform: none; \}/);
   assert.match(css, /data-question-mode='audio-given'\] :is\(\.question-keyboard-controls, \.google-telugu-input\) \{ height: 100%; \}/);
-  assert.match(css, /\.question-keyboard \{[^}]*grid-template-rows: repeat\(5, minmax\(0, 1fr\)\);[^}]*border-radius: 10px 10px 0 0;/);
-  assert.match(css, /data-question-mode='audio-given'\] \.question-keyboard-row button \{ flex-grow: 1; height: 100%; \}/);
+  assert.match(css, /\.question-keyboard \{[^}]*grid-template-rows: repeat\(5, auto\);[^}]*height: clamp\(260px, 38dvh, 390px\);[^}]*background: var\(--keyboard-gradient\)/);
+  assert.match(css, /\.question-keyboard-row \{[^}]*width: min\(100%, 1120px\); margin-inline: auto;/);
 });
 
 test('question keyboard Enter submits and combining marks share an explicit dotted-circle anchor', () => {
@@ -240,10 +240,21 @@ test('question keyboard Enter submits and combining marks share an explicit dott
   assert.match(controls, /GoogleTeluguKeyboard value=\{text\} onChange=\{changeText\} onSubmit=\{onSubmit\}/);
   assert.match(observation, /onSubmit=\{\(\) => \{ if \(canNext\) void move\('next'\); \}\}/);
   assert.match(observation, /activeQuestion\?\.mode === 'audio-given' && event\.key === 'Enter'[\s\S]{0,300}!event\.repeat && canNext\) void move\('next'\)/);
-  assert.match(css, /\.question-keyboard-row button span \{[^}]*display: inline-grid;[^}]*place-items: center;[^}]*line-height: 1\.35;/);
+  assert.match(css, /\.question-keyboard-row button span \{[^}]*display: inline-grid;[^}]*place-items: center;[^}]*font-family: 'Noto Sans Telugu'[^}]*line-height: 1\.4;/);
   assert.match(keyboard, /const ANSWER_FONT_MAX_PX = 34;[\s\S]*const ANSWER_FONT_MIN_PX = 16;/);
   assert.match(keyboard, /function fitAnswerEditor\([\s\S]*element\.scrollHeight <= element\.clientHeight \+ 1[\s\S]*useLayoutEffect/);
   assert.match(css, /\.question-answer-editor \{[^}]*font-size: 34px; line-height: 45px;/);
+});
+
+test('keyboard keeps its calculated surface while using compact staggered interaction zones', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  const keyboard = readFileSync(new URL('../frontend/src/observation/GoogleTeluguKeyboard.tsx', import.meta.url), 'utf8');
+  assert.match(css, /\.question-keyboard \{[^}]*background: var\(--keyboard-gradient\); color: var\(--keyboard-ink\);/);
+  assert.doesNotMatch(css, /button:not\(:last-child\)::after/);
+  assert.match(css, /\.question-top-row \{ padding-inline: 1\.7%; \}[\s\S]*\.question-home-row \{ padding-inline: 3\.8%; \}[\s\S]*\.question-bottom-row \{ padding-inline: 6%; \}/);
+  assert.match(css, /button:not\(\[aria-disabled='true'\]\):hover \{ background: radial-gradient/);
+  assert.match(css, /button:not\(\[aria-disabled='true'\]\):active[^}]*transform: scale\(\.94\)/);
+  assert.doesNotMatch(keyboard, /useAppearance|keyFontFamily|OBSERVATION_FONTS/);
 });
 
 test('recording freezes the exact media cursor before a 500ms pre-roll', () => {

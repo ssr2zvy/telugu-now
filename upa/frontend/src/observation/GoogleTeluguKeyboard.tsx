@@ -1,7 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowUp, CornerDownLeft, Delete } from 'lucide-react';
-import { useAppearance } from '../appearance';
-import { OBSERVATION_FONTS } from '../presentation';
 
 interface CharacterKey { code: string; output: string }
 
@@ -128,11 +126,6 @@ function removeLastGrapheme(value: string): string {
 }
 
 export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: string; onChange: (value: string) => void; onSubmit: () => void }) {
-  const { appearance } = useAppearance();
-  const [keyFontFamily] = useState(() => {
-    const pool = appearance.fonts.length ? appearance.fonts : OBSERVATION_FONTS;
-    return pool[Math.floor(Math.random() * pool.length)]!;
-  });
   const editor = useRef<HTMLTextAreaElement>(null);
   const latestPropValue = useRef(value);
   const draftValue = useRef(value);
@@ -256,7 +249,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: str
   return <div className="google-telugu-input">
     {scrolledUp ? <div className="question-answer-more" aria-hidden="true">&hellip;</div> : null}
     <textarea ref={editor} className="question-answer-editor" style={{ caretColor: caretIdle ? 'var(--keyboard-accent)' : 'transparent' }} lang="te" aria-label="Typed answer" value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { draftValue.current = event.target.value; select(event.target.selectionStart, event.target.selectionEnd); snapToEndPending.current = event.target.selectionStart >= event.target.value.length; noteTyping(); onChange(event.target.value); }} onSelect={event => select(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
-    <div className="question-keyboard" aria-label="Telugu InScript keyboard" style={{ '--question-keyboard-font': `"${keyFontFamily}"` } as CSSProperties}>
+    <div className="question-keyboard" aria-label="Telugu InScript keyboard">
       <div className="question-keyboard-row question-number-row">{numberRow.map(characterKey)}<button type="button" className="question-backspace-key" aria-label="Backspace" onClick={backspace}><Delete aria-hidden="true" strokeWidth={1.5} /></button></div>
       <div className="question-keyboard-row question-top-row">{topRow.map(characterKey)}</div>
       <div className="question-keyboard-row question-home-row">{homeRow.map(characterKey)}</div>

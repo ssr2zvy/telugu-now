@@ -144,7 +144,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-response-error { padding: 5px 8px; background: var(--surface); color: #b42318; font-size: .8rem; }
 .question-keyboard-controls { display: grid; min-height: 0; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-keyboard-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
-.google-telugu-input { position: relative; display: grid; grid-template-rows: 64px minmax(0, 1fr); gap: 8px; min-height: 0; }
+.google-telugu-input { position: relative; display: grid; grid-template-rows: 64px auto; align-content: end; gap: 10px; min-height: 0; }
 .observation-screen[data-question-mode='audio-given'] :is(.question-keyboard-controls, .google-telugu-input) { height: 100%; }
 /* Floats above the text box when earlier lines are scrolled out of view. */
 .question-answer-more { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 18px; line-height: 1; letter-spacing: 2px; pointer-events: none; }
@@ -157,30 +157,26 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-answer-editor { display: block; box-sizing: border-box; justify-self: center; width: min(100%, 640px); height: 64px; padding: 2px 16px; border: 0; outline: 0; background: transparent; color: var(--foreground); font-family: 'Noto Sans Telugu', sans-serif; font-size: 34px; line-height: 45px; text-align: center; overflow-y: auto; overscroll-behavior: contain; resize: none; scrollbar-width: none; }
 .question-answer-editor::-webkit-scrollbar { display: none; }
 .question-answer-editor:focus, .question-answer-editor:focus-visible { border: 0; outline: 0; box-shadow: none; }
-/* A visible border makes the inset between edge keys and the panel outline
-   read as an intentional frame rather than a dead strip. */
-.question-keyboard { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 6px 0; min-height: 0; padding: 6px max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); border: 0; border-radius: 10px 10px 0 0; background: var(--keyboard-gradient); color: var(--keyboard-ink); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--keyboard-glow) 30%, transparent), inset 0 0 30px color-mix(in srgb, var(--keyboard-glow) 12%, transparent), 0 8px 24px rgb(0 0 0 / .09); overflow: hidden; }
-.question-keyboard-row { position: relative; display: flex; justify-content: center; gap: 0; }
-/* No box or border ever needs to reach the panel edge: hovering/pressing a
-   key never paints a box, it only recolors the glyph itself, same as the
-   audio bar's icon hover treatment. */
-.question-keyboard-row button { position: relative; display: grid; grid-template-columns: 1fr; place-items: center; flex: 0 1 52px; min-width: 32px; height: 43px; padding: 3px 7px; border: 0; border-radius: 6px; background: transparent; color: color-mix(in srgb, var(--keyboard-ink) 55%, gray 45%); font: inherit; cursor: pointer; box-shadow: none; }
-.observation-screen[data-question-mode='audio-given'] .question-keyboard-row button { flex-grow: 1; height: 100%; }
-/* Barely-there divider between keys, not a visible grid. */
-.question-keyboard-row button:not(:last-child)::after { content: ''; position: absolute; top: 20%; right: 0; bottom: 20%; width: 1px; background: currentColor; opacity: .08; pointer-events: none; }
+.question-keyboard { display: grid; grid-template-rows: repeat(5, auto); align-content: center; gap: clamp(4px, .8dvh, 9px); width: 100%; height: clamp(260px, 38dvh, 390px); min-height: 0; padding: clamp(10px, 1.4vw, 20px) max(clamp(10px, 2vw, 28px), env(safe-area-inset-right)) max(clamp(10px, 1.4vw, 20px), env(safe-area-inset-bottom)) max(clamp(10px, 2vw, 28px), env(safe-area-inset-left)); border: 0; border-radius: 12px 12px 0 0; background: var(--keyboard-gradient); color: var(--keyboard-ink); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--keyboard-glow) 30%, transparent), inset 0 0 30px color-mix(in srgb, var(--keyboard-glow) 12%, transparent), 0 8px 24px rgb(0 0 0 / .09); overflow: hidden; }
+.question-keyboard-row { position: relative; display: flex; justify-content: center; gap: clamp(2px, .35vw, 6px); width: min(100%, 1120px); margin-inline: auto; }
+.question-top-row { padding-inline: 1.7%; }
+.question-home-row { padding-inline: 3.8%; }
+.question-bottom-row { padding-inline: 6%; }
+.question-keyboard-actions { padding-inline: 9%; }
+.question-keyboard-row button { position: relative; display: grid; grid-template-columns: 1fr; place-items: center; flex: 1 1 0; min-width: 0; height: clamp(42px, 6.2dvh, 58px); padding: 3px; border: 0; border-radius: 10px; background: transparent; color: color-mix(in srgb, var(--keyboard-ink) 72%, transparent); font: inherit; cursor: pointer; box-shadow: none; transition: color 130ms ease, background-color 130ms ease, box-shadow 130ms ease, transform 90ms ease; }
 @media (hover: hover) and (pointer: fine) {
-  .question-keyboard-row button:not([aria-disabled='true']):hover { color: color-mix(in srgb, var(--keyboard-ink) 55%, var(--keyboard-accent) 45%); }
+  .question-keyboard-row button:not([aria-disabled='true']):hover { background: radial-gradient(circle, color-mix(in srgb, var(--keyboard-glow) 22%, transparent) 0 44%, transparent 72%); color: color-mix(in srgb, var(--keyboard-ink) 70%, var(--keyboard-accent) 30%); }
 }
-.question-keyboard-row button:not([aria-disabled='true']):active, .question-keyboard-row button[aria-pressed='true'] { color: color-mix(in srgb, var(--keyboard-ink) 35%, var(--keyboard-accent) 65%); }
-.question-keyboard-row button[aria-disabled='true'] { cursor: default; }
-.question-keyboard-row button span { display: inline-grid; min-width: 1.6em; place-items: center; font-family: var(--question-keyboard-font, 'Noto Sans Telugu'), 'Noto Sans Telugu', sans-serif; font-size: 1.35rem; line-height: 1.35; text-align: center; }
-.question-number-row .question-backspace-key { grid-template-columns: 1fr; flex-basis: 92px; }
-.question-bottom-row .question-shift-key { grid-template-columns: 1fr; flex-basis: 104px; }
+.question-keyboard-row button:not([aria-disabled='true']):active, .question-keyboard-row button[aria-pressed='true'] { background: radial-gradient(circle, color-mix(in srgb, var(--keyboard-accent) 22%, transparent) 0 48%, transparent 74%); color: color-mix(in srgb, var(--keyboard-ink) 36%, var(--keyboard-accent) 64%); box-shadow: inset 0 0 18px color-mix(in srgb, var(--keyboard-glow) 12%, transparent); transform: scale(.94); }
+.question-keyboard-row button[aria-disabled='true'] { opacity: .22; cursor: default; }
+.question-keyboard-row button span { display: inline-grid; min-width: 1.8em; place-items: center; font-family: 'Noto Sans Telugu', sans-serif; font-size: clamp(1.25rem, 2.2dvh, 1.7rem); line-height: 1.4; text-align: center; }
+.question-number-row .question-backspace-key { grid-template-columns: 1fr; flex-grow: 1.35; }
+.question-bottom-row .question-shift-key { grid-template-columns: 1fr; flex-grow: 1.3; }
 .question-shift-key svg { width: 17px; height: 17px; justify-self: center; }
 .question-backspace-key svg { width: 21px; height: 21px; justify-self: center; }
-.question-keyboard-actions .question-control-key { display: grid; grid-template-columns: 1fr; flex-basis: 140px; }
-.question-keyboard-actions .question-space-key { display: grid; grid-template-columns: 1fr; flex-basis: 440px; }
-.question-keyboard-actions .question-enter-key { flex-basis: 92px; }
+.question-keyboard-actions .question-control-key { display: grid; grid-template-columns: 1fr; flex-grow: 1.4; }
+.question-keyboard-actions .question-space-key { display: grid; grid-template-columns: 1fr; flex-grow: 4; }
+.question-keyboard-actions .question-enter-key { flex-grow: 1.15; }
 .question-keyboard-actions svg { width: 17px; height: 17px; justify-self: center; }
 .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
 @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
@@ -199,14 +195,15 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 @media (max-width: 600px) {
   .observation-screen { --nav-width: 13vw; }
   .question-controls { width: calc(100vw - .5rem); }
-  .question-keyboard { padding: 3px; }
-  .question-keyboard-row button { min-width: 0; height: 36px; padding-inline: 2px; }
-  .question-keyboard-row button span { font-size: 1.05rem; }
-  .question-number-row .question-backspace-key { flex-basis: 64px; }
-  .question-bottom-row .question-shift-key { flex-basis: 60px; }
-  .question-keyboard-actions .question-control-key { flex-basis: 104px; font-size: .61rem; white-space: nowrap; }
-  .question-keyboard-actions .question-space-key { flex-basis: 240px; }
-  .question-keyboard-actions .question-enter-key { flex-basis: 56px; }
+  .question-keyboard { gap: 3px; height: clamp(250px, 42dvh, 330px); padding: 7px max(5px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); border-radius: 8px 8px 0 0; }
+  .question-keyboard-row { gap: 1px; }
+  .question-top-row { padding-inline: .8%; }
+  .question-home-row { padding-inline: 1.8%; }
+  .question-bottom-row { padding-inline: 3%; }
+  .question-keyboard-actions { padding-inline: 4%; }
+  .question-keyboard-row button { height: clamp(42px, 6.8dvh, 52px); border-radius: 8px; padding-inline: 1px; }
+  .question-keyboard-row button span { min-width: 1.5em; font-size: clamp(1.05rem, 2.3dvh, 1.3rem); }
+  .question-keyboard-actions .question-control-key { font-size: .58rem; white-space: nowrap; }
 }
-@media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
+@media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard { height: min(55dvh, 280px); } .question-keyboard-row button { height: clamp(36px, 7dvh, 46px); } }
 @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }
