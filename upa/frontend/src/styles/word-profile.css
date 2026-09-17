@@ -16,12 +16,14 @@
 .word-image-section { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow: hidden; background: var(--wash); }
 .word-profile-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; border: 0; border-radius: 6px; padding: 8px; color: inherit; background: transparent; cursor: pointer; font-size: .8rem; }
 @media (hover: hover) and (pointer: fine) {
-  .word-profile-back:hover, .word-profile-action:hover { background: var(--wash); }
+  .word-profile-back:hover { color: var(--corner-control-color); }
+  .word-profile-action:hover { background: var(--wash); }
 }
 .word-profile-action:disabled { opacity: .6; cursor: default; }
 .word-image-preview { display: grid; place-items: center; width: 100%; height: 100%; background: var(--wash); overflow: hidden; color: var(--muted); }
 .word-image-preview img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
 .word-image-entry { display: flex; align-items: center; justify-content: center; gap: clamp(20px, 5vw, 56px); width: 100%; height: 100%; }
+.word-image-entry-spinner { width: 36px; height: 36px; color: var(--foreground); }
 .word-image-glass-action { display: grid; place-items: center; width: 72px; height: 72px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .word-image-glass-action svg { width: 32px; height: 32px; fill: none; stroke: var(--audio-icon-paint); stroke-width: 2; filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
 .word-image-glass-action:disabled { opacity: .55; cursor: default; }
@@ -37,6 +39,7 @@
 .word-image-info dl > div { display: grid; grid-template-columns: minmax(90px, .75fr) minmax(0, 1.5fr); gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .word-image-info dt { color: var(--muted); }
 .word-image-info dd { margin: 0; overflow-wrap: anywhere; }
+.word-image-info a { color: inherit; text-underline-offset: 3px; }
 .word-image-info button { justify-self: start; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .word-image-context-menu { z-index: 8; }
 .word-image-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

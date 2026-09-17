@@ -8,6 +8,38 @@ export interface WordImageMetadata {
   createdAt: number;
   method: 'generation' | 'source';
   vendor: string;
+  title?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  originalUrl?: string;
+  license?: 'CC BY 4.0' | 'CC BY-SA 4.0';
+  licenseUrl?: string;
+  batchId?: string;
+  batchCreatedAt?: number;
+  batchIndex?: number;
+}
+
+export type WordImageLocation = { pane: 'action' } | { pane: 'image'; index: number };
+
+export function orderedWordImages(images: readonly WordImageMetadata[]): WordImageMetadata[] {
+  return [...images].sort((first, second) => {
+    if (first.method !== second.method) return first.method === 'generation' ? -1 : 1;
+    if (first.method === 'generation') return first.createdAt - second.createdAt;
+    return (first.batchCreatedAt ?? first.createdAt) - (second.batchCreatedAt ?? second.createdAt)
+      || (first.batchIndex ?? 0) - (second.batchIndex ?? 0)
+      || first.createdAt - second.createdAt;
+  });
+}
+
+export function insertOrderedWordImage(images: readonly WordImageMetadata[], image: WordImageMetadata): WordImageMetadata[] {
+  return orderedWordImages(images.some(saved => saved.id === image.id) ? images : [...images, image]);
+}
+
+export function navigateWordImages(location: WordImageLocation, imageCount: number, direction: -1 | 1): WordImageLocation {
+  if (!imageCount) return { pane: 'action' };
+  if (location.pane === 'action') return { pane: 'image', index: direction === 1 ? 0 : imageCount - 1 };
+  const next = location.index + direction;
+  return next < 0 || next >= imageCount ? { pane: 'action' } : { pane: 'image', index: next };
 }
 
 export function wordImageUrl(root: string, id?: string): string {
@@ -62,6 +94,42 @@ export function generateWordImage(root: string, profileCode: string, regenerate 
 export async function removeWordImage(root: string, profileCode: string, id: string): Promise<void> {
   const response = await fetch(`${wordImageUrl(root, id)}&profile=${encodeURIComponent(profileCode)}`, { method: 'DELETE' });
   if (!response.ok) throw await imageError(response);
+}
+
+export async function searchWordImages(root: string, profileCode: string,
+  onImage: (image: WordImageMetadata) => void): Promise<{ added: number; inspected: number; pagesSearched: number }> {
+  const response = await fetch(`/api/word-images/search?root=${encodeURIComponent(root.normalize('NFC').trim())}&profile=${encodeURIComponent(profileCode)}`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw await imageError(response);
+  if (!response.body) throw new Error('Image search returned an empty response.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = '';
+  let added = 0;
+  let inspected = 0;
+  let pagesSearched = 0;
+  const consume = (line: string) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line) as { type?: unknown; image?: WordImageMetadata; added?: unknown; inspected?: unknown; pagesSearched?: unknown; error?: unknown };
+    if (event.type === 'image' && event.image) onImage(event.image);
+    else if (event.type === 'complete' && typeof event.added === 'number') {
+      added = event.added;
+      inspected = typeof event.inspected === 'number' ? event.inspected : added;
+      pagesSearched = typeof event.pagesSearched === 'number' ? event.pagesSearched : 0;
+    }
+    else if (event.type === 'error') throw new Error(typeof event.error === 'string' ? event.error : 'Image search failed.');
+  };
+  while (true) {
+    const { done, value } = await reader.read();
+    buffered += decoder.decode(value, { stream: !done });
+    const lines = buffered.split('\n');
+    buffered = lines.pop() ?? '';
+    for (const line of lines) consume(line);
+    if (done) break;
+  }
+  consume(buffered);
+  return { added, inspected, pagesSearched };
 }
 
 export function wordImageError(error: unknown): string {

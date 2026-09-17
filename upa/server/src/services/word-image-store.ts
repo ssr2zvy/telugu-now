@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { config } from '../config/config';
 import { MAX_IMAGE_BYTES } from './pollinations-service';
 import type Database from 'better-sqlite3';
@@ -20,7 +20,21 @@ export interface WordImageMetadata {
   method: 'generation' | 'source';
   vendor: string;
   file: string;
+  title?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  originalUrl?: string;
+  license?: 'CC BY 4.0' | 'CC BY-SA 4.0';
+  licenseUrl?: string;
+  batchId?: string;
+  batchCreatedAt?: number;
+  batchIndex?: number;
 }
+
+type WordImageDetails = Pick<WordImageMetadata, 'method' | 'vendor'>
+  & Partial<Pick<WordImageMetadata, 'title' | 'sourceName' | 'sourceUrl' | 'originalUrl' | 'license' | 'licenseUrl'
+    | 'batchId' | 'batchCreatedAt' | 'batchIndex'>>
+  & { createdAt?: number };
 
 export function migrateLegacyWordImages(database: Database.Database, directory = defaultWordImageDirectory()): void {
   if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_images'").get()) return;
@@ -52,6 +66,10 @@ export function imageType(bytes: Buffer): ImageMimeType | null {
   return null;
 }
 
+export function wordImageId(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 export function wordImageStore(directory = defaultWordImageDirectory()) {
   const imageDirectory = (root: string) => path.join(directory, createHash('sha256').update(root.normalize('NFC').trim()).digest('hex'));
   const metadata = (root: string): WordImageMetadata[] => {
@@ -65,7 +83,7 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     try {
       const galleryPath = path.join(folder, 'gallery.json');
       if (fs.existsSync(galleryPath)) {
-        if (fs.statSync(galleryPath).size > 65536) throw new Error('Invalid gallery');
+        if (fs.statSync(galleryPath).size > 1024 * 1024) throw new Error('Invalid gallery');
         const gallery: unknown = JSON.parse(fs.readFileSync(galleryPath, 'utf8'));
         if (!Array.isArray(gallery)) throw new Error('Invalid gallery');
         return gallery.map(value => {
@@ -75,6 +93,15 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
             || typeof entry.mimeType !== 'string' || !Object.hasOwn(imageFiles, entry.mimeType)
             || (entry.method !== 'generation' && entry.method !== 'source')
             || typeof entry.vendor !== 'string' || typeof entry.file !== 'string'
+            || (entry.title !== undefined && typeof entry.title !== 'string')
+            || (entry.sourceName !== undefined && typeof entry.sourceName !== 'string')
+            || (entry.sourceUrl !== undefined && typeof entry.sourceUrl !== 'string')
+            || (entry.originalUrl !== undefined && typeof entry.originalUrl !== 'string')
+            || (entry.license !== undefined && entry.license !== 'CC BY 4.0' && entry.license !== 'CC BY-SA 4.0')
+            || (entry.licenseUrl !== undefined && typeof entry.licenseUrl !== 'string')
+            || (entry.batchId !== undefined && typeof entry.batchId !== 'string')
+            || (entry.batchCreatedAt !== undefined && typeof entry.batchCreatedAt !== 'number')
+            || (entry.batchIndex !== undefined && (!Number.isSafeInteger(entry.batchIndex) || entry.batchIndex < 0))
             || !/^image(?:-[a-f0-9]{64})?\.(?:png|jpg|webp)$/.test(entry.file)) throw new Error('Invalid gallery');
           return entry as WordImageMetadata;
         });
@@ -86,20 +113,40 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
         || !('mimeType' in value) || typeof value.mimeType !== 'string' || !Object.hasOwn(imageFiles, value.mimeType)) {
         throw new Error('Invalid metadata');
       }
-      const legacy = value as { mimeType: ImageMimeType; file?: unknown; createdAt?: unknown; method?: unknown; vendor?: unknown };
+      const legacy = value as { mimeType: ImageMimeType; file?: unknown; createdAt?: unknown; method?: unknown; vendor?: unknown;
+        title?: unknown; sourceName?: unknown; sourceUrl?: unknown; originalUrl?: unknown; license?: unknown; licenseUrl?: unknown;
+        batchId?: unknown; batchCreatedAt?: unknown; batchIndex?: unknown };
       const mimeType = legacy.mimeType;
       const fileName = legacy.file ?? imageFiles[mimeType];
       if (typeof fileName !== 'string' || (fileName !== imageFiles[mimeType]
         && !new RegExp(`^image-[a-f0-9]{64}\\.${imageFiles[mimeType].split('.')[1]}$`).test(fileName))) {
         throw new Error('Invalid image file');
       }
+      if ((legacy.title !== undefined && typeof legacy.title !== 'string')
+        || (legacy.sourceName !== undefined && typeof legacy.sourceName !== 'string')
+        || (legacy.sourceUrl !== undefined && typeof legacy.sourceUrl !== 'string')
+        || (legacy.originalUrl !== undefined && typeof legacy.originalUrl !== 'string')
+        || (legacy.license !== undefined && legacy.license !== 'CC BY 4.0' && legacy.license !== 'CC BY-SA 4.0')
+        || (legacy.licenseUrl !== undefined && typeof legacy.licenseUrl !== 'string')
+        || (legacy.batchId !== undefined && typeof legacy.batchId !== 'string')
+        || (legacy.batchCreatedAt !== undefined && typeof legacy.batchCreatedAt !== 'number')
+        || (legacy.batchIndex !== undefined && (!Number.isSafeInteger(legacy.batchIndex) || Number(legacy.batchIndex) < 0))) throw new Error('Invalid image source metadata');
       return [{
-        id: createHash('sha256').update(fs.readFileSync(path.join(folder, fileName))).digest('hex'),
+        id: wordImageId(fs.readFileSync(path.join(folder, fileName))),
         mimeType,
         createdAt: typeof legacy.createdAt === 'number' ? legacy.createdAt : 0,
         method: legacy.method === 'source' ? 'source' : 'generation',
         vendor: typeof legacy.vendor === 'string' ? legacy.vendor : 'Pollinations',
         file: fileName,
+        ...(typeof legacy.title === 'string' ? { title: legacy.title } : {}),
+        ...(typeof legacy.sourceName === 'string' ? { sourceName: legacy.sourceName } : {}),
+        ...(typeof legacy.sourceUrl === 'string' ? { sourceUrl: legacy.sourceUrl } : {}),
+        ...(typeof legacy.originalUrl === 'string' ? { originalUrl: legacy.originalUrl } : {}),
+        ...(legacy.license === 'CC BY 4.0' || legacy.license === 'CC BY-SA 4.0' ? { license: legacy.license } : {}),
+        ...(typeof legacy.licenseUrl === 'string' ? { licenseUrl: legacy.licenseUrl } : {}),
+        ...(typeof legacy.batchId === 'string' ? { batchId: legacy.batchId } : {}),
+        ...(typeof legacy.batchCreatedAt === 'number' ? { batchCreatedAt: legacy.batchCreatedAt } : {}),
+        ...(typeof legacy.batchIndex === 'number' ? { batchIndex: legacy.batchIndex } : {}),
       }];
     } catch {
       throw new Error('Could not read the saved word image.');
@@ -134,16 +181,16 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
   };
   const writeGallery = (root: string, entries: WordImageMetadata[]) => {
     const folder = imageDirectory(root);
-    const temporary = path.join(folder, `.gallery-${process.pid}-${Date.now()}.json`);
+    const temporary = path.join(folder, `.gallery-${process.pid}-${randomUUID()}.json`);
     fs.writeFileSync(temporary, JSON.stringify(entries, null, 2) + '\n', { flag: 'wx' });
-    fs.renameSync(temporary, path.join(folder, 'gallery.json'));
+    try { fs.renameSync(temporary, path.join(folder, 'gallery.json')); }
+    finally { fs.rmSync(temporary, { force: true }); }
   };
-  const add = (root: string, record: WordImageRecord,
-    details: Pick<WordImageMetadata, 'method' | 'vendor'> & { createdAt?: number }): WordImageRecord => {
+  const add = (root: string, record: WordImageRecord, details: WordImageDetails): WordImageRecord => {
     if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
     const existing = list(root);
     if (!existing.length) return save(root, record, Date.now(), false, details);
-    const id = createHash('sha256').update(record.image).digest('hex');
+    const id = wordImageId(record.image);
     if (existing.some(entry => entry.id === id)) return get(root, id)!;
     const folder = imageDirectory(root);
     const extension = imageFiles[record.mimeType].split('.')[1];
@@ -153,9 +200,15 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(imagePath).equals(record.image)) throw error;
     }
-    writeGallery(root, [...existing, {
-      id, mimeType: record.mimeType, createdAt: details.createdAt ?? Date.now(), method: details.method, vendor: details.vendor, file,
-    }]);
+    const entry = { id, mimeType: record.mimeType, createdAt: details.createdAt ?? Date.now(), ...details, file };
+    const insertionIndex = details.method === 'generation'
+      ? existing.findIndex(image => image.method === 'source')
+      : existing.findIndex(image => image.method === 'source'
+        && ((image.batchCreatedAt ?? image.createdAt) > (details.batchCreatedAt ?? entry.createdAt)
+          || ((image.batchCreatedAt ?? image.createdAt) === (details.batchCreatedAt ?? entry.createdAt)
+            && (image.batchIndex ?? 0) > (details.batchIndex ?? 0))));
+    const index = insertionIndex < 0 ? existing.length : insertionIndex;
+    writeGallery(root, [...existing.slice(0, index), entry, ...existing.slice(index)]);
     return record;
   };
   const remove = (root: string, id: string): boolean => {
@@ -169,7 +222,7 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     return true;
   };
   function save(root: string, record: WordImageRecord, createdAt = Date.now(), replace = false,
-    details: Pick<WordImageMetadata, 'method' | 'vendor'> = { method: 'generation', vendor: 'Pollinations' }): WordImageRecord {
+    details: WordImageDetails = { method: 'generation', vendor: 'Pollinations' }): WordImageRecord {
     const existing = get(root);
     if (existing && !replace) return existing;
     if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
@@ -178,7 +231,7 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     const temporary = fs.mkdtempSync(path.join(directory, '.pending-'));
     try {
       if (existing && replace) {
-        const digest = createHash('sha256').update(record.image).digest('hex');
+        const digest = wordImageId(record.image);
         const file = `image-${digest}.${imageFiles[record.mimeType].split('.')[1]}`;
         fs.writeFileSync(path.join(temporary, file), record.image, { flag: 'wx' });
         if (fs.existsSync(path.join(imageDirectory(root), 'gallery.json'))) {

@@ -154,6 +154,7 @@ console.log('dev-config:' + ['CORPUS_BACKEND', 'CORPUS_AVAILABILITY_WORKER_ENABL
 if (process.env.CHECK_LOCAL_SECRETS === 'true') {
   if (process.env.LOCAL_TEST_SECRET !== 'literal $(echo must-not-run) # value') process.exit(31);
   if (process.env.pollinations_api_key !== process.env.EXPECTED_TEST_KEY) process.exit(32);
+  if (process.env.serper_api_key !== 'serper-file-fixture-key') process.exit(33);
   console.log('local-secrets-ok');
 }
 process.exit(Number(process.env.TEST_NPM_EXIT || 0));
@@ -214,9 +215,10 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   ]);
 
   const secretsFile = path.join(scratch, 'local-machine/dev-secrets.env');
-  fs.writeFileSync(secretsFile, `export LOCAL_TEST_SECRET='literal $(echo must-not-run) # value'
-export pollinations_api_key="\${pollinations_api_key-file-fixture-key}"
-export CORPUS_BACKEND="\${TEST_SECRET_BACKEND-$CORPUS_BACKEND}"
+  fs.writeFileSync(secretsFile, `LOCAL_TEST_SECRET='literal $(echo must-not-run) # value'
+pollinations_api_key="\${pollinations_api_key-file-fixture-key}"
+serper_api_key='serper-file-fixture-key'
+CORPUS_BACKEND="\${TEST_SECRET_BACKEND-$CORPUS_BACKEND}"
 `);
   const secretsEnv: NodeJS.ProcessEnv = { ...env, CORPUS_BACKEND: 'tigris', CHECK_LOCAL_SECRETS: 'true', EXPECTED_TEST_KEY: 'file-fixture-key' };
   delete secretsEnv.pollinations_api_key;

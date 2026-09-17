@@ -293,6 +293,32 @@ test('word image galleries preserve order and metadata through append retries an
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('word image galleries keep generations first and searches ordered by batch and result rank', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-order-'));
+  const image = (marker: number) => Buffer.from([255, 216, 255, marker, 255, 217]);
+  const store = wordImageStore(directory);
+  try {
+    store.add('tree', { image: image(3), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-two', batchCreatedAt: 200, batchIndex: 1,
+    });
+    store.add('tree', { image: image(2), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-two', batchCreatedAt: 200, batchIndex: 0,
+    });
+    store.add('tree', { image: image(1), mimeType: 'image/jpeg' }, { method: 'generation', vendor: 'Pollinations' });
+    store.add('tree', { image: image(4), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-three', batchCreatedAt: 300, batchIndex: 0,
+    });
+    store.add('tree', { image: image(0), mimeType: 'image/jpeg' }, { method: 'generation', vendor: 'Pollinations' });
+    assert.deepEqual(store.list('tree').map(entry => [entry.method, entry.batchId, entry.batchIndex]), [
+      ['generation', undefined, undefined],
+      ['generation', undefined, undefined],
+      ['source', 'batch-two', 0],
+      ['source', 'batch-two', 1],
+      ['source', 'batch-three', 0],
+    ]);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('word image gallery routes append, retrieve, list and remove ordered images', async () => {
   const database = profileDatabase();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-routes-'));
@@ -316,6 +342,91 @@ test('word image gallery routes append, retrieve, list and remove ordered images
     assert.deepEqual(Buffer.from(await (await app.request('/api/word-images?root=tree')).arrayBuffer()), jpeg);
     assert.equal((await app.request(`/api/word-images?root=tree&id=${gallery.images[1]!.id}&profile=001`, { method: 'DELETE' })).status, 200);
     assert.deepEqual(await (await app.request('/api/word-images/gallery?root=tree')).json(), { images: [] });
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image search streams each licensed image after it is persisted with attribution', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-search-routes-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  let releaseSecond = () => {};
+  const secondGate = new Promise<void>(resolve => { releaseSecond = resolve; });
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory,
+      readSearchKey: () => 'fixture-key',
+      search: async (root, key, excluded, onImage, options) => {
+        assert.equal(root, 'tree');
+        assert.equal(key, 'fixture-key');
+        assert.equal(excluded.size, 0);
+        await onImage({ record: { image: png, mimeType: 'image/png' }, title: 'Tree one', sourceName: 'Commons',
+          sourceUrl: 'https://example.test/tree-one', originalUrl: 'https://images.example.test/tree-one.png',
+          license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/', resultIndex: 0 });
+        await secondGate;
+        await onImage({ record: { image: jpeg, mimeType: 'image/jpeg' }, title: 'Tree two', sourceName: 'Archive',
+          sourceUrl: 'https://example.test/tree-two', originalUrl: 'https://images.example.test/tree-two.jpg',
+          license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/', resultIndex: 1 });
+        options?.onComplete?.({ accepted: 2, candidatesSeen: 11, pagesSearched: 1, nextPage: 2 });
+        return 2;
+      },
+    }));
+    const response = await app.request('/api/word-images/search?root=tree&profile=001', { method: 'POST' });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /application\/x-ndjson/);
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    const firstEvent = JSON.parse(new TextDecoder().decode(first.value).trim()) as { type: string; image: { id: string; sourceUrl: string; license: string; file?: string } };
+    assert.equal(firstEvent.type, 'image');
+    assert.equal(firstEvent.image.sourceUrl, 'https://example.test/tree-one');
+    assert.equal(firstEvent.image.license, 'CC BY 4.0');
+    assert.equal('file' in firstEvent.image, false);
+    const whilePending = await (await app.request('/api/word-images/gallery?root=tree')).json() as { images: Array<{ id: string }> };
+    assert.deepEqual(whilePending.images.map(image => image.id), [firstEvent.image.id]);
+    releaseSecond();
+    let tail = '';
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      tail += new TextDecoder().decode(chunk.value);
+    }
+    assert.match(tail, /"type":"image"/);
+    assert.match(tail, /"type":"complete","added":2,"inspected":11,"pagesSearched":1/);
+    const completed = await (await app.request('/api/word-images/gallery?root=tree')).json() as { images: Array<{ sourceName: string; licenseUrl: string }> };
+    assert.deepEqual(completed.images.map(image => image.sourceName), ['Commons', 'Archive']);
+    assert.match(completed.images[1]!.licenseUrl, /by-sa\/4\.0/);
+  } finally { releaseSecond(); database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image search skips candidates rejected by an earlier search', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-search-rejections-'));
+  const failedUrl = 'https://images.example.test/unlicensed.png';
+  let calls = 0;
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory,
+      readSearchKey: () => 'fixture-key',
+      search: async (_root, _key, excluded, _onImage, options) => {
+        calls += 1;
+        if (calls === 1) {
+          assert.equal(options?.startPage, 1);
+          assert.equal(excluded.has(failedUrl), false);
+          options?.onRejected?.({ imageUrl: failedUrl, reason: 'no-exact-cc4-license' });
+        } else {
+          assert.equal(options?.startPage, 2);
+          assert.equal(excluded.has(failedUrl), true);
+        }
+        options?.onComplete?.({ accepted: 0, candidatesSeen: calls === 1 ? 1 : 0, pagesSearched: 1, nextPage: calls + 1 });
+        return 0;
+      },
+    }));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await app.request('/api/word-images/search?root=tree&profile=001', { method: 'POST' });
+      assert.equal(response.status, 200);
+      await response.text();
+    }
+    assert.equal(calls, 2);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 

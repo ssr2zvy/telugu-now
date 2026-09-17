@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { ArrowLeft, Ban, Copy, Images, Info, LoaderCircle, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
-import { generateWordImage, removeWordImage, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
+import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
 import { CustomCursor } from '../../components/CustomCursor';
 import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
@@ -42,10 +42,11 @@ function WordImage({ root }: { root: string }) {
   const [pane, setPane] = useState<ImagePane>('action');
   const [boundary, setBoundary] = useState<'before' | 'after'>('after');
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'searching' | 'error'>('loading');
   const [error, setError] = useState('');
   const active = useRef(true);
   const running = useRef(false);
+  const imagesRef = useRef<WordImageMetadata[]>([]);
   const current = images[currentIndex];
   const currentThumbnail = useRef<HTMLButtonElement>(null);
   const paintId = `word-image-glass-${useId().replace(/:/g, '')}`;
@@ -60,6 +61,7 @@ function WordImage({ root }: { root: string }) {
     setError('');
     void wordImageGallery(root).then(saved => {
       if (cancelled) return;
+      imagesRef.current = saved;
       setImages(saved);
       setCurrentIndex(0);
       setPane(saved.length ? 'image' : 'action');
@@ -83,12 +85,15 @@ function WordImage({ root }: { root: string }) {
     running.current = true;
     setStatus('generating');
     setError('');
+    const existingIds = new Set(images.map(image => image.id));
     try {
       await generateWordImage(root, profileCode, false, images.length > 0);
       const saved = await wordImageGallery(root);
       if (active.current) {
+        imagesRef.current = saved;
         setImages(saved);
-        setCurrentIndex(Math.max(0, saved.length - 1));
+        const generated = saved.findIndex(image => !existingIds.has(image.id));
+        setCurrentIndex(generated < 0 ? 0 : generated);
         setPane(saved.length ? 'image' : 'action');
         setStatus('ready');
       }
@@ -98,22 +103,54 @@ function WordImage({ root }: { root: string }) {
       running.current = false;
     }
   };
+  const searchImages = async () => {
+    if (running.current || !profileCode) return;
+    running.current = true;
+    setStatus('searching');
+    setError('');
+    let firstId: string | null = null;
+    let batchId: string | null = null;
+    try {
+      const { added, inspected, pagesSearched } = await searchWordImages(root, profileCode, image => {
+        if (!active.current) return;
+        if (!firstId) {
+          firstId = image.id;
+          batchId = image.batchId ?? null;
+        }
+        const ordered = insertOrderedWordImage(imagesRef.current, image);
+        imagesRef.current = ordered;
+        setImages(ordered);
+        setCurrentIndex(Math.max(0, ordered.findIndex(saved => saved.id === firstId)));
+        setPane('image');
+      });
+      if (!active.current) return;
+      const saved = await wordImageGallery(root);
+      imagesRef.current = saved;
+      setImages(saved);
+      if (firstId) {
+        const batchFirst = batchId ? saved.findIndex(image => image.batchId === batchId) : -1;
+        setCurrentIndex(batchFirst >= 0 ? batchFirst : Math.max(0, saved.findIndex(image => image.id === firstId)));
+      }
+      if (!added) setError(`Found 0 images after checking ${inspected} candidates across ${pagesSearched} ${pagesSearched === 1 ? 'page' : 'pages'}.`);
+      setStatus('ready');
+    } catch (reason) {
+      if (active.current) { setError(wordImageError(reason)); setStatus('error'); }
+    } finally {
+      running.current = false;
+    }
+  };
   const navigate = (direction: -1 | 1) => {
     setMenu(null);
-    if (pane === 'action') {
-      if (!images.length) return;
-      setCurrentIndex(direction < 0 ? images.length - 1 : 0);
-      setPane('image');
-      return;
-    }
-    if (pane !== 'image') return;
-    const next = currentIndex + direction;
-    if (next < 0 || next >= images.length) {
-      setBoundary(next < 0 ? 'before' : 'after');
+    if (busy && direction > 0) return;
+    if (pane !== 'image' && pane !== 'action') return;
+    const next = navigateWordImages(pane === 'action' ? { pane: 'action' } : { pane: 'image', index: currentIndex }, images.length, direction);
+    if (next.pane === 'action') {
+      setBoundary(direction < 0 ? 'before' : 'after');
       setPane('action');
-      return;
+    } else {
+      setCurrentIndex(next.index);
+      setPane('image');
     }
-    setCurrentIndex(next);
   };
   const navigateFromDoubleClick = (event: MouseEvent<HTMLElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -126,6 +163,7 @@ function WordImage({ root }: { root: string }) {
     try {
       await removeWordImage(root, profileCode, current.id);
       const saved = images.filter(image => image.id !== current.id);
+      imagesRef.current = saved;
       setImages(saved);
       if (!saved.length) { setCurrentIndex(0); setPane('action'); return; }
       setCurrentIndex(Math.min(currentIndex, saved.length - 1));
@@ -139,7 +177,7 @@ function WordImage({ root }: { root: string }) {
     try { await copyImage(await wordImageBlob(root, current.id)); }
     catch (reason) { setError(wordImageError(reason)); }
   };
-  const busy = status === 'loading' || status === 'generating';
+  const busy = status === 'loading' || status === 'generating' || status === 'searching';
   return (
     <section className="word-image-section" aria-label="Concept images" aria-busy={busy}
       style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}
@@ -156,13 +194,18 @@ function WordImage({ root }: { root: string }) {
         <img src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
       </div> : null}
       {pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
+        {busy ? <LoaderCircle className="word-image-entry-spinner word-image-spinner" aria-hidden="true" /> : <>
         <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
-          aria-label={images.length ? 'Generate another image' : 'Generate image'} title={images.length ? 'Generate another image' : 'Generate image'}
+          aria-label={images.length ? 'Generate another image' : 'Generate image'}
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>
-          {busy ? <LoaderCircle className="word-image-spinner" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+          <Sparkles aria-hidden="true" />
         </button>
-        <button className="word-image-glass-action" type="button" aria-label="Search for an image" title="Search for an image"
-          onDoubleClick={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><Search aria-hidden="true" /></button>
+        <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
+          aria-label="Search for licensed images"
+          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void searchImages(); }}>
+          <Search aria-hidden="true" />
+        </button>
+        </>}
       </div>
       : null}
       {pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">
@@ -173,8 +216,11 @@ function WordImage({ root }: { root: string }) {
         </button>)}
       </div> : null}
       {pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
-        <dl><div><dt>Retrieval</dt><dd>{current.method === 'generation' ? 'Generated' : 'Source'}</dd></div>
+        <dl>{current.title ? <div><dt>Title</dt><dd>{current.title}</dd></div> : null}
+          <div><dt>Retrieval</dt><dd>{current.method === 'generation' ? 'Generated' : 'Search'}</dd></div>
           <div><dt>Vendor</dt><dd>{current.vendor}</dd></div>
+          {current.sourceUrl ? <div><dt>Source</dt><dd><a href={current.sourceUrl} target="_blank" rel="noreferrer">{current.sourceName ?? 'Open source page'}</a></dd></div> : null}
+          {current.license && current.licenseUrl ? <div><dt>License</dt><dd><a href={current.licenseUrl} target="_blank" rel="noreferrer">{current.license}</a></dd></div> : null}
           <div><dt>Added</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd></div></dl>
         <button type="button" onClick={() => setPane('image')}>Close</button>
       </div> : null}
@@ -187,7 +233,7 @@ function WordImage({ root }: { root: string }) {
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
       </div> : null}
       <div className="word-image-status" role="status" aria-live="polite">
-        {status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : ''}
+        {status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : status === 'searching' ? 'Searching for licensed images' : ''}
       </div>
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>

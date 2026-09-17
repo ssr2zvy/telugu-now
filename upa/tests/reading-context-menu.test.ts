@@ -63,12 +63,12 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*\.word-profile-gradient \{ clip-path: inset\(0 0 60% 0\); \}/);
 });
 
-test('errors are foreground-only top-left notices that fade after thirty seconds', () => {
+test('errors enter over the bottom-right corner and fade within fifteen seconds', () => {
   const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
-  assert.match(css, /\.appearance-root :is\(\[role='alert'\], \.settings-error\) \{[^}]*position: fixed;[^}]*top: max\(16px, env\(safe-area-inset-top\)\);[^}]*left: max\(20px, env\(safe-area-inset-left\)\)/);
-  assert.match(css, /background: transparent;[^}]*box-shadow: none;[^}]*color: var\(--foreground\)/);
-  assert.match(css, /animation: app-error-notice 31s linear forwards/);
-  assert.match(css, /0%, 96\.774% \{ opacity: 1; \}[\s\S]*100% \{ opacity: 0; visibility: hidden; \}/);
+  assert.match(css, /\.appearance-root :is\(\[role='alert'\], \.settings-error\) \{[^}]*position: fixed;[^}]*right: max\(20px, env\(safe-area-inset-right\)\);[^}]*bottom: max\(16px, env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /background: rgb\(70 70 70 \/ \.96\);[^}]*box-shadow: 0 10px 30px rgb\(0 0 0 \/ \.28\);[^}]*color: #fff/);
+  assert.match(css, /animation: app-error-notice 15s ease forwards/);
+  assert.match(css, /0% \{ opacity: 0; transform: translate\(24px, 24px\); \}[\s\S]*100% \{ opacity: 0; transform: translate\(0\); visibility: hidden; \}/);
 
   for (const relativePath of [
     '../frontend/src/appearance.tsx',

@@ -563,10 +563,20 @@ cleanup_dev_if_owned() {
 run_dev_foreground() {
   local status dev_pid dev_pgid lf rc=0 corpus_database_path
 
-  source "$SCRIPT_DIR/dev.env" || return $?
+  set -a
+  source "$SCRIPT_DIR/dev.env" || {
+    rc=$?
+    set +a
+    return "$rc"
+  }
   if [[ -f "$SCRIPT_DIR/dev-secrets.env" ]]; then
-    source "$SCRIPT_DIR/dev-secrets.env" || return $?
+    source "$SCRIPT_DIR/dev-secrets.env" || {
+      rc=$?
+      set +a
+      return "$rc"
+    }
   fi
+  set +a
 
   case "${CORPUS_BACKEND:-local}" in
     local)

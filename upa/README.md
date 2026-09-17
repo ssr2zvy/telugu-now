@@ -200,16 +200,18 @@ case-ending rules, not a complete morphological analyzer. Unknown verbs, sandhi 
 ambiguous forms are not guaranteed to be analyzed correctly. The original observation
 text, layout and behavior are unchanged.
 
-### Image generation setup
-Set the lowercase `pollinations_api_key` in the server process environment
-(a same-name Fly secret in deployment). Surrounding whitespace is trimmed.
-For local development, export the key in the ignored
+### Image generation and search setup
+Set the lowercase `pollinations_api_key` and `serper_api_key` in the server process
+environment (same-name Fly secrets in deployment). Surrounding whitespace is trimmed.
+For local development, export both keys in the ignored
 `local-machine/dev-secrets.env` file:
 ```bash
-export pollinations_api_key=''
+pollinations_api_key=''
+serper_api_key=''
 ```
 Never commit the file or put the key in frontend code or a `VITE_` variable.
-The controller sources the file at dev startup, so restart dev after editing it.
+The controller sources the file at dev startup and exports its assignments to the
+child processes, so explicit `export` is optional. Restart dev after editing it.
 The Node server reads only the environment; neither this file nor the old root
 `env` file is read by the application. Direct `npm run dev` needs the key exported
 in its launching shell. Deployment secrets require neither local file nor
@@ -228,6 +230,23 @@ Each new provider request includes a random seed to request a fresh variation.
 Pollinations account access, rate limits, credits and model terms apply; text-free
 output is requested by the default prompt but is not guaranteed by the model.
 
+The Search action calls Serper's Google Images endpoint with the Telugu core word,
+India region (`gl=in`), Telugu language (`hl=te`) and
+Google's broad Creative Commons usage-rights filter. Serper does not return license
+metadata or guarantee a license version, so the server fetches each result's source
+page and accepts only pages containing an exact CC BY 4.0 or CC BY-SA 4.0 license
+URL. It then downloads and validates the image server-side. Results without that
+evidence are discarded. Accepted images are saved and streamed into the gallery
+one at a time while the remaining candidates are still resolving. The request does
+not set a result count. One Search action continues through successive result pages
+until it saves eight new qualifying images, reaches ten pages or runs for 90 seconds,
+preserving a partially consumed page for the next Search action. Finding one to seven
+images is successful and silent; only a zero-result search displays an error notice.
+Later searches skip
+prior accepted URLs, rejected candidate URLs and duplicate content. Info records
+the title, source page, Serper as retrieval provider,
+exact license URL and added time. Neither API key is exposed to the browser.
+
 **Enable regeneration** on this page is saved per profile and defaults to off,
 including for existing profiles. Save the setting to expose **Regenerate** on word
 dialogs that already have an image. Confirming it replaces that core word's global
@@ -240,8 +259,9 @@ Images live globally under `data/word-images/`, separately from both databases.
 All profiles and sentences reuse the same normalized core word's saved image,
 including when the API key is unavailable. Different senses currently share one
 image. Changing a personal prompt affects only future generation or explicit
-regeneration, never existing images automatically. Prior image versions are retained
-without automatic pruning or a history UI. Back up this directory separately.
+regeneration, never existing images automatically. Prior generated and searched
+images are retained in an ordered gallery without automatic pruning. Back up this
+directory separately.
 Generation is an explicit paid provider operation; keep the prototype behind
 access controls. Provider calls are mocked in tests, which do not spend credits
 or verify live model quality. API, publication, and retry details are recorded in
