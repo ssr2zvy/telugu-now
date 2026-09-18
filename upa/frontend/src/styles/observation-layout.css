@@ -135,6 +135,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .question-record-button { width: var(--record-button-size); height: var(--record-button-size); }
 .question-record-button .control-icon { width: 25px; height: 25px; }
+@media (hover: hover) and (pointer: fine) {
+  .observation-screen { --record-gap: clamp(16px, 3dvh, 36px); }
+}
 .question-response-error { padding: 5px 8px; background: var(--surface); color: #b42318; font-size: .8rem; }
 .question-keyboard-controls { display: grid; align-content: start; gap: 8px; visibility: hidden; pointer-events: none; contain: paint; transform: translate3d(-50%, 32px, 0); transition: transform 240ms cubic-bezier(.22, 1, .36, 1), visibility 0s linear 240ms; will-change: transform; }
 .question-keyboard-controls[data-visible='true'] { visibility: visible; pointer-events: auto; transform: translate3d(-50%, 0, 0); transition: transform 240ms cubic-bezier(.22, 1, .36, 1), visibility 0s; }
@@ -194,6 +197,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .audio-transport-button .control-icon, .audio-glass-icon { width: 22px; height: 22px; }
   .audio-bookmark-button .control-icon { width: 24px; height: 24px; }
   .audio-scrubber { height: 56px; }
+}
+@media (max-width: 600px) and (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .observation-screen { --record-gap: clamp(56px, 9dvh, 88px); }
 }
 @media (max-width: 600px) {
   .observation-screen { --nav-width: 13vw; }

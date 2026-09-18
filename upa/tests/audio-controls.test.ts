@@ -209,7 +209,9 @@ test('record control overrides the shared transport glyph size', () => {
   assert.match(css, /\.question-record-button \.control-icon \{ width: 25px; height: 25px; \}/);
   assert.match(css, /\.audio-scrubber-window \{[^}]*z-index: 3;/);
   assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) \+ var\(--audio-row-height\) \+ var\(--audio-detail-height\) \+ var\(--record-gap\)\); \}/);
+  assert.match(css, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.observation-screen \{ --record-gap: clamp\(16px, 3dvh, 36px\); \}/);
   assert.match(css, /--audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 56px; --record-gap:/);
+  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) and \(orientation: portrait\) \{\s*\.observation-screen \{ --record-gap: clamp\(56px, 9dvh, 88px\); \}/);
   assert.doesNotMatch(css, /data-question-mode='text-given'\] \.(?:observation-text|audio-player-bar)/);
 });
 
