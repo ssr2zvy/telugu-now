@@ -14,6 +14,31 @@ export interface PreparedAudio {
 const MAX_INPUT_BYTES = 32 * 1024 * 1024;
 const MAX_CLIP_BYTES = 16 * 1024 * 1024;
 
+export function parseAudioSegmentUrl(url: string): { requestUrl: string; startSeconds: number; endSeconds: number } | null {
+  const match = /#t=(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/u.exec(url);
+  if (!match) return null;
+  const startSeconds = Number(match[1]);
+  const endSeconds = Number(match[2]);
+  if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || startSeconds < 0 || endSeconds <= startSeconds) return null;
+  return { requestUrl: url.slice(0, match.index), startSeconds, endSeconds };
+}
+
+export function cropDecodedAudio(
+  buffer: DecodedAudioLike & { sampleRate: number },
+  startSeconds: number,
+  endSeconds: number,
+): DecodedAudioLike & { sampleRate: number } {
+  const start = Math.max(0, Math.min(buffer.length, Math.floor(startSeconds * buffer.sampleRate)));
+  const end = Math.max(start + 1, Math.min(buffer.length, Math.ceil(endSeconds * buffer.sampleRate)));
+  if (start >= buffer.length || end <= start) throw new Error('Audio alignment segment is outside the recording.');
+  return {
+    sampleRate: buffer.sampleRate,
+    numberOfChannels: buffer.numberOfChannels,
+    length: end - start,
+    getChannelData: channel => buffer.getChannelData(channel).subarray(start, end),
+  };
+}
+
 // Normalize only speech, then encode silence and speech into one native timeline.
 export function encodePreparedAudio(buffer: DecodedAudioLike & { sampleRate: number }) {
   const { sampleRate, numberOfChannels: channels, length } = buffer;
@@ -63,8 +88,9 @@ let decoder: AudioContext | undefined;
 type ProgressListener = (progress: number) => void;
 
 async function prepareAudio(url: string, signal: AbortSignal, onProgress: ProgressListener = () => {}): Promise<PreparedAudio> {
+  const segment = parseAudioSegmentUrl(url);
   onProgress(.02);
-  const response = await fetch(url, { signal });
+  const response = await fetch(segment?.requestUrl ?? url, { signal });
   if (!response.ok) throw new Error(`Audio download failed (${response.status}).`);
   if (Number(response.headers.get('content-length')) > MAX_INPUT_BYTES) throw new Error('Audio download is too large.');
   const reader = response.body?.getReader();
@@ -100,7 +126,7 @@ async function prepareAudio(url: string, signal: AbortSignal, onProgress: Progre
   const decoded = await decoder.decodeAudioData(input.buffer);
   signal.throwIfAborted();
   onProgress(.84);
-  const result = encodePreparedAudio(decoded);
+  const result = encodePreparedAudio(segment ? cropDecodedAudio(decoded, segment.startSeconds, segment.endSeconds) : decoded);
   signal.throwIfAborted();
   onProgress(.96);
   return {

@@ -12,6 +12,9 @@ import type { ObservationFontFamily } from '../../presentation';
 import { visibleGraphemeAtPoint } from '../visible-glyph-hit-testing';
 import { ReaderTaps } from '../reader-taps';
 import { LetterProfile } from './LetterProfile';
+import { getAlignedWordAudio } from '../../api';
+import { useAudioPlayer } from '../audio/useAudioPlayer';
+import type { AlignedWordAudio } from '../../../../shared/contracts';
 
 async function copyWord(text: string): Promise<void> {
   try {
@@ -238,8 +241,11 @@ function WordImage({ root }: { root: string }) {
   );
 }
 
-export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscript, onClose }: {
+export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamily, playbackRate, onBlacklistTranscript, onClose }: {
   word: string;
+  observationId: string;
+  wordStart: number;
+  wordEnd: number;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
   onBlacklistTranscript: () => void;
@@ -259,9 +265,11 @@ export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscr
   } | null>(null);
   const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(analysis.word)].length;
   const [copyMenu, setCopyMenu] = useState<ReadingContextMenuState | null>(null);
-  const [selectedGrapheme, setSelectedGrapheme] = useState<string | null>(null);
+  const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(null);
+  const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
   const [letterTaps] = useState(() => new ReaderTaps());
   const dialog = useRef<HTMLDialogElement>(null);
+  const wordPlayer = useAudioPlayer(alignedWord?.audio ?? null, null, null, playbackRate, observationId, false, true);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -279,6 +287,15 @@ export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscr
       });
     return () => { cancelled = true; };
   }, [gradientKey]);
+  useEffect(() => {
+    if (!profileCode) return;
+    const controller = new AbortController();
+    setAlignedWord(null);
+    void getAlignedWordAudio(profileCode, observationId, wordStart, wordEnd, controller.signal)
+      .then(result => { if (!controller.signal.aborted) setAlignedWord(result); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [profileCode, observationId, wordStart, wordEnd]);
   return (
     <dialog ref={dialog} className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
       onCancel={event => {
@@ -295,8 +312,11 @@ export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscr
         if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
       }}>
       <CustomCursor />
+      <audio ref={wordPlayer.audioRef} preload="auto" hidden />
       <div className="gradient-field word-profile-gradient" aria-hidden="true"><div /><div /><div /></div>
-      {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme}
+      {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme.text}
+        observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
+        graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
         onCopy={text => void copyWord(text)} onBlacklistTranscript={onBlacklistTranscript}
         onBack={() => setSelectedGrapheme(null)} /> : <>
@@ -304,9 +324,10 @@ export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscr
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
         if (!hit) { letterTaps.cancel(); return; }
         letterTaps.tap(`grapheme:${hit.start}`, event.clientX, event.clientY, () => {
+          wordPlayer.pause();
           setCopyMenu(null);
-          setSelectedGrapheme(hit.text);
-        }, () => {});
+          setSelectedGrapheme({ text: hit.text, start: hit.start, end: hit.end });
+        }, wordPlayer.togglePlay);
       }} onContextMenu={event => {
         event.preventDefault();
         setCopyMenu(readingContextMenuState(event.clientX, event.clientY, analysis.word));

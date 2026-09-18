@@ -56,7 +56,7 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(source, /<LetterProfile[\s\S]*onBlacklistTranscript=\{onBlacklistTranscript\}/);
   assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, analysis\.word, event\.clientX, event\.clientY\)/);
   assert.match(source, /letterTaps\.tap\(`grapheme:\$\{hit\.start\}`/);
-  assert.match(source, /<LetterProfile letter=\{selectedGrapheme\}/);
+  assert.match(source, /<LetterProfile letter=\{selectedGrapheme\.text\}/);
   assert.doesNotMatch(source, /initiatingWord|excludedWords|letterWordHistory/);
   assert.match(source, /onBlacklistTranscript=\{onBlacklistTranscript\}/);
   assert.match(observation, /addBlacklistEntry\(state\.profileCode, observation\.text\.normalize\('NFC'\)\.trim\(\)\)/);
@@ -67,7 +67,7 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(hitTesting, /pixels\[pixel \* 4 \+ 3\]! < alphaThreshold/);
   assert.match(hitTesting, /granularity: 'word', hitSlopPx, verticalHitSlopPx/);
   assert.match(hitTesting, /localX - horizontalRadius[\s\S]*localY - verticalRadius/);
-  assert.match(letter, /getGraphemeWord\(profileCode, letter, controller\.signal\)/);
+  assert.match(letter, /getAlignedLetterAudio\(profileCode, observationId, wordStart, wordEnd, graphemeStart, graphemeEnd, controller\.signal\)/);
   assert.match(letter, /teluguHighlightRuns\(grapheme\.segment\)/);
   assert.match(letter, /appearanceFocusedLetterColor\(appearance\)/);
   assert.match(letter, /run\.focused \? focusColor : appearance\.foreground/);

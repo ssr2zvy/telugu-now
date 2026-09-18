@@ -1,4 +1,6 @@
 import type {
+  AlignedLetterAudio,
+  AlignedWordAudio,
   DataSourcesResponse,
   ExportRequest,
   ExportResponse,
@@ -58,6 +60,22 @@ export async function getGraphemeWord(code: string, grapheme: string, signal?: A
   return parseJson<GraphemeWord>(await fetch(`/api/profiles/${encodeURIComponent(code)}/grapheme-word`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, ...(signal ? { signal } : {}),
     body: JSON.stringify({ grapheme }),
+  }));
+}
+
+export async function getAlignedWordAudio(code: string, observationId: string, wordStart: number, wordEnd: number,
+  signal?: AbortSignal): Promise<AlignedWordAudio> {
+  return parseJson<AlignedWordAudio>(await fetch(`/api/profiles/${encodeURIComponent(code)}/alignments/word`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, ...(signal ? { signal } : {}),
+    body: JSON.stringify({ observationId, wordStart, wordEnd }),
+  }));
+}
+
+export async function getAlignedLetterAudio(code: string, observationId: string, wordStart: number, wordEnd: number,
+  graphemeStart: number, graphemeEnd: number, signal?: AbortSignal): Promise<AlignedLetterAudio> {
+  return parseJson<AlignedLetterAudio>(await fetch(`/api/profiles/${encodeURIComponent(code)}/alignments/letter`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, ...(signal ? { signal } : {}),
+    body: JSON.stringify({ observationId, wordStart, wordEnd, graphemeStart, graphemeEnd }),
   }));
 }
 

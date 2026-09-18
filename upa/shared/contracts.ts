@@ -162,6 +162,27 @@ export interface ObservationAudio {
   durationSeconds: number;
 }
 
+export type AudioAlignmentStatus = 'estimated' | 'needs_review';
+
+export interface AlignedWordAudio {
+  index: number;
+  text: string;
+  transcriptStart: number;
+  transcriptEnd: number;
+  status: AudioAlignmentStatus;
+  audio: ObservationAudio;
+}
+
+export interface AlignedLetterAudio {
+  text: string;
+  word: string;
+  graphemeIndex: number;
+  status: AudioAlignmentStatus;
+  audio: ObservationAudio;
+  sourceId: string;
+  sourceKey: string;
+}
+
 export interface GraphemeWord {
   word: string;
   complexity: number;

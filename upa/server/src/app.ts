@@ -11,6 +11,7 @@ import { profilePreferencesRoutes } from './services/profile-preferences-service
 import { profileEonsRoutes } from './services/eon-service';
 import { profileBlacklistRoutes } from './services/blacklist-service';
 import { graphemeWordRoutes } from './services/grapheme-word-service';
+import { audioAlignmentRoutes } from './services/audio-alignment-service';
 import { getQuestionAudio, InvalidQuestionResponseError, updateQuestionAudio, updateQuestionText } from './services/question-response-service';
 import {
   InvalidProfileCodeError,
@@ -59,6 +60,7 @@ app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCo
 app.route('/api/profiles', profileEonsRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', profileBlacklistRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', graphemeWordRoutes(db));
+app.route('/api/profiles', audioAlignmentRoutes(db));
 
 app.post('/api/profiles/load', async (c) => {
   const body = await c.req.json<LoadProfileRequest>();

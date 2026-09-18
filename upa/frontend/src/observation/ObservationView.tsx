@@ -33,6 +33,7 @@ import { TeluguWordText } from './TeluguGradientText';
 import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
 import { observationShowsPhaseIndicator, observationShowsText } from './observation-content';
 import { visibleWordAtPoint } from './visible-glyph-hit-testing';
+import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
 import { ComparisonPage } from './ComparisonPage';
 
 const LONG_PRESS_MS = 500;
@@ -96,7 +97,7 @@ export function ObservationView({
   const [comparisonReady, setComparisonReady] = useState(false);
   const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
   const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
-  const [selectedWord, setSelectedWord] = useState<{ word: string; observationId: string } | null>(null);
+  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string } | null>(null);
   const [readingMenu, setReadingMenu] = useState<ReadingContextMenuState | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
@@ -444,7 +445,7 @@ export function ObservationView({
       setControlsVisible(false);
     }
   };
-  const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => {
+  const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) return null;
     return visibleWordAtPoint(
@@ -454,8 +455,9 @@ export function ObservationView({
       event.clientY,
       contextMenu ? 8 : 2,
       contextMenu ? 4 : 2,
-    )?.text ?? null;
+    );
   };
+  const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => wordHitAtPoint(event, contextMenu)?.text ?? null;
   return (
     <main
       ref={screenRef}
@@ -534,8 +536,8 @@ export function ObservationView({
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
-        const word = wordAtPoint(event);
-        const doubleRegion = word ? `word:${word}` : region.double;
+        const word = wordHitAtPoint(event);
+        const doubleRegion = word ? `word:${word.start}` : region.double;
         if (!window.getSelection()?.isCollapsed && !taps.matches(doubleRegion, event.clientX, event.clientY)) {
           taps.cancel();
           return;
@@ -555,7 +557,7 @@ export function ObservationView({
           window.getSelection()?.removeAllRanges();
           if (word && observation) {
             setControlsVisible(false);
-            setSelectedWord({ word, observationId: observation.id });
+            setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
           } else if (region.double === 'center' && activeQuestion?.mode === 'text-given' && appearance.toggleTrigger === 'tap') {
             setQuestionControlsVisible(visible => {
               if (visible) playerRef.current?.dismissPrecision();
@@ -748,7 +750,8 @@ export function ObservationView({
       </div>
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word}
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}
+          observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onBlacklistTranscript={() => {
             if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});

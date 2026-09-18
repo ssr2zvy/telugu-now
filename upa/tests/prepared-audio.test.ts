@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { encodePreparedAudio, PreparedAudioCache, toPlayerTime, toSpeechTime, type PreparedAudio } from '../frontend/src/observation/audio/prepared-audio';
+import { cropDecodedAudio, encodePreparedAudio, parseAudioSegmentUrl, PreparedAudioCache, toPlayerTime, toSpeechTime, type PreparedAudio } from '../frontend/src/observation/audio/prepared-audio';
 
 const clip = (url: string, bytes = 10): PreparedAudio => ({ url: `blob:${url}`, bytes, duration: 1.5, waveformPeaks: [0, 1] });
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
@@ -32,6 +32,18 @@ test('bookmark translation never persists padding or accumulates drift, includin
     assert.equal(toPlayerTime(original), original + 0.5);
   }
   assert.equal(toSpeechTime(0.2), 0);
+});
+
+test('aligned audio fragments fetch the original URL and crop decoded samples exactly', () => {
+  assert.deepEqual(parseAudioSegmentUrl('/api/audio/example.wav?v=2#t=1.250000,2.000000'), {
+    requestUrl: '/api/audio/example.wav?v=2', startSeconds: 1.25, endSeconds: 2,
+  });
+  assert.equal(parseAudioSegmentUrl('/api/audio/example.wav?v=2'), null);
+  assert.equal(parseAudioSegmentUrl('/api/audio/example.wav#t=2,1'), null);
+  const samples = Float32Array.from({ length: 40 }, (_, index) => index);
+  const cropped = cropDecodedAudio({ sampleRate: 10, numberOfChannels: 1, length: 40, getChannelData: () => samples }, 1.2, 2.7);
+  assert.equal(cropped.length, 15);
+  assert.deepEqual([...cropped.getChannelData(0)], [...samples.subarray(12, 27)]);
 });
 
 test('invalid or oversized decoded audio fails explicitly, never unpadded fallback', () => {

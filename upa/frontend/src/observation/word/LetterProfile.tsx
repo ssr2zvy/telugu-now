@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import type { GraphemeWord } from '../../../../shared/contracts';
-import { getGraphemeWord } from '../../api';
+import type { AlignedLetterAudio } from '../../../../shared/contracts';
+import { getAlignedLetterAudio } from '../../api';
 import { appearanceFocusedLetterColor, appearanceModificationColor, useAppearance } from '../../appearance';
 import { LoadingSlit } from '../../components/LoadingSlit';
 import type { ObservationFontFamily } from '../../presentation';
@@ -13,6 +13,12 @@ import { AudioPlayerBar } from '../audio/AudioPlayerBar';
 
 interface LetterProfileProps {
   letter: string;
+  observationId: string;
+  word: string;
+  wordStart: number;
+  wordEnd: number;
+  graphemeStart: number;
+  graphemeEnd: number;
   profileCode: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
@@ -27,10 +33,11 @@ interface LetterRun {
   focused: boolean;
 }
 
-export function LetterProfile({ letter, profileCode, fontFamily, playbackRate,
+export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
+  profileCode, fontFamily, playbackRate,
   onCopy, onBlacklistTranscript, onBack }: LetterProfileProps) {
   const { appearance } = useAppearance();
-  const [selection, setSelection] = useState<GraphemeWord | null>(null);
+  const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
   const [audioLoading, setAudioLoading] = useState(true);
   const [menu, setMenu] = useState<ReadingContextMenuState | null>(null);
@@ -40,16 +47,16 @@ export function LetterProfile({ letter, profileCode, fontFamily, playbackRate,
     setSelection(null);
     setError('');
     setAudioLoading(true);
-    void getGraphemeWord(profileCode, letter, controller.signal).then(result => {
+    void getAlignedLetterAudio(profileCode, observationId, wordStart, wordEnd, graphemeStart, graphemeEnd, controller.signal).then(result => {
       setSelection(result);
     }).catch(reason => {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Could not find a word for this letter.');
     });
     return () => controller.abort();
-  }, [profileCode, letter]);
+  }, [profileCode, observationId, wordStart, wordEnd, graphemeStart, graphemeEnd]);
   const runs = useMemo<LetterRun[]>(() => selection
     ? [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(selection.word)].flatMap(grapheme => {
-        const focused = grapheme.segment.normalize('NFC') === letter.normalize('NFC');
+        const focused = grapheme.index === graphemeStart;
         const pieces = appearance.highlightMods ? teluguHighlightRuns(grapheme.segment) : [{ text: grapheme.segment, highlighted: false }];
         return pieces.map(piece => ({ ...piece, focused }));
       })
@@ -89,7 +96,7 @@ export function LetterProfile({ letter, profileCode, fontFamily, playbackRate,
       {!ready && !error ? <LoadingSlit label="Finding a word for this letter" /> : null}
       {selection ? <div className="letter-profile-center" data-ready={ready}>
         <h2 id="letter-profile-title" lang="te" aria-label={selection.word} onContextMenu={openMenu}
-          style={{ '--word-graphemes': Math.max(1, selection.wordGraphemeCount), '--letter-focus-color': focusColor,
+          style={{ '--word-graphemes': Math.max(1, [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(selection.word)].length), '--letter-focus-color': focusColor,
             fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
           {runs.map((run, index) => <span key={index} className={run.focused ? 'letter-profile-focus' : undefined}>
             {run.highlighted
