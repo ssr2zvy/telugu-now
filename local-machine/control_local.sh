@@ -9,7 +9,7 @@ APP_DIR="$REPO_DIR/upa"
 DATA_TRANSFORM_DIR="$SCRIPT_DIR/data-transform"
 SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"
 RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"
-PREPARED_CORPUS_DIR="$REPO_DIR/data/corpus"
+PREPARED_CORPUS_DIR="$REPO_DIR/local-machine/data/corpus"
 
 cd "$APP_DIR"
 
@@ -590,7 +590,7 @@ run_dev_foreground() {
 
   case "${CORPUS_BACKEND:-local}" in
     local)
-      corpus_database_path="${CORPUS_DATABASE_PATH:-${DATA_DIRECTORY:-$REPO_DIR/data}/corpus/corpus.sqlite}"
+      corpus_database_path="${CORPUS_DATABASE_PATH:-${DATA_DIRECTORY:-$REPO_DIR/local-machine/data}/corpus/corpus.sqlite}"
       if [[ ! -f "$corpus_database_path" ||
             ! -f "$(dirname "$corpus_database_path")/manifest.json" ]]; then
         printf 'ERROR: CORPUS_NOT_PREPARED\n' >&2

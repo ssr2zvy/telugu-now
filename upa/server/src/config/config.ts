@@ -47,7 +47,7 @@ function defaultDataDirectory(): string {
   while (path.dirname(directory) !== directory) {
     if (fs.existsSync(path.join(directory, 'package.json'))
       && (fs.existsSync(path.join(directory, 'server')) || fs.existsSync(path.join(directory, 'dist', 'server')))) {
-      return path.resolve(directory, '..', 'data');
+      return path.resolve(directory, '..', 'local-machine', 'data');
     }
     directory = path.dirname(directory);
   }
@@ -66,7 +66,7 @@ export function resolveDataPath(value: string | undefined, fallback: string): st
   const resolved = value === undefined ? path.join(dataDirectory, fallback) : path.resolve(value);
   const relative = path.relative(dataDirectory, resolved);
   if (process.env.NODE_ENV !== 'test' && (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))) {
-    throw new Error('Persistent user and global data must stay under DATA_DIRECTORY (default: repository data/).');
+    throw new Error('Persistent user and global data must stay under DATA_DIRECTORY (default: repository local-machine/data/).');
   }
   return resolved;
 }

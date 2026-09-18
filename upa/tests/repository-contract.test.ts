@@ -17,19 +17,19 @@ const root =
     ),
     '..',
   );
-test('runtime user and global storage paths remain under root data from any working directory', async () => {
+test('runtime user and global storage paths remain under local-machine data from any working directory', async () => {
   const { resolveDataPath } = await import('../server/src/config/config');
   const previous = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   try {
-    assert.equal(resolveDataPath(undefined, 'users.sqlite'), path.resolve(root, '../data/users.sqlite'));
+    assert.equal(resolveDataPath(undefined, 'users.sqlite'), path.resolve(root, '../local-machine/data/users.sqlite'));
     assert.throws(() => resolveDataPath(path.resolve(root, 'data/app.sqlite'), 'users.sqlite'), /must stay under/);
     assert.throws(() => resolveDataPath('/tmp/outside.sqlite', 'users.sqlite'), /must stay under/);
-    assert.equal(resolveDataPath(path.resolve(root, '../data/corpus/corpus.sqlite'), ''), path.resolve(root, '../data/corpus/corpus.sqlite'));
+    assert.equal(resolveDataPath(path.resolve(root, '../local-machine/data/corpus/corpus.sqlite'), ''), path.resolve(root, '../local-machine/data/corpus/corpus.sqlite'));
     const controller = fs.readFileSync(path.resolve(root, '../local-machine/control_local.sh'), 'utf8');
     assert.ok(controller.includes('RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"'));
     assert.ok(controller.includes('SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"'));
-    assert.ok(controller.includes('PREPARED_CORPUS_DIR="$REPO_DIR/data/corpus"'));
+    assert.ok(controller.includes('PREPARED_CORPUS_DIR="$REPO_DIR/local-machine/data/corpus"'));
   } finally {
     if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous;
   }

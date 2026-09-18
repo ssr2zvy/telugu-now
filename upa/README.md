@@ -28,7 +28,7 @@ local-machine/data-transform/sample/
 ```
 `prepare` transforms the current source-shaped input into the canonical local corpus:
 ```text
-data/corpus/
+local-machine/data/corpus/
 ├── manifest.json
 ├── corpus.sqlite
 ├── objects/
@@ -48,7 +48,7 @@ local-machine/data-transform/.venv/bin/python -m pip install -r local-machine/da
 PYTHON="$PWD/local-machine/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
 local-machine/data-transform/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
 ```
-The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sampled, and prepared data folders are not Git-ignored. The prepared 300-row dummy corpus and its audio are committed for repository testing; temporary corpus publication/backup directories remain ignored. Data operations do not stage files or create Git commits. The repository's 100-row subsets and how to replace them with full datasets are documented in the [dummy-data README](../data/readme.md); their one-time reduction is not a pipeline stage.
+The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sampled, and prepared data folders are not Git-ignored. The prepared 300-row dummy corpus and its audio are committed for repository testing; temporary corpus publication/backup directories remain ignored. Data operations do not stage files or create Git commits. The repository's 100-row subsets and how to replace them with full datasets are documented in the [dummy-data README](../local-machine/data/readme.md); their one-time reduction is not a pipeline stage.
 `./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
 (the default), it requires `manifest.json` and `corpus.sqlite` beside the configured
 catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris`,
@@ -57,7 +57,7 @@ catalog and object-store configuration; it never generates a local audio corpus.
 The controller's `data` command runs the tracked extraction and preparation
 scripts under `local-machine/data-transform/`. Raw and sample working inputs stay
 under that directory; only the finished corpus is published to repository
-`data/corpus/`. Other runtime data, such as user databases, remains under `data/`.
+`local-machine/data/corpus/`. Other runtime data, such as user databases, remains under `local-machine/data/`.
 Runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
@@ -182,7 +182,7 @@ Selections are independent and with replacement. The same `(source_id, source_ke
 A stable source record and an acquisition are separate concepts:
 - a source record is the underlying source row and normalized retrieved content;
 - an acquisition is one particular probabilistic selection event.
-`source_records` is a profile-owned persistent cache, keyed by `(profile_code, source_id, source_key)` in `data/user/users.sqlite`. Once that profile's live queue or Export retrieves a source record, later live/export selections for the same profile reuse it. The canonical corpus and audio objects remain global.
+`source_records` is a profile-owned persistent cache, keyed by `(profile_code, source_id, source_key)` in `local-machine/data/user/users.sqlite`. Once that profile's live queue or Export retrieves a source record, later live/export selections for the same profile reuse it. The canonical corpus and audio objects remain global.
 ## Queue behavior
 The live profile maintains ten selected unseen observations. Initial load fills a short queue to ten. Every first-time consumption moves one observation into history and atomically reserves exactly one replacement at the future-queue tail.
 Back/forward movement through already-seen history does not consume the queue and creates no replacement. Live source-record preparation remains sequential and queue order remains authoritative regardless of later settings changes, cache-hit speed, or source latency.
@@ -257,7 +257,7 @@ reuse the root. The server checks the toggle too. The previous image remains
 visible and readable until the replacement is successfully published; generation
 or save failures leave it intact. Disabling the setting hides the button again.
 
-Images live globally under `data/word-images/`, separately from both databases.
+Images live globally under `local-machine/data/word-images/`, separately from both databases.
 All profiles and sentences reuse the same normalized core word's saved image,
 including when the API key is unavailable. Different senses currently share one
 image. Changing a personal prompt affects only future generation or explicit
@@ -559,14 +559,14 @@ Shrutilipi uses `text` as canonical text and preserves FLAC audio.
 IndicVoices uses `text` as canonical text and preserves FLAC audio. Its verbatim, normalized, unsanitized, speaker, scenario, task, demographic, verification, and other available source metadata remain in source metadata rather than being discarded.
 At runtime, canonical rows expose one `TextMedia` item and one `AudioMedia` item. The profile-owned `source_records` cache persists those media descriptors, and the reader plays available audio with profile-owned bookmarks.
 With `CORPUS_BACKEND=local`, runtime resolves canonical object keys against
-`CORPUS_OBJECTS_PATH` (default `data/corpus/objects/`). With `CORPUS_BACKEND=tigris`,
+`CORPUS_OBJECTS_PATH` (default `local-machine/data/corpus/objects/`). With `CORPUS_BACKEND=tigris`,
 it reads objects from the configured S3-compatible bucket and key prefix.
 ## Persistence and migration
 There are three separate database files, with default paths relative to the repository root:
 ```text
-data/corpus/corpus.sqlite       Global prepared corpus
-data/corpus/availability.sqlite Shared object availability
-data/user/users.sqlite         All user data, scoped by profile_code
+local-machine/data/corpus/corpus.sqlite       Global prepared corpus
+local-machine/data/corpus/availability.sqlite Shared object availability
+local-machine/data/user/users.sqlite         All user data, scoped by profile_code
 ```
 There is no separate database per user. The application reads the prepared corpus;
 all mutable reading state, settings, cache entries, bookmarks, and migration markers
@@ -574,7 +574,7 @@ go into the shared user database with profile ownership. Corpus availability and
 images remain global rather than profile-owned.
 
 All persisted local user and global data belongs under `DATA_DIRECTORY` (default:
-repository-root `data/`); Tigris audio objects live in the configured bucket.
+repository-root `local-machine/data/`); Tigris audio objects live in the configured bucket.
 The only other exceptions
 are credentials, downloaded HTML/EPUB files, and assets/artifacts. Assets are bundled
 fonts, licences, icons, static application files and committed test fixtures.
@@ -593,7 +593,7 @@ Tests may use isolated database paths outside the data root.
 
 The default layout is:
 ```text
-data/                         # or DATA_DIRECTORY
+local-machine/data/                         # or DATA_DIRECTORY
 ├── corpus/
 │   ├── corpus.sqlite         # canonical global catalog
 │   ├── availability.sqlite   # shared object-availability state
@@ -718,12 +718,12 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 
 | Information | Scope | Location and contents |
 | --- | --- | --- |
-| Prepared dataset catalog | Global | Read-only `data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (canonical text and audio metadata), and the original offline `source_complexity_members` index, which runtime selection does not use. |
-| Dataset audio and preparation metadata | Global | Local mode uses `data/corpus/objects/` for WAV/FLAC audio; Tigris uses `BUCKET_NAME` and `CORPUS_OBJECTS_PREFIX`. `manifest.json` and `reports/` under `data/corpus/` describe prepared data and validation results. |
+| Prepared dataset catalog | Global | Read-only `local-machine/data/corpus/corpus.sqlite`: `sources` (catalog/provenance), `source_rows` (canonical text and audio metadata), and the original offline `source_complexity_members` index, which runtime selection does not use. |
+| Dataset audio and preparation metadata | Global | Local mode uses `local-machine/data/corpus/objects/` for WAV/FLAC audio; Tigris uses `BUCKET_NAME` and `CORPUS_OBJECTS_PREFIX`. `manifest.json` and `reports/` under `local-machine/data/corpus/` describe prepared data and validation results. |
 | Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `upa/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
-| Corpus availability | Global | `data/corpus/availability.sqlite`: `metadata` (generation, identity, pool hash), `source_counts`, `complexity_counts`, and dense eligible `source_complexity_members`; shared by all profiles, separate from canonical content. |
-| Appearance and language | User | `data/user/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, scroll mode, auto-fade delay, Settings language. |
-| Eons and view history | User | `data/user/users.sqlite`, `profile_eons` and `observation_views`: named usage periods and timestamped observation/eon links, including revisits. Original selection snapshots remain in `observation_acquisitions`. |
+| Corpus availability | Global | `local-machine/data/corpus/availability.sqlite`: `metadata` (generation, identity, pool hash), `source_counts`, `complexity_counts`, and dense eligible `source_complexity_members`; shared by all profiles, separate from canonical content. |
+| Appearance and language | User | `local-machine/data/user/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, scroll mode, auto-fade delay, Settings language. |
+| Eons and view history | User | `local-machine/data/user/users.sqlite`, `profile_eons` and `observation_views`: named usage periods and timestamped observation/eon links, including revisits. Original selection snapshots remain in `observation_acquisitions`. |
 | Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
 | Sampling and playback settings | User | Same user database: `profile_selection_settings` (complexity target/spread), `profile_source_weights`, `profile_audio_settings` (default playback rate). |
 | Reading state and diagnostics | User | Same user database: `profiles`, `queue_items`, `history_entries`, `observations`, `observation_acquisitions`. Retains cursor, history, queued items, absolute/visible timing, last-seen timestamps, preparation status and immutable selection/trigger snapshots. Observation ownership is linked through queue, history and acquisition rows. |
@@ -731,20 +731,20 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Audio bookmarks | User | Same user database, `profile_audio_bookmarks`, keyed by user code, source ID and source key; sorted playback positions in seconds. Empty lists retain an explicit cleared state. |
 | Migration records | User | Same user database, `profile_migrations`: retained `settings-v1` and `bookmarks-v1` completion timestamps. |
 | Transferred older browser data | User | Same user database, `profile_browser_data`: exact prior appearance, language, bookmark and migration values with transfer timestamps, scoped by user code. Current usable values also populate the preference/bookmark tables when missing. Older values are retained here even if they conflict with current settings or cannot be parsed. |
-| Word images | Global | `data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
+| Word images | Global | `local-machine/data/word-images/<root-sha256>/`: image files and `metadata.json`, including retained superseded image files after regeneration. |
 | Provider credentials | Credentials | Server environment `pollinations_api_key`, exported by sourcing ignored `local-machine/dev-secrets.env` during local dev startup. Use a same-name Fly secret in deployment. The server does not read credential files. Never expose credentials to the browser or commit them. |
 | Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
 | Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
-| Raw and sample inputs | Offline development | `local-machine/data-transform/raw/` and `local-machine/data-transform/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `data/.corpus.prepare-*/` and `data/.corpus.backup-*/` may exist during corpus publication/recovery. |
+| Raw and sample inputs | Offline development | `local-machine/data-transform/raw/` and `local-machine/data-transform/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `local-machine/data/.corpus.prepare-*/` and `local-machine/data/.corpus.backup-*/` may exist during corpus publication/recovery. |
 | Bundled fonts and application files | Assets/artifacts | `upa/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `upa/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `upa/node_modules/` are generated. |
-| User database sidecars | User | `data/user/users.sqlite-wal` and `data/user/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
-| Corpus database sidecars | Global | Any SQLite sidecars remain alongside `data/corpus/corpus.sqlite`. |
+| User database sidecars | User | `local-machine/data/user/users.sqlite-wal` and `local-machine/data/user/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
+| Corpus database sidecars | Global | Any SQLite sidecars remain alongside `local-machine/data/corpus/corpus.sqlite`. |
 
 SQLite WAL files may contain committed changes not yet checkpointed, so do not
 copy only the main database while the app is writing. Use SQLite-aware backups
-or stop the app cleanly before copying. Back up `data/user/users.sqlite`, the complete
-`data/corpus/`, `data/word-images/`, credentials, and any wanted downloads separately.
+or stop the app cleanly before copying. Back up `local-machine/data/user/users.sqlite`, the complete
+`local-machine/data/corpus/`, `local-machine/data/word-images/`, credentials, and any wanted downloads separately.
 Include any retained raw/sample inputs and legacy user database when backing up
 global/user data, respectively. With Tigris, back up or retain/version the bucket's
 audio objects separately; a volume backup does not contain remote audio bytes.

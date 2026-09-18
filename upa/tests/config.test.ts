@@ -30,7 +30,7 @@ test('default data layout is repository-relative from unrelated working director
   const result = readConfig({}, repositoryDirectory);
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout);
-  const root = path.join(repositoryDirectory, 'data');
+  const root = path.join(repositoryDirectory, 'local-machine/data');
   assert.equal(config.dataDirectory, root);
   assert.equal(config.databasePath, path.join(root, 'user/users.sqlite'));
   assert.equal(config.corpusDatabasePath, path.join(root, 'corpus/corpus.sqlite'));
@@ -204,14 +204,14 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
 
   const defaultsEnv = { ...env };
   delete defaultsEnv.DATA_DIRECTORY;
-  const defaultCorpus = path.join(scratch, 'data/corpus');
+  const defaultCorpus = path.join(scratch, 'local-machine/data/corpus');
   fs.mkdirSync(defaultCorpus, { recursive: true });
   fs.writeFileSync(path.join(defaultCorpus, 'corpus.sqlite'), '');
   fs.writeFileSync(path.join(defaultCorpus, 'manifest.json'), '{}');
   const defaults = spawnSync('bash', args, { env: defaultsEnv, cwd: '/', encoding: 'utf8' });
   assert.equal(defaults.status, 0, defaults.stderr);
   assert.deepEqual(defaults.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
-    'local', 'false', 'true', path.join(scratch, 'data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
+    'local', 'false', 'true', path.join(scratch, 'local-machine/data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
   ]);
 
   const secretsFile = path.join(scratch, 'local-machine/dev-secrets.env');
