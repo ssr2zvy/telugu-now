@@ -458,6 +458,29 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
+test('word image actions remain visible while gallery metadata loads', async ({ page }) => {
+  const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
+  await wordImageFixture(page);
+  let releaseGallery = () => {};
+  const galleryGate = new Promise<void>(resolve => { releaseGallery = resolve; });
+  await page.route('**/api/word-images/gallery?*', async route => {
+    await galleryGate;
+    await route.fulfill({ json: { images: [] } });
+  });
+  await doubleClickWord(page, 'చెట్టు');
+  const dialog = page.getByRole('dialog', { name: 'చెట్టు' });
+  const generate = dialog.getByRole('button', { name: 'Generate image', exact: true });
+  const search = dialog.getByRole('button', { name: 'Search for licensed images', exact: true });
+  await expect(generate).toBeVisible();
+  await expect(search).toBeVisible();
+  await expect(generate).toBeDisabled();
+  await expect(search).toBeDisabled();
+  releaseGallery();
+  await expect(generate).toBeEnabled();
+  await expect(search).toBeEnabled();
+  expect(fixture.errors).toEqual([]);
+});
+
 test('word double-click never reveals audio controls or selects text, while single clicks and drag selection still work', async ({ page }) => {
   const fixture = await loadFixture(page, undefined, true, 'అవును చెట్టు');
   await wordImageFixture(page);

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
-import { ArrowLeft, Ban, Copy, Images, Info, LoaderCircle, Plus, Search, Sparkles } from 'lucide-react';
+import { ArrowLeft, Ban, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
@@ -194,7 +194,6 @@ function WordImage({ root }: { root: string }) {
         <img src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
       </div> : null}
       {pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
-        {busy ? <LoaderCircle className="word-image-entry-spinner word-image-spinner" aria-hidden="true" /> : <>
         <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
           aria-label={images.length ? 'Generate another image' : 'Generate image'}
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>
@@ -205,7 +204,6 @@ function WordImage({ root }: { root: string }) {
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void searchImages(); }}>
           <Search aria-hidden="true" />
         </button>
-        </>}
       </div>
       : null}
       {pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">

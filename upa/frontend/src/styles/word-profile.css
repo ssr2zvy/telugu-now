@@ -23,7 +23,6 @@
 .word-image-preview { display: grid; place-items: center; width: 100%; height: 100%; background: var(--wash); overflow: hidden; color: var(--muted); }
 .word-image-preview img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
 .word-image-entry { display: flex; align-items: center; justify-content: center; gap: clamp(20px, 5vw, 56px); width: 100%; height: 100%; }
-.word-image-entry-spinner { width: 36px; height: 36px; color: var(--foreground); }
 .word-image-glass-action { display: grid; place-items: center; width: 72px; height: 72px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .word-image-glass-action svg { width: 32px; height: 32px; fill: none; stroke: var(--audio-icon-paint); stroke-width: 2; filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
 .word-image-glass-action:disabled { opacity: .55; cursor: default; }
@@ -44,7 +43,6 @@
 .word-image-context-menu { z-index: 8; }
 .word-image-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .word-profile-error { border-inline-start: 3px solid currentColor; padding-inline-start: 12px; font-size: .8rem; line-height: 1.7; overflow-wrap: anywhere; }
-.word-image-spinner { animation: word-image-spin 1s linear infinite; }
 .word-profile[data-letter-page='true'] { display: block; }
 .word-profile[data-letter-page='true'] .word-profile-gradient { clip-path: none; }
 .letter-profile-page { position: absolute; z-index: 1; inset: 0; display: grid; min-width: 0; min-height: 0; place-items: center; }
@@ -55,7 +53,6 @@
 .letter-profile-focus { color: var(--letter-focus-color); }
 .letter-profile-focus .telugu-gradient-text { color: var(--letter-focus-color); }
 .letter-profile-center:has(.audio-player-bar[data-has-audio='true']) { padding-bottom: calc(var(--audio-base-bottom) + 100px); }
-@keyframes word-image-spin { to { transform: rotate(360deg); } }
 @media (max-width: 700px) {
   .word-profile { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 40dvh) minmax(0, 1fr); }
   .word-profile-gradient { clip-path: inset(0 0 60% 0); }
@@ -65,7 +62,6 @@
   .word-image-gallery { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px; }
   .word-image-gallery button { flex: none; width: min(44vw, 180px); }
 }
-@media (prefers-reduced-motion: reduce) { .word-image-spinner { animation: none; } }
 .image-generation-settings { display: grid; gap: 16px; }
 .image-generation-settings dl { margin: 0 0 8px; }
 .image-generation-settings dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); font-size: .85rem; }

@@ -48,6 +48,8 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(source, /appearance\.highlightMods \? teluguHighlightRuns\(analysis\.word\)/);
   assert.match(source, /renderTeluguGradientTexture\(run\.text, fontFamily, appearance\.foreground, gradientEndColor\)/);
   assert.match(source, /<TeluguGradientText key=\{index\} text=\{run\.text\} texture=/);
+  assert.match(source, /pane === 'action'[\s\S]*<Sparkles aria-hidden="true" \/>[\s\S]*<Search aria-hidden="true" \/>/);
+  assert.doesNotMatch(source, /busy \? <LoaderCircle/);
   assert.doesNotMatch(source, /title=\{analysis\.root\}/);
   assert.match(source, /className="word-profile-back" aria-label="Back to reading"/);
   assert.match(source, /<ReadingContextMenu[\s\S]*onCopy=[\s\S]*onClose=/);
