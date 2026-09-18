@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { getTeluguGradientCacheSnapshot, paddedAlphaBounds } from '../frontend/src/observation/telugu-gradient-renderer';
 import { teluguHighlightRuns, teluguModificationRanges } from '../frontend/src/observation/telugu-highlighting';
+import { TeluguWordText } from '../frontend/src/observation/TeluguGradientText';
 
 const highlighted = (text: string) => teluguModificationRanges(text).map(range => text.slice(range.start, range.end));
 
@@ -82,4 +84,13 @@ test('builds selectable raster runs while preserving the original text', () => {
   assert.match(renderer, /fetch\(entry\.url, \{ cache: 'force-cache' \}\)/);
   assert.match(renderer, /generateTeluguFontModelArtifact\([\s\S]*alignments\[text\] = \[dx, dy\]/);
   assert.match(renderer, /adjustedBase\(target, base, alignment\)/);
+});
+
+test('keeps every highlighted word in one unbreakable wrapper', () => {
+  const text = 'అమ్మకు తెలుగు';
+  const markup = renderToStaticMarkup(TeluguWordText({ text, runs: teluguHighlightRuns(text), textures: null }));
+  assert.equal(markup.match(/class="telugu-word"/g)?.length, 2);
+  assert.match(markup, /class="telugu-word">అ<span class="telugu-gradient-text">మ్మ<\/span><span class="telugu-gradient-text">కు<\/span><\/span> <span class="telugu-word">/);
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /\.telugu-word \{ display: inline-block; white-space: nowrap; \}/);
 });

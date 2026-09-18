@@ -22,6 +22,7 @@ interface ReadingContextMenuProps {
 export function ReadingContextMenu({ menu, onCopy, onBlacklist, onOpenSettings, onClose }: ReadingContextMenuProps) {
   const [status, setStatus] = useState<'copied' | 'blacklisted' | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const placement = menu.y < 60 ? 'below' : 'above';
   useEffect(() => {
     const dismiss = (event: PointerEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent) {
@@ -42,7 +43,8 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklist, onOpenSettings, 
       ref={root}
       className="reading-context-menu"
       role="menu"
-      style={{ left: menu.x, top: menu.y }}
+      data-placement={placement}
+      style={{ left: `clamp(28px, ${menu.x}px, calc(100vw - 28px))`, top: menu.y }}
       onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
     >
       {menu.kind === 'word' ? <>

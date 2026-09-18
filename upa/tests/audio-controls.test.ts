@@ -204,10 +204,12 @@ test('expanded playback settings stay compact and collapse on the configured fad
 test('record control overrides the shared transport glyph size', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   assert.match(css, /\.audio-transport-button \.control-icon \{ width: 17px; height: 17px; \}/);
-  assert.match(css, /\.question-record-button \{ width: 48px; height: 48px; \}/);
+  assert.match(css, /--audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 48px; --record-gap:/);
+  assert.match(css, /\.question-record-button \{ width: var\(--record-button-size\); height: var\(--record-button-size\); \}/);
   assert.match(css, /\.question-record-button \.control-icon \{ width: 25px; height: 25px; \}/);
   assert.match(css, /\.audio-scrubber-window \{[^}]*z-index: 3;/);
-  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) \+ 140px\); \}/);
+  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) \+ var\(--audio-row-height\) \+ var\(--audio-detail-height\) \+ var\(--record-gap\)\); \}/);
+  assert.match(css, /--audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 56px; --record-gap:/);
   assert.doesNotMatch(css, /data-question-mode='text-given'\] \.(?:observation-text|audio-player-bar)/);
 });
 
@@ -260,7 +262,11 @@ test('recording replaces the response from zero and waits for explicit playback'
   assert.match(playerSource, /precisionBeforeRecording\.current = precisionMode;[\s\S]*dispatchPrecision\('close'\);[\s\S]*player\.pause\(\);[\s\S]*player\.seek\(0\);[\s\S]*return 0/);
   assert.match(playerSource, /const presentedPrecisionMode = recordingActive \? CLOSED_PRECISION_MODE : precisionMode/);
   assert.match(playerSource, /dispatchPrecision\(\{ type: 'restore', mode: precisionBeforeRecording\.current \}\)/);
-  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*setTimeout\([^,]+, 500\)/);
+  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*mediaRecorder\.start\(\);[\s\S]*setRecording\(true\)/);
+  assert.doesNotMatch(controlsSource, /preRoll|setTimeout\([^,]+, 500\)/);
+  assert.match(controlsSource, /audio\/mp4;codecs=mp4a\.40\.2/);
+  assert.match(controlsSource, /window\.isSecureContext[\s\S]*navigator\.mediaDevices\?\.getUserMedia[\s\S]*typeof MediaRecorder/);
+  assert.match(controlsSource, /NotAllowedError[\s\S]*Microphone permission was denied/);
   assert.match(controlsSource, /requestAnimationFrame\(updateRecordingFeedback\)/);
   assert.doesNotMatch(controlsSource, /AnalyserNode|createAnalyser|recordingPeaks/);
   assert.match(controlsSource, /updateQuestionAudio\(profileCode, observationId, raw\)[\s\S]*onAudioSaved\(\{ url:[\s\S]*mimeType: raw\.type/);
@@ -340,7 +346,7 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: 48px 92px;[^}]*gap: var\(--audio-timestamp-gap, 1px\) 0;/);
+  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: var\(--audio-row-height\) var\(--audio-detail-height\);[^}]*gap: var\(--audio-timestamp-gap, 1px\) 0;/);
   assert.match(css, /\.audio-precision-panel \{ --audio-detail-track-height: 32px; --audio-detail-track-width: 48%;/);
   assert.match(css, /\.audio-magnifier-track \{[^}]*width: var\(--audio-detail-track-width\); height: var\(--audio-detail-track-height\);/);
   assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*display: flex; flex-direction: column/);

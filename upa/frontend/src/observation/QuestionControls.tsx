@@ -22,20 +22,31 @@ interface QuestionControlsProps {
 
 const singleLineAnswer = (value: string) => value.replace(/\r\n?|\n/g, ' ');
 
+function recordingErrorMessage(error: unknown): string {
+  if (!window.isSecureContext) return 'Microphone access requires a secure HTTPS connection.';
+  if (!navigator.mediaDevices?.getUserMedia) return 'This browser does not provide microphone access.';
+  if (typeof MediaRecorder === 'undefined') return 'This browser cannot record audio.';
+  if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+    return 'Microphone permission was denied. Allow microphone access in browser settings and try again.';
+  }
+  if (error instanceof DOMException && error.name === 'NotFoundError') return 'No microphone was found.';
+  return 'Recording could not be started.';
+}
+
 export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
   const [text, setText] = useState(() => singleLineAnswer(initialText));
   const [recording, setRecording] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [requestingMicrophone, setRequestingMicrophone] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const recordCursor = useRef(0);
   const recordingFrame = useRef<number | null>(null);
   const recordingSession = useRef(0);
-  const preRoll = useRef<{ timer: number; resolve: () => void } | null>(null);
   const dirtyText = useRef(false);
   const latestText = useRef(singleLineAnswer(initialText));
   const textObservationId = useRef(observationId);
@@ -52,7 +63,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
     if (!dirtyText.current) return;
     const timer = window.setTimeout(() => {
       dirtyText.current = false;
-      void updateQuestionText(profileCode, observationId, { text }).catch(() => { dirtyText.current = true; setError(true); });
+      void updateQuestionText(profileCode, observationId, { text }).catch(() => { dirtyText.current = true; setError('Answer could not be saved.'); });
     }, 300);
     return () => window.clearTimeout(timer);
   }, [text, profileCode, observationId]);
@@ -61,7 +72,6 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
     if (dirtyText.current) void updateQuestionText(profileCode, observationId, { text: latestText.current }).catch(() => {});
     if (recorder.current?.state === 'recording') recorder.current.stop();
     recordingSession.current += 1;
-    if (preRoll.current) { window.clearTimeout(preRoll.current.timer); preRoll.current.resolve(); preRoll.current = null; }
     stream.current?.getTracks().forEach(track => track.stop());
     if (recordingFrame.current !== null) cancelAnimationFrame(recordingFrame.current);
     onRecordingChange(null);
@@ -69,7 +79,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
 
   const changeText = (value: string) => {
     const nextText = singleLineAnswer(value);
-    setError(false);
+    setError(null);
     dirtyText.current = true;
     latestText.current = nextText;
     setText(nextText);
@@ -81,7 +91,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         await updateQuestionText(profileCode, observationId, { text: latestText.current });
       } catch {
         dirtyText.current = true;
-        setError(true);
+        setError('Answer could not be saved.');
         return;
       }
     }
@@ -101,7 +111,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
 
   const stopRecording = () => {
     recordingSession.current += 1;
-    if (preRoll.current) { window.clearTimeout(preRoll.current.timer); preRoll.current.resolve(); preRoll.current = null; }
+    setRequestingMicrophone(false);
     if (recorder.current?.state === 'recording') { recorder.current.stop(); return; }
     stream.current?.getTracks().forEach(track => track.stop());
     stream.current = null;
@@ -113,25 +123,28 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   };
   const startRecording = async () => {
     if (recording) { stopRecording(); return; }
-    setError(false);
+    if (requestingMicrophone) return;
+    setError(null);
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError(recordingErrorMessage(null));
+      return;
+    }
     const session = ++recordingSession.current;
     recordCursor.current = beginRecording();
     const recordingSpan = Math.max(10, durationSeconds());
-    onRecordingChange({ start: recordCursor.current, end: recordCursor.current, span: recordingSpan });
-    setRecording(true);
+    setRequestingMicrophone(true);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (session !== recordingSession.current) { mediaStream.getTracks().forEach(track => track.stop()); return; }
-      const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
+      if (session !== recordingSession.current) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        setRequestingMicrophone(false);
+        return;
+      }
+      const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
       const mediaRecorder = preferred ? new MediaRecorder(mediaStream, { mimeType: preferred }) : new MediaRecorder(mediaStream);
       stream.current = mediaStream;
       recorder.current = mediaRecorder;
       chunks.current = [];
-      await new Promise<void>(resolve => {
-        const timer = window.setTimeout(() => { preRoll.current = null; resolve(); }, 500);
-        preRoll.current = { timer, resolve };
-      });
-      if (session !== recordingSession.current) return;
       const recordingStartedAt = performance.now();
       const updateRecordingFeedback = (now: number) => {
         const elapsed = (now - recordingStartedAt) / 1000;
@@ -151,12 +164,16 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         void updateQuestionAudio(profileCode, observationId, raw).then(() => {
           const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
           onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: raw.type, durationSeconds: 0 });
-        }).catch(() => setError(true));
+        }).catch(() => setError('Recording could not be saved.'));
       };
       mediaRecorder.start();
+      setRequestingMicrophone(false);
+      setRecording(true);
+      onRecordingChange({ start: recordCursor.current, end: recordCursor.current, span: recordingSpan });
       recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
-    } catch {
-      if (session === recordingSession.current) { stopRecording(); setError(true); }
+    } catch (caught) {
+      setRequestingMicrophone(false);
+      if (session === recordingSession.current) { stopRecording(); setError(recordingErrorMessage(caught)); }
     }
   };
 
@@ -172,12 +189,12 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         </linearGradient>
       </defs>
     </svg>
-    <button type="button" className="audio-transport-button question-record-button" aria-label={recording ? 'Stop recording' : 'Record'} aria-pressed={recording} disabled={!visible} onClick={(event) => { event.stopPropagation(); void startRecording(); }}>{recording ? <CircleDot className="control-icon" aria-hidden="true" /> : <Mic className="control-icon" aria-hidden="true" />}</button>
-    {error ? <div className="question-response-error" role="alert">Recording could not be saved.</div> : null}
+    <button type="button" className="audio-transport-button question-record-button" aria-label={requestingMicrophone ? 'Requesting microphone access' : recording ? 'Stop recording' : 'Record'} aria-pressed={recording} disabled={!visible || requestingMicrophone} onClick={(event) => { event.stopPropagation(); void startRecording(); }}>{recording ? <CircleDot className="control-icon" aria-hidden="true" /> : <Mic className="control-icon" aria-hidden="true" />}</button>
+    {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 
   return <div className="question-controls question-keyboard-controls" data-visible={visible} aria-hidden={!visible} inert={!visible}>
     <GoogleTeluguKeyboard value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
-    {error ? <div className="question-response-error" role="alert">Answer could not be saved.</div> : null}
+    {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 }

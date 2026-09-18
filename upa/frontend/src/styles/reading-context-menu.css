@@ -12,6 +12,7 @@
   box-shadow: 0 4px 16px rgb(0 0 0 / .2);
   transform: translate(-50%, -100%);
 }
+.reading-context-menu[data-placement='below'] { transform: translate(-50%, 0); }
 .reading-context-menu-action {
   display: grid;
   place-items: center;

@@ -48,11 +48,21 @@ test('contentless question payloads show neither stray phase icon', () => {
   assert.equal(observationShowsPhaseIndicator(item, null), false);
 });
 
+test('question-set phases use question, comparison, and observation icons', () => {
+  const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  assert.match(view, /phase === 'comparison'[\s\S]*<Check aria-hidden="true" \/>/);
+  assert.match(view, /phase === 'observation'[\s\S]*<AlignJustify aria-hidden="true" \/>/);
+  assert.match(view, /<CircleHelp aria-hidden="true" \/>/);
+});
+
 test('comparison double-clicks navigate back on the left and forward on the right', () => {
   const comparison = readFileSync(new URL('../frontend/src/observation/ComparisonPage.tsx', import.meta.url), 'utf8');
+  const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
   assert.match(comparison, /const horizontal = \(event\.clientX - bounds\.left\) \/ bounds\.width/);
   assert.match(comparison, /horizontal < 1 \/ 3\) onBack\(\)/);
   assert.match(comparison, /horizontal >= 2 \/ 3\) onAdvance\(\)/);
+  assert.match(view, /!audioGivenQuestionPhase && !comparisonQuestionPhase/);
+  assert.match(view, /setAudioMotion\('idle'\)/);
 });
 
 test('comparison centers both answers and separates them with audio glass', () => {
@@ -70,6 +80,16 @@ test('comparison centers both answers and separates them with audio glass', () =
   assert.match(css, /\.question-comparison \.audio-player-bar \{[^}]*justify-self: center; align-self: center; width: min\(416px, 100%\)/);
   assert.match(css, /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: 48px 0; \}/);
   assert.match(css, /\.question-comparison::after \{ top: 50%; right: 8%; bottom: auto; left: 8%; width: auto; height: 1px; \}/);
+  assert.doesNotMatch(css, /controls-visible \.audio-player-bar \{ animation: audio-enter/);
+  assert.match(css, /controls-visible \.observation-center > \.audio-player-bar \{ animation: audio-enter/);
+});
+
+test('mobile long press owns empty reader space without intercepting controls', () => {
+  const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.match(view, /onPointerDown=\{\(event\) => \{[\s\S]*event\.pointerType !== 'touch'[\s\S]*\.reading-context-menu, \.word-profile'[\s\S]*wordAtPoint\(\{ clientX, clientY, target \}\)/);
+  assert.doesNotMatch(view, /className="observation-text"[\s\S]{0,200}onPointerDown/);
+  assert.match(css, /\.observation-center \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
 });
 
 test('reader batches modifier textures and uses the moving slit while waiting', () => {

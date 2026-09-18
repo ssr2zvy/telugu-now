@@ -4,7 +4,7 @@ import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from
 import type { ObservationFontFamily } from '../presentation';
 import { AudioPlayerBar, type AudioPlayerBarHandle } from './audio/AudioPlayerBar';
 import { teluguHighlightRuns } from './telugu-highlighting';
-import { TeluguGradientText } from './TeluguGradientText';
+import { TeluguWordText } from './TeluguGradientText';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
 
 function ComparisonText({ text, fontFamily, onReady }: {
@@ -40,9 +40,7 @@ function ComparisonText({ text, fontFamily, onReady }: {
   }, [key, text, fontFamily, appearance.foreground, gradientEndColor, onReady]);
 
   return <div className="question-comparison-text" lang="te" style={{ fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` }}>
-    {runs ? runs.map((run, index) => run.highlighted
-      ? <TeluguGradientText key={index} text={run.text} texture={presentation?.key === key ? presentation.textures[index] ?? null : null} />
-      : run.text) : text}
+    <TeluguWordText text={text} runs={runs} textures={presentation?.key === key ? presentation.textures : null} />
   </div>;
 }
 

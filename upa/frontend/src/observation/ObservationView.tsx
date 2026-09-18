@@ -4,9 +4,8 @@ import {
   useRef,
   useState,
   type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { ArrowLeft, ArrowRight, Check, CircleHelp } from 'lucide-react';
+import { AlignJustify, ArrowLeft, ArrowRight, Check, CircleHelp } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -30,7 +29,7 @@ import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuSta
 import { addBlacklistEntry } from '../api';
 import { QuestionControls } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
-import { TeluguGradientText } from './TeluguGradientText';
+import { TeluguWordText } from './TeluguGradientText';
 import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
 import { observationShowsPhaseIndicator, observationShowsText } from './observation-content';
 import { visibleWordAtPoint } from './visible-glyph-hit-testing';
@@ -121,8 +120,9 @@ export function ObservationView({
     setReadingMenu(readingContextMenuState(x, y, word));
   };
   const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
+  const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
   const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
-  const scrollHandlers = useReaderScroll(screenRef, appearance.toggleTrigger === 'scroll' && !audioGivenQuestionPhase && (questionPhase || Boolean(state?.currentObservation?.audio)), state?.currentObservation?.id, direction => {
+  const scrollHandlers = useReaderScroll(screenRef, appearance.toggleTrigger === 'scroll' && !audioGivenQuestionPhase && !comparisonQuestionPhase && (questionPhase || Boolean(state?.currentObservation?.audio)), state?.currentObservation?.id, direction => {
     taps.cancel();
     if (questionPhase) {
       setAudioMotionDirection(direction);
@@ -170,7 +170,7 @@ export function ObservationView({
     ?? appearance.fonts[0]
     ?? 'Noto Sans Telugu';
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
-  const comparisonPhase = observation?.kind === 'question' && observation.question?.phase === 'comparison';
+  const comparisonPhase = comparisonQuestionPhase;
   const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
   const visibleAudio = comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
   const audioReadinessKey = observation && visibleAudio ? `${observation.id}\0${visibleAudio.url}` : null;
@@ -187,6 +187,7 @@ export function ObservationView({
     taps.cancel();
     seamlessAudioKey.current = null;
     setQuestionControlsVisible(false);
+    setAudioMotion('idle');
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
@@ -455,6 +456,7 @@ export function ObservationView({
       {...scrollHandlers}
       data-scroll-mode={appearance.scrollMode}
       data-question-mode={activeQuestion?.mode}
+      data-question-phase={observation?.question?.phase}
       data-audio-motion={audioMotion}
       data-swipe-direction={audioMotionDirection === 1 ? 'right' : 'left'}
       className={
@@ -464,6 +466,27 @@ export function ObservationView({
             : ''
         }`
       }
+      onPointerDown={(event) => {
+        if (event.pointerType !== 'touch' || !event.isPrimary || event.button !== 0 || !observation || !entryReady) return;
+        if (event.target instanceof Element && event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls, .reading-context-menu, .word-profile')) return;
+        const { clientX, clientY, target } = event;
+        longPressOrigin.current = { x: clientX, y: clientY };
+        longPressTimer.current = window.setTimeout(() => {
+          longPressTimer.current = null;
+          longPressOrigin.current = null;
+          suppressNextClick.current = true;
+          window.getSelection()?.removeAllRanges();
+          openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target }));
+        }, LONG_PRESS_MS);
+      }}
+      onPointerMove={(event) => {
+        if (!longPressOrigin.current) return;
+        const dx = event.clientX - longPressOrigin.current.x;
+        const dy = event.clientY - longPressOrigin.current.y;
+        if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE) cancelLongPress();
+      }}
+      onPointerUp={cancelLongPress}
+      onPointerCancel={cancelLongPress}
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
           if (event.target.closest('.audio-player-bar')) {
@@ -597,10 +620,14 @@ export function ObservationView({
             className="question-phase-indicator"
             data-after-navigation={Boolean(navigationEvent)}
             role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : 'Question'}
+            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
+            title={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
           >
-            {observation.question?.phase === 'comparison' ? <Check aria-hidden="true" /> : <CircleHelp aria-hidden="true" />}
+            {observation.question?.phase === 'comparison'
+              ? <Check aria-hidden="true" />
+              : observation.question?.phase === 'observation'
+                ? <AlignJustify aria-hidden="true" />
+                : <CircleHelp aria-hidden="true" />}
           </div>
         ) : null}
         {observation && comparisonPhase ? (
@@ -617,29 +644,12 @@ export function ObservationView({
             ref={typography.textRef}
             className="observation-text"
             style={{ ...typography.style, opacity: entryReady ? 1 : 0 }}
-            onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
-              if (event.pointerType !== 'touch') return;
-              longPressOrigin.current = { x: event.clientX, y: event.clientY };
-              const { clientX, clientY, currentTarget } = event;
-              longPressTimer.current = window.setTimeout(() => {
-                longPressTimer.current = null;
-                longPressOrigin.current = null;
-                suppressNextClick.current = true;
-                openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target: currentTarget }));
-              }, LONG_PRESS_MS);
-            }}
-            onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
-              if (!longPressOrigin.current) return;
-              const dx = event.clientX - longPressOrigin.current.x;
-              const dy = event.clientY - longPressOrigin.current.y;
-              if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE) cancelLongPress();
-            }}
-            onPointerUp={cancelLongPress}
-            onPointerCancel={cancelLongPress}
           >
-            {highlightRuns ? highlightRuns.map((run, index) => run.highlighted
-              ? <TeluguGradientText key={index} text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
-              : run.text) : observation.text}
+            <TeluguWordText
+              text={observation.text}
+              runs={highlightRuns}
+              textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
+            />
           </div>
         ) : observation && activeQuestion && visibleAudio ? null : canNext ? (
           <button

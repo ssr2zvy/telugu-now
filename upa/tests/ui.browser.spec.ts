@@ -1808,6 +1808,62 @@ test('navigation feedback counts dispatched requests once and rejects overlappin
 
 test.describe('touch navigation', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('empty-space long press opens Settings actions instead of native selection', async ({ page }, testInfo) => {
+    const fixture = await loadFixture(page);
+    const client = await page.context().newCDPSession(page);
+    const center = (await page.locator('.observation-center').boundingBox())!;
+    const point = { x: center.x + center.width / 2, y: center.y + 24 };
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole('menuitem')).toHaveCount(1);
+    await expect(page.locator('.reading-context-menu-status')).toHaveText('');
+    await page.screenshot({ path: testInfo.outputPath('empty-space-settings-menu.png') });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    expect(fixture.errors).toEqual([]);
+  });
+
+  test('a long Telugu word shrinks instead of splitting on mobile', async ({ page }, testInfo) => {
+    const longWord = 'పదములలోనే'.repeat(7);
+    const fixture = await loadFixture(page, undefined, true, longWord);
+    const word = page.locator('.telugu-word');
+    await expect(word).toHaveCount(1);
+    const geometry = await word.evaluate(element => ({
+      lines: element.getClientRects().length,
+      width: element.getBoundingClientRect().width,
+      available: element.parentElement!.clientWidth,
+    }));
+    expect(geometry.lines).toBe(1);
+    expect(geometry.width).toBeLessThanOrEqual(geometry.available + 1);
+    await page.screenshot({ path: testInfo.outputPath('unbreakable-long-word.png') });
+    expect(fixture.errors).toEqual([]);
+  });
+
+  test('comparison audio bars ignore reader swipe gestures', async ({ page }, testInfo) => {
+    const fixture = await loadFixture(page, undefined, false);
+    const audio = { url: '/api/test-audio.wav', mimeType: 'audio/wav', durationSeconds: 20 };
+    fixture.state.currentObservation = {
+      ...fixture.state.currentObservation!,
+      kind: 'question',
+      audio,
+      question: { mode: 'text-given', requestedPool: null, keyboard: null, phase: 'comparison', responseText: '', responseAudio: audio },
+    };
+    await page.locator('.profile-input').fill('001');
+    const comparison = page.locator('.question-comparison');
+    await expect(comparison).toHaveAttribute('data-ready', 'true');
+    const bars = comparison.locator('.audio-player-bar');
+    await expect(bars).toHaveCount(2);
+    const client = await page.context().newCDPSession(page);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 195, y: 620 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 195, y: 520 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(bars.first()).toBeVisible();
+    await expect(bars.last()).toBeVisible();
+    expect(await bars.evaluateAll(elements => elements.flatMap(element => element.getAnimations()).length)).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath('comparison-bars-after-swipe.png') });
+    expect(fixture.errors).toEqual([]);
+  });
+
   test('touch highlights only a separate button press and clears on release or cancellation', async ({ page }, testInfo) => {
     let copies = 0;
     let blacklists = 0;
