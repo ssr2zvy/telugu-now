@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import type { AlignedLetterAudio } from '../../../../shared/contracts';
 import { getAlignedLetterAudio } from '../../api';
-import { appearanceFocusedLetterColor, appearanceModificationColor, useAppearance } from '../../appearance';
+import { appearanceModificationColor, useAppearance } from '../../appearance';
 import { LoadingSlit } from '../../components/LoadingSlit';
 import type { ObservationFontFamily } from '../../presentation';
 import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
 import { TeluguGradientText } from '../TeluguGradientText';
 import { teluguHighlightRuns } from '../telugu-highlighting';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
-import { AudioPlayerBar } from '../audio/AudioPlayerBar';
+import { AudioPlayerBar, type AudioPlayerBarHandle } from '../audio/AudioPlayerBar';
 
 interface LetterProfileProps {
   letter: string;
@@ -30,7 +30,6 @@ interface LetterProfileProps {
 interface LetterRun {
   text: string;
   highlighted: boolean;
-  focused: boolean;
 }
 
 export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
@@ -40,6 +39,7 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
   const [audioLoading, setAudioLoading] = useState(true);
+  const player = useRef<AudioPlayerBarHandle>(null);
   const [menu, setMenu] = useState<ReadingContextMenuState | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);
   useEffect(() => {
@@ -55,24 +55,18 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
     return () => controller.abort();
   }, [profileCode, observationId, wordStart, wordEnd, graphemeStart, graphemeEnd]);
   const runs = useMemo<LetterRun[]>(() => selection
-    ? [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(selection.word)].flatMap(grapheme => {
-        const focused = grapheme.index === graphemeStart;
-        const pieces = appearance.highlightMods ? teluguHighlightRuns(grapheme.segment) : [{ text: grapheme.segment, highlighted: false }];
-        return pieces.map(piece => ({ ...piece, focused }));
-      })
-    : [], [selection?.word, letter, appearance.highlightMods]);
+    ? appearance.highlightMods ? teluguHighlightRuns(selection.text) : [{ text: selection.text, highlighted: false }]
+    : [], [selection?.text, letter, appearance.highlightMods]);
   const modificationColor = appearanceModificationColor(appearance);
-  const focusColor = appearanceFocusedLetterColor(appearance);
   const gradientKey = selection
-    ? [selection.word, letter, fontFamily, appearance.foreground, modificationColor, focusColor, appearance.highlightMods].join('\0')
+    ? [selection.text, fontFamily, appearance.foreground, modificationColor, appearance.highlightMods].join('\0')
     : null;
   useEffect(() => {
     if (!gradientKey) return;
     let cancelled = false;
     void Promise.all(runs.map(run => run.highlighted
       ? renderTeluguGradientTexture(run.text, fontFamily,
-          run.focused ? focusColor : appearance.foreground,
-          run.focused ? appearance.foreground : modificationColor)
+          appearance.foreground, modificationColor)
       : Promise.resolve(null))).then(textures => {
         if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
       }).catch(() => {
@@ -94,21 +88,24 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
         <ArrowLeft size={20} aria-hidden="true" />
       </button>
       {!ready && !error ? <LoadingSlit label="Finding a word for this letter" /> : null}
-      {selection ? <div className="letter-profile-center" data-ready={ready}>
-        <h2 id="letter-profile-title" lang="te" aria-label={selection.word} onContextMenu={openMenu}
-          style={{ '--word-graphemes': Math.max(1, [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(selection.word)].length), '--letter-focus-color': focusColor,
+      {selection ? <div className="letter-profile-center" data-ready={ready} onClick={event => {
+        if ((event.target as HTMLElement).closest('.audio-player-bar')) return;
+        player.current?.togglePlay();
+      }}>
+        <h2 id="letter-profile-title" lang="te" aria-label={selection.text} onContextMenu={openMenu}
+          style={{ '--word-graphemes': 1,
             fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
-          {runs.map((run, index) => <span key={index} className={run.focused ? 'letter-profile-focus' : undefined}>
+          {runs.map((run, index) => <span key={index}>
             {run.highlighted
               ? <TeluguGradientText text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
               : run.text}
           </span>)}
         </h2>
-        <AudioPlayerBar audio={selection.audio} sourceId={selection.sourceId} sourceKey={selection.sourceKey}
+        <AudioPlayerBar ref={player} audio={selection.audio} sourceId={selection.sourceId} sourceKey={selection.sourceKey}
           defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible playbackEnabled
           readinessKey={`${selection.sourceId}:${selection.sourceKey}`}
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
-          onPlaybackErrorChange={message => { if (message) setError(message); }} />
+          onPlaybackErrorChange={message => setError(message ?? '')} />
       </div> : null}
       {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onBlacklistTranscript={onBlacklistTranscript} onClose={() => setMenu(null)} /> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}

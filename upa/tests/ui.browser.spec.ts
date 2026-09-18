@@ -330,9 +330,22 @@ test('reader tap playback repeated center doubles never toggle playback or contr
 async function doubleClickWord(page: Page, word: string, delay = 0) {
   const bounds = await page.locator('.observation-text').evaluate((element, selected) => {
     const start = element.textContent!.indexOf(selected);
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+    const boundary = (offset: number) => {
+      let traversed = 0;
+      for (const node of textNodes) {
+        if (offset <= traversed + node.length) return { node, offset: offset - traversed };
+        traversed += node.length;
+      }
+      throw new Error('Selected word is outside the rendered text.');
+    };
+    const rangeStart = boundary(start);
+    const rangeEnd = boundary(start + selected.length);
     const range = document.createRange();
-    range.setStart(element.firstChild!, start);
-    range.setEnd(element.firstChild!, start + selected.length);
+    range.setStart(rangeStart.node, rangeStart.offset);
+    range.setEnd(rangeEnd.node, rangeEnd.offset);
     const rect = range.getClientRects()[0]!;
     return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   }, word);
@@ -506,6 +519,149 @@ test('word double-click never reveals audio controls or selects text, while sing
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(fixture.errors).toEqual([]);
 });
+
+async function alignedProfileFixture(page: Page, touch: boolean) {
+  const preferences = new Map<string, ProfilePreferences>([['001', {
+    appearance: parseAppearance({ fonts: ['Noto Sans Telugu'] }), language: 'en',
+    imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
+  }]]);
+  const fixture = await loadFixture(page, undefined, true, 'వినూత్న', preferences);
+  await page.route('**/api/word-images/gallery?*', route => route.fulfill({ json: { images: [] } }));
+  const tap = async (target: Locator, position?: { x: number; y: number }) => {
+    const options = position ? { position } : {};
+    if (touch) await target.tap(options);
+    else await target.click(options);
+  };
+  const doubleTapGlyph = async (selector: string, granularity: 'word' | 'grapheme', wanted: string) => {
+    const position = await page.evaluate(async ({ selector, granularity, wanted }) => {
+      await document.fonts.ready;
+      const modulePath = '/src/observation/visible-glyph-hit-testing.ts';
+      const { hitTestVisibleGlyph } = await import(modulePath);
+      const root = document.querySelector(selector)!;
+      const bounds = root.getBoundingClientRect();
+      for (let vertical = Math.ceil(bounds.top) + 5; vertical < bounds.bottom; vertical += 5) {
+        for (let horizontal = Math.ceil(bounds.left) + 5; horizontal < bounds.right; horizontal += 5) {
+          const hit = hitTestVisibleGlyph({ root, text: 'వినూత్న', granularity, clientX: horizontal, clientY: vertical });
+          if (hit?.text === wanted && root.contains(document.elementFromPoint(horizontal, vertical))) {
+            return { x: horizontal, y: vertical };
+          }
+        }
+      }
+      throw new Error(`No visible glyph point for ${wanted}`);
+    }, { selector, granularity, wanted });
+    if (touch) {
+      await page.touchscreen.tap(position.x, position.y);
+      await page.touchscreen.tap(position.x, position.y);
+    } else await page.mouse.dblclick(position.x, position.y, { delay: 60 });
+  };
+  return {
+    ...fixture, tap,
+    openWord: async () => {
+      await doubleTapGlyph('.observation-text', 'word', 'వినూత్న');
+      await expect(page.locator('.word-profile')).toBeVisible();
+    },
+    openLetter: async () => {
+      await doubleTapGlyph('.word-profile-header', 'grapheme', 'వి');
+      await expect(page.locator('#letter-profile-title')).toHaveText('వి');
+    },
+  };
+}
+
+for (const touch of [false, true]) {
+  test.describe(`aligned profile playback with ${touch ? 'touch' : 'mouse'}`, () => {
+    test.use({ viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 900 }, hasTouch: touch, isMobile: touch });
+
+    test('single taps play, pause, and replay words and letters without affecting parent audio', async ({ page }) => {
+      const fixture = await alignedProfileFixture(page, touch);
+      const observationAudio = page.locator('.observation-screen .audio-player-bar audio');
+      await expect(observationAudio).toHaveJSProperty('paused', false);
+      await fixture.openWord();
+      await expect(observationAudio).toHaveJSProperty('paused', true);
+      const dialog = page.locator('.word-profile');
+      const wordAudio = dialog.locator(':scope > audio');
+      const header = dialog.locator('.word-profile-header');
+      await expect(wordAudio).toHaveJSProperty('readyState', 4);
+      await expect(dialog.locator('.audio-player-bar')).toHaveCount(0);
+      await fixture.tap(header, { x: 15, y: 100 });
+      await expect(wordAudio).toHaveJSProperty('paused', false);
+      await fixture.tap(header, { x: 15, y: 100 });
+      await expect(wordAudio).toHaveJSProperty('paused', true);
+      await fixture.tap(dialog.getByRole('heading', { name: 'వినూత్న' }));
+      await expect(wordAudio).toHaveJSProperty('paused', false);
+      await expect(wordAudio).toHaveJSProperty('ended', true);
+      await fixture.tap(header, { x: 15, y: 100 });
+      await expect(wordAudio).toHaveJSProperty('paused', false);
+
+      await fixture.openLetter();
+      const letterPage = dialog.locator('.letter-profile-page');
+      const letterAudio = letterPage.locator('audio');
+      const letter = letterPage.getByRole('heading', { name: 'వి' });
+      await expect(letter).not.toContainText('నూత్న');
+      await expect(letterAudio).toHaveJSProperty('readyState', 4);
+      await expect(wordAudio).toHaveJSProperty('paused', true);
+      await fixture.tap(letter);
+      await expect(letterAudio).toHaveJSProperty('paused', false);
+      await fixture.tap(letterPage.locator('.letter-profile-center'), { x: 15, y: 100 });
+      await expect(letterAudio).toHaveJSProperty('paused', true);
+      await fixture.tap(letterPage.getByRole('slider', { name: 'Audio position', exact: true }));
+      await expect(letterAudio).toHaveJSProperty('paused', true);
+      await fixture.tap(letterPage.locator('.letter-profile-center'), { x: 15, y: 100 });
+      await expect(letterAudio).toHaveJSProperty('paused', false);
+      await expect(letterAudio).toHaveJSProperty('ended', true);
+      await fixture.tap(letter);
+      await expect(letterAudio).toHaveJSProperty('paused', false);
+      await fixture.tap(page.getByRole('button', { name: 'Back to word' }));
+      await expect(letterPage).toHaveCount(0);
+      await expect(wordAudio).toHaveJSProperty('paused', true);
+      await expect(observationAudio).toHaveJSProperty('paused', true);
+      expect(fixture.errors).toEqual([]);
+    });
+
+    for (const action of ['play', 'cancel', 'letter', 'retry']) {
+      test(`queued word single tap handles ${action} while alignment is loading`, async ({ page }) => {
+        const fixture = await alignedProfileFixture(page, touch);
+        let release = () => {};
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        let fail = action === 'retry';
+        await page.route('**/alignments/word', async route => {
+          await gate;
+          if (fail) await route.fulfill({ status: 503, json: { error: 'Could not align this recording.' } });
+          else await route.fallback();
+        });
+        await fixture.openWord();
+        const wordAudio = page.locator('.word-profile > audio');
+        const header = page.locator('.word-profile-header');
+        await wordAudio.evaluate(element => {
+          element.setAttribute('data-starts', '0');
+          element.addEventListener('play', () => element.setAttribute('data-starts', String(Number(element.getAttribute('data-starts')) + 1)));
+        });
+        await fixture.tap(header, { x: 15, y: 100 });
+        await page.waitForTimeout(450);
+        if (action === 'cancel') {
+          await fixture.tap(header, { x: 15, y: 100 });
+          await page.waitForTimeout(450);
+        }
+        if (action === 'letter') await fixture.openLetter();
+        release();
+        if (action === 'retry') {
+          await expect(page.getByRole('alert')).toHaveText('Aligned word audio unavailable.');
+          fail = false;
+          await fixture.tap(header, { x: 15, y: 100 });
+        }
+        await expect(wordAudio).toHaveJSProperty('readyState', 4);
+        if (action === 'play' || action === 'retry') {
+          await expect(wordAudio).toHaveJSProperty('paused', false);
+        } else {
+          if (action === 'letter') await fixture.tap(page.getByRole('button', { name: 'Back to word' }));
+          await page.waitForTimeout(550);
+          await expect(wordAudio).toHaveJSProperty('paused', true);
+          await expect(wordAudio).toHaveAttribute('data-starts', '0');
+        }
+        expect(fixture.errors).toEqual([]);
+      });
+    }
+  });
+}
 
 test('word profile survives closing during generation without duplicate requests', async ({ page }) => {
   const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో');
@@ -2061,24 +2217,39 @@ test.describe('touch navigation', () => {
     expect(viewportMeta).not.toMatch(/user-scalable=no|maximum-scale=1/);
     expect(fixture.errors).toEqual([]);
   });
-  test('delayed profile preferences keep the existing text-free loading spinner', async ({ page }) => {
-    const fixture = await loadFixture(page, undefined, false);
+  test('delayed profile preferences show loading dots only after the saved theme is applied', async ({ page }) => {
+    const preferences = new Map<string, ProfilePreferences>([['001', {
+      appearance: parseAppearance(darkAppearance), language: 'en',
+      imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
+    }]]);
+    const fixture = await loadFixture(page, undefined, false, sampleText, preferences);
     let release = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
+    let releaseAudio = () => {};
+    const audioGate = new Promise<void>(resolve => { releaseAudio = resolve; });
     await page.route('**/api/profiles/001/preferences', async route => {
       await gate;
       await route.fallback();
     });
+    await page.route('**/api/test-audio.wav', async route => {
+      await audioGate;
+      await route.fallback();
+    });
     await page.locator('.profile-input').fill('001');
-    const loading = page.getByRole('status', { name: 'Loading profile settings', exact: true });
+    const loading = page.getByRole('main', { name: 'Loading profile settings', exact: true });
     await expect(loading).toBeVisible();
-    await expect(loading.locator('svg')).toBeVisible();
+    await expect(loading).toHaveAttribute('aria-busy', 'true');
     await expect(loading).toHaveText('');
-    await expect(page.getByText('Loading profile settings...', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.loading-slit')).toHaveCount(0);
     await expect(page.locator('.observation-screen')).toHaveCount(0);
     release();
-    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
     await expect(loading).toHaveCount(0);
+    await expect(page.locator('.appearance-root')).toHaveCSS('--gradient-start', darkAppearance.gradient[0]!);
+    await expect(page.locator('.appearance-root')).toHaveCSS('--foreground', darkAppearance.foreground);
+    await expect(page.getByRole('status', { name: 'Preparing observation', exact: true })).toBeVisible();
+    releaseAudio();
+    await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+    await expect(page.locator('.loading-slit')).toHaveCount(0);
     expect(fixture.errors).toEqual([]);
   });
   test('only blank center double taps reveal the settings icon without opening settings', async ({ page }) => {
@@ -2409,7 +2580,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       expect(await field.boundingBox()).toEqual(initialBounds);
       await page.screenshot({ path: testInfo.outputPath('profile-entry-invalid.png') });
       await input.fill('001');
-      await expect(page.getByRole('status', { name: 'Loading profile' })).toBeVisible();
+      await expect(field).toHaveAttribute('aria-busy', 'true');
+      await expect(page.locator('.loading-slit')).toHaveCount(0);
+      await expect(page.locator('.entry-status')).toHaveCount(0);
       await expect(input).toHaveJSProperty('readOnly', true);
       await expect(screen).toHaveText('001');
       expect(await field.boundingBox()).toEqual(initialBounds);

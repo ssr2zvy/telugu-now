@@ -67,6 +67,23 @@ Run these commands from the repository root. Install dependencies on a new check
 ```bash
 ./local-machine/control_local.sh deps --option install
 ```
+Install the Python audio-alignment dependencies on Debian/Ubuntu separately:
+```bash
+./local-machine/control_local.sh deps --option install-python
+```
+`install-python` is also available in the interactive `deps` menu, whether or not
+npm dependencies are installed. It runs in the foreground and installs `python3`,
+`python3-numpy`, `python3-scipy`, `python3-soundfile`, and `espeak-ng` through apt.
+It requires root or cached sudo authorization; if access is unavailable, run
+`sudo -v` in your terminal and rerun the command. It never prompts for a password
+in a background task and does not reinstall npm packages. This option installs
+alignment dependencies, not the separate data-transformation requirements above.
+Controller-started development defaults to `/usr/bin/python3`, where apt installs
+these modules. Set `AUDIO_ALIGNMENT_PYTHON` in your environment or
+`local-machine/dev.env` to override it. Direct `npm run dev` retains the backend's
+`python3` default; set `AUDIO_ALIGNMENT_PYTHON=/usr/bin/python3` if your PATH selects
+a different Python. The backend launches the alignment script on demand.
+
 Start development:
 ```bash
 ./local-machine/control_local.sh dev

@@ -267,9 +267,12 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
   const [copyMenu, setCopyMenu] = useState<ReadingContextMenuState | null>(null);
   const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(null);
   const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
+  const [alignmentError, setAlignmentError] = useState(false);
+  const [alignmentAttempt, setAlignmentAttempt] = useState(0);
+  const [playWhenReady, setPlayWhenReady] = useState(false);
   const [letterTaps] = useState(() => new ReaderTaps());
   const dialog = useRef<HTMLDialogElement>(null);
-  const wordPlayer = useAudioPlayer(alignedWord?.audio ?? null, null, null, playbackRate, observationId, false, true);
+  const wordPlayer = useAudioPlayer(alignedWord?.audio ?? null, null, null, playbackRate, observationId, playWhenReady, !selectedGrapheme);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -291,11 +294,17 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
     if (!profileCode) return;
     const controller = new AbortController();
     setAlignedWord(null);
+    setAlignmentError(false);
     void getAlignedWordAudio(profileCode, observationId, wordStart, wordEnd, controller.signal)
       .then(result => { if (!controller.signal.aborted) setAlignedWord(result); })
-      .catch(() => {});
+      .catch(() => { if (!controller.signal.aborted) setAlignmentError(true); });
     return () => controller.abort();
-  }, [profileCode, observationId, wordStart, wordEnd]);
+  }, [profileCode, observationId, wordStart, wordEnd, alignmentAttempt]);
+  const toggleWordPlayback = () => {
+    if (alignedWord) { wordPlayer.togglePlay(); return; }
+    setPlayWhenReady(value => alignmentError || !value);
+    if (alignmentError) setAlignmentAttempt(value => value + 1);
+  };
   return (
     <dialog ref={dialog} className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
       onCancel={event => {
@@ -322,12 +331,14 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
-        if (!hit) { letterTaps.cancel(); return; }
-        letterTaps.tap(`grapheme:${hit.start}`, event.clientX, event.clientY, () => {
+        letterTaps.tap(hit ? `grapheme:${hit.start}` : 'word', event.clientX, event.clientY, () => {
+          if (!hit) return;
+          letterTaps.cancel();
           wordPlayer.pause();
+          setPlayWhenReady(false);
           setCopyMenu(null);
           setSelectedGrapheme({ text: hit.text, start: hit.start, end: hit.end });
-        }, wordPlayer.togglePlay);
+        }, toggleWordPlayback);
       }} onContextMenu={event => {
         event.preventDefault();
         setCopyMenu(readingContextMenuState(event.clientX, event.clientY, analysis.word));
@@ -338,6 +349,8 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
             ? <TeluguGradientText key={index} text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
             : run.text) : <><span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span></>}
         </h2>
+        {alignmentError ? <p className="word-profile-error" role="alert">Aligned word audio unavailable.</p> : null}
+        {wordPlayer.playbackError ? <p className="word-profile-error" role="alert">{wordPlayer.playbackError}</p> : null}
       </header>
       <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
       <WordImage key={analysis.root} root={analysis.root} />

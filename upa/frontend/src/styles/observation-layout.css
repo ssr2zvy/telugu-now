@@ -199,7 +199,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .audio-scrubber { height: 56px; }
 }
 @media (max-width: 600px) and (hover: none) and (pointer: coarse) and (orientation: portrait) {
-  .observation-screen { --record-gap: clamp(56px, 9dvh, 88px); }
+  .observation-screen { --record-gap: clamp(19px, 3.5dvh, 42px); }
 }
 @media (max-width: 600px) {
   .observation-screen { --nav-width: 13vw; }

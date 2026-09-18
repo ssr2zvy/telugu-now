@@ -21,7 +21,7 @@ CURRENT_LOCK=""
 usage() {
   cat <<USAGE
 Usage:
-  ./local-machine/$SCRIPT_NAME deps [--option install|reinstall|abort|exit]
+  ./local-machine/$SCRIPT_NAME deps [--option install|reinstall|install-python|abort|exit]
   ./local-machine/$SCRIPT_NAME test [--option start|abort|exit]
   ./local-machine/$SCRIPT_NAME build [--option start|abort|exit]
   ./local-machine/$SCRIPT_NAME dev [--option start|stop|exit]
@@ -371,10 +371,10 @@ valid_options() {
 
   case "$domain:$status" in
     deps:not-installed)
-      printf 'install exit'
+      printf 'install install-python exit'
       ;;
     deps:installed)
-      printf 'reinstall exit'
+      printf 'reinstall install-python exit'
       ;;
     deps:running|deps:starting)
       printf 'abort exit'
@@ -588,6 +588,8 @@ run_dev_foreground() {
   fi
   set +a
 
+  export AUDIO_ALIGNMENT_PYTHON="${AUDIO_ALIGNMENT_PYTHON:-/usr/bin/python3}"
+
   case "${CORPUS_BACKEND:-local}" in
     local)
       corpus_database_path="${CORPUS_DATABASE_PATH:-${DATA_DIRECTORY:-$REPO_DIR/local-machine/data}/corpus/corpus.sqlite}"
@@ -727,6 +729,40 @@ stop_dev_domain() {
   cleanup_dev_if_owned "$pid" "$pgid"
 
   printf 'Development server stopped.\n'
+}
+
+install_python_dependencies() {
+  local status
+  local -a elevated=()
+
+  acquire_lock deps || return 1
+  status="$(status_of deps)"
+  case "$status" in
+    installed|not-installed) ;;
+    *)
+      printf 'ERROR: cannot install Python dependencies while deps is %s.\n' "$status" >&2
+      return 1
+      ;;
+  esac
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    printf 'ERROR: install-python supports Debian/Ubuntu with apt-get. Install Python 3, NumPy, SciPy, SoundFile and eSpeak NG using your system package manager.\n' >&2
+    return 1
+  fi
+  if [[ "$(id -u)" != "0" ]]; then
+    if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; then
+      printf 'ERROR: administrator access is required. Run sudo -v in your terminal, then rerun deps --option install-python.\n' >&2
+      return 1
+    fi
+    elevated=(sudo -n)
+  fi
+
+  printf 'Installing alignment Python dependencies with apt-get...\n'
+  "${elevated[@]}" apt-get update || return $?
+  "${elevated[@]}" apt-get install -y --no-install-recommends \
+    python3 python3-numpy python3-scipy python3-soundfile espeak-ng || return $?
+  printf 'Python alignment dependencies installed. Controller dev uses /usr/bin/python3 unless AUDIO_ALIGNMENT_PYTHON is overridden.\n'
+  release_lock
 }
 
 deps_exec() {
@@ -951,6 +987,9 @@ case "$OPTION" in
     ;;
   reinstall)
     start_managed_domain "$DOMAIN" reinstall
+    ;;
+  install-python)
+    install_python_dependencies
     ;;
   abort)
     stop_managed_domain "$DOMAIN" abort

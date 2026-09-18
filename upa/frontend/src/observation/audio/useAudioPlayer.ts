@@ -221,6 +221,15 @@ export function useAudioPlayer(
   }, [playbackEnabled, autoplay, loading, audio?.url]);
 
   useEffect(() => {
+    if (playbackEnabled) return;
+    wantsPlaybackRef.current = false;
+    playRequestRef.current++;
+    audioRef.current?.pause();
+    setPlaying(false);
+    setPlaybackStatus(null);
+  }, [playbackEnabled]);
+
+  useEffect(() => {
     const element = audioRef.current;
     if (!element) return;
     const stopFeedback = observePlaybackFeedback(element, message => {

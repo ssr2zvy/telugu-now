@@ -123,3 +123,35 @@ test('alignment requests reject ranges that do not identify exact transcript uni
     database.close();
   }
 });
+
+test('a single-word transcript uses and caches the complete recording without sentence DTW', async () => {
+  const database = fixtureDatabase();
+  database.prepare('UPDATE observations SET text = ? WHERE id = ?').run('వినూత్న', 'observation-1');
+  database.prepare('UPDATE source_records SET text = ?, media_json = ? WHERE source_key = ?').run(
+    'వినూత్న', JSON.stringify([
+      { kind: 'text', language: 'te', text: 'వినూత్న' },
+      { kind: 'audio', objectKey: 'media/fixture/sentence.wav', mimeType: 'audio/wav', durationSeconds: .7, sha256: 'audio-sha' },
+    ]), 'sentence-1',
+  );
+  const calls = { sentence: 0, word: 0 };
+  const app = new Hono().route('/api/profiles', audioAlignmentRoutes(database, {
+    profileCodes: new Set(['001']), engine: engine(calls),
+    withAudioFile: async (_key, run) => run('/fixture/sentence.wav'),
+  }));
+  try {
+    const request = () => app.request('/api/profiles/001/alignments/word', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ observationId: 'observation-1', wordStart: 0, wordEnd: 'వినూత్న'.length }),
+    });
+    assert.deepEqual(await (await request()).json(), {
+      index: 0, text: 'వినూత్న', transcriptStart: 0, transcriptEnd: 'వినూత్న'.length,
+      status: 'estimated',
+      audio: { url: '/api/audio/media/fixture/sentence.wav?v=2#t=0.000000,0.700000', mimeType: 'audio/wav', durationSeconds: .7 },
+    });
+    assert.equal((await request()).status, 200);
+    assert.deepEqual(calls, { sentence: 0, word: 0 });
+    assert.equal((database.prepare('SELECT COUNT(*) AS count FROM sentence_audio_alignments').get() as { count: number }).count, 1);
+  } finally {
+    database.close();
+  }
+});

@@ -22,7 +22,7 @@ import { initializeAudioAlignmentSchema } from '../db/audio-alignments';
 import { getCorpusObjectStore, objectBodyStream } from './corpus-object-store';
 import { resolveAudioFilePath } from './audio-service';
 
-export const AUDIO_ALIGNMENT_ENGINE_VERSION = 'espeak-dtw-v1';
+export const AUDIO_ALIGNMENT_ENGINE_VERSION = 'espeak-dtw-v2';
 
 export interface AlignmentInterval {
   index: number;
@@ -184,6 +184,21 @@ export function audioAlignmentRoutes(database: Database.Database, dependencies: 
     const key = digest([AUDIO_ALIGNMENT_ENGINE_VERSION, record.audio.sha256, record.text]);
     const cached = cachedJson<SentenceAlignmentResult>(database, 'sentence_audio_alignments', key);
     if (cached?.words.length === words.length && cached.words.every((word, index) => validInterval(word, words[index]!, record.audio.durationSeconds))) return cached;
+    if (words.length === 1) {
+      const result: SentenceAlignmentResult = { words: [{
+        index: words[0]!.index,
+        text: words[0]!.text,
+        startSeconds: 0,
+        endSeconds: record.audio.durationSeconds,
+        status: 'estimated',
+      }] };
+      database.prepare(`
+        INSERT OR REPLACE INTO sentence_audio_alignments
+          (cache_key, engine_version, audio_sha256, transcript, result_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(key, AUDIO_ALIGNMENT_ENGINE_VERSION, record.audio.sha256, record.text, JSON.stringify(result), Date.now());
+      return result;
+    }
     let task = inFlight.get(`sentence:${key}`) as Promise<SentenceAlignmentResult> | undefined;
     if (!task) {
       task = withAudioFile(record.audio.objectKey, audioPath => engine.alignSentence({

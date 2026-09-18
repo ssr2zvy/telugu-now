@@ -320,6 +320,28 @@ def align_word(request, speaker):
     grouped = [[] for _ in units]
     for phoneme in phoneme_rows:
         grouped[phoneme_unit_index(phoneme["textPosition"], units)].append(phoneme)
+    usable_positions = len({phoneme["textPosition"] for phoneme in phoneme_rows
+                            if phoneme["textPosition"] < len(request["word"])}) > 1
+    if not usable_positions:
+        unit_lengths = []
+        for unit in units:
+            unit_audio, _ = speaker.synthesize(unit["text"])
+            unit_audio, _ = trim(unit_audio)
+            unit_lengths.append(max(1, len(unit_audio)))
+        synthetic_edges = np.concatenate(([0.0], np.cumsum(unit_lengths) / sum(unit_lengths) * len(synthetic)))
+        projected_edges = [project_boundary(mapping, edge / SAMPLE_RATE, hop_ms, duration) for edge in synthetic_edges]
+        written = [{
+            "index": unit["index"],
+            "text": unit["text"],
+            "startSeconds": projected_edges[index],
+            "endSeconds": projected_edges[index + 1],
+            "status": "needs_review",
+        } for index, unit in enumerate(units)]
+        return {
+            "status": "needs_review",
+            "writtenUnits": ordered_intervals(written, duration),
+            "phonemes": [{key: value for key, value in row.items() if key != "textPosition"} for row in phoneme_rows],
+        }
     needs_review = False
     written = []
     fallback_edges = np.linspace(0, duration, len(units) + 1)

@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import { CustomCursor } from './components/CustomCursor';
-import { LoadingSlit } from './components/LoadingSlit';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
 export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, MODIFICATION_LIGHTNESS_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
@@ -365,13 +364,8 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
       <div ref={appearanceRoot} className="appearance-root" style={style}>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
         <CustomCursor />
-        {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading">
-          <div className="entry-wrap">
-            <div className="entry-status" data-state="loading">
-              {!error ? <LoadingSlit label="Loading profile settings" /> : null}
-            </div>
-          </div>
-        </main>}
+        {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading"
+          aria-busy={!error} aria-label="Loading profile settings" />}
         {error ? <div className="profile-preferences-error" role="alert">
           {loaded ? 'Settings not saved.' : 'Could not load profile settings.'}
         </div> : null}

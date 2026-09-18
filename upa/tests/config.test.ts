@@ -143,6 +143,70 @@ test('default shared word image directory follows DATA_DIRECTORY', () => {
   assert.equal(fs.existsSync(root), false);
 });
 
+test('controller offers Python dependencies independently of npm and propagates installer failures', (t) => {
+  const scratch = path.join(appDirectory, 'test-results', `python-deps-${randomUUID()}`);
+  const scripts = path.join(scratch, 'bin');
+  fs.mkdirSync(scripts, { recursive: true });
+  fs.mkdirSync(path.join(scratch, 'upa'));
+  fs.mkdirSync(path.join(scratch, 'local-machine'));
+  t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
+  const controller = path.join(scratch, 'local-machine/control_local.sh');
+  fs.copyFileSync(path.join(repositoryDirectory, 'local-machine/control_local.sh'), controller);
+  const calls = path.join(scratch, 'calls');
+  const stub = (name: string, body: string) => fs.writeFileSync(path.join(scripts, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+  stub('id', 'printf "%s\\n" "$TEST_UID"');
+  stub('npm', 'printf "npm %s\\n" "$*" >> "$TEST_CALLS"\n[[ "$*" == "ls --depth=0 --silent" ]]');
+  stub('sudo', `printf 'sudo %s\n' "$*" >> "$TEST_CALLS"
+[[ "$TEST_SUDO_FAIL" != "yes" ]] || exit 1
+[[ "$1" == "-n" ]] || exit 99
+shift
+exec "$@"`);
+  stub('apt-get', `printf 'apt-get %s\n' "$*" >> "$TEST_CALLS"
+[[ "$1" != "$TEST_APT_FAIL_STAGE" ]] || exit 23`);
+  const run = (overrides: NodeJS.ProcessEnv = {}, interactive = false) => {
+    fs.writeFileSync(calls, '');
+    return spawnSync('bash', [controller, 'deps', ...(interactive ? [] : ['--option', 'install-python'])], {
+      cwd: '/', encoding: 'utf8', input: interactive ? '2\n' : undefined,
+      env: { ...process.env, PATH: `${scripts}:${process.env.PATH}`, TEST_CALLS: calls, TEST_UID: '1000',
+        TEST_SUDO_FAIL: 'no', TEST_APT_FAIL_STAGE: '', ...overrides },
+    });
+  };
+  const packages = 'apt-get install -y --no-install-recommends python3 python3-numpy python3-scipy python3-soundfile espeak-ng';
+  const missing = run();
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.match(missing.stdout, /1\) install\n2\) install-python\n3\) exit/);
+  assert.ok(fs.readFileSync(calls, 'utf8').includes(packages));
+  assert.equal(fs.existsSync(path.join(scratch, 'upa/node_modules')), false);
+  assert.equal(fs.existsSync(path.join(scratch, 'upa/.control/deps.lock')), false);
+
+  fs.mkdirSync(path.join(scratch, 'upa/node_modules'));
+  const installed = run({ TEST_UID: '0' }, true);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.match(installed.stdout, /1\) reinstall\n2\) install-python\n3\) exit/);
+  assert.ok(fs.readFileSync(calls, 'utf8').includes(packages));
+  assert.doesNotMatch(fs.readFileSync(calls, 'utf8'), /sudo|npm ci|npm install/);
+
+  const denied = run({ TEST_SUDO_FAIL: 'yes' });
+  assert.equal(denied.status, 1);
+  assert.match(denied.stderr, /Run sudo -v in your terminal/);
+  assert.doesNotMatch(fs.readFileSync(calls, 'utf8'), /apt-get/);
+  assert.equal(fs.existsSync(path.join(scratch, 'upa/.control/deps.lock')), false);
+
+  for (const stage of ['update', 'install']) {
+    const failed = run({ TEST_APT_FAIL_STAGE: stage });
+    assert.equal(failed.status, 23, failed.stderr);
+    assert.doesNotMatch(failed.stdout, /dependencies installed\./);
+    assert.equal(fs.existsSync(path.join(scratch, 'upa/.control/deps.lock')), false);
+    if (stage === 'update') assert.ok(!fs.readFileSync(calls, 'utf8').includes(packages));
+  }
+
+  fs.mkdirSync(path.join(scratch, 'upa/.control/deps.lock'));
+  const locked = run();
+  assert.equal(locked.status, 1);
+  assert.match(locked.stderr, /another control action/);
+  assert.doesNotMatch(fs.readFileSync(calls, 'utf8'), /apt-get|sudo/);
+});
+
 test('controller requires local prepared data but never generates a corpus for Tigris', (t) => {
   const scratch = path.join(appDirectory, 'test-results', `controller-${randomUUID()}`);
   fs.mkdirSync(scratch, { recursive: true });
@@ -150,6 +214,7 @@ test('controller requires local prepared data but never generates a corpus for T
   const npmStub = path.join(scratch, 'npm');
   fs.writeFileSync(npmStub, `#!/usr/bin/env node
 console.log('npm ' + process.argv.slice(2).join(' '));
+console.log('alignment-python:' + process.env.AUDIO_ALIGNMENT_PYTHON);
 console.log('dev-config:' + ['CORPUS_BACKEND', 'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'DATA_DIRECTORY', 'CORPUS_DATABASE_PATH', 'API_DEV_PORT'].map(key => process.env[key]).join('|'));
 if (process.env.CHECK_LOCAL_SECRETS === 'true') {
   if (process.env.LOCAL_TEST_SECRET !== 'literal $(echo must-not-run) # value') process.exit(31);
@@ -162,6 +227,7 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of environmentKeys) delete env[key];
   delete env.API_DEV_PORT;
+  delete env.AUDIO_ALIGNMENT_PYTHON;
   Object.assign(env, { DATA_DIRECTORY: path.join(scratch, 'mount'), PATH: `${scratch}:${process.env.PATH}` });
   fs.mkdirSync(path.join(scratch, 'upa'));
   fs.mkdirSync(path.join(scratch, 'local-machine'));
@@ -176,6 +242,7 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   const remote = spawnSync('bash', args, { env: { ...env, CORPUS_BACKEND: 'tigris' }, encoding: 'utf8' });
   assert.equal(remote.status, 0, remote.stderr);
   assert.match(remote.stdout, /^npm run dev$/m);
+  assert.match(remote.stdout, /^alignment-python:\/usr\/bin\/python3$/m);
   assert.equal(fs.existsSync(path.join(scratch, 'mount')), false);
   const invalid = spawnSync('bash', args, { env: { ...env, CORPUS_BACKEND: 's3' }, encoding: 'utf8' });
   assert.notEqual(invalid.status, 0);
@@ -194,10 +261,11 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   ]);
 
   const overridden = spawnSync('bash', args, {
-    env: { ...env, CORPUS_BACKEND: 'tigris', CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: 'false', API_DEV_PORT: '9898' },
+    env: { ...env, CORPUS_BACKEND: 'tigris', CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: 'false', API_DEV_PORT: '9898', AUDIO_ALIGNMENT_PYTHON: '/custom/python' },
     encoding: 'utf8',
   });
   assert.equal(overridden.status, 0, overridden.stderr);
+  assert.match(overridden.stdout, /^alignment-python:\/custom\/python$/m);
   assert.deepEqual(overridden.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
     'tigris', 'false', 'false', path.join(scratch, 'mount'), path.join(scratch, 'mount/corpus/corpus.sqlite'), '9898',
   ]);

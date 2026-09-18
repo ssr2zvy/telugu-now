@@ -699,7 +699,7 @@ export function ObservationView({
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
             autoplay={state?.audioSettings.autoplay ?? true}
             controlsVisible={audioControlsVisible}
-            playbackEnabled={entryReady}
+            playbackEnabled={entryReady && !selectedWord}
             readinessKey={audioReadinessKey}
             onLoadingChange={handleAudioLoadingChange}
             onPlaybackErrorChange={setAudioError}
