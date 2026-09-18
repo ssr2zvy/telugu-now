@@ -240,11 +240,11 @@ function WordImage({ root }: { root: string }) {
   );
 }
 
-export function WordProfile({ word, fontFamily, playbackRate, onBlacklist, onClose }: {
+export function WordProfile({ word, fontFamily, playbackRate, onBlacklistTranscript, onClose }: {
   word: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onBlacklist: (word: string) => void;
+  onBlacklistTranscript: () => void;
   onClose: () => void;
 }) {
   const { appearance, profileCode } = useAppearance();
@@ -300,7 +300,7 @@ export function WordProfile({ word, fontFamily, playbackRate, onBlacklist, onClo
       <div className="gradient-field word-profile-gradient" aria-hidden="true"><div /><div /><div /></div>
       {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
-        onCopy={text => void copyWord(text)} onBlacklist={onBlacklist}
+        onCopy={text => void copyWord(text)} onBlacklistTranscript={onBlacklistTranscript}
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);

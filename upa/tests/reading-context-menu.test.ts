@@ -21,7 +21,20 @@ test('right-click menu targets either one word or reader settings', () => {
 test('word and settings context menus expose disjoint actions', () => {
   const source = readFileSync(new URL('../frontend/src/observation/ReadingContextMenu.tsx', import.meta.url), 'utf8');
   assert.match(source, /menu\.kind === 'word'/);
-  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklist\(menu\.text\)[\s\S]*:\s*<button/);
+  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript\(\)[\s\S]*:\s*<button/);
+  assert.match(source, /ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు/);
+});
+
+test('diagnostics report the active font without obsolete keyboard weights', () => {
+  const app = readFileSync(new URL('../frontend/src/App.tsx', import.meta.url), 'utf8');
+  const settings = readFileSync(new URL('../frontend/src/settings/SettingsView.tsx', import.meta.url), 'utf8');
+  const diagnostic = readFileSync(new URL('../frontend/src/settings/diagnostic.ts', import.meta.url), 'utf8');
+  assert.match(app, /<SettingsView[\s\S]*fontFamily=\{diagnosticFont\}/);
+  assert.match(app, /onOpenSettings=\{\(fontFamily\) => \{[\s\S]*setDiagnosticFont\(fontFamily\)/);
+  assert.match(settings, /<DiagnosticPage[\s\S]*fontFamily=\{fontFamily\}/);
+  assert.match(diagnostic, /fontFamily: \{[\s\S]*en: 'Font'/);
+  assert.match(diagnostic, /key: 'fontFamily',[\s\S]*value: fontFamily \?\? t\(language, 'unavailable'\)/);
+  assert.doesNotMatch(diagnostic, /keyboardWeights|Keyboard selection weights|33\.3333%/);
 });
 
 test('word profiles fill the viewport with word and image columns', () => {
@@ -38,23 +51,27 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.doesNotMatch(source, /title=\{analysis\.root\}/);
   assert.match(source, /className="word-profile-back" aria-label="Back to reading"/);
   assert.match(source, /<ReadingContextMenu[\s\S]*onCopy=[\s\S]*onClose=/);
-  assert.match(source, /<LetterProfile[\s\S]*onBlacklist=\{onBlacklist\}/);
+  assert.match(source, /<LetterProfile[\s\S]*onBlacklistTranscript=\{onBlacklistTranscript\}/);
   assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, analysis\.word, event\.clientX, event\.clientY\)/);
   assert.match(source, /letterTaps\.tap\(`grapheme:\$\{hit\.start\}`/);
   assert.match(source, /<LetterProfile letter=\{selectedGrapheme\}/);
   assert.doesNotMatch(source, /initiatingWord|excludedWords|letterWordHistory/);
-  assert.match(source, /onBlacklist=\{onBlacklist\}/);
-  assert.match(observation, /visibleWordAtPoint\(element, observation\.text, event\.clientX, event\.clientY\)/);
+  assert.match(source, /onBlacklistTranscript=\{onBlacklistTranscript\}/);
+  assert.match(observation, /addBlacklistEntry\(state\.profileCode, observation\.text\.normalize\('NFC'\)\.trim\(\)\)/);
+  assert.match(observation, /contextMenu \? 8 : 2,[\s\S]*contextMenu \? 4 : 2/);
+  assert.match(observation, /wordAtPoint\(event, true\)/);
   assert.doesNotMatch(observation, /caretPositionFromPoint|caretRangeFromPoint/);
   assert.match(hitTesting, /context\.getImageData/);
   assert.match(hitTesting, /pixels\[pixel \* 4 \+ 3\]! < alphaThreshold/);
+  assert.match(hitTesting, /granularity: 'word', hitSlopPx, verticalHitSlopPx/);
+  assert.match(hitTesting, /localX - horizontalRadius[\s\S]*localY - verticalRadius/);
   assert.match(letter, /getGraphemeWord\(profileCode, letter, controller\.signal\)/);
   assert.match(letter, /teluguHighlightRuns\(grapheme\.segment\)/);
   assert.match(letter, /appearanceFocusedLetterColor\(appearance\)/);
   assert.match(letter, /run\.focused \? focusColor : appearance\.foreground/);
   assert.match(letter, /<AudioPlayerBar audio=\{selection\.audio\} sourceId=\{selection\.sourceId\} sourceKey=\{selection\.sourceKey\}/);
   assert.match(letter, /readingContextMenuState\(event\.clientX, event\.clientY, selection\.word\)/);
-  assert.match(letter, /onCopy=\{onCopy\} onBlacklist=\{onBlacklist\}/);
+  assert.match(letter, /onCopy=\{onCopy\} onBlacklistTranscript=\{onBlacklistTranscript\}/);
   assert.doesNotMatch(letter, /silentLeadInUrl|dummyAudio/);
   assert.match(css, /\.word-profile \{[^}]*position: fixed; inset: 0;[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(css, /width: 100vw; max-width: none; height: 100dvh; max-height: none/);

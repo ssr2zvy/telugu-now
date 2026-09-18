@@ -1,5 +1,32 @@
 import { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
 export { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
+export const IOS_OBSERVATION_FONTS = [
+  'Noto Sans Telugu',
+  'Noto Serif Telugu',
+  'NTR',
+] as const satisfies readonly ObservationFontFamily[];
+
+interface DeviceNavigator {
+  userAgent: string;
+  platform: string;
+  maxTouchPoints: number;
+}
+
+export function isIOSDevice(device: DeviceNavigator | null = typeof navigator === 'undefined' ? null : navigator): boolean {
+  return device !== null && (/iPhone|iPad|iPod/u.test(device.userAgent)
+    || (device.platform === 'MacIntel' && device.maxTouchPoints > 1));
+}
+
+export function compatibleObservationFonts(
+  enabledFonts: readonly ObservationFontFamily[],
+  device?: DeviceNavigator | null,
+): readonly ObservationFontFamily[] {
+  const requested = enabledFonts.length ? enabledFonts : OBSERVATION_FONTS;
+  const currentDevice = device === undefined ? (typeof navigator === 'undefined' ? null : navigator) : device;
+  if (!isIOSDevice(currentDevice)) return requested;
+  const compatible = requested.filter(font => IOS_OBSERVATION_FONTS.includes(font as (typeof IOS_OBSERVATION_FONTS)[number]));
+  return compatible.length ? compatible : IOS_OBSERVATION_FONTS;
+}
 export const OBSERVATION_PRESENTATION = {
   fonts: OBSERVATION_FONTS,
   fontWeight: 400,

@@ -13,17 +13,20 @@ import type {
 interface DiagnosticPageProps {
   state: ProfileStateResponse;
   language: UiLanguage;
+  fontFamily: string | null;
   sectionKey?: DiagnosticSectionKey;
 }
 export function DiagnosticPage({
   state,
   language,
+  fontFamily,
   sectionKey,
 }: DiagnosticPageProps) {
   const sections =
     buildDiagnosticSections(
       state,
       language,
+      fontFamily,
     );
   if (!sections) {
     return (

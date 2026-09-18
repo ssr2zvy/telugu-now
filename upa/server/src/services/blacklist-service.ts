@@ -11,7 +11,11 @@ export class BlacklistError extends Error {
 }
 
 export function validBlacklistText(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0 && [...value].length <= 4000 && !value.includes('\0');
+  return typeof value === 'string' && value.normalize('NFC').trim().length > 0 && [...value.normalize('NFC')].length <= 4000 && !value.includes('\0');
+}
+
+function normalizeBlacklistText(value: string): string {
+  return value.normalize('NFC').trim();
 }
 
 export function profileBlacklistStore(database: Database.Database) {
@@ -24,7 +28,7 @@ export function profileBlacklistStore(database: Database.Database) {
   };
   const add = (code: string, value: unknown): ProfileBlacklistResponse => {
     if (!validBlacklistText(value)) throw new BlacklistError('invalid-blacklist-text', 400);
-    const text = value.trim();
+    const text = normalizeBlacklistText(value);
     return database.transaction(() => {
       database.prepare(`INSERT OR IGNORE INTO profile_blacklisted_sentences (profile_code, text, created_at) VALUES (?, ?, ?)`)
         .run(code, text, Date.now());
@@ -39,11 +43,11 @@ export function profileBlacklistStore(database: Database.Database) {
     }).immediate();
   };
   const remove = (code: string, text: string): ProfileBlacklistResponse => {
-    database.prepare('DELETE FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?').run(code, text);
+    database.prepare('DELETE FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?').run(code, normalizeBlacklistText(text));
     return list(code);
   };
   const isBlacklisted = (code: string, text: string): boolean =>
-    Boolean(database.prepare('SELECT 1 FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?').get(code, text));
+    Boolean(database.prepare('SELECT 1 FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?').get(code, normalizeBlacklistText(text)));
   return { list, add, remove, isBlacklisted };
 }
 

@@ -19,6 +19,7 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
   setSettingsOpen: (open: boolean) => void;
 }) {
   const gradientStep = useRef(0);
+  const [diagnosticFont, setDiagnosticFont] = useState<string | null>(null);
   useEffect(() => {
     if (!session.state?.currentObservation?.id) return;
     gradientStep.current += 1;
@@ -49,6 +50,7 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
       <SettingsView
         state={session.state}
         controller={settings}
+        fontFamily={diagnosticFont}
         onClose={() => {
           setSettingsOpen(false);
           session.setObservationVisible(
@@ -64,7 +66,8 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
       busy={session.busy}
       navigationEvent={session.navigationEvent}
       onMove={session.move}
-      onOpenSettings={() => {
+      onOpenSettings={(fontFamily) => {
+        setDiagnosticFont(fontFamily);
         settings.prepareOpen();
         session.setObservationVisible(false);
         setSettingsOpen(true);

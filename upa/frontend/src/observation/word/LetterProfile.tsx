@@ -17,7 +17,7 @@ interface LetterProfileProps {
   fontFamily: ObservationFontFamily;
   playbackRate: number;
   onCopy: (word: string) => void;
-  onBlacklist: (word: string) => void;
+  onBlacklistTranscript: () => void;
   onBack: () => void;
 }
 
@@ -28,7 +28,7 @@ interface LetterRun {
 }
 
 export function LetterProfile({ letter, profileCode, fontFamily, playbackRate,
-  onCopy, onBlacklist, onBack }: LetterProfileProps) {
+  onCopy, onBlacklistTranscript, onBack }: LetterProfileProps) {
   const { appearance } = useAppearance();
   const [selection, setSelection] = useState<GraphemeWord | null>(null);
   const [error, setError] = useState('');
@@ -103,7 +103,7 @@ export function LetterProfile({ letter, profileCode, fontFamily, playbackRate,
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => { if (message) setError(message); }} />
       </div> : null}
-      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onBlacklist={onBlacklist} onClose={() => setMenu(null)} /> : null}
+      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onBlacklistTranscript={onBlacklistTranscript} onClose={() => setMenu(null)} /> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );

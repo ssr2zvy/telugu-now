@@ -67,7 +67,6 @@ const DIAGNOSTIC_LABELS = {
   unseenQuestionWeight: { en: 'Unseen-source question weight', te: 'చూడని మూల ప్రశ్న బరువు' },
   audioGivenWeight: { en: 'Audio-given weight', te: 'ఆడియో ఇచ్చిన ప్రశ్న బరువు' },
   textGivenWeight: { en: 'Text-given weight', te: 'వచనం ఇచ్చిన ప్రశ్న బరువు' },
-  keyboardWeights: { en: 'Keyboard selection weights', te: 'కీబోర్డ్ ఎంపిక బరువులు' },
   recordingRepeat: { en: 'Repeat recording?', te: 'రికార్డింగ్ పునరావృతమా?' },
   recordingOccurrence: { en: 'Times shown (recorded)', te: 'నమోదైన ప్రదర్శనల సంఖ్య' },
   recordingPreviousSeen: { en: 'Previously shown', te: 'గత ప్రదర్శన' },
@@ -78,6 +77,10 @@ const DIAGNOSTIC_LABELS = {
   observationId: {
     en: 'Observation ID',
     te: 'పరిశీలన ఐడీ',
+  },
+  fontFamily: {
+    en: 'Font',
+    te: 'ఫాంట్',
   },
   acquisitionNumber: {
     en: 'Acquisition',
@@ -467,6 +470,7 @@ function complexityInfoRows(
 export function buildDiagnosticSections(
   state: ProfileStateResponse,
   language: UiLanguage,
+  fontFamily: string | null = null,
 ): DiagnosticSection[] | null {
   const observation =
     state
@@ -657,7 +661,6 @@ export function buildDiagnosticSections(
       { key: 'unseenQuestionWeight', value: formatPercent(1 - seenProbability) },
       { key: 'audioGivenWeight', value: formatPercent(audioGivenProbability) },
       { key: 'textGivenWeight', value: formatPercent(1 - audioGivenProbability) },
-      { key: 'keyboardWeights', value: 'Windows InScript 33.3333% · macOS Telugu 33.3333% · Chromebook dictation 33.3333%' },
     ],
   });
   const selection =
@@ -686,6 +689,10 @@ export function buildDiagnosticSections(
       {
         key: 'observationId',
         value: observation.id,
+      },
+      {
+        key: 'fontFamily',
+        value: fontFamily ?? t(language, 'unavailable'),
       },
       {
         key: 'overallProbability',

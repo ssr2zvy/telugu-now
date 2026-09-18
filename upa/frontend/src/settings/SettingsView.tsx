@@ -22,11 +22,13 @@ import { AboutPage } from './pages/AboutPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
+  fontFamily: string | null;
   onClose: () => void;
 }
 export function SettingsView({
   state,
   controller,
+  fontFamily,
   onClose,
 }: SettingsViewProps) {
   const {
@@ -246,6 +248,7 @@ export function SettingsView({
           sectionKey={page === 'complexityInfo' ? 'complexity' : page === 'questionInfo' ? 'questions' : page}
           state={state}
           language={language}
+          fontFamily={fontFamily}
         />
       </SettingsShell>
     );

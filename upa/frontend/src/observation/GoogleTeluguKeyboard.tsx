@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ArrowUp, CornerDownLeft, Delete } from 'lucide-react';
 import { useAppearance } from '../appearance';
-import { OBSERVATION_FONTS } from '../presentation';
+import { compatibleObservationFonts } from '../presentation';
 
 interface CharacterKey { code: string; output: string }
 
@@ -104,7 +104,7 @@ function removeLastGrapheme(value: string): string {
 export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: string; onChange: (value: string) => void; onSubmit: () => void }) {
   const { appearance } = useAppearance();
   const [keyFontFamily] = useState(() => {
-    const pool = appearance.fonts.length ? appearance.fonts : OBSERVATION_FONTS;
+    const pool = compatibleObservationFonts(appearance.fonts);
     return pool[Math.floor(Math.random() * pool.length)]!;
   });
   const editor = useRef<HTMLTextAreaElement>(null);

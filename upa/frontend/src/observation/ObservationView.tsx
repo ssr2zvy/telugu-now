@@ -67,7 +67,7 @@ interface ObservationViewProps {
   onMove: (
     direction: 'back' | 'next',
   ) => Promise<boolean>;
-  onOpenSettings: () => void;
+  onOpenSettings: (fontFamily: string) => void;
 }
 interface ReaderPoint {
   clientX: number;
@@ -167,7 +167,6 @@ export function ObservationView({
     state?.currentObservation ?? null;
   const fontAssignments = useObservationFontQueue(state, appearance.fonts);
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
-    ?? appearance.fonts[0]
     ?? 'Noto Sans Telugu';
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
   const comparisonPhase = comparisonQuestionPhase;
@@ -445,10 +444,17 @@ export function ObservationView({
       setControlsVisible(false);
     }
   };
-  const wordAtPoint = (event: ReaderPoint): string | null => {
+  const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) return null;
-    return visibleWordAtPoint(element, observation.text, event.clientX, event.clientY)?.text ?? null;
+    return visibleWordAtPoint(
+      element,
+      observation.text,
+      event.clientX,
+      event.clientY,
+      contextMenu ? 8 : 2,
+      contextMenu ? 4 : 2,
+    )?.text ?? null;
   };
   return (
     <main
@@ -476,7 +482,7 @@ export function ObservationView({
           longPressOrigin.current = null;
           suppressNextClick.current = true;
           window.getSelection()?.removeAllRanges();
-          openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target }));
+          openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target }, true));
         }, LONG_PRESS_MS);
       }}
       onPointerMove={(event) => {
@@ -516,7 +522,7 @@ export function ObservationView({
         event.preventDefault();
         if (observation && !entryReady) return;
         cancelLongPress();
-        openReadingMenu(event.clientX, event.clientY, wordAtPoint(event));
+        openReadingMenu(event.clientX, event.clientY, wordAtPoint(event, true));
       }}
       onClick={(event) => {
         // Typing in the keyboard must never count toward the reader's own
@@ -567,7 +573,7 @@ export function ObservationView({
           if (gesturePausedPlayback.current) playerRef.current?.resume();
           gesturePausedPlayback.current = false;
           window.getSelection()?.removeAllRanges();
-          onOpenSettings();
+          onOpenSettings(typography.fontFamily);
         });
       }}
       onMouseDownCapture={(event) => {
@@ -744,8 +750,8 @@ export function ObservationView({
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.word}`} word={selectedWord.word}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
-          onBlacklist={(text) => {
-            if (state) void addBlacklistEntry(state.profileCode, text).catch(() => {});
+          onBlacklistTranscript={() => {
+            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
           }}
           onClose={() => setSelectedWord(null)} />
       ) : null}
@@ -753,10 +759,10 @@ export function ObservationView({
         <ReadingContextMenu
           menu={readingMenu}
           onCopy={() => void copyToClipboard(observation?.text ?? '')}
-          onBlacklist={(text) => {
-            if (state) void addBlacklistEntry(state.profileCode, text).catch(() => {});
+          onBlacklistTranscript={() => {
+            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
           }}
-          onOpenSettings={onOpenSettings}
+          onOpenSettings={() => onOpenSettings(typography.fontFamily)}
           onClose={() => setReadingMenu(null)}
         />
       ) : null}

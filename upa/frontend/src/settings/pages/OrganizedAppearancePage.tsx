@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { ArrowDown, ArrowUp, RotateCcw, Shuffle } from 'lucide-react';
 import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_DARKNESS_LIMITS, CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, MODIFICATION_LIGHTNESS_LIMITS, appearanceAudioColor, appearanceAudioGlass, appearanceAudioHoverColor, appearanceModificationColor, appearanceModificationTextShiftColor, appearanceSurface, randomAppearanceColors, useAppearance } from '../../appearance';
-import { OBSERVATION_FONTS } from '../../presentation';
+import { compatibleObservationFonts, OBSERVATION_FONTS } from '../../presentation';
 import type { UiLanguage } from '../types';
 import { teluguHighlightRuns } from '../../observation/telugu-highlighting';
 import { CollapsibleSettingsSection } from '../CollapsibleSettingsSection';
@@ -16,6 +16,8 @@ function Subsection({ title, action, children }: { title: string; action?: React
 
 export function OrganizedAppearancePage({ language }: { language: UiLanguage }) {
   const { appearance, updateAppearance } = useAppearance();
+  const availableFonts = compatibleObservationFonts(appearance.fonts);
+  const settingsFonts = compatibleObservationFonts(OBSERVATION_FONTS);
   const glass = appearanceAudioGlass(appearance);
   const modificationColor = appearanceModificationColor(appearance);
   const text = (english: string, telugu: string) => language === 'en' ? english : telugu;
@@ -31,7 +33,7 @@ export function OrganizedAppearancePage({ language }: { language: UiLanguage }) 
     <div className="appearance-scale appearance-offset"><ArrowUp size={16} aria-hidden="true" /><input id={`appearance-${setting}`} type="range" min={-APPEARANCE_OFFSET_LIMIT} max={APPEARANCE_OFFSET_LIMIT} step={1} value={appearance[setting]} style={{ '--range-progress': `${(appearance[setting] + APPEARANCE_OFFSET_LIMIT) / (APPEARANCE_OFFSET_LIMIT * 2) * 100}%` } as CSSProperties} aria-valuetext={`${appearance[setting]} px`} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} /><ArrowDown size={16} aria-hidden="true" /><output htmlFor={`appearance-${setting}`}>{appearance[setting] > 0 ? '+' : ''}{appearance[setting]} px</output></div>
   </div>;
   return <div className="appearance-page appearance-page-organized">
-    <div className="appearance-preview" role="img" aria-label={text('Appearance preview', 'రూపం నమూనా')}><span lang="te" style={{ fontFamily: `"${appearance.fonts[0]}"`, fontSize: `${24 + appearance.fontScale * .24}px` }}>{appearance.highlightMods ? teluguHighlightRuns(previewText).map((run, index) => run.highlighted ? <span className="telugu-modification" key={index}>{run.text}</span> : run.text) : previewText}</span></div>
+    <div className="appearance-preview" role="img" aria-label={text('Appearance preview', 'రూపం నమూనా')}><span lang="te" style={{ fontFamily: `"${availableFonts[0]}"`, fontSize: `${24 + appearance.fontScale * .24}px` }}>{appearance.highlightMods ? teluguHighlightRuns(previewText).map((run, index) => run.highlighted ? <span className="telugu-modification" key={index}>{run.text}</span> : run.text) : previewText}</span></div>
 
     <ElementGroup title={text('Background', 'నేపథ్యం')} description={text('Colors behind the reader and throughout the application.', 'రీడర్ మరియు అప్లికేషన్ అంతటా కనిపించే నేపథ్య రంగులు.')}>
       <Subsection title={text('Colors', 'రంగులు')} action={<div className="appearance-color-actions"><button type="button" className="appearance-icon-action" aria-label={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} onClick={() => updateAppearance({ ...randomAppearanceColors(), surface: null })}><Shuffle aria-hidden="true" /></button>{reset(text('Reset background colors', 'నేపథ్య రంగులను పునరుద్ధరించు'), () => updateAppearance({ gradient: DEFAULT_APPEARANCE.gradient, surface: null }))}</div>}>
@@ -55,7 +57,7 @@ export function OrganizedAppearancePage({ language }: { language: UiLanguage }) 
       </Subsection>
       <Subsection title={text('Position', 'స్థానం')} action={reset(text('Reset text position', 'అక్షరాల స్థానాన్ని పునరుద్ధరించు'), () => updateAppearance({ textOffset: 0 }))}>{offset('textOffset', text('Vertical Offset', 'నిలువు స్థానం'))}</Subsection>
       <Subsection title={text('Fonts', 'ఫాంట్లు')}>
-        <div className="appearance-fonts">{OBSERVATION_FONTS.map(font => <label key={font}><input type="checkbox" checked={appearance.fonts.includes(font)} disabled={appearance.fonts.length === 1 && appearance.fonts.includes(font)} onChange={event => updateAppearance({ fonts: event.target.checked ? [...appearance.fonts, font] : appearance.fonts.filter(entry => entry !== font) })} /><span>{font}</span><span className="font-preview" style={{ fontFamily: `"${font}"` }} lang="te">తెలుగు</span></label>)}</div>
+        <div className="appearance-fonts">{settingsFonts.map(font => <label key={font}><input type="checkbox" checked={appearance.fonts.includes(font)} disabled={availableFonts.length === 1 && availableFonts.includes(font)} onChange={event => updateAppearance({ fonts: event.target.checked ? [...appearance.fonts, font] : appearance.fonts.filter(entry => entry !== font) })} /><span>{font}</span><span className="font-preview" style={{ fontFamily: `"${font}"` }} lang="te">తెలుగు</span></label>)}</div>
       </Subsection>
     </ElementGroup>
 

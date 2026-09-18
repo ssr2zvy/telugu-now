@@ -5,3 +5,4 @@ data/.corpus.backup-*/
 **/__pycache__/
 upa/test-results/
 upa/playwright-report/
+example/**

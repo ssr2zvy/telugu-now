@@ -253,6 +253,44 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
   });
 }
 
+test.describe('temporary mobile Telugu renderer diagnosis', () => {
+  test.use({ browserName: 'webkit', headless: false });
+  test('repeats the exact word through the real reader lifecycle at DPR 3', async ({ browser }, testInfo) => {
+    const fonts = ['Noto Sans Telugu', 'Noto Serif Telugu', 'Mandali', 'Ramabhadra', 'NTR', 'Peddana', 'Ramaraja', 'Sree Krushnadevaraya', 'Suranna', 'Tenali Ramakrishna'] as const;
+    for (const font of fonts) {
+      const page = await browser.newPage({ viewport: { width: 402, height: 874 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+      const preferences = new Map<string, ProfilePreferences>([['001', {
+        appearance: parseAppearance({ fonts: [font], highlightMods: true, fontScale: 100 }),
+        language: 'en', imagePrompt: DEFAULT_IMAGE_PROMPT, allowImageRegeneration: false,
+      }]]);
+      const fixture = await loadFixture(page, undefined, true, 'సభ్యులుగా', preferences);
+      for (let pass = 0; pass < 3; pass += 1) {
+        await expect(page.locator('.observation-text')).toHaveCSS('opacity', '1');
+        const geometry = await page.locator('.observation-text').evaluate(element => ({
+          fontFamily: getComputedStyle(element).fontFamily,
+          fontSize: getComputedStyle(element).fontSize,
+          devicePixelRatio,
+          pieces: [...element.querySelectorAll('.telugu-gradient-text')].map(piece => {
+            const style = getComputedStyle(piece, '::before');
+            return {
+              span: piece.getBoundingClientRect().toJSON(),
+              imageWidth: style.width,
+              imageHeight: style.height,
+              imageLeft: style.left,
+              imageTop: style.top,
+            };
+          }),
+        }));
+        console.log(JSON.stringify({ font, pass, geometry }));
+        await page.locator('.observation-center').screenshot({ path: testInfo.outputPath(`${font.replaceAll(' ', '-')}-${pass}.png`) });
+        if (pass < 2) await page.locator('.nav-zone-right').dblclick();
+      }
+      expect(fixture.errors).toEqual([]);
+      await page.close();
+    }
+  });
+});
+
 test('reader tap playback autoplays invisibly and separates bottom-third controls', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('telugu-now-appearance-v1', JSON.stringify({ scrollMode: false })));
   const fixture = await loadFixture(page);

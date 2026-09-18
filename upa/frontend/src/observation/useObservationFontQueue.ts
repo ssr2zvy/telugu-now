@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { ProfileStateResponse } from '../../../shared/contracts';
-import { OBSERVATION_FONTS, type ObservationFontFamily } from '../presentation';
+import { compatibleObservationFonts, type ObservationFontFamily } from '../presentation';
 
 export interface ObservationFontAssignment {
   id: string;
@@ -28,7 +28,7 @@ export function useObservationFontQueue(
   state: ProfileStateResponse | null,
   enabledFonts: readonly ObservationFontFamily[],
 ): ObservationFontAssignment[] {
-  const available = enabledFonts.length ? enabledFonts : OBSERVATION_FONTS;
+  const available = compatibleObservationFonts(enabledFonts);
   const key = `${state?.profileCode ?? ''}\0${available.join('\0')}`;
   const deckRef = useRef<FontDeck | null>(null);
   if (!deckRef.current || deckRef.current.key !== key) {

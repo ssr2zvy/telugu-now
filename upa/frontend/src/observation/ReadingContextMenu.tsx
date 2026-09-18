@@ -13,13 +13,13 @@ export function readingContextMenuState(x: number, y: number, word: string | nul
 interface ReadingContextMenuProps {
   menu: ReadingContextMenuState;
   onCopy: (text: string) => void;
-  onBlacklist?: (text: string) => void;
+  onBlacklistTranscript?: () => void;
   onOpenSettings?: () => void;
   onClose: () => void;
 }
 
 // Word menus contain word actions only; the rest of the reader opens Settings only.
-export function ReadingContextMenu({ menu, onCopy, onBlacklist, onOpenSettings, onClose }: ReadingContextMenuProps) {
+export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpenSettings, onClose }: ReadingContextMenuProps) {
   const [status, setStatus] = useState<'copied' | 'blacklisted' | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const placement = menu.y < 60 ? 'below' : 'above';
@@ -61,13 +61,13 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklist, onOpenSettings, 
         >
           <Copy size={18} aria-hidden="true" />
         </button>
-        {onBlacklist ? <button
+        {onBlacklistTranscript ? <button
           type="button"
           role="menuitem"
           className="reading-context-menu-action"
-          aria-label="బ్లాక్‌లిస్ట్‌కు జోడించు"
+          aria-label="ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు"
           onClick={() => {
-            onBlacklist(menu.text);
+            onBlacklistTranscript();
             setStatus('blacklisted');
             window.setTimeout(onClose, 400);
           }}

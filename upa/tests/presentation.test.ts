@@ -4,6 +4,7 @@ import {
   OBSERVATION_FONTS,
   OBSERVATION_PRESENTATION,
   chooseRandomObservationFont,
+  compatibleObservationFonts,
   fontVerticalCorrectionPx,
   preferredObservationFontSizePx,
 } from '../frontend/src/presentation';
@@ -31,6 +32,15 @@ test('random font selection maps the full random interval onto the curated colle
   assert.equal(chooseRandomObservationFont(() => 0.099999), 'Noto Sans Telugu');
   assert.equal(chooseRandomObservationFont(() => 0.1), 'Noto Serif Telugu');
   assert.equal(chooseRandomObservationFont(() => 0.999999), 'Tenali Ramakrishna');
+});
+test('iOS devices use only fonts verified with Safari shaping', () => {
+  const iphone = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', platform: 'iPhone', maxTouchPoints: 5 };
+  const ipad = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', platform: 'MacIntel', maxTouchPoints: 5 };
+  const desktop = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', platform: 'MacIntel', maxTouchPoints: 0 };
+  assert.deepEqual(compatibleObservationFonts(OBSERVATION_FONTS, iphone), ['Noto Sans Telugu', 'Noto Serif Telugu', 'NTR']);
+  assert.deepEqual(compatibleObservationFonts(['Mandali'], ipad), ['Noto Sans Telugu', 'Noto Serif Telugu', 'NTR']);
+  assert.deepEqual(compatibleObservationFonts(['Mandali', 'NTR'], iphone), ['NTR']);
+  assert.deepEqual(compatibleObservationFonts(OBSERVATION_FONTS, desktop), OBSERVATION_FONTS);
 });
 test('preferred font size decreases smoothly as observation content grows', () => {
   const width = 700;

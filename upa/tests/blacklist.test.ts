@@ -80,6 +80,9 @@ test('add/list/remove manage entries scoped per profile, trimmed and de-duplicat
   assert.deepEqual(again.entries.map(entry => entry.text), ['రెండో వాక్యం', 'తెలుగు వాక్యం']);
   assert.equal(again.entries.find(entry => entry.text === 'తెలుగు వాక్యం')!.createdAt, 1_000);
   assert.deepEqual(store.list('002').entries.map(entry => entry.text), ['వేరే ప్రొఫైల్']);
+  store.add('001', 'e\u0301');
+  assert.equal(store.isBlacklisted('001', '\u00e9'), true, 'canonically equivalent transcripts match');
+  store.remove('001', 'e\u0301');
   const afterRemoval = store.remove('001', 'రెండో వాక్యం');
   assert.deepEqual(afterRemoval.entries.map(entry => entry.text), ['తెలుగు వాక్యం']);
   // Removing a sentence that was never blacklisted (or already removed) is a no-op.

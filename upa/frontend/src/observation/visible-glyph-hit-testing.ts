@@ -14,6 +14,7 @@ export interface VisibleGlyphHitOptions {
   clientY: number;
   granularity: VisibleGlyphGranularity;
   hitSlopPx?: number;
+  verticalHitSlopPx?: number;
   alphaThreshold?: number;
 }
 
@@ -82,13 +83,14 @@ function visibleInkDistance(
   clientX: number,
   clientY: number,
   hitSlopPx: number,
+  verticalHitSlopPx: number,
   alphaThreshold: number,
 ): number | null {
   hitCanvas ??= document.createElement('canvas');
   const ratio = Math.min(window.devicePixelRatio || 1, 3);
   const style = getComputedStyle(owner);
   const fontSize = Number.parseFloat(style.fontSize) || 16;
-  const renderPadding = Math.max(hitSlopPx, fontSize * .2);
+  const renderPadding = Math.max(hitSlopPx, verticalHitSlopPx, fontSize * .2);
   const width = Math.max(1, Math.ceil((rect.width + renderPadding * 2) * ratio));
   const height = Math.max(1, Math.ceil((rect.height + renderPadding * 2) * ratio));
   hitCanvas.width = width;
@@ -112,11 +114,12 @@ function visibleInkDistance(
 
   const localX = Math.round((clientX - rect.left + renderPadding) * ratio);
   const localY = Math.round((clientY - rect.top + renderPadding) * ratio);
-  const radius = Math.ceil(hitSlopPx * ratio);
-  const left = Math.max(0, localX - radius);
-  const top = Math.max(0, localY - radius);
-  const right = Math.min(width - 1, localX + radius);
-  const bottom = Math.min(height - 1, localY + radius);
+  const horizontalRadius = Math.ceil(hitSlopPx * ratio);
+  const verticalRadius = Math.ceil(verticalHitSlopPx * ratio);
+  const left = Math.max(0, localX - horizontalRadius);
+  const top = Math.max(0, localY - verticalRadius);
+  const right = Math.min(width - 1, localX + horizontalRadius);
+  const bottom = Math.min(height - 1, localY + verticalRadius);
   if (right < left || bottom < top) return null;
 
   const pixels = context.getImageData(left, top, right - left + 1, bottom - top + 1).data;
@@ -139,6 +142,7 @@ export function hitTestVisibleGlyph(options: VisibleGlyphHitOptions): VisibleGly
     clientY,
     granularity,
     hitSlopPx = 2,
+    verticalHitSlopPx = hitSlopPx,
     alphaThreshold = 20,
   } = options;
   const candidates: Array<VisibleGlyphHit & { distance: number }> = [];
@@ -151,7 +155,7 @@ export function hitTestVisibleGlyph(options: VisibleGlyphHitOptions): VisibleGly
       const rect = new DOMRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
       const fontSize = Number.parseFloat(getComputedStyle(owner).fontSize) || 16;
       if (!expandedContains(rect, clientX, clientY, Math.max(hitSlopPx, fontSize * .2))) continue;
-      const distance = visibleInkDistance(segment.text, owner, rect, clientX, clientY, hitSlopPx, alphaThreshold);
+      const distance = visibleInkDistance(segment.text, owner, rect, clientX, clientY, hitSlopPx, verticalHitSlopPx, alphaThreshold);
       if (distance !== null) candidates.push({ ...segment, rect, distance });
     }
   }
@@ -161,8 +165,15 @@ export function hitTestVisibleGlyph(options: VisibleGlyphHitOptions): VisibleGly
   return hit ? { text: hit.text, start: hit.start, end: hit.end, rect: hit.rect } : null;
 }
 
-export function visibleWordAtPoint(root: Element, text: string, clientX: number, clientY: number): VisibleGlyphHit | null {
-  return hitTestVisibleGlyph({ root, text, clientX, clientY, granularity: 'word' });
+export function visibleWordAtPoint(
+  root: Element,
+  text: string,
+  clientX: number,
+  clientY: number,
+  hitSlopPx = 2,
+  verticalHitSlopPx = hitSlopPx,
+): VisibleGlyphHit | null {
+  return hitTestVisibleGlyph({ root, text, clientX, clientY, granularity: 'word', hitSlopPx, verticalHitSlopPx });
 }
 
 export function visibleGraphemeAtPoint(root: Element, text: string, clientX: number, clientY: number): VisibleGlyphHit | null {
