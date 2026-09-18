@@ -21,6 +21,15 @@ test('ignores unmodified Telugu letters and unrelated scripts', () => {
   assert.deepEqual(teluguModificationRanges('అ ఆ క abc'), []);
 });
 
+test('keeps bare consonants with only their inherent a in the base display', () => {
+  assert.deepEqual(teluguHighlightRuns('క గ కా కి'), [
+    { text: 'క గ ', highlighted: false },
+    { text: 'కా', highlighted: true },
+    { text: ' ', highlighted: false },
+    { text: 'కి', highlighted: true },
+  ]);
+});
+
 test('pads raster ink bounds without clipping at canvas edges', () => {
   const alpha = new Uint8Array(10 * 8);
   alpha[2 * 10 + 3] = 255;

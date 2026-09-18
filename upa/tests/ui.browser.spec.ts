@@ -1854,14 +1854,23 @@ test.describe('touch navigation', () => {
     const fixture = await loadFixture(page);
     const client = await page.context().newCDPSession(page);
     const center = (await page.locator('.observation-center').boundingBox())!;
-    const point = { x: center.x + center.width / 2, y: center.y + 24 };
-    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
-    const menu = page.getByRole('menu');
-    await expect(menu).toBeVisible();
-    await expect(menu.getByRole('menuitem')).toHaveCount(1);
-    await expect(page.locator('.reading-context-menu-status')).toHaveText('');
+    const screen = (await page.locator('.observation-screen').boundingBox())!;
+    for (const point of [
+      { x: center.x + center.width / 2, y: center.y + 24 },
+      { x: screen.x + 12, y: screen.y + screen.height / 2 },
+      { x: screen.x + screen.width - 12, y: screen.y + screen.height / 2 },
+    ]) {
+      await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+      const menu = page.getByRole('menu');
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole('menuitem')).toHaveCount(1);
+      await expect(page.locator('.reading-context-menu-status')).toHaveText('');
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.keyboard.press('Escape');
+      await expect(menu).toHaveCount(0);
+    }
     await page.screenshot({ path: testInfo.outputPath('empty-space-settings-menu.png') });
-    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    expect(fixture.navigationCount()).toBe(0);
     expect(fixture.errors).toEqual([]);
   });
 
@@ -2360,6 +2369,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       }
       await withinViewport(field, page);
       const initialBounds = await field.boundingBox();
+      await expect(page.locator('.entry-status')).toHaveCount(0);
+      expect(initialBounds!.y + initialBounds!.height / 2).toBeCloseTo((await screen.boundingBox())!.height / 2, 0);
       await page.screenshot({ path: testInfo.outputPath('profile-entry.png') });
       await input.fill('0');
       const middleDigit = page.locator('.entry-digit').nth(1);

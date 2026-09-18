@@ -770,6 +770,10 @@ test(
       read(
         'frontend/src/observation/useObservationTypography.ts',
       );
+    const fontQueue =
+      read(
+        'frontend/src/observation/useObservationFontQueue.ts',
+      );
     const presentation =
       read(
         'frontend/src/presentation.ts',
@@ -849,11 +853,8 @@ test(
         'useObservationTypography(',
       ),
     );
-    assert.ok(
-      typography.includes(
-        'chooseRandomObservationFont(Math.random, appearance.fonts)',
-      ),
-    );
+    assert.ok(fontQueue.includes('createObservationFontDeck(available)'));
+    assert.ok(fontQueue.includes('current.cursor = (current.cursor + 1) % current.order.length'));
     assert.ok(
       typography.includes(
         'OBSERVATION_PRESENTATION.fitIterations',

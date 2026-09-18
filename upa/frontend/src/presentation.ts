@@ -24,8 +24,7 @@ export function compatibleObservationFonts(
   const requested = enabledFonts.length ? enabledFonts : OBSERVATION_FONTS;
   const currentDevice = device === undefined ? (typeof navigator === 'undefined' ? null : navigator) : device;
   if (!isIOSDevice(currentDevice)) return requested;
-  const compatible = requested.filter(font => IOS_OBSERVATION_FONTS.includes(font as (typeof IOS_OBSERVATION_FONTS)[number]));
-  return compatible.length ? compatible : IOS_OBSERVATION_FONTS;
+  return IOS_OBSERVATION_FONTS;
 }
 export const OBSERVATION_PRESENTATION = {
   fonts: OBSERVATION_FONTS,

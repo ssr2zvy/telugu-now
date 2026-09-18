@@ -39,7 +39,7 @@ test('iOS devices use only fonts verified with Safari shaping', () => {
   const desktop = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', platform: 'MacIntel', maxTouchPoints: 0 };
   assert.deepEqual(compatibleObservationFonts(OBSERVATION_FONTS, iphone), ['Noto Sans Telugu', 'Noto Serif Telugu', 'NTR']);
   assert.deepEqual(compatibleObservationFonts(['Mandali'], ipad), ['Noto Sans Telugu', 'Noto Serif Telugu', 'NTR']);
-  assert.deepEqual(compatibleObservationFonts(['Mandali', 'NTR'], iphone), ['NTR']);
+  assert.deepEqual(compatibleObservationFonts(['Mandali', 'NTR'], iphone), ['Noto Sans Telugu', 'Noto Serif Telugu', 'NTR']);
   assert.deepEqual(compatibleObservationFonts(OBSERVATION_FONTS, desktop), OBSERVATION_FONTS);
 });
 test('preferred font size decreases smoothly as observation content grows', () => {

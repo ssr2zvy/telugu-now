@@ -476,7 +476,7 @@ export function ObservationView({
       }
       onPointerDown={(event) => {
         if (event.pointerType !== 'touch' || !event.isPrimary || event.button !== 0 || !observation || !entryReady) return;
-        if (event.target instanceof Element && event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls, .reading-context-menu, .word-profile')) return;
+        if (event.target instanceof Element && event.target.closest('button:not(.nav-zone), [role="slider"], input, textarea, .audio-player-bar, .question-controls, .reading-context-menu, .word-profile')) return;
         const { clientX, clientY, target } = event;
         longPressOrigin.current = { x: clientX, y: clientY };
         longPressTimer.current = window.setTimeout(() => {

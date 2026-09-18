@@ -23,7 +23,6 @@
   display: grid;
   place-items: center;
   width: min(248px, calc(100vw - 64px));
-  gap: 28px;
   transform:
     translate(
       -50%,
@@ -31,7 +30,7 @@
     );
 }
 .profile-preferences-loading { --entry-layout-height: 100dvh; }
-.entry-status { display: grid; place-items: center; width: 40px; height: 40px; color: var(--muted); }
+.entry-status { position: absolute; left: 50%; bottom: calc(100% + 28px); display: grid; place-items: center; width: 40px; height: 40px; color: var(--muted); transform: translateX(-50%); }
 .entry-status svg { width: 28px; height: 28px; stroke-width: 1.4; }
 .entry-status[data-state='invalid'] { color: var(--foreground); }
 .entry-status[data-state='loading'] { width: 72px; }
