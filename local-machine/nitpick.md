@@ -15,3 +15,5 @@
 - need some sort of visual indicator when copied or blacklist confirmed
 - the top right icons on a page we have also need to be in the audio bar color
 - the scroll to scrol back in a keyboard entry is not there
+- single word page shoukd gave the optioj to copy word.
+- on image page double coick to gonthrough inages seems unreliable
