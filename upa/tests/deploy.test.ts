@@ -260,7 +260,7 @@ test('deployment tags pin the checkout and a rejected atomic push leaves both re
   assert.equal(git(['status', '--porcelain']), '');
 });
 
-test('Fly configuration deploys main revisions only through deployment tags and retains manual stop', () => {
+test('Fly configuration deploys main revisions through deployment tags or manual dispatch', () => {
   const read = (file: string) => fs.readFileSync(path.join(repositoryDirectory, file), 'utf8');
   assert.match(read('fly.toml'), /dockerfile = "ci-cd\/Containerfile"/);
   assert.match(read('.dockerignore'), /^!ci-cd\/Containerfile$/m);
@@ -272,8 +272,8 @@ test('Fly configuration deploys main revisions only through deployment tags and 
   const workflow = read('.github/workflows/deploy.yml');
   assert.match(workflow, /^\s+push:\s*\n\s+tags: \['deploy\/\*'\]/m);
   assert.match(workflow, /startsWith\(github.ref, 'refs\/tags\/deploy\/'\) && !github.event.deleted/);
-  assert.match(workflow, /github.event_name == 'workflow_dispatch' && github.ref == 'refs\/heads\/main' && inputs.action == 'stop'/);
-  assert.match(workflow, /options: \[stop\]/);
+  assert.match(workflow, /github.event_name == 'workflow_dispatch' && github.ref == 'refs\/heads\/main' &&\s+\(inputs.action == 'deploy' \|\| inputs.action == 'stop'\)/);
+  assert.match(workflow, /options: \[deploy, stop\]/);
   assert.match(workflow, /fetch-depth: 0/);
   assert.match(workflow, /run: git merge-base --is-ancestor HEAD refs\/remotes\/origin\/main/);
   assert.match(workflow, /^\s+workflow_dispatch:/m);

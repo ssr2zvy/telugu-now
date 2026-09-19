@@ -111,16 +111,17 @@ remote `main` history. It serializes deploy/stop runs without cancelling a runni
 operation. GitHub concurrency may replace an older pending run when more runs
 arrive; it is not a FIFO deployment queue. The Codespace can close after pushing.
 
-Ordinary pushes and merges to `main` do not deploy. Only pushes to `deploy/*`
-tags request deployment; tag deletion does not deploy. The tagged commit must
-contain this tag-enabled workflow, so commit the workflow change on `main` before
-using the new command. Existing queued/running workflows are not cancelled by
-this policy. Fly does not watch GitHub itself.
+Ordinary pushes and merges to `main` do not deploy. Pushes to `deploy/*` tags or
+manual workflow dispatches from `main` with the `deploy` action request
+deployment; tag deletion does not deploy. The tagged commit must contain this
+tag-enabled workflow, so commit the workflow change on `main` before using the
+new command. Existing queued/running workflows are not cancelled by this policy.
+Fly does not watch GitHub itself.
 
 To redeploy code already on `main`, run the controller again to create a fresh
-deployment tag. Do not move or force-update existing deployment tags. Manual
-dispatch is retained only for stopping. Use **Actions > Fly deployment > Run
-workflow > main > stop**, or dispatch the same workflow through the controller:
+deployment tag, or use **Actions > Fly deployment > Run workflow > main >
+deploy**. Do not move or force-update existing deployment tags. To stop the app,
+select **stop** instead, or dispatch the same workflow through the controller:
 
 ```bash
 bash local-machine/control_local.sh deploy --option stop

@@ -1,6 +1,6 @@
 name: Fly deployment
 
-# Deployment tag pushes deploy the app; manual dispatch only stops its Machines.
+# Deployment tag pushes deploy the app; manual dispatch deploys or stops its Machines.
 # The repository Actions secret FLY_API_TOKEN is passed straight into the step's
 # environment, where ci-cd/deploy.sh reads it; Actions masks it in the logs and
 # nothing ever prints or inspects its value.
@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Stop the app Machines
+        description: Deploy or stop the app Machines
         type: choice
-        options: [stop]
+        options: [deploy, stop]
         default: stop
         required: true
 
@@ -27,7 +27,8 @@ jobs:
   deploy:
     if: >-
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/deploy/') && !github.event.deleted) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.action == 'stop')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      (inputs.action == 'deploy' || inputs.action == 'stop'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
