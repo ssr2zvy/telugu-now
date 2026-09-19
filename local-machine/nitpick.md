@@ -7,3 +7,4 @@
 - the sampling settings should be a bar with both sides instead if a box will number
 - i like audio bar with the rectangle bars, nice stylistically. not sure if its only not there in mobile where im currenrlt using and reporting
 - question mark appearing too quockly after arrow go right arrow pops up
+- only observations after question validation are getting the observation icon top right, shoiod be all of them though.
