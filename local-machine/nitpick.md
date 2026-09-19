@@ -13,3 +13,5 @@
 - the keyboard fot. size on mobile seems off. same with distance to keyboard and distance to audio bar
 - identify "island" regions in the gradient which arent genuine real modifiers
 - need some sort of visual indicator when copied or blacklist confirmed
+- the top right icons on a page we have also need to be in the audio bar color
+- the scroll to scrol back in a keyboard entry is not there
