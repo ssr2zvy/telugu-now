@@ -43,7 +43,7 @@ import type {
   UpdateQuestionResponseRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
-import { logger, withRequestContext } from './services/logger';
+import { errorCategory, logger, withRequestContext } from './services/logger';
 import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
 const app = new Hono();
@@ -197,7 +197,7 @@ app.onError((error, c) => {
   logger.error('http_request_failed', {
     method: c.req.method,
     path: requestPath(c.req.path),
-    failureCategory: error instanceof Error ? error.name : 'unknown',
+    failureCategory: errorCategory(error),
   });
   return c.json({ error: 'internal-error' }, 500);
 });

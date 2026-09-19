@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { CircleDot, Mic } from 'lucide-react';
 import type { ObservationAudio, QuestionKeyboard, QuestionMode } from '../../../shared/contracts';
 import { appearanceAudioGlass, useAppearance } from '../appearance';
-import { updateQuestionAudio, updateQuestionText } from '../api';
+import { reportClientTelemetry, updateQuestionAudio, updateQuestionText } from '../api';
 import { GoogleTeluguKeyboard } from './GoogleTeluguKeyboard';
 import type { RecordingTimeline } from './audio/AudioScrubber';
 
@@ -31,6 +31,15 @@ function recordingErrorMessage(error: unknown): string {
   }
   if (error instanceof DOMException && error.name === 'NotFoundError') return 'No microphone was found.';
   return 'Recording could not be started.';
+}
+
+function recordingFailureCategory(error: unknown): string {
+  if (!window.isSecureContext) return 'insecure-context';
+  if (!navigator.mediaDevices?.getUserMedia) return 'unsupported-browser';
+  if (typeof MediaRecorder === 'undefined') return 'media-recorder-unavailable';
+  if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) return 'permission-denied';
+  if (error instanceof DOMException && error.name === 'NotFoundError') return 'no-microphone';
+  return 'recording-creation-failed';
 }
 
 export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
@@ -127,6 +136,12 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
     setError(null);
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError(recordingErrorMessage(null));
+      reportClientTelemetry({
+        event: 'recording_failed',
+        observationId,
+        stage: 'capability',
+        failureCategory: recordingFailureCategory(null),
+      });
       return;
     }
     const session = ++recordingSession.current;
@@ -164,7 +179,15 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         void updateQuestionAudio(profileCode, observationId, raw).then(() => {
           const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
           onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: raw.type, durationSeconds: 0 });
-        }).catch(() => setError('Recording could not be saved.'));
+        }).catch(() => {
+          setError('Recording could not be saved.');
+          reportClientTelemetry({
+            event: 'recording_failed',
+            observationId,
+            stage: 'upload',
+            failureCategory: 'upload-rejected',
+          });
+        });
       };
       mediaRecorder.start();
       setRequestingMicrophone(false);
@@ -173,7 +196,16 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
     } catch (caught) {
       setRequestingMicrophone(false);
-      if (session === recordingSession.current) { stopRecording(); setError(recordingErrorMessage(caught)); }
+      if (session === recordingSession.current) {
+        reportClientTelemetry({
+          event: 'recording_failed',
+          observationId,
+          stage: 'capture',
+          failureCategory: recordingFailureCategory(caught),
+        });
+        stopRecording();
+        setError(recordingErrorMessage(caught));
+      }
     }
   };
 

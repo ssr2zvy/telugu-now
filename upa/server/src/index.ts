@@ -2,7 +2,7 @@ import { config } from './config/config';
 import { ensureCorpusDatabase } from './services/corpus-object-store';
 import { startAvailabilityRefresh } from './services/availability-refresh-service';
 import { openAvailability, refreshAvailability } from './services/corpus-availability';
-import { logger } from './services/logger';
+import { errorCategory, logger } from './services/logger';
 
 async function start(): Promise<void> {
   if (config.corpusBackend === 'tigris') await ensureCorpusDatabase();
@@ -34,7 +34,7 @@ async function start(): Promise<void> {
 
 start().catch(error => {
   logger.fatal('server_startup_failed', {
-    failureCategory: error instanceof Error ? error.name : 'unknown',
+    failureCategory: errorCategory(error),
   });
   if (!config.corpusAvailabilityWorkerEnabled && !config.corpusAvailabilityRebuildOnStartup) {
     logger.fatal('corpus_snapshot_unavailable', { failureCategory: 'missing-or-incompatible-snapshot' });

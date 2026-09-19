@@ -14,6 +14,19 @@ export function withRequestContext<T>(requestId: string, callback: () => T): T {
   return requestContext.run({ requestId }, callback);
 }
 
+export function errorCategory(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown';
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'string' && /^SQLITE_/u.test(code)) return 'sqlite-failure';
+  if (/^[A-Z][A-Z0-9_]+$/u.test(error.message)) return error.message.toLowerCase().replaceAll('_', '-');
+  if (error.name !== 'Error') return error.name.replace(/Error$/u, '').replace(/([a-z])([A-Z])/gu, '$1-$2').toLowerCase();
+  const message = error.message.toLowerCase();
+  if (message.includes('database') || message.includes('sqlite')) return 'database-unavailable';
+  if (message.includes('corpus') || message.includes('snapshot')) return 'corpus-unavailable';
+  if (message.includes('config') || message.includes('environment')) return 'configuration-invalid';
+  return 'unexpected-error';
+}
+
 export function log(level: LogLevel, event: string, fields: Record<string, unknown> = {}): void {
   if (levels[level] < levels[configuredLevel()]) return;
   const line = JSON.stringify({

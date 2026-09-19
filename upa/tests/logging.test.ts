@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseClientTelemetry } from '../server/src/services/client-telemetry-service';
-import { logger, withRequestContext } from '../server/src/services/logger';
+import { errorCategory, logger, withRequestContext } from '../server/src/services/logger';
 
 test('structured logs include correlation IDs and preserve reserved fields', () => {
   const lines: string[] = [];
@@ -41,6 +41,7 @@ test('client telemetry accepts only bounded, allow-listed fields', () => {
     observationId: 'observation-1',
     durationMs: 13,
   });
+
   assert.equal(parseClientTelemetry({ event: 'unknown', clientId: '12345678-1234-1234-1234-123456789abc' }), null);
   assert.equal(parseClientTelemetry({ event: 'observation_ready', clientId: 'short' }), null);
   assert.equal(parseClientTelemetry({
@@ -48,4 +49,11 @@ test('client telemetry accepts only bounded, allow-listed fields', () => {
     clientId: '12345678-1234-1234-1234-123456789abc',
     durationMs: Number.POSITIVE_INFINITY,
   }), null);
+});
+
+test('server errors use stable actionable categories without exposing messages', () => {
+  assert.equal(errorCategory(new Error('CORPUS_AVAILABILITY_MISSING_OR_INCOMPATIBLE')), 'corpus-availability-missing-or-incompatible');
+  assert.equal(errorCategory(Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })), 'sqlite-failure');
+  assert.equal(errorCategory(new TypeError('secret upstream response')), 'type');
+  assert.equal(errorCategory(new Error('secret upstream response')), 'unexpected-error');
 });
