@@ -276,6 +276,7 @@ export async function searchSerperCc4Images(word: string, key: string, excludedU
     let returned = await beforeDeadline(serperPage(word, key, page, request), deadline);
     if (!returned) break;
     if (!returned.length) {
+      if (Date.now() >= deadline) break;
       log({ event: 'unfiltered-fallback', word, page });
       returned = await beforeDeadline(serperPage(word, key, page, request, false), deadline);
       if (!returned) break;
