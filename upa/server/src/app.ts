@@ -42,21 +42,11 @@ import type {
   UpdateSelectionSettingsRequest,
   UpdateQuestionResponseRequest,
   VisibilityRequest,
-  ClientTelemetryEvent,
-  ClientTelemetryEventName,
 } from '../../shared/contracts';
 import { logger, withRequestContext } from './services/logger';
+import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
 const app = new Hono();
-
-const clientTelemetryEvents = new Set<ClientTelemetryEventName>([
-  'observation_load_started',
-  'observation_audio_failed',
-  'observation_render_failed',
-  'observation_ready',
-  'observation_preparation_waiting',
-  'recording_failed',
-]);
 
 function requestPath(path: string): string {
   return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');
@@ -91,25 +81,9 @@ app.post('/api/client-telemetry', bodyLimit({ maxSize: 4096 }), async (c) => {
       return c.json({ error: 'invalid-origin' }, 403);
     }
   }
-  const body: unknown = await c.req.json().catch(() => null);
-  if (!body || typeof body !== 'object') return c.json({ error: 'invalid-telemetry' }, 400);
-  const event = body as Partial<ClientTelemetryEvent>;
-  if (!event.event || !clientTelemetryEvents.has(event.event)
-    || typeof event.clientId !== 'string' || !/^[a-f0-9-]{16,64}$/iu.test(event.clientId)
-    || (event.observationId !== undefined && (typeof event.observationId !== 'string' || event.observationId.length > 128))
-    || (event.stage !== undefined && (typeof event.stage !== 'string' || event.stage.length > 64))
-    || (event.failureCategory !== undefined && (typeof event.failureCategory !== 'string' || event.failureCategory.length > 64))
-    || (event.durationMs !== undefined && (!Number.isFinite(event.durationMs) || event.durationMs < 0 || event.durationMs > 3_600_000))) {
-    return c.json({ error: 'invalid-telemetry' }, 400);
-  }
-  logger[event.event.endsWith('_failed') ? 'warn' : 'info'](event.event, {
-    source: 'browser',
-    clientId: event.clientId,
-    ...(event.observationId ? { observationId: event.observationId } : {}),
-    ...(event.stage ? { stage: event.stage } : {}),
-    ...(event.failureCategory ? { failureCategory: event.failureCategory } : {}),
-    ...(event.durationMs !== undefined ? { durationMs: Math.round(event.durationMs) } : {}),
-  });
+  const event = parseClientTelemetry(await c.req.json().catch(() => null));
+  if (!event) return c.json({ error: 'invalid-telemetry' }, 400);
+  recordClientTelemetry(event);
   return c.body(null, 204);
 });
 

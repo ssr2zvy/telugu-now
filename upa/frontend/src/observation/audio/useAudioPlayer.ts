@@ -106,7 +106,7 @@ export function useAudioPlayer(
         : 'This audio file could not be played. Tap above the bottom third to retry.');
       reportClientTelemetry({
         event: 'observation_audio_failed',
-        observationId: observationId ?? undefined,
+        ...(observationId ? { observationId } : {}),
         stage: 'playback',
         failureCategory: error instanceof DOMException && error.name === 'NotAllowedError'
           ? 'playback-not-allowed' : 'playback-rejected',
@@ -246,7 +246,7 @@ export function useAudioPlayer(
       setPlaybackStatus(null);
       reportClientTelemetry({
         event: 'observation_audio_failed',
-        observationId: observationId ?? undefined,
+        ...(observationId ? { observationId } : {}),
         stage: 'playback',
         failureCategory: 'browser-media-error',
       });

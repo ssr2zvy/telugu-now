@@ -375,7 +375,7 @@ export function ObservationView({
         setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
         reportClientTelemetry({
           event: 'observation_render_failed',
-          observationId: observation?.id,
+          ...(observation ? { observationId: observation.id } : {}),
           stage: 'gradient',
           failureCategory: 'render-fallback',
         });
