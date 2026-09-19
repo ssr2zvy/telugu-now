@@ -41,7 +41,7 @@
 .word-image-info a { color: inherit; text-underline-offset: 3px; }
 .word-image-info button { justify-self: start; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .word-image-context-menu { z-index: 8; }
-.word-image-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.word-image-loading { position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; pointer-events: none; background: color-mix(in srgb, var(--wash) 82%, transparent); }
 .word-profile-error { border-inline-start: 3px solid currentColor; padding-inline-start: 12px; font-size: .8rem; line-height: 1.7; overflow-wrap: anywhere; }
 .word-profile[data-letter-page='true'] { display: block; }
 .word-profile[data-letter-page='true'] .word-profile-gradient { clip-path: none; }

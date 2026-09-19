@@ -168,6 +168,37 @@ test('Serper image search continues across pages until eight images qualify', as
   assert.equal(nextPage, 3);
 });
 
+test('Serper image search retries an empty Creative Commons-filtered page without the discovery filter', async () => {
+  const searchBodies: Array<Record<string, unknown>> = [];
+  const request = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = String(input);
+    if (url === 'https://google.serper.dev/images') {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      searchBodies.push(body);
+      return Response.json('tbs' in body ? { images: [] } : { images: [{
+        title: 'Licensed tree',
+        imageUrl: 'https://images.example/licensed-tree.png',
+        link: 'https://source.example/licensed-tree',
+      }] });
+    }
+    if (url === 'https://images.example/licensed-tree.png') return response(png, 'image/png', ccBy);
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+  const accepted: string[] = [];
+  const logs: Array<Record<string, unknown>> = [];
+  const count = await searchSerperCc4Images('చెట్టు', 'fixture-key', new Set(), image => {
+    accepted.push(image.title);
+    return true;
+  }, { request: request as typeof fetch, assertPublicUrl: async () => {}, maxPages: 1, log: event => logs.push(event) });
+  assert.equal(count, 1);
+  assert.deepEqual(accepted, ['Licensed tree']);
+  assert.deepEqual(searchBodies, [
+    { q: 'చెట్టు', gl: 'in', hl: 'te', page: 1, tbs: 'sur:cl' },
+    { q: 'చెట్టు', gl: 'in', hl: 'te', page: 1 },
+  ]);
+  assert.ok(logs.some(event => event.event === 'unfiltered-fallback' && event.page === 1));
+});
+
 test('Serper image search caps a batch at ten pages when fewer than eight qualify', async () => {
   const pages: number[] = [];
   let summary: { accepted: number; candidatesSeen: number; pagesSearched: number; nextPage: number } | undefined;

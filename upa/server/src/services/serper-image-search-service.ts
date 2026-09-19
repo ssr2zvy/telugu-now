@@ -196,11 +196,13 @@ async function wikimediaCc4License(imageUrl: string, request: typeof fetch,
   return typeof licenseUrl === 'string' ? findCc4License(`<a href="${licenseUrl}"></a>`) : null;
 }
 
-async function serperPage(word: string, key: string, page: number, request: typeof fetch): Promise<SerperCandidate[]> {
+async function serperPage(word: string, key: string, page: number, request: typeof fetch,
+  creativeCommonsOnly = true): Promise<SerperCandidate[]> {
+  const requestBody = { q: word, gl: 'in', hl: 'te', page, ...(creativeCommonsOnly ? { tbs: 'sur:cl' } : {}) };
   const response = await request(SERPER_IMAGES_URL, {
     method: 'POST',
     headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: word, gl: 'in', hl: 'te', page, tbs: 'sur:cl' }),
+    body: JSON.stringify(requestBody),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
@@ -271,8 +273,14 @@ export async function searchSerperCc4Images(word: string, key: string, excludedU
   let nextPage = startPage;
   log({ event: 'start', word, target: TARGET_RESULTS, startPage, maxPages, maxDurationMs: options.maxDurationMs ?? MAX_SEARCH_DURATION_MS, excluded: excludedUrls.size });
   for (let page = startPage; page < startPage + maxPages && accepted < TARGET_RESULTS && Date.now() < deadline; page += 1) {
-    const returned = await beforeDeadline(serperPage(word, key, page, request), deadline);
+    let returned = await beforeDeadline(serperPage(word, key, page, request), deadline);
     if (!returned) break;
+    if (!returned.length) {
+      if (Date.now() >= deadline) break;
+      log({ event: 'unfiltered-fallback', word, page });
+      returned = await beforeDeadline(serperPage(word, key, page, request, false), deadline);
+      if (!returned) break;
+    }
     pagesSearched += 1;
     if (!returned.length) {
       nextPage = page + 1;

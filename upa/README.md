@@ -249,7 +249,9 @@ output is requested by the default prompt but is not guaranteed by the model.
 
 The Search action calls Serper's Google Images endpoint with the Telugu core word,
 India region (`gl=in`), Telugu language (`hl=te`) and
-Google's broad Creative Commons usage-rights filter. Serper does not return license
+Google's broad Creative Commons usage-rights filter. If that filter returns an empty
+page, the server retries the same page without the discovery filter and applies the
+same strict per-image license verification below. Serper does not return license
 metadata or guarantee a license version. The server downloads only Serper's image
 URL, never the linked article or website. It accepts only images whose response
 headers, embedded metadata or provider image-metadata API proves an exact CC BY 4.0
