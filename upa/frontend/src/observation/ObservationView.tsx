@@ -26,7 +26,7 @@ import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
 import { useReaderScroll } from './useReaderScroll';
 import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from './ReadingContextMenu';
-import { addBlacklistEntry } from '../api';
+import { addBlacklistEntry, reportClientTelemetry } from '../api';
 import { QuestionControls } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguWordText } from './TeluguGradientText';
@@ -111,6 +111,7 @@ export function ObservationView({
   const longPressTimer = useRef<number | null>(null);
   const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const gesturePausedPlayback = useRef(false);
+  const observationLoadStartedAt = useRef<number | null>(null);
   const cancelLongPress = () => {
     if (longPressTimer.current !== null) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressOrigin.current = null;
@@ -166,6 +167,11 @@ export function ObservationView({
   }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
   const observation =
     state?.currentObservation ?? null;
+  useEffect(() => {
+    if (!observation) return;
+    observationLoadStartedAt.current = performance.now();
+    reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });
+  }, [observation?.id]);
   const fontAssignments = useObservationFontQueue(state, appearance.fonts);
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
     ?? 'Noto Sans Telugu';
@@ -263,6 +269,12 @@ export function ObservationView({
           }
         } catch {
           // The current observation can still fit or render this item on demand.
+          if (!cancelled) reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: assignment.id,
+            stage: 'neighbor-prewarm',
+            failureCategory: 'render-fallback',
+          });
         } finally {
           if (!cancelled) setNeighborPrewarmReadyIds(current => {
             if (current.has(assignment.id)) return current;
@@ -319,7 +331,14 @@ export function ObservationView({
       }
       if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
     };
-    void run().catch(() => {});
+    void run().catch(() => {
+      if (!cancelled) reportClientTelemetry({
+        event: 'observation_render_failed',
+        observationId: hiddenObservation.id,
+        stage: 'hidden-prewarm',
+        failureCategory: 'render-fallback',
+      });
+    });
     return () => { cancelled = true; };
   }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor]);
   useEffect(() => {
@@ -351,7 +370,17 @@ export function ObservationView({
       }
       if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
     };
-    void run().catch(() => { if (!cancelled) setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) }); });
+    void run().catch(() => {
+      if (!cancelled) {
+        setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+        reportClientTelemetry({
+          event: 'observation_render_failed',
+          ...(observation ? { observationId: observation.id } : {}),
+          stage: 'gradient',
+          failureCategory: 'render-fallback',
+        });
+      }
+    });
     return () => { cancelled = true; };
   }, [gradientKey, gradientPresentation?.key]);
   const gradientsReady = !gradientKey || gradientPresentation?.key === gradientKey;
@@ -378,6 +407,15 @@ export function ObservationView({
     };
   }, [entryPrepared, presentationKey]);
   const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
+  useEffect(() => {
+    if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
+    reportClientTelemetry({
+      event: 'observation_ready',
+      observationId: observation.id,
+      durationMs: performance.now() - observationLoadStartedAt.current,
+    });
+    observationLoadStartedAt.current = null;
+  }, [entryReady, observation?.id]);
   const [transitionLoaderVisible, setTransitionLoaderVisible] = useState(false);
   useEffect(() => {
     if (!navigationEvent || entryReady) {
@@ -418,6 +456,13 @@ export function ObservationView({
           audioProgress: audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : null,
         },
         gradientCache: getTeluguGradientCacheSnapshot(),
+      });
+      reportClientTelemetry({
+        event: 'observation_render_failed',
+        observationId: observation.id,
+        stage: 'readiness',
+        failureCategory: 'readiness-stalled',
+        durationMs: 5000,
       });
     }, 5000);
     return () => window.clearTimeout(timer);

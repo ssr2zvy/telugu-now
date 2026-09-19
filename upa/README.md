@@ -136,6 +136,23 @@ The configured prototype profile code is `001`.
 ```
 The tests preserve the accepted Iteration 1 history, timing, queue, and replenishment invariants; the Iteration 2 caching, settings, presentation, diagnostic, HTML, and EPUB behavior; and the Iteration 3 six-source selector, grapheme complexity reference, prepared-corpus store, formal media metadata, attribution surface, source-record compatibility, and production-style corpus indexing.
 Selection is additionally checked against an independent probability oracle, deterministic RNG boundaries, a 100-selection black-box audit, and a seeded 50,000-selection Monte Carlo comparison.
+
+## Runtime logs
+
+The server writes newline-delimited JSON to stdout and stderr, which Fly captures from
+each Machine. Set `LOG_LEVEL` to `debug`, `info`, `warn`, `error`, or `fatal`
+(`info` is the default). API completion logs include an `X-Request-Id` correlation
+value, route, status, and duration. Queue, preparation, question response, Serper,
+and Pollinations events add workflow identifiers, counts, durations, and stable
+failure categories without logging profile codes, credentials, prompts, response
+bodies, audio, or signed URLs.
+
+Browser console output does not reach Fly. The frontend therefore sends an
+allow-listed, size-limited telemetry payload to `/api/client-telemetry` for
+observation readiness, rendering, audio preparation, and playback failures.
+Navigation cancellation is intentionally excluded. Inspect production output with
+Fly Live Logs or `fly logs --app <app-name>`.
+
 With the development server running, run the isolated UI checks from `upa/`:
 ```bash
 npx playwright install --with-deps chromium

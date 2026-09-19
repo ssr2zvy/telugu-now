@@ -7,6 +7,7 @@ import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
 import { observePlaybackFeedback } from './playback-feedback';
 import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';
+import { reportClientTelemetry } from '../../api';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
@@ -103,6 +104,13 @@ export function useAudioPlayer(
       setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Tap above the bottom third to start audio, or allow sound for this site.'
         : 'This audio file could not be played. Tap above the bottom third to retry.');
+      reportClientTelemetry({
+        event: 'observation_audio_failed',
+        ...(observationId ? { observationId } : {}),
+        stage: 'playback',
+        failureCategory: error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'playback-not-allowed' : 'playback-rejected',
+      });
     });
   };
 
@@ -236,6 +244,12 @@ export function useAudioPlayer(
       setMediaError(message);
       setPlaying(false);
       setPlaybackStatus(null);
+      reportClientTelemetry({
+        event: 'observation_audio_failed',
+        ...(observationId ? { observationId } : {}),
+        stage: 'playback',
+        failureCategory: 'browser-media-error',
+      });
     }, actuallyPlaying => {
       setMediaError(null);
       if (actuallyPlaying) {

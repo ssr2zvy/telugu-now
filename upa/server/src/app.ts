@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { config } from './config/config';
 import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
@@ -41,13 +43,49 @@ import type {
   UpdateQuestionResponseRequest,
   VisibilityRequest,
 } from '../../shared/contracts';
+import { errorCategory, logger, withRequestContext } from './services/logger';
+import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
 const app = new Hono();
+
+function requestPath(path: string): string {
+  return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');
+}
+
+app.use('/api/*', async (c, next) => {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  return withRequestContext(requestId, async () => {
+    c.header('X-Request-Id', requestId);
+    await next();
+    logger.info('http_request_completed', {
+      method: c.req.method,
+      path: requestPath(c.req.path),
+      status: c.res.status,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+});
 
 sourceRegistry.assertPreparedSourcesPresent();
 migrateLegacyWordImages(db);
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+app.post('/api/client-telemetry', bodyLimit({ maxSize: 4096 }), async (c) => {
+  const origin = c.req.header('origin');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== c.req.header('host')) return c.json({ error: 'invalid-origin' }, 403);
+    } catch {
+      return c.json({ error: 'invalid-origin' }, 403);
+    }
+  }
+  const event = parseClientTelemetry(await c.req.json().catch(() => null));
+  if (!event) return c.json({ error: 'invalid-telemetry' }, 400);
+  recordClientTelemetry(event);
+  return c.body(null, 204);
+});
 
 app.get('/api/data-sources', (c) =>
   c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
@@ -156,7 +194,11 @@ app.onError((error, c) => {
     return c.json({ error: 'invalid-export-request' }, 400);
   }
 
-  console.error(error);
+  logger.error('http_request_failed', {
+    method: c.req.method,
+    path: requestPath(c.req.path),
+    failureCategory: errorCategory(error),
+  });
   return c.json({ error: 'internal-error' }, 500);
 });
 
@@ -173,5 +215,5 @@ preparationService.kick();
 
 const port = process.env.NODE_ENV === 'production' ? config.port : config.devPort;
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Server listening on http://127.0.0.1:${info.port}`);
+  logger.info('server_started', { port: info.port });
 });

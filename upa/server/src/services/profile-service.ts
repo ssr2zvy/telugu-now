@@ -20,12 +20,13 @@ import type {
   TimingSummary,
   UpdateSelectionSettingsRequest,
 } from '../../../shared/contracts';
-import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue } from './queue-service';
+import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
 import { getDisplayRepeat, recordFirstDisplay } from './repeat-service';
 import { recordCurrentObservationView } from './eon-service';
+import { logger } from './logger';
 
 interface ProfileRow {
   code: string;
@@ -668,6 +669,10 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
 
     const queued = nextQueueItem(code);
     if (!queued || queued.status !== 'ready') {
+      logger.info(queued ? 'queue_next_observation_preparing' : 'queue_unexpectedly_empty', {
+        ...(queued ? { observationId: queued.observation_id, status: queued.status } : {}),
+        ...getQueueCounts(code),
+      });
       throw new NavigationUnavailableError('Next observation is not ready.');
     }
 
@@ -699,6 +704,12 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     // First-time display consumes one future slot. Reserve its replacement in this
     // same transaction so consumption cannot commit without one-for-one replacement.
     appendConsumptionReplacement(code, queued.observation_id, newHistoryPosition, now);
+    logger.info('queue_consumed_and_replacement_scheduled', {
+      observationId: queued.observation_id,
+      historyPosition: newHistoryPosition,
+      durationMs: Date.now() - now,
+      ...getQueueCounts(code),
+    });
   }).immediate();
   preparationService.kick();
   return getProfileState(code, visible);
