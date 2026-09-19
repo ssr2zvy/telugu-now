@@ -12,3 +12,4 @@
 - the keyboard typed font is always the same
 - the keyboard fot. size on mobile seems off. same with distance to keyboard and distance to audio bar
 - identify "island" regions in the gradient which arent genuine real modifiers
+- need some sort of visual indicator when copied or blacklist confirmed
