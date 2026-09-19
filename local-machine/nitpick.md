@@ -6,3 +6,4 @@
 - for some reason, on a questions comp page, scroll/swipe still works to move audio bars and it leads to this half state..........I mean you want me to describe the half state -- bars hanging in a limbo state often half off screen, etc, etc
 - the sampling settings should be a bar with both sides instead if a box will number
 - i like audio bar with the rectangle bars, nice stylistically. not sure if its only not there in mobile where im currenrlt using and reporting
+- question mark appearing too quockly after arrow go right arrow pops up
