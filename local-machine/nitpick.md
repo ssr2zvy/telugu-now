@@ -8,3 +8,7 @@
 - i like audio bar with the rectangle bars, nice stylistically. not sure if its only not there in mobile where im currenrlt using and reporting
 - question mark appearing too quockly after arrow go right arrow pops up
 - only observations after question validation are getting the observation icon top right, shoiod be all of them though.
+- in menu bar (with copy and blacklisr and one with settings) is putting box behind letter instead of highlighting like the other icons
+- the keyboard typed font is always the same
+- the keyboard fot. size on mobile seems off. same with distance to keyboard and distance to audio bar
+- identify "island" regions in the gradient which arent genuine real modifiers
