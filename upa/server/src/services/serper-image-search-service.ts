@@ -198,11 +198,11 @@ async function wikimediaCc4License(imageUrl: string, request: typeof fetch,
 
 async function serperPage(word: string, key: string, page: number, request: typeof fetch,
   creativeCommonsOnly = true): Promise<SerperCandidate[]> {
-  const body = { q: word, gl: 'in', hl: 'te', page, ...(creativeCommonsOnly ? { tbs: 'sur:cl' } : {}) };
+  const requestBody = { q: word, gl: 'in', hl: 'te', page, ...(creativeCommonsOnly ? { tbs: 'sur:cl' } : {}) };
   const response = await request(SERPER_IMAGES_URL, {
     method: 'POST',
     headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
