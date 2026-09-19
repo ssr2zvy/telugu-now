@@ -15,6 +15,7 @@ import { LetterProfile } from './LetterProfile';
 import { getAlignedWordAudio } from '../../api';
 import { useAudioPlayer } from '../audio/useAudioPlayer';
 import type { AlignedWordAudio } from '../../../../shared/contracts';
+import { LoadingSlit } from '../../components/LoadingSlit';
 
 async function copyWord(text: string): Promise<void> {
   try {
@@ -225,6 +226,9 @@ function WordImage({ root }: { root: string }) {
           <div><dt>Added</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd></div></dl>
         <button type="button" onClick={() => setPane('image')}>Close</button>
       </div> : null}
+      {busy ? <div className="word-image-loading">
+        <LoadingSlit label={status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : 'Searching for licensed images'} />
+      </div> : null}
       {menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
         style={{ left: menu.x, top: menu.y }} onPointerDown={event => event.stopPropagation()}>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Copy" aria-label="Copy image" onClick={() => void copyCurrent()}><Copy size={18} /></button>
@@ -233,9 +237,6 @@ function WordImage({ root }: { root: string }) {
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Info" aria-label="Image information" onClick={() => { setMenu(null); setPane('info'); }}><Info size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
       </div> : null}
-      <div className="word-image-status" role="status" aria-live="polite">
-        {status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : status === 'searching' ? 'Searching for licensed images' : ''}
-      </div>
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );
