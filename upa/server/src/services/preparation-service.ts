@@ -6,6 +6,7 @@ import { audioValidationStore } from './audio-validation-store';
 import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
 import { replaceRejectedQueuedObservation } from './queue-service';
 import { SelectionUnavailableError } from './selection-engine';
+import { logger } from './logger';
 
 export class BlacklistedTextError extends Error {
   readonly permanent = true;
@@ -80,7 +81,9 @@ class PreparationService {
         pending = this.nextPending();
       }
     } catch (error) {
-      console.error('Preparation worker stopped after an internal error.', error instanceof Error ? error.name : 'Error');
+      logger.error('preparation_worker_stopped', {
+        failureCategory: error instanceof Error ? error.name : 'unknown',
+      });
     } finally {
       this.running = false;
       const next = db.prepare(`
@@ -96,12 +99,19 @@ class PreparationService {
   }
 
   private async prepareOne(row: PendingRow): Promise<void> {
+    const startedAt = Date.now();
+    const attempt = row.preparation_attempts + 1;
     const claimed = db.prepare(`
       UPDATE observations SET status = 'preparing', preparation_attempts = preparation_attempts + 1,
         request_started_at = NULL, request_completed_at = NULL, request_duration_ms = NULL, cache_hit = NULL
       WHERE id = ? AND status = 'pending'
     `).run(row.id);
     if (claimed.changes !== 1) return;
+    logger.info('observation_preparation_started', {
+      observationId: row.id,
+      sourceId: row.source_id,
+      attempt,
+    });
     try {
       const resolved = await sourceRecordService.resolve(row.profile_code, row.source_id, row.source_key);
       if (db.prepare('SELECT 1 FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?')
@@ -116,6 +126,13 @@ class PreparationService {
         WHERE id = ? AND status = 'preparing'
       `).run(resolved.text, preparedAt, preparedAt, resolved.requestStartedAt, resolved.requestCompletedAt,
         resolved.requestDurationMs, resolved.cacheHit ? 1 : 0, row.id);
+      logger.info('observation_preparation_completed', {
+        observationId: row.id,
+        sourceId: row.source_id,
+        attempt,
+        durationMs: Date.now() - startedAt,
+        cacheHit: resolved.cacheHit,
+      });
     } catch (error) {
       let code = error instanceof AudioValidationError ? error.code
         : error instanceof BlacklistedTextError ? error.message : 'source-preparation-unavailable';
@@ -123,11 +140,22 @@ class PreparationService {
       if ((error instanceof AudioValidationError || error instanceof BlacklistedTextError) && error.permanent) {
         try {
           replaceRejectedQueuedObservation(row.id);
+          logger.warn('observation_preparation_rejected', {
+            observationId: row.id,
+            sourceId: row.source_id,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            failureCategory: code,
+          });
           return;
         } catch (replacementError) {
           code = replacementError instanceof SelectionUnavailableError ? 'no-selectable-replacement' : 'queue-replacement-unavailable';
           if (replacementError instanceof SelectionUnavailableError) exhausted = true;
-          else console.error('Rejected audio replacement failed.', replacementError instanceof Error ? replacementError.name : 'Error');
+          else logger.error('rejected_observation_replacement_failed', {
+            observationId: row.id,
+            sourceId: row.source_id,
+            failureCategory: replacementError instanceof Error ? replacementError.name : 'unknown',
+          });
         }
       }
       db.prepare(`
@@ -136,7 +164,13 @@ class PreparationService {
         WHERE id = ?
       `).run(code, exhausted ? null : Date.now() + (row.preparation_attempts === 0 ? 1_000 : 5_000),
         row.preparation_attempts + 1, row.id);
-      console.error(`Observation preparation failed (${code}); ${exhausted ? 'preparation stopped' : 'retry scheduled'}.`);
+      logger[exhausted ? 'error' : 'warn'](exhausted ? 'observation_preparation_exhausted' : 'observation_preparation_retry_scheduled', {
+        observationId: row.id,
+        sourceId: row.source_id,
+        attempt,
+        durationMs: Date.now() - startedAt,
+        failureCategory: code,
+      });
     }
   }
 }

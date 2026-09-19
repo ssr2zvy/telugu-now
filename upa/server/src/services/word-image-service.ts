@@ -8,6 +8,7 @@ import { imageType, migrateLegacyWordImageSearchState, wordImageId, wordImageSto
 import { MISSING_SERPER_KEY_MESSAGE, readSerperKey, searchSerperCc4Images, type SerperSearchImage } from './serper-image-search-service';
 import { config } from '../config/config';
 import { profilePreferencesStore } from './profile-preferences-service';
+import { logger } from './logger';
 
 function normalizeRoot(value: string | undefined): string | null {
   const root = value?.normalize('NFC').trim();
@@ -15,7 +16,23 @@ function normalizeRoot(value: string | undefined): string | null {
 }
 
 function imageLog(event: Record<string, unknown>): void {
-  console.info(`[word-images] ${JSON.stringify(event)}`);
+  const { event: rawName, ...fields } = event;
+  const name = typeof rawName === 'string' ? `word_image_${rawName}` : 'word_image_event';
+  logger[name.endsWith('-failed') ? 'error' : name.includes('rejected') || name.includes('disconnected') ? 'warn' : 'info'](
+    name.replaceAll('-', '_'),
+    fields,
+  );
+}
+
+function imageFailureCategory(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message.includes('API key') || message.includes('rejected the API key')) return 'provider-auth';
+  if (message.includes('credits')) return 'insufficient-credits';
+  if (message.includes('rate limit')) return 'rate-limited';
+  if (message.includes('timed out') || message.includes('reached')) return 'provider-timeout';
+  if (message.includes('saving failed') || message.includes('publish')) return 'persistence-failed';
+  if (message.includes('supported image') || message.includes('oversized') || message.includes('empty')) return 'invalid-provider-response';
+  return 'provider-failed';
 }
 
 export function wordImageRoutes(database: Database.Database, dependencies: {
@@ -131,6 +148,7 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
       const unsavedKey = `${regenerate ? 'replace' : append ? 'append' : 'create'}:${root}`;
       const operation = regenerate ? 'replace' : append ? 'append' : 'create';
       task = (async () => {
+        const startedAt = Date.now();
         let record = unsaved.get(unsavedKey);
         if (!record) {
           const key = readKey();
@@ -141,25 +159,32 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           if (!mime) throw new Error('Pollinations did not return a supported image.');
           record = { image: bytes, mimeType: mime };
           unsaved.set(unsavedKey, record);
-          imageLog({ event: 'generation-provider-result', word: root, operation, mimeType: mime, bytes: bytes.length });
+          imageLog({ event: 'generation-provider-result', word: root, operation, mimeType: mime, bytes: bytes.length, durationMs: Date.now() - startedAt });
         }
         try {
           const saved = regenerate ? images.replace(root, record)
             : append ? images.add(root, record, { method: 'generation', vendor: 'Pollinations' })
               : images.save(root, record);
           unsaved.delete(unsavedKey);
-          imageLog({ event: 'generation-saved', word: root, operation, imageId: wordImageId(saved.image) });
+          imageLog({ event: 'generation-saved', word: root, operation, imageId: wordImageId(saved.image), durationMs: Date.now() - startedAt });
           return saved;
         } catch {
           throw new Error('Image generated, but saving failed. Retry to save the same image.');
         }
       })().finally(() => pending.delete(root));
       pending.set(root, task);
+    } else {
+      imageLog({ event: 'generation-duplicate-request', word: root, failureCategory: 'duplicate-concurrent-request' });
     }
     try {
       return imageResponse(await task);
     } catch (error) {
-      imageLog({ event: 'generation-failed', word: root, error: error instanceof Error ? error.message : 'Image generation failed.' });
+      imageLog({
+        event: 'generation-failed',
+        word: root,
+        failureCategory: imageFailureCategory(error),
+        errorName: error instanceof Error ? error.name : 'Error',
+      });
       return context.json({ error: error instanceof Error ? error.message : 'Image generation failed.' }, 502);
     }
   });
@@ -219,10 +244,17 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           },
         }).then(added => {
           inspected = Math.max(inspected, added);
-          imageLog({ event: 'search-batch-complete', word: root, batchId, added, inspected, pagesSearched, target: 8 });
+          imageLog({ event: 'search-batch-complete', word: root, batchId, added, inspected, pagesSearched, target: 8, durationMs: Date.now() - batchCreatedAt });
           send({ type: 'complete', added, inspected, pagesSearched });
         }).catch(error => {
-          imageLog({ event: 'search-batch-failed', word: root, batchId, error: error instanceof Error ? error.message : 'Image search failed.' });
+          imageLog({
+            event: 'search-batch-failed',
+            word: root,
+            batchId,
+            durationMs: Date.now() - batchCreatedAt,
+            failureCategory: imageFailureCategory(error),
+            errorName: error instanceof Error ? error.name : 'Error',
+          });
           send({ type: 'error', error: error instanceof Error ? error.message : 'Image search failed.' });
         }).finally(() => {
           pendingSearches.delete(root);
@@ -230,7 +262,10 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
           closed = true;
         });
       },
-      cancel() { closed = true; },
+      cancel() {
+        closed = true;
+        imageLog({ event: 'search-client-disconnected', word: root, batchId, durationMs: Date.now() - batchCreatedAt });
+      },
     });
     return new Response(body, { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   });

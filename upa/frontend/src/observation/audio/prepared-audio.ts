@@ -1,5 +1,6 @@
 import { computeNormalizationGain, type DecodedAudioLike } from './audio-normalization';
 import { AUDIO_LEAD_IN_SECONDS } from './silent-lead-in';
+import { reportClientTelemetry } from '../../api';
 
 export const toPlayerTime = (time: number) => Math.round((time + AUDIO_LEAD_IN_SECONDS) * 1e6) / 1e6;
 export const toSpeechTime = (time: number) => Math.max(0, Math.round((time - AUDIO_LEAD_IN_SECONDS) * 1e6) / 1e6);
@@ -13,6 +14,20 @@ export interface PreparedAudio {
 
 const MAX_INPUT_BYTES = 32 * 1024 * 1024;
 const MAX_CLIP_BYTES = 16 * 1024 * 1024;
+
+class AudioPreparationError extends Error {
+  constructor(readonly category: string, message: string) {
+    super(message);
+    this.name = 'AudioPreparationError';
+  }
+}
+
+export function audioPreparationFailureCategory(error: unknown): string {
+  if (error instanceof AudioPreparationError) return error.category;
+  if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+  if (error instanceof DOMException && error.name === 'EncodingError') return 'decode-failed';
+  return 'audio-preparation-failed';
+}
 
 export function parseAudioSegmentUrl(url: string): { requestUrl: string; startSeconds: number; endSeconds: number } | null {
   const match = /#t=(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/u.exec(url);
@@ -30,7 +45,7 @@ export function cropDecodedAudio(
 ): DecodedAudioLike & { sampleRate: number } {
   const start = Math.max(0, Math.min(buffer.length, Math.floor(startSeconds * buffer.sampleRate)));
   const end = Math.max(start + 1, Math.min(buffer.length, Math.ceil(endSeconds * buffer.sampleRate)));
-  if (start >= buffer.length || end <= start) throw new Error('Audio alignment segment is outside the recording.');
+  if (start >= buffer.length || end <= start) throw new AudioPreparationError('invalid-alignment', 'Audio alignment segment is outside the recording.');
   return {
     sampleRate: buffer.sampleRate,
     numberOfChannels: buffer.numberOfChannels,
@@ -44,12 +59,12 @@ export function encodePreparedAudio(buffer: DecodedAudioLike & { sampleRate: num
   const { sampleRate, numberOfChannels: channels, length } = buffer;
   if (!Number.isInteger(sampleRate) || sampleRate % 2 || sampleRate < 8000 ||
       !Number.isInteger(channels) || channels < 1 || channels > 2 || !Number.isInteger(length) || length <= 0 || length / sampleRate > 120) {
-    throw new Error('Audio exceeds the supported two-channel, two-minute clip limits.');
+    throw new AudioPreparationError('unsupported-audio', 'Audio exceeds the supported two-channel, two-minute clip limits.');
   }
   const silentFrames = sampleRate * AUDIO_LEAD_IN_SECONDS;
   const frames = length + silentFrames;
   const size = 44 + frames * channels * 2;
-  if (size > MAX_CLIP_BYTES) throw new Error('Prepared audio is too large.');
+  if (size > MAX_CLIP_BYTES) throw new AudioPreparationError('prepared-clip-oversized', 'Prepared audio is too large.');
   const bytes = new Uint8Array(size);
   const view = new DataView(bytes.buffer);
   const text = (offset: number, value: string) => {
@@ -91,10 +106,10 @@ async function prepareAudio(url: string, signal: AbortSignal, onProgress: Progre
   const segment = parseAudioSegmentUrl(url);
   onProgress(.02);
   const response = await fetch(segment?.requestUrl ?? url, { signal });
-  if (!response.ok) throw new Error(`Audio download failed (${response.status}).`);
-  if (Number(response.headers.get('content-length')) > MAX_INPUT_BYTES) throw new Error('Audio download is too large.');
+  if (!response.ok) throw new AudioPreparationError(response.status === 404 ? 'http-404' : response.status >= 500 ? 'http-5xx' : 'http-error', `Audio download failed (${response.status}).`);
+  if (Number(response.headers.get('content-length')) > MAX_INPUT_BYTES) throw new AudioPreparationError('input-oversized', 'Audio download is too large.');
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('Audio download is unavailable.');
+  if (!reader) throw new AudioPreparationError('empty-response', 'Audio download is unavailable.');
   const chunks: Uint8Array[] = [];
   let size = 0;
   const expectedBytes = Number(response.headers.get('content-length'));
@@ -103,7 +118,7 @@ async function prepareAudio(url: string, signal: AbortSignal, onProgress: Progre
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_INPUT_BYTES) throw new Error('Audio download is too large.');
+      if (size > MAX_INPUT_BYTES) throw new AudioPreparationError('input-oversized', 'Audio download is too large.');
       chunks.push(value);
       onProgress(Number.isFinite(expectedBytes) && expectedBytes > 0
         ? .05 + Math.min(1, size / expectedBytes) * .6
@@ -119,7 +134,7 @@ async function prepareAudio(url: string, signal: AbortSignal, onProgress: Progre
   for (const chunk of chunks) { input.set(chunk, offset); offset += chunk.length; }
   const Context = window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Context) throw new Error('This browser cannot prepare audio.');
+  if (!Context) throw new AudioPreparationError('unsupported-browser', 'This browser cannot prepare audio.');
   // Decoding works while suspended. Never route native playback into this context.
   decoder ??= new Context({ sampleRate: 24000 });
   onProgress(.7);
@@ -150,6 +165,8 @@ type Entry = {
   progressListeners: Set<ProgressListener>;
   resolve: (value: PreparedAudio) => void;
   reject: (error: unknown) => void;
+  startedAt?: number;
+  failureReported?: boolean;
 };
 
 export interface AudioLease {
@@ -239,10 +256,18 @@ export class PreparedAudioCache {
       // Reserve a slot for a cold current clip; speculative downloads stay serial.
       if (!entry.active && [...this.running].some(running => !running.active)) continue;
       entry.state = 'loading';
+      entry.startedAt = Date.now();
       this.running.add(entry);
       const timer = setTimeout(() => {
         entry.controller.abort();
         entry.state = 'failed';
+        entry.failureReported = true;
+        reportClientTelemetry({
+          event: 'observation_audio_failed',
+          stage: 'preparation',
+          failureCategory: 'timeout',
+          durationMs: Date.now() - (entry.startedAt ?? Date.now()),
+        });
         entry.reject(new Error('Audio preparation timed out.'));
       }, this.timeoutMs);
       void this.prepare(entry.key, entry.controller.signal, progress => {
@@ -255,7 +280,7 @@ export class PreparedAudioCache {
         }
         if (!this.trim(value.bytes)) {
           this.revoke(value.url);
-          throw new Error('Audio cache is full.');
+          throw new AudioPreparationError('cache-capacity-exhausted', 'Audio cache is full.');
         }
         entry.value = value;
         entry.state = 'ready';
@@ -265,6 +290,16 @@ export class PreparedAudioCache {
       }).catch(error => {
         entry.controller.abort();
         entry.state = 'failed';
+        const category = audioPreparationFailureCategory(error);
+        if (!entry.failureReported && category !== 'cancelled') {
+          entry.failureReported = true;
+          reportClientTelemetry({
+            event: 'observation_audio_failed',
+            stage: 'preparation',
+            failureCategory: category,
+            durationMs: Date.now() - (entry.startedAt ?? Date.now()),
+          });
+        }
         entry.reject(error);
       }).finally(() => {
         clearTimeout(timer);

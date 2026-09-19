@@ -8,6 +8,23 @@ export type QuestionPool = 'seen' | 'unseen';
 export type QuestionKeyboard = 'windows-inscript' | 'mac-standard' | 'chromebook-dictation';
 export type QuestionPhase = 'question' | 'comparison' | 'observation';
 
+export type ClientTelemetryEventName =
+  | 'observation_load_started'
+  | 'observation_audio_failed'
+  | 'observation_render_failed'
+  | 'observation_ready'
+  | 'observation_preparation_waiting'
+  | 'recording_failed';
+
+export interface ClientTelemetryEvent {
+  event: ClientTelemetryEventName;
+  clientId: string;
+  observationId?: string;
+  stage?: string;
+  failureCategory?: string;
+  durationMs?: number;
+}
+
 export interface ProfileEon {
   id: string;
   name: string;

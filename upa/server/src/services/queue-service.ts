@@ -3,10 +3,12 @@ import { db } from '../db/database';
 import type { AcquisitionTriggerKind, ObservationKind, PreparationGroupKind, QuestionKeyboard, QuestionMode, QuestionPool } from '../../../shared/contracts';
 import { selectionEngine } from './selection-engine';
 import { getProfileSelectionSettings } from './selection-settings-service';
+import { logger } from './logger';
 
 interface CountRow { count: number }
 interface MaxRow { max_position: number | null }
 interface MaxAcquisitionRow { max_number: number | null }
+interface QueueCounts { depth: number; pending: number; ready: number; failed: number }
 
 interface SelectionContext {
   triggerKind: AcquisitionTriggerKind;
@@ -52,6 +54,20 @@ function queueCount(profileCode: string): number {
     'SELECT COUNT(*) AS count FROM queue_items WHERE profile_code = ?',
   ).get(profileCode) as CountRow;
   return row.count;
+}
+
+export function getQueueCounts(profileCode: string): QueueCounts {
+  const rows = db.prepare(`
+    SELECT o.status, o.preparation_error, o.preparation_retry_at
+    FROM queue_items q JOIN observations o ON o.id = q.observation_id
+    WHERE q.profile_code = ?
+  `).all(profileCode) as Array<{ status: string; preparation_error: string | null; preparation_retry_at: number | null }>;
+  return {
+    depth: rows.length,
+    pending: rows.filter(row => row.status === 'pending').length,
+    ready: rows.filter(row => row.status === 'ready').length,
+    failed: rows.filter(row => row.preparation_error && row.preparation_retry_at === null).length,
+  };
 }
 
 function nextQueuePosition(profileCode: string): number {
@@ -127,11 +143,14 @@ function appendSelectedObservation(
     const seen = seenRecordingKeys(profileCode);
     const inRequestedPool = (candidate: { sourceId: string; sourceKey: string }) =>
       seen.has(`${candidate.sourceId}\u0000${candidate.sourceKey}`) === (plan.requestedPool === 'seen');
-    selected = seen.size === 0
-      ? selectionEngine.select(settings)
-      : selectionEngine.selectMatching(settings, inRequestedPool)
-        ?? selectionEngine.selectMatching(settings, candidate => !inRequestedPool(candidate))
-        ?? selectionEngine.select(settings);
+    const requested = seen.size === 0 ? undefined : selectionEngine.selectMatching(settings, inRequestedPool);
+    selected = requested
+      ?? (seen.size === 0 ? selectionEngine.select(settings) : selectionEngine.selectMatching(settings, candidate => !inRequestedPool(candidate)))
+      ?? selectionEngine.select(settings);
+    if (!requested) logger.warn('question_pool_fallback', {
+      requestedPool: plan.requestedPool,
+      failureCategory: seen.size === 0 ? 'no-seen-recordings' : 'requested-pool-unavailable',
+    });
   } else {
     selected = selectionEngine.select(settings);
   }
@@ -170,6 +189,14 @@ function appendSelectedObservation(
   );
 
   insertQueue.run(profileCode, queuePosition, observationId);
+  logger.info('observation_selected_and_queued', {
+    observationId,
+    sourceId: selected.sourceId,
+    acquisitionNumber,
+    triggerKind: context.triggerKind,
+    observationKind: plan.kind,
+    ...getQueueCounts(profileCode),
+  });
   return observationId;
 }
 
@@ -181,21 +208,32 @@ export function ensureLaunchQueue(profileCode: string): boolean {
   const groupId = randomUUID();
   const triggeredAt = Date.now();
 
-  db.transaction(() => {
-    for (let index = 0; index < missing; index += 1) {
-      appendSelectedObservation(profileCode, {
-        triggerKind: 'initial-fill',
-        triggeredByObservationId: null,
-        triggeredByHistoryPosition: null,
-        triggeredAt,
-        legacyGroupId: groupId,
-        legacyGroupKind: 'launch-fill',
-        legacyGroupSize: missing,
-        legacyGroupPosition: index + 1,
-      });
-    }
-  })();
+  logger.info('queue_initial_fill_started', { missing, ...getQueueCounts(profileCode) });
+  try {
+    db.transaction(() => {
+      for (let index = 0; index < missing; index += 1) {
+        appendSelectedObservation(profileCode, {
+          triggerKind: 'initial-fill',
+          triggeredByObservationId: null,
+          triggeredByHistoryPosition: null,
+          triggeredAt,
+          legacyGroupId: groupId,
+          legacyGroupKind: 'launch-fill',
+          legacyGroupSize: missing,
+          legacyGroupPosition: index + 1,
+        });
+      }
+    })();
+  } catch (error) {
+    logger.error('queue_transaction_failed', {
+      operation: 'initial-fill',
+      failureCategory: error instanceof Error ? error.name : 'unknown',
+      durationMs: Date.now() - triggeredAt,
+    });
+    throw error;
+  }
 
+  logger.info('queue_initial_fill_completed', { added: missing, durationMs: Date.now() - triggeredAt, ...getQueueCounts(profileCode) });
   return true;
 }
 
@@ -238,13 +276,25 @@ const deleteObservationById = db.prepare(`
 // cascade), leaving history and the currently displayed observation untouched.
 export function clearQueue(profileCode: string): void {
   const queued = selectQueuedObservationIds.all(profileCode) as Array<{ observation_id: string }>;
-  db.transaction(() => {
-    deleteQueueItemsForProfile.run(profileCode);
-    for (const row of queued) deleteObservationById.run(row.observation_id);
-  })();
+  const startedAt = Date.now();
+  try {
+    db.transaction(() => {
+      deleteQueueItemsForProfile.run(profileCode);
+      for (const row of queued) deleteObservationById.run(row.observation_id);
+    })();
+  } catch (error) {
+    logger.error('queue_transaction_failed', {
+      operation: 'reset',
+      failureCategory: error instanceof Error ? error.name : 'unknown',
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
+  logger.info('queue_reset', { removed: queued.length, durationMs: Date.now() - startedAt, ...getQueueCounts(profileCode) });
 }
 
 export function replaceRejectedQueuedObservation(observationId: string): void {
+  const startedAt = Date.now();
   db.transaction(() => {
     const row = db.prepare(`
       SELECT q.profile_code, q.queue_position AS queuePosition,
@@ -258,6 +308,7 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
     `).get(observationId) as (SelectionContext & { profile_code: string; queuePosition: number; acquisitionNumber: number }) | undefined;
     if (!row) {
       if (db.prepare('SELECT 1 FROM queue_items WHERE observation_id = ?').get(observationId)) {
+        logger.error('queue_item_missing_acquisition_metadata', { observationId });
         throw new Error('Queued observation has no acquisition.');
       }
       return;
@@ -265,6 +316,12 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
     deleteObservationById.run(observationId);
     // A rejected reservation never became a display/acquisition. Its successor
     // gets a fresh ID/snapshot but retains the slot, trigger and acquisition number.
-    appendSelectedObservation(row.profile_code, row, row);
+    const replacementId = appendSelectedObservation(row.profile_code, row, row);
+    logger.warn('rejected_observation_replaced', {
+      observationId,
+      replacementObservationId: replacementId,
+      durationMs: Date.now() - startedAt,
+      ...getQueueCounts(row.profile_code),
+    });
   })();
 }

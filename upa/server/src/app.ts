@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { config } from './config/config';
 import { db } from './db/database';
 import { serveAudio } from './services/audio-service';
@@ -40,14 +42,76 @@ import type {
   UpdateSelectionSettingsRequest,
   UpdateQuestionResponseRequest,
   VisibilityRequest,
+  ClientTelemetryEvent,
+  ClientTelemetryEventName,
 } from '../../shared/contracts';
+import { logger, withRequestContext } from './services/logger';
 
 const app = new Hono();
+
+const clientTelemetryEvents = new Set<ClientTelemetryEventName>([
+  'observation_load_started',
+  'observation_audio_failed',
+  'observation_render_failed',
+  'observation_ready',
+  'observation_preparation_waiting',
+  'recording_failed',
+]);
+
+function requestPath(path: string): string {
+  return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');
+}
+
+app.use('/api/*', async (c, next) => {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  return withRequestContext(requestId, async () => {
+    c.header('X-Request-Id', requestId);
+    await next();
+    logger.info('http_request_completed', {
+      method: c.req.method,
+      path: requestPath(c.req.path),
+      status: c.res.status,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+});
 
 sourceRegistry.assertPreparedSourcesPresent();
 migrateLegacyWordImages(db);
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+app.post('/api/client-telemetry', bodyLimit({ maxSize: 4096 }), async (c) => {
+  const origin = c.req.header('origin');
+  if (origin) {
+    try {
+      if (new URL(origin).host !== c.req.header('host')) return c.json({ error: 'invalid-origin' }, 403);
+    } catch {
+      return c.json({ error: 'invalid-origin' }, 403);
+    }
+  }
+  const body: unknown = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'invalid-telemetry' }, 400);
+  const event = body as Partial<ClientTelemetryEvent>;
+  if (!event.event || !clientTelemetryEvents.has(event.event)
+    || typeof event.clientId !== 'string' || !/^[a-f0-9-]{16,64}$/iu.test(event.clientId)
+    || (event.observationId !== undefined && (typeof event.observationId !== 'string' || event.observationId.length > 128))
+    || (event.stage !== undefined && (typeof event.stage !== 'string' || event.stage.length > 64))
+    || (event.failureCategory !== undefined && (typeof event.failureCategory !== 'string' || event.failureCategory.length > 64))
+    || (event.durationMs !== undefined && (!Number.isFinite(event.durationMs) || event.durationMs < 0 || event.durationMs > 3_600_000))) {
+    return c.json({ error: 'invalid-telemetry' }, 400);
+  }
+  logger[event.event.endsWith('_failed') ? 'warn' : 'info'](event.event, {
+    source: 'browser',
+    clientId: event.clientId,
+    ...(event.observationId ? { observationId: event.observationId } : {}),
+    ...(event.stage ? { stage: event.stage } : {}),
+    ...(event.failureCategory ? { failureCategory: event.failureCategory } : {}),
+    ...(event.durationMs !== undefined ? { durationMs: Math.round(event.durationMs) } : {}),
+  });
+  return c.body(null, 204);
+});
 
 app.get('/api/data-sources', (c) =>
   c.json<DataSourcesResponse>({ sources: sourceRegistry.sourceInfo() }),
@@ -156,7 +220,11 @@ app.onError((error, c) => {
     return c.json({ error: 'invalid-export-request' }, 400);
   }
 
-  console.error(error);
+  logger.error('http_request_failed', {
+    method: c.req.method,
+    path: requestPath(c.req.path),
+    failureCategory: error instanceof Error ? error.name : 'unknown',
+  });
   return c.json({ error: 'internal-error' }, 500);
 });
 
@@ -173,5 +241,5 @@ preparationService.kick();
 
 const port = process.env.NODE_ENV === 'production' ? config.port : config.devPort;
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Server listening on http://127.0.0.1:${info.port}`);
+  logger.info('server_started', { port: info.port });
 });

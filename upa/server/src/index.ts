@@ -2,6 +2,7 @@ import { config } from './config/config';
 import { ensureCorpusDatabase } from './services/corpus-object-store';
 import { startAvailabilityRefresh } from './services/availability-refresh-service';
 import { openAvailability, refreshAvailability } from './services/corpus-availability';
+import { logger } from './services/logger';
 
 async function start(): Promise<void> {
   if (config.corpusBackend === 'tigris') await ensureCorpusDatabase();
@@ -32,9 +33,11 @@ async function start(): Promise<void> {
 }
 
 start().catch(error => {
-  console.error(`Corpus startup failed (${error instanceof Error ? error.name : 'Error'}). Check storage configuration and corpus availability.`);
+  logger.fatal('server_startup_failed', {
+    failureCategory: error instanceof Error ? error.name : 'unknown',
+  });
   if (!config.corpusAvailabilityWorkerEnabled && !config.corpusAvailabilityRebuildOnStartup) {
-    console.error('Snapshot-only startup requires an existing compatible availability.sqlite at CORPUS_AVAILABILITY_PATH. To build it, enable CORPUS_AVAILABILITY_WORKER_ENABLED or CORPUS_AVAILABILITY_REBUILD_ON_STARTUP.');
+    logger.fatal('corpus_snapshot_unavailable', { failureCategory: 'missing-or-incompatible-snapshot' });
   }
   process.exitCode = 1;
 });

@@ -17,8 +17,20 @@ import type {
   UpdateSelectionSettingsRequest,
   UpdateQuestionResponseRequest,
   VisibilityRequest,
+  ClientTelemetryEvent,
 } from '../../shared/contracts';
 import type { ProfilePreferences, UpdateProfilePreferences } from '../../shared/appearance';
+
+const telemetryClientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+
+export function reportClientTelemetry(event: Omit<ClientTelemetryEvent, 'clientId'>): void {
+  void fetch('/api/client-telemetry', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...event, clientId: telemetryClientId }),
+    keepalive: true,
+  }).catch(() => {});
+}
 
 export async function getProfilePreferences(code: string): Promise<ProfilePreferences> {
   return parseJson<ProfilePreferences>(await fetch(`/api/profiles/${encodeURIComponent(code)}/preferences`));
