@@ -85,13 +85,14 @@ if (!Number.isSafeInteger(corpusAvailabilityRefreshMs) || corpusAvailabilityRefr
 const databasePath = resolveDataPath(process.env.DATABASE_PATH, 'user/users.sqlite');
 const corpusDatabasePath = resolveDataPath(process.env.CORPUS_DATABASE_PATH, 'corpus/corpus.sqlite');
 const corpusAvailabilityPath = resolveDataPath(process.env.CORPUS_AVAILABILITY_PATH, 'corpus/availability.sqlite');
+const corpusFrequencyPath = resolveDataPath(process.env.CORPUS_FREQUENCY_PATH, 'corpus/frequency.sqlite');
 const audioValidationPath = resolveDataPath(
   process.env.AUDIO_VALIDATION_PATH ?? path.join(path.dirname(corpusAvailabilityPath), 'audio-validation.sqlite'),
   'corpus/audio-validation.sqlite',
 );
 const corpusObjectsPath = resolveDataPath(process.env.CORPUS_OBJECTS_PATH, 'corpus/objects');
-if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioValidationPath]).size !== 4) {
-  throw new Error('User, corpus, availability, and audio validation databases must be separate files.');
+if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, corpusFrequencyPath, audioValidationPath]).size !== 5) {
+  throw new Error('User, corpus, availability, frequency, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
   'fleurs-te': parseUnitInterval(process.env.FLEURS_TE_WEIGHT, 1),
@@ -111,6 +112,7 @@ export const config = {
   databasePath: path.resolve(databasePath),
   corpusDatabasePath: path.resolve(corpusDatabasePath),
   corpusAvailabilityPath: path.resolve(corpusAvailabilityPath),
+  corpusFrequencyPath: path.resolve(corpusFrequencyPath),
   audioValidationPath: path.resolve(audioValidationPath),
   corpusObjectsPath: path.resolve(corpusObjectsPath),
   corpusObjectsPrefix: process.env.CORPUS_OBJECTS_PREFIX ?? 'corpus/objects/',
@@ -119,6 +121,7 @@ export const config = {
   awsRegion: process.env.AWS_REGION ?? 'auto',
   corpusAvailabilityWorkerEnabled: parseBoolean('CORPUS_AVAILABILITY_WORKER_ENABLED', false),
   corpusAvailabilityRebuildOnStartup: parseBoolean('CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', false),
+  corpusFrequencyRebuildOnStartup: parseBoolean('CORPUS_FREQUENCY_REBUILD_ON_STARTUP', false),
   corpusAvailabilityRefreshMs,
   profileCodes: parseProfileCodes(process.env.PROFILE_CODES),
   mockDelayMinMs: parseNonNegativeInt(process.env.MOCK_DELAY_MIN_MS, 1_000),

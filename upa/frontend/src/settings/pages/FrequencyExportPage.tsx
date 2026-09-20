@@ -7,8 +7,6 @@ import type { UiLanguage } from '../types';
 export function FrequencyExportPage({ language }: { language: UiLanguage }) {
   const [available, setAvailable] = useState<number | null>(null);
   const [occurrenceLimit, setOccurrenceLimit] = useState('');
-  const [frequencyLimit, setFrequencyLimit] = useState('');
-  const [complete, setComplete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(false);
 
@@ -24,9 +22,7 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
 
   const exportArchive = async () => {
     const occurrences = Number(occurrenceLimit);
-    const rows = Number(frequencyLimit);
-    if (!Number.isSafeInteger(occurrences) || occurrences <= 0
-      || (!complete && (!Number.isSafeInteger(rows) || rows <= 0))) {
+    if (!Number.isSafeInteger(occurrences) || occurrences <= 0) {
       setError(true);
       return;
     }
@@ -35,7 +31,6 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
     try {
       const artifact = await downloadFrequencyExport({
         occurrenceLimit: occurrences,
-        frequencyLimit: complete ? null : rows,
       });
       downloadPreparedExportArtifact({
         format: 'frequency-zip',
@@ -54,8 +49,8 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
     <div className="frequency-export-page">
       <p>
         {language === 'en'
-          ? 'Count normalized Telugu surface words from a deterministic corpus sample. The ZIP includes frequencies, occurrences, transcripts, sources, and metadata.'
-          : 'నిర్ణీత కార్పస్ నమూనా నుండి సాధారణీకరించిన తెలుగు పద రూపాలను లెక్కించండి. ZIPలో పౌనఃపున్యాలు, సందర్భాలు, ట్రాన్స్‌క్రిప్ట్‌లు, మూలాలు మరియు మెటాడేటా ఉంటాయి.'}
+          ? 'Randomly sample normalized Telugu surface words from the corpus. The ZIP includes the complete frequency list for that sample, occurrences, transcripts, sources, and metadata.'
+          : 'కార్పస్ నుండి సాధారణీకరించిన తెలుగు పద రూపాలను యాదృచ్ఛికంగా నమూనా చేయండి. ZIPలో ఆ నమూనా కోసం పూర్తి పౌనఃపున్య జాబితా, సందర్భాలు, ట్రాన్స్‌క్రిప్ట్‌లు, మూలాలు మరియు మెటాడేటా ఉంటాయి.'}
       </p>
       <label className="frequency-export-field">
         <span>{language === 'en' ? 'Accepted occurrences to process' : 'ప్రాసెస్ చేయాల్సిన ఆమోదించిన సందర్భాలు'}</span>
@@ -84,27 +79,6 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
           ? (language === 'en' ? 'Counting available occurrences…' : 'అందుబాటులో ఉన్న సందర్భాలను లెక్కిస్తోంది…')
           : `${available.toLocaleString(language)} ${language === 'en' ? 'available accepted occurrences' : 'ఆమోదించిన సందర్భాలు అందుబాటులో ఉన్నాయి'}`}
       </small>
-      <label className="frequency-export-field">
-        <span>{language === 'en' ? 'Frequency rows to download' : 'డౌన్‌లోడ్ చేయాల్సిన పౌనఃపున్య వరుసలు'}</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          inputMode="numeric"
-          value={frequencyLimit}
-          disabled={exporting || complete}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setFrequencyLimit(event.target.value)}
-        />
-      </label>
-      <label className="frequency-export-complete">
-        <input
-          type="checkbox"
-          checked={complete}
-          disabled={exporting}
-          onChange={event => setComplete(event.target.checked)}
-        />
-        <span>{language === 'en' ? 'Complete frequency list' : 'పూర్తి పౌనఃపున్య జాబితా'}</span>
-      </label>
       <button className="primary-action" type="button" disabled={exporting || available === null} onClick={() => void exportArchive()}>
         <Download aria-hidden="true" />
         {exporting

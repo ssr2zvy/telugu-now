@@ -328,7 +328,6 @@ export interface FrequencyExportAvailability {
 
 export interface FrequencyExportRequest {
   occurrenceLimit: number;
-  frequencyLimit: number | null;
 }
 
 export interface ExportEntryDiagnostic {

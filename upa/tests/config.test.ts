@@ -11,9 +11,10 @@ const repositoryDirectory = path.dirname(appDirectory);
 const configUrl = new URL('../server/src/config/config.ts', import.meta.url).href;
 const environmentKeys = [
   'DATA_DIRECTORY', 'DATABASE_PATH', 'CORPUS_DATABASE_PATH', 'CORPUS_OBJECTS_PATH',
-  'CORPUS_AVAILABILITY_PATH', 'CORPUS_BACKEND', 'CORPUS_OBJECTS_PREFIX',
+  'CORPUS_AVAILABILITY_PATH', 'CORPUS_FREQUENCY_PATH', 'CORPUS_BACKEND', 'CORPUS_OBJECTS_PREFIX',
   'BUCKET_NAME', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION', 'CORPUS_AVAILABILITY_REFRESH_MS',
   'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP',
+  'CORPUS_FREQUENCY_REBUILD_ON_STARTUP',
 ];
 
 function readConfig(overrides: Record<string, string> = {}, cwd = appDirectory) {
@@ -35,6 +36,7 @@ test('default data layout is repository-relative from unrelated working director
   assert.equal(config.databasePath, path.join(root, 'user/users.sqlite'));
   assert.equal(config.corpusDatabasePath, path.join(root, 'corpus/corpus.sqlite'));
   assert.equal(config.corpusAvailabilityPath, path.join(root, 'corpus/availability.sqlite'));
+  assert.equal(config.corpusFrequencyPath, path.join(root, 'corpus/frequency.sqlite'));
   assert.equal(config.corpusObjectsPath, path.join(root, 'corpus/objects'));
   assert.equal(config.corpusBackend, 'local');
   assert.equal(config.corpusObjectsPrefix, 'corpus/objects/');
@@ -42,6 +44,20 @@ test('default data layout is repository-relative from unrelated working director
   assert.equal(config.corpusAvailabilityRefreshMs, 7_200_000);
   assert.equal(config.corpusAvailabilityWorkerEnabled, false);
   assert.equal(config.corpusAvailabilityRebuildOnStartup, false);
+  assert.equal(config.corpusFrequencyRebuildOnStartup, false);
+});
+
+test('frequency snapshot has an independent rebuild switch', () => {
+  for (const value of ['true', 'false']) {
+    const result = readConfig({ CORPUS_FREQUENCY_REBUILD_ON_STARTUP: value });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).corpusFrequencyRebuildOnStartup, value === 'true');
+  }
+  for (const value of ['', '1', 'yes', 'FALSE']) {
+    const result = readConfig({ CORPUS_FREQUENCY_REBUILD_ON_STARTUP: value });
+    assert.notEqual(result.status, 0);
+    assert.ok(result.stderr.includes('CORPUS_FREQUENCY_REBUILD_ON_STARTUP must be true or false'));
+  }
 });
 
 test('availability switches have backend-independent defaults and explicit boolean overrides', () => {
@@ -80,6 +96,7 @@ test('explicit external data mount and backend overrides do not require control_
     DATABASE_PATH: path.join(root, 'custom-users.sqlite'),
     CORPUS_DATABASE_PATH: path.join(root, 'catalog.sqlite'),
     CORPUS_AVAILABILITY_PATH: path.join(root, 'available.sqlite'),
+    CORPUS_FREQUENCY_PATH: path.join(root, 'frequency-index.sqlite'),
     CORPUS_OBJECTS_PATH: path.join(root, 'audio'),
     CORPUS_BACKEND: 'tigris',
     CORPUS_OBJECTS_PREFIX: 'published/audio/',
@@ -94,6 +111,7 @@ test('explicit external data mount and backend overrides do not require control_
   assert.equal(config.databasePath, path.join(root, 'custom-users.sqlite'));
   assert.equal(config.corpusDatabasePath, path.join(root, 'catalog.sqlite'));
   assert.equal(config.corpusAvailabilityPath, path.join(root, 'available.sqlite'));
+  assert.equal(config.corpusFrequencyPath, path.join(root, 'frequency-index.sqlite'));
   assert.equal(config.corpusObjectsPath, path.join(root, 'audio'));
   assert.equal(config.corpusBackend, 'tigris');
   assert.equal(config.corpusObjectsPrefix, 'published/audio/');

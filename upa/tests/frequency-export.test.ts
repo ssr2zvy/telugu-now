@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { randomInt } from 'node:crypto';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 import {
@@ -9,9 +10,10 @@ import {
   getAvailableFrequencyOccurrences,
   InvalidFrequencyExportRequestError,
 } from '../server/src/services/frequency-export-service';
+import { refreshFrequencyIndex } from '../server/src/services/frequency-index';
 import { clean_word, token_spans } from '../server/src/services/telugu-tokenizer';
 
-function fixture(): { directory: string; databasePath: string } {
+function fixture(): { directory: string; databasePath: string; frequencyPath: string } {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'frequency-export-'));
   const databasePath = path.join(directory, 'corpus.sqlite');
   const database = new Database(databasePath);
@@ -35,7 +37,9 @@ function fixture(): { directory: string; databasePath: string } {
       ('source-a', 'record-1', '😀 తెలుగు తెలుగు 12 abcతెలుగు మాట', 'media/a1.wav', '{"sentenceId":"a-1"}');
   `);
   database.close();
-  return { directory, databasePath };
+  const frequencyPath = `${databasePath}.frequency.sqlite`;
+  refreshFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+  return { directory, databasePath, frequencyPath };
 }
 
 function zipEntries(archive: Uint8Array): Map<string, string> {
@@ -70,28 +74,29 @@ test('Wikipedia-compatible tokenizer keeps Telugu surface forms and original cod
 });
 
 test('frequency ZIP preserves deterministic sample mappings and complete totals', () => {
-  const { directory, databasePath } = fixture();
+  const { directory, databasePath, frequencyPath } = fixture();
   try {
-    assert.equal(getAvailableFrequencyOccurrences(databasePath), 6);
+    assert.equal(getAvailableFrequencyOccurrences({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }), 6);
     const entries = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 4, frequencyLimit: null },
+      { occurrenceLimit: 4 },
       databasePath,
       new Date('2026-09-20T00:00:00.000Z'),
+      () => 0,
+      frequencyPath,
     ));
     assert.deepEqual([...entries.keys()], [
       'frequencies.csv', 'occurrences.csv', 'transcripts.csv', 'sources.csv', 'metadata.json',
     ]);
-    assert.match(entries.get('frequencies.csv')!, /"1","తెలుగు","2"\r\n"2","చివరి","1"\r\n"3","మాట","1"/u);
+    assert.match(entries.get('frequencies.csv')!, /"పదం","1"/u);
     const occurrenceLines = entries.get('occurrences.csv')!.trim().split('\r\n');
     assert.equal(occurrenceLines.length, 5);
-    assert.match(occurrenceLines[1]!, /"1","source-a","record-1","0","2","8","తెలుగు","తెలుగు"/u);
-    assert.match(occurrenceLines[3]!, /"3","source-a","record-1","4","29","32","మాట","మాట"/u);
+    assert.equal(new Set(occurrenceLines.slice(1)).size, 4);
     const metadata = JSON.parse(entries.get('metadata.json')!) as any;
     assert.equal(metadata.counts.availableAcceptedOccurrences, 6);
     assert.equal(metadata.counts.actualProcessedOccurrences, 4);
-    assert.equal(metadata.counts.contributingTranscripts, 2);
-    assert.equal(metadata.counts.fullSampleVocabularySize, 3);
-    assert.equal(metadata.frequencyListComplete, true);
+    assert.equal(metadata.counts.contributingTranscripts, 3);
+    assert.equal(metadata.counts.sampleVocabularySize, 4);
+    assert.equal(metadata.frequencyListCompleteForSample, true);
     assert.equal(metadata.validation.completeFrequencyTotal, 4);
     assert.equal(metadata.validation.occurrenceMappingRows, 4);
     assert.equal(metadata.exportedAt, '2026-09-20T00:00:00.000Z');
@@ -100,22 +105,18 @@ test('frequency ZIP preserves deterministic sample mappings and complete totals'
   }
 });
 
-test('top-X is the exact complete-ranking prefix and oversized samples report actual totals', () => {
-  const { directory, databasePath } = fixture();
+test('oversized samples include every occurrence and every sampled frequency row', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
   try {
     const complete = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 999, frequencyLimit: null }, databasePath,
-    ));
-    const top = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 999, frequencyLimit: 2 }, databasePath,
+      { occurrenceLimit: 999 }, databasePath, new Date(), randomInt, frequencyPath,
     ));
     const completeRows = complete.get('frequencies.csv')!.trim().split('\r\n');
-    const topRows = top.get('frequencies.csv')!.trim().split('\r\n');
-    assert.deepEqual(topRows, completeRows.slice(0, 3));
-    const metadata = JSON.parse(top.get('metadata.json')!) as any;
+    assert.equal(completeRows.length, 6);
+    const metadata = JSON.parse(complete.get('metadata.json')!) as any;
     assert.equal(metadata.counts.actualProcessedOccurrences, 6);
-    assert.equal(metadata.counts.exportedFrequencyRows, 2);
-    assert.equal(metadata.frequencyListComplete, false);
+    assert.equal(metadata.counts.exportedFrequencyRows, 5);
+    assert.equal(metadata.frequencyListCompleteForSample, true);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -123,16 +124,16 @@ test('top-X is the exact complete-ranking prefix and oversized samples report ac
 
 test('frequency export rejects non-positive and non-integer limits', () => {
   assert.throws(
-    () => generateFrequencyExport({ occurrenceLimit: 0, frequencyLimit: 1 }, 'unused'),
+    () => generateFrequencyExport({ occurrenceLimit: 0 }, 'unused'),
     InvalidFrequencyExportRequestError,
   );
   assert.throws(
-    () => generateFrequencyExport({ occurrenceLimit: 1, frequencyLimit: 1.5 }, 'unused'),
+    () => generateFrequencyExport({ occurrenceLimit: 1.5 }, 'unused'),
     InvalidFrequencyExportRequestError,
   );
 });
 
-test('settings expose occurrence sampling separately from frequency row truncation', () => {
+test('settings expose one occurrence sampling control', () => {
   const root = path.resolve(import.meta.dirname, '..');
   const navigation = fs.readFileSync(path.join(root, 'frontend/src/settings/navigation.ts'), 'utf8');
   const view = fs.readFileSync(path.join(root, 'frontend/src/settings/SettingsView.tsx'), 'utf8');
@@ -140,6 +141,6 @@ test('settings expose occurrence sampling separately from frequency row truncati
   assert.match(navigation, /'frequencyExport'/u);
   assert.match(view, /<FrequencyExportPage language=\{language\}/u);
   assert.match(page, /setOccurrenceLimit\(String\(available\)\)/u);
-  assert.match(page, /frequencyLimit: complete \? null : rows/u);
+  assert.doesNotMatch(page, /frequencyLimit/u);
   assert.match(page, /downloadFrequencyExport/u);
 });

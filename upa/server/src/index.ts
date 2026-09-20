@@ -3,9 +3,17 @@ import { ensureCorpusDatabase } from './services/corpus-object-store';
 import { startAvailabilityRefresh } from './services/availability-refresh-service';
 import { openAvailability, refreshAvailability } from './services/corpus-availability';
 import { errorCategory, logger } from './services/logger';
+import { openFrequencyIndex, refreshFrequencyIndex } from './services/frequency-index';
 
 async function start(): Promise<void> {
   if (config.corpusBackend === 'tigris') await ensureCorpusDatabase();
+  if (config.corpusFrequencyRebuildOnStartup) {
+    refreshFrequencyIndex();
+  } else {
+    const frequency = openFrequencyIndex();
+    if (!frequency) throw new Error('CORPUS_FREQUENCY_MISSING_OR_INCOMPATIBLE');
+    frequency.close();
+  }
   if (!config.corpusAvailabilityWorkerEnabled) {
     if (config.corpusAvailabilityRebuildOnStartup) {
       await refreshAvailability();

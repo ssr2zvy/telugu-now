@@ -142,8 +142,6 @@
 .frequency-export-input input { min-width: 0; text-align: right; }
 .frequency-export-input .secondary-action { min-height: 40px; padding-block: 6px; }
 .frequency-export-available { margin-top: -14px; color: var(--muted); font-size: .72rem; }
-.frequency-export-complete { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
-.frequency-export-complete input { width: 20px; height: 20px; }
 .export-count { display: grid; grid-template-columns: minmax(0, 1fr) 88px; align-items: center; gap: 20px; min-height: 64px; font-size: .9rem; }
 .export-page input { text-align: right; }
 .export-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }

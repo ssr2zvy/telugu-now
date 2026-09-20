@@ -13,10 +13,13 @@ primary_region = "iad"
   DATA_DIRECTORY = "/data"
   CORPUS_DATABASE_PATH = "/data/corpus/corpus.sqlite"
   CORPUS_AVAILABILITY_PATH = "/data/corpus/availability.sqlite"
+  CORPUS_FREQUENCY_PATH = "/data/corpus/frequency.sqlite"
   CORPUS_OBJECTS_PREFIX = "corpus/objects/"
   # Rebuild availability from Tigris before serving, without a background worker.
   CORPUS_AVAILABILITY_WORKER_ENABLED = "false"
   CORPUS_AVAILABILITY_REBUILD_ON_STARTUP = "true"
+  # Rebuild the independently persisted word-occurrence index before serving.
+  CORPUS_FREQUENCY_REBUILD_ON_STARTUP = "true"
   CORPUS_AVAILABILITY_REFRESH_MS = "7200000"
   AWS_ENDPOINT_URL_S3 = "https://fly.storage.tigris.dev"
   AWS_REGION = "auto"
