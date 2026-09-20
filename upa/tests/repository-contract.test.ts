@@ -394,7 +394,7 @@ test('Settings routes import, export, controls, and deployment information indep
   for (const page of ['export', 'import', 'controlsGuide', 'about']) {
     assert.ok(settingsView.includes(`if (page === '${page}')`), `${page} needs an explicit route`);
   }
-  assert.match(navigation, /'export', 'import', 'controlsGuide', 'about'/);
+  assert.match(navigation, /'export', 'frequencyExport', 'import', 'controlsGuide', 'about'/);
   assert.doesNotMatch(exportPage, /importAppArchive|type="file"/);
   assert.match(importPage, /importAppArchive\(file\)/);
   assert.match(importPage, /type="file"/);

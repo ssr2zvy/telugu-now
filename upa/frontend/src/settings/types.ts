@@ -20,6 +20,7 @@ export type SettingsPage =
   | 'dataSources'
   | 'blacklist'
   | 'export'
+  | 'frequencyExport'
   | 'import'
   | 'controlsGuide'
   | 'about';
