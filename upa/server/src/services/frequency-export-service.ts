@@ -69,8 +69,11 @@ function metadataValue(json: string, names: readonly string[]): string | null {
 }
 
 function validateRequest(request: FrequencyExportRequest): void {
-  if (!Number.isSafeInteger(request.occurrenceLimit) || request.occurrenceLimit <= 0) {
-    throw new InvalidFrequencyExportRequestError('Occurrence limit must be a positive integer.');
+  if (!Number.isSafeInteger(request.occurrenceLimit) || request.occurrenceLimit <= 0
+    || request.occurrenceLimit > config.maxFrequencyExportOccurrences) {
+    throw new InvalidFrequencyExportRequestError(
+      `Occurrence limit must be an integer from 1 through ${config.maxFrequencyExportOccurrences}.`,
+    );
   }
 }
 

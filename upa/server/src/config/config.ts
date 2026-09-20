@@ -140,6 +140,10 @@ export const config = {
     return parsed >= 0.1 && parsed <= 1.5 ? parsed : 1;
   })(),
   maxExportCount: Math.max(1, parseNonNegativeInt(process.env.MAX_EXPORT_COUNT, 500)),
+  maxFrequencyExportOccurrences: Math.max(
+    1,
+    parseNonNegativeInt(process.env.MAX_FREQUENCY_EXPORT_OCCURRENCES, 50_000),
+  ),
 };
 
 if (config.mockDelayMaxMs < config.mockDelayMinMs) {
