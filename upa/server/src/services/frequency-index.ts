@@ -182,7 +182,12 @@ export function ensureFrequencyIndex(
   rebuildIfMissing = false,
 ): void {
   removeStaleFrequencyIndexes(options);
-  const existing = openFrequencyIndex(options);
+  let existing: Database.Database | null = null;
+  try {
+    existing = openFrequencyIndex(options);
+  } catch (error) {
+    if (!rebuildIfMissing) throw error;
+  }
   if (existing) {
     existing.close();
     return;

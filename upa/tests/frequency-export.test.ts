@@ -143,6 +143,25 @@ test('frequency startup reuses a compatible snapshot and removes interrupted bui
   }
 });
 
+test('frequency startup replaces a corrupt snapshot when rebuilding is enabled', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    fs.writeFileSync(frequencyPath, 'not sqlite');
+    assert.throws(
+      () => ensureFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }),
+    );
+
+    ensureFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }, true);
+
+    const rebuilt = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+    assert.ok(rebuilt);
+    assert.equal(rebuilt.prepare('SELECT total_occurrences FROM metadata').pluck().get(), 6);
+    rebuilt.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('frequency ZIP preserves deterministic sample mappings and complete totals', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
