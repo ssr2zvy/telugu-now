@@ -45,6 +45,7 @@ export function SettingsIndex({
     display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
     eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     export: 'EPUB / HTML',
+    frequencyExport: language === 'en' ? 'Surface-word frequencies and occurrence mapping' : 'పద పౌనఃపున్యాలు మరియు సందర్భాల వివరాలు',
     import: language === 'en' ? 'Restore an app archive' : 'యాప్ ఆర్కైవ్‌ను పునరుద్ధరించండి',
     controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',
     about: language === 'en' ? 'Build and deployment information' : 'బిల్డ్ మరియు అమలు సమాచారం',

@@ -19,6 +19,7 @@ import { QueueViewPage } from './pages/QueueViewPage';
 import { ImportPage } from './pages/ImportPage';
 import { ControlsGuidePage } from './pages/ControlsGuidePage';
 import { AboutPage } from './pages/AboutPage';
+import { FrequencyExportPage } from './pages/FrequencyExportPage';
 interface SettingsViewProps {
   state: ProfileStateResponse;
   controller: SettingsController;
@@ -177,6 +178,13 @@ export function SettingsView({
           onCancelFormatChoice={controller.cancelFormatChoice}
           onChooseFormat={(format) => void controller.chooseExportFormat(format)}
         />
+      </SettingsShell>
+    );
+  }
+  if (page === 'frequencyExport') {
+    return (
+      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+        <FrequencyExportPage language={language} />
       </SettingsShell>
     );
   }

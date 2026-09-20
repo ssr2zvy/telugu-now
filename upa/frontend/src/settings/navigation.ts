@@ -5,7 +5,7 @@ import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Dow
 
 export const settingsPageIcons = {
   index: SlidersHorizontal, sampling: SlidersHorizontal, diagnostic: Activity,
-  display: Palette, export: Download, import: Upload, reset: RotateCcw, complexity: ChartNoAxesCombined,
+  display: Palette, export: Download, frequencyExport: ListOrdered, import: Upload, reset: RotateCcw, complexity: ChartNoAxesCombined,
   sources: Layers, dataSources: Database, trigger: Workflow, source: Database,
   complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
   images: Image, eons: History, blacklist: Ban,
@@ -17,7 +17,7 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
-  index: ['sampling', 'diagnostic', 'display', 'eons', 'blacklist', 'export', 'import', 'controlsGuide', 'about', 'reset'],
+  index: ['sampling', 'diagnostic', 'display', 'eons', 'blacklist', 'export', 'frequencyExport', 'import', 'controlsGuide', 'about', 'reset'],
   sampling: ['questions', 'complexity', 'sources', 'dataSources'],
   diagnostic: ['queue', 'questionInfo', 'trigger', 'source', 'complexityInfo', 'global'],
   display: ['playback', 'appearance', 'images'],
@@ -38,6 +38,7 @@ export function settingsPageLabel(page: SettingsPage, language: UiLanguage): str
   if (page === 'blacklist') return language === 'en' ? 'Blacklist' : 'బ్లాక్‌లిస్ట్';
   if (page === 'queue') return language === 'en' ? 'View the Queue' : 'క్యూను చూడండి';
   if (page === 'import') return language === 'en' ? 'Import' : 'దిగుమతి';
+  if (page === 'frequencyExport') return language === 'en' ? 'Frequency Export' : 'పద పౌనఃపున్య ఎగుమతి';
   if (page === 'controlsGuide') return language === 'en' ? 'Controls Guide' : 'నియంత్రణల మార్గదర్శి';
   if (page === 'about') return language === 'en' ? 'Version & Deployment' : 'వెర్షన్ మరియు అమలు';
   if (page === 'questionInfo') return diagnosticSectionLabel(language, 'questions');

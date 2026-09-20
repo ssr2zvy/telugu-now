@@ -1,4 +1,4 @@
-export type ExportFormat = 'html' | 'epub' | 'app-archive';
+export type ExportFormat = 'html' | 'epub' | 'app-archive' | 'frequency-zip';
 export interface PreparedExportArtifact {
   format: ExportFormat;
   blob: Blob;
