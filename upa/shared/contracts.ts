@@ -323,6 +323,7 @@ export interface ExportRequest {
 
 export interface FrequencyExportAvailability {
   availableAcceptedOccurrences: number;
+  maximumExportOccurrences: number;
   tokenizerVersion: string;
 }
 

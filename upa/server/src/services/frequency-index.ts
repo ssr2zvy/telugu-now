@@ -10,6 +10,18 @@ export interface FrequencyIndexOptions {
   corpusFrequencyPath: string;
 }
 
+function removeStaleFrequencyIndexes(options: FrequencyIndexOptions): void {
+  const directory = path.dirname(options.corpusFrequencyPath);
+  if (!fs.existsSync(directory)) return;
+  const prefix = `${path.basename(options.corpusFrequencyPath)}.`;
+  const stagedSuffix = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pending(?:-(?:journal|wal|shm))?$/iu;
+  for (const name of fs.readdirSync(directory)) {
+    if (name.startsWith(prefix) && stagedSuffix.test(name.slice(prefix.length))) {
+      fs.rmSync(path.join(directory, name), { force: true });
+    }
+  }
+}
+
 export function frequencyIndexIdentity(options: FrequencyIndexOptions): string {
   const stat = fs.statSync(options.corpusDatabasePath);
   return JSON.stringify({
@@ -57,6 +69,7 @@ export function refreshFrequencyIndex(options: FrequencyIndexOptions = config): 
   }
   const identity = frequencyIndexIdentity(options);
   fs.mkdirSync(path.dirname(options.corpusFrequencyPath), { recursive: true });
+  removeStaleFrequencyIndexes(options);
   const generation = randomUUID();
   const staged = `${options.corpusFrequencyPath}.${generation}.pending`;
   const canonical = new Database(options.corpusDatabasePath, { readonly: true, fileMustExist: true });
@@ -162,4 +175,23 @@ export function refreshFrequencyIndex(options: FrequencyIndexOptions = config): 
     canonical.close();
     for (const suffix of ['', '-journal', '-wal', '-shm']) fs.rmSync(staged + suffix, { force: true });
   }
+}
+
+export function ensureFrequencyIndex(
+  options: FrequencyIndexOptions = config,
+  rebuildIfMissing = false,
+): void {
+  removeStaleFrequencyIndexes(options);
+  let existing: Database.Database | null = null;
+  try {
+    existing = openFrequencyIndex(options);
+  } catch (error) {
+    if (!rebuildIfMissing) throw error;
+  }
+  if (existing) {
+    existing.close();
+    return;
+  }
+  if (!rebuildIfMissing) throw new Error('CORPUS_FREQUENCY_MISSING_OR_INCOMPATIBLE');
+  refreshFrequencyIndex(options);
 }

@@ -6,6 +6,7 @@ import type { UiLanguage } from '../types';
 
 export function FrequencyExportPage({ language }: { language: UiLanguage }) {
   const [available, setAvailable] = useState<number | null>(null);
+  const [maximum, setMaximum] = useState<number | null>(null);
   const [occurrenceLimit, setOccurrenceLimit] = useState('');
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(false);
@@ -13,7 +14,10 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
   useEffect(() => {
     const controller = new AbortController();
     void getFrequencyExportAvailability(controller.signal)
-      .then(result => setAvailable(result.availableAcceptedOccurrences))
+      .then(result => {
+        setAvailable(result.availableAcceptedOccurrences);
+        setMaximum(result.maximumExportOccurrences);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setError(true);
       });
@@ -22,7 +26,8 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
 
   const exportArchive = async () => {
     const occurrences = Number(occurrenceLimit);
-    if (!Number.isSafeInteger(occurrences) || occurrences <= 0) {
+    if (!Number.isSafeInteger(occurrences) || occurrences <= 0
+      || maximum === null || occurrences > maximum) {
       setError(true);
       return;
     }
@@ -58,6 +63,7 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
           <input
             type="number"
             min="1"
+            max={maximum ?? undefined}
             step="1"
             inputMode="numeric"
             value={occurrenceLimit}
@@ -68,7 +74,7 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
             type="button"
             className="secondary-action"
             disabled={exporting || available === null || available === 0}
-            onClick={() => setOccurrenceLimit(String(available))}
+            onClick={() => setOccurrenceLimit(String(Math.min(available ?? 0, maximum ?? 0)))}
           >
             {language === 'en' ? 'All' : 'అన్నీ'}
           </button>
@@ -77,7 +83,9 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
       <small className="frequency-export-available">
         {available === null
           ? (language === 'en' ? 'Counting available occurrences…' : 'అందుబాటులో ఉన్న సందర్భాలను లెక్కిస్తోంది…')
-          : `${available.toLocaleString(language)} ${language === 'en' ? 'available accepted occurrences' : 'ఆమోదించిన సందర్భాలు అందుబాటులో ఉన్నాయి'}`}
+          : `${available.toLocaleString(language)} ${language === 'en' ? 'available accepted occurrences' : 'ఆమోదించిన సందర్భాలు అందుబాటులో ఉన్నాయి'}; ${
+            language === 'en' ? 'maximum per export' : 'ఒక్కో ఎగుమతికి గరిష్ఠం'
+          } ${(maximum ?? 0).toLocaleString(language)}`}
       </small>
       <button className="primary-action" type="button" disabled={exporting || available === null} onClick={() => void exportArchive()}>
         <Download aria-hidden="true" />

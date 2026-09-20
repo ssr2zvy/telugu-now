@@ -673,10 +673,13 @@ Changing these settings does not create buckets, upload audio, or provision infr
 
 Frequency exports use a separate `frequency.sqlite` snapshot containing every
 accepted Telugu surface-word occurrence and its transcript location. Set
-`CORPUS_FREQUENCY_REBUILD_ON_STARTUP=true` to rebuild it from `corpus.sqlite`
-before serving. When false, startup requires an existing compatible snapshot at
-`CORPUS_FREQUENCY_PATH` and performs no frequency tokenization. This lifecycle is
-independent of the availability worker and rebuild settings.
+`CORPUS_FREQUENCY_REBUILD_ON_STARTUP=true` to build it from `corpus.sqlite` when
+an existing compatible snapshot is unavailable. Compatible snapshots are reused
+and stale interrupted-build files are removed. When false, startup requires an
+existing compatible snapshot at `CORPUS_FREQUENCY_PATH`. Frequency export requests
+are limited by `MAX_FREQUENCY_EXPORT_OCCURRENCES` (default `50000`) to protect
+server memory. This lifecycle is independent of the availability worker and
+rebuild settings.
 
 On the first Tigris startup, a missing `corpus/corpus.sqlite` is streamed from that
 bucket key into a sibling staging file, checked for SQLite integrity and the
@@ -937,6 +940,7 @@ CORPUS_BACKEND=local
 CORPUS_AVAILABILITY_WORKER_ENABLED=false
 CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false
 CORPUS_FREQUENCY_REBUILD_ON_STARTUP=false
+MAX_FREQUENCY_EXPORT_OCCURRENCES=50000
 CORPUS_AVAILABILITY_REFRESH_MS=7200000
 CORPUS_OBJECTS_PREFIX=corpus/objects/
 AWS_REGION=auto

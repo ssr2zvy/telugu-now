@@ -10,7 +10,12 @@ import {
   getAvailableFrequencyOccurrences,
   InvalidFrequencyExportRequestError,
 } from '../server/src/services/frequency-export-service';
-import { openFrequencyIndex, refreshFrequencyIndex } from '../server/src/services/frequency-index';
+import {
+  ensureFrequencyIndex,
+  openFrequencyIndex,
+  refreshFrequencyIndex,
+} from '../server/src/services/frequency-index';
+import { config } from '../server/src/config/config';
 import { clean_word, token_spans } from '../server/src/services/telugu-tokenizer';
 
 function fixture(): { directory: string; databasePath: string; frequencyPath: string } {
@@ -116,6 +121,47 @@ test('frequency snapshot rejects a replaced canonical database even with preserv
   }
 });
 
+test('frequency startup reuses a compatible snapshot and removes interrupted builds', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    const index = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+    assert.ok(index);
+    const generation = index.prepare('SELECT generation FROM metadata').pluck().get();
+    index.close();
+    const stale = `${frequencyPath}.00000000-0000-4000-8000-000000000000.pending`;
+    fs.writeFileSync(stale, 'stale');
+
+    ensureFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }, true);
+
+    assert.equal(fs.existsSync(stale), false);
+    const reused = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+    assert.ok(reused);
+    assert.equal(reused.prepare('SELECT generation FROM metadata').pluck().get(), generation);
+    reused.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('frequency startup replaces a corrupt snapshot when rebuilding is enabled', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    fs.writeFileSync(frequencyPath, 'not sqlite');
+    assert.throws(
+      () => ensureFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }),
+    );
+
+    ensureFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }, true);
+
+    const rebuilt = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+    assert.ok(rebuilt);
+    assert.equal(rebuilt.prepare('SELECT total_occurrences FROM metadata').pluck().get(), 6);
+    rebuilt.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('frequency ZIP preserves deterministic sample mappings and complete totals', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
@@ -185,13 +231,17 @@ test('occurrence limits select a random sample without replacement', () => {
   }
 });
 
-test('frequency export rejects non-positive and non-integer limits', () => {
+test('frequency export rejects invalid and memory-unsafe limits', () => {
   assert.throws(
     () => generateFrequencyExport({ occurrenceLimit: 0 }, 'unused'),
     InvalidFrequencyExportRequestError,
   );
   assert.throws(
     () => generateFrequencyExport({ occurrenceLimit: 1.5 }, 'unused'),
+    InvalidFrequencyExportRequestError,
+  );
+  assert.throws(
+    () => generateFrequencyExport({ occurrenceLimit: config.maxFrequencyExportOccurrences + 1 }, 'unused'),
     InvalidFrequencyExportRequestError,
   );
 });
@@ -203,7 +253,7 @@ test('settings expose one occurrence sampling control', () => {
   const page = fs.readFileSync(path.join(root, 'frontend/src/settings/pages/FrequencyExportPage.tsx'), 'utf8');
   assert.match(navigation, /'frequencyExport'/u);
   assert.match(view, /<FrequencyExportPage language=\{language\}/u);
-  assert.match(page, /setOccurrenceLimit\(String\(available\)\)/u);
+  assert.match(page, /Math\.min\(available \?\? 0, maximum \?\? 0\)/u);
   assert.doesNotMatch(page, /frequencyLimit/u);
   assert.match(page, /downloadFrequencyExport/u);
 });

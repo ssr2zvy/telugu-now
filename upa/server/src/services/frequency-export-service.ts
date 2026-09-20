@@ -69,8 +69,11 @@ function metadataValue(json: string, names: readonly string[]): string | null {
 }
 
 function validateRequest(request: FrequencyExportRequest): void {
-  if (!Number.isSafeInteger(request.occurrenceLimit) || request.occurrenceLimit <= 0) {
-    throw new InvalidFrequencyExportRequestError('Occurrence limit must be a positive integer.');
+  if (!Number.isSafeInteger(request.occurrenceLimit) || request.occurrenceLimit <= 0
+    || request.occurrenceLimit > config.maxFrequencyExportOccurrences) {
+    throw new InvalidFrequencyExportRequestError(
+      `Occurrence limit must be an integer from 1 through ${config.maxFrequencyExportOccurrences}.`,
+    );
   }
 }
 
@@ -133,7 +136,7 @@ export function generateFrequencyExport(
   random: RandomIndex = randomInt,
   frequencyPath = databasePath === config.corpusDatabasePath
     ? config.corpusFrequencyPath : `${databasePath}.frequency.sqlite`,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
   validateRequest(request);
   const frequency = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
   if (!frequency) throw new Error('CORPUS_FREQUENCY_MISSING_OR_INCOMPATIBLE');

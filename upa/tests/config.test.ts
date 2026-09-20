@@ -15,6 +15,7 @@ const environmentKeys = [
   'BUCKET_NAME', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION', 'CORPUS_AVAILABILITY_REFRESH_MS',
   'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP',
   'CORPUS_FREQUENCY_REBUILD_ON_STARTUP',
+  'MAX_FREQUENCY_EXPORT_OCCURRENCES',
 ];
 
 function readConfig(overrides: Record<string, string> = {}, cwd = appDirectory) {
@@ -45,6 +46,7 @@ test('default data layout is repository-relative from unrelated working director
   assert.equal(config.corpusAvailabilityWorkerEnabled, false);
   assert.equal(config.corpusAvailabilityRebuildOnStartup, false);
   assert.equal(config.corpusFrequencyRebuildOnStartup, false);
+  assert.equal(config.maxFrequencyExportOccurrences, 50_000);
 });
 
 test('frequency snapshot has an independent rebuild switch', () => {

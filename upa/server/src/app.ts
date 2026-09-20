@@ -183,15 +183,15 @@ app.post('/api/profiles/:code/export', async (c) => {
 
 app.get('/api/frequency-export/availability', (c) => c.json({
   availableAcceptedOccurrences: getAvailableFrequencyOccurrences(),
+  maximumExportOccurrences: config.maxFrequencyExportOccurrences,
   tokenizerVersion: TOKENIZER_VERSION,
 }));
 
 app.post('/api/frequency-export', async (c) => {
   const body = await c.req.json<FrequencyExportRequest>();
   const archive = generateFrequencyExport(body);
-  const responseBody = Uint8Array.from(archive);
   const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
-  return c.body(responseBody, 200, {
+  return c.body(archive, 200, {
     'Content-Type': 'application/zip',
     'Content-Disposition': `attachment; filename="telugu-frequency-export-${timestamp}.zip"`,
     'Content-Length': String(archive.byteLength),
