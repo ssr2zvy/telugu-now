@@ -207,9 +207,9 @@ A single-Machine rollout may briefly interrupt service.
 
 The entrypoint prepares mounted directories, drops root privileges with `gosu`,
 and executes the Node server. The server reuses an existing `corpus.sqlite`
-(downloads it from Tigris only if missing) and rebuilds `availability.sqlite`
-from Tigris inventory before serving, with the background availability worker
-disabled. Fly monitors the `/api/health` check during deployment.
+(downloads it from Tigris only if missing), rebuilds `availability.sqlite` from
+Tigris inventory, and independently rebuilds the volume-backed `frequency.sqlite`
+word-occurrence index before serving. Fly monitors the `/api/health` check during deployment.
 
 The app is served at https://telugu-now.fly.dev/. Deployment failures surface
 as a failed script; a failed rollout can have already modified remote

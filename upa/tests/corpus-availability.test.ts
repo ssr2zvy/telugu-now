@@ -295,6 +295,8 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
       CORPUS_BACKEND: backend, CORPUS_AVAILABILITY_REFRESH_MS: '100',
       CORPUS_AVAILABILITY_WORKER_ENABLED: String(workerEnabled),
       CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: String(rebuildOnStartup),
+      CORPUS_FREQUENCY_PATH: path.join(path.dirname(options.corpusDatabasePath), 'frequency.sqlite'),
+      CORPUS_FREQUENCY_REBUILD_ON_STARTUP: 'true',
       ...(backend === 'tigris' ? {
         AWS_ENDPOINT_URL_S3: endpoint, AWS_REGION: 'us-east-1', BUCKET_NAME: 'test',
         CORPUS_OBJECTS_PREFIX: 'corpus/objects/',
