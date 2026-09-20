@@ -258,6 +258,6 @@ export async function downloadFrequencyExport(request: FrequencyExportRequest): 
   });
   if (!response.ok) throw new Error(String(response.status));
   const disposition = response.headers.get('content-disposition') ?? '';
-  const fileName = /filename="([^"]+)"/u.exec(disposition)?.[1] ?? 'telugu-frequency-export.zip';
+  const fileName = /filename="([^"]+)"/u.exec(disposition)?.[1] ?? 'telugu-frequency-export.csv';
   return { blob: await response.blob(), fileName };
 }

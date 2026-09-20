@@ -192,8 +192,8 @@ app.post('/api/frequency-export', async (c) => {
   const archive = generateFrequencyExport(body);
   const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
   return c.body(archive, 200, {
-    'Content-Type': 'application/zip',
-    'Content-Disposition': `attachment; filename="telugu-frequency-export-${timestamp}.zip"`,
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="telugu-frequency-export-${timestamp}.csv"`,
     'Content-Length': String(archive.byteLength),
   });
 });

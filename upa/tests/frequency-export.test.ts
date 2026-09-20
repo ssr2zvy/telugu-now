@@ -47,22 +47,10 @@ function fixture(): { directory: string; databasePath: string; frequencyPath: st
   return { directory, databasePath, frequencyPath };
 }
 
-function zipEntries(archive: Uint8Array): Map<string, string> {
-  const entries = new Map<string, string>();
-  const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
-  let offset = 0;
-  while (view.getUint32(offset, true) === 0x04034b50) {
-    const size = view.getUint32(offset + 18, true);
-    const nameLength = view.getUint16(offset + 26, true);
-    const extraLength = view.getUint16(offset + 28, true);
-    const nameStart = offset + 30;
-    const dataStart = nameStart + nameLength + extraLength;
-    const name = new TextDecoder().decode(archive.subarray(nameStart, nameStart + nameLength));
-    entries.set(name, new TextDecoder().decode(archive.subarray(dataStart, dataStart + size)));
-    offset = dataStart + size;
-  }
-  return entries;
+function csvRows(csv: Uint8Array): string[] {
+  return new TextDecoder().decode(csv).replace(/^\uFEFF/u, '').trim().split('\r\n');
 }
+
 
 test('Wikipedia-compatible tokenizer keeps Telugu surface forms and original code-point offsets', () => {
   const spans = token_spans('😀 తెలుగు 12 abcతెలుగు మాట');
@@ -162,33 +150,21 @@ test('frequency startup replaces a corrupt snapshot when rebuilding is enabled',
   }
 });
 
-test('frequency ZIP preserves deterministic sample mappings and complete totals', () => {
+test('frequency CSV preserves deterministic sample mappings and complete totals', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
     assert.equal(getAvailableFrequencyOccurrences({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }), 6);
-    const entries = zipEntries(generateFrequencyExport(
+    const rows = csvRows(generateFrequencyExport(
       { occurrenceLimit: 4 },
       databasePath,
-      new Date('2026-09-20T00:00:00.000Z'),
       () => 0,
       frequencyPath,
     ));
-    assert.deepEqual([...entries.keys()], [
-      'frequencies.csv', 'occurrences.csv', 'transcripts.csv', 'sources.csv', 'metadata.json',
-    ]);
-    assert.match(entries.get('frequencies.csv')!, /"పదం","1"/u);
-    const occurrenceLines = entries.get('occurrences.csv')!.trim().split('\r\n');
-    assert.equal(occurrenceLines.length, 5);
-    assert.equal(new Set(occurrenceLines.slice(1)).size, 4);
-    const metadata = JSON.parse(entries.get('metadata.json')!) as any;
-    assert.equal(metadata.counts.availableAcceptedOccurrences, 6);
-    assert.equal(metadata.counts.actualProcessedOccurrences, 4);
-    assert.equal(metadata.counts.contributingTranscripts, 3);
-    assert.equal(metadata.counts.sampleVocabularySize, 4);
-    assert.equal(metadata.frequencyListCompleteForSample, true);
-    assert.equal(metadata.validation.completeFrequencyTotal, 4);
-    assert.equal(metadata.validation.occurrenceMappingRows, 4);
-    assert.equal(metadata.exportedAt, '2026-09-20T00:00:00.000Z');
+    assert.deepEqual(rows[0], '"word","frequency"');
+    assert.equal(rows.length, 1 + 4);
+    assert.match(rows.join('\n'), /"పదం","1"/u);
+    const total = rows.slice(1).reduce((sum, row) => sum + Number(row.split(',')[1]!.replaceAll('"', '')), 0);
+    assert.equal(total, 4);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -197,15 +173,10 @@ test('frequency ZIP preserves deterministic sample mappings and complete totals'
 test('oversized samples include every occurrence and every sampled frequency row', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
-    const complete = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 999 }, databasePath, new Date(), randomInt, frequencyPath,
+    const rows = csvRows(generateFrequencyExport(
+      { occurrenceLimit: 999 }, databasePath, randomInt, frequencyPath,
     ));
-    const completeRows = complete.get('frequencies.csv')!.trim().split('\r\n');
-    assert.equal(completeRows.length, 6);
-    const metadata = JSON.parse(complete.get('metadata.json')!) as any;
-    assert.equal(metadata.counts.actualProcessedOccurrences, 6);
-    assert.equal(metadata.counts.exportedFrequencyRows, 5);
-    assert.equal(metadata.frequencyListCompleteForSample, true);
+    assert.equal(rows.length, 1 + 5);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -214,17 +185,16 @@ test('oversized samples include every occurrence and every sampled frequency row
 test('occurrence limits select a random sample without replacement', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
-    const low = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 2 }, databasePath, new Date(), () => 0, frequencyPath,
-    )).get('occurrences.csv');
-    const high = zipEntries(generateFrequencyExport(
-      { occurrenceLimit: 2 }, databasePath, new Date(), maximum => maximum - 1, frequencyPath,
-    )).get('occurrences.csv');
-    assert.notEqual(low, high);
-    for (const output of [low!, high!]) {
-      const rows = output.trim().split('\r\n').slice(1);
-      assert.equal(rows.length, 2);
-      assert.equal(new Set(rows).size, 2);
+    const low = csvRows(generateFrequencyExport(
+      { occurrenceLimit: 2 }, databasePath, () => 0, frequencyPath,
+    )).slice(1);
+    const high = csvRows(generateFrequencyExport(
+      { occurrenceLimit: 2 }, databasePath, maximum => maximum - 1, frequencyPath,
+    )).slice(1);
+    assert.notDeepEqual(low, high);
+    for (const rows of [low, high]) {
+      const total = rows.reduce((sum, row) => sum + Number(row.split(',')[1]!.replaceAll('"', '')), 0);
+      assert.equal(total, 2);
     }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

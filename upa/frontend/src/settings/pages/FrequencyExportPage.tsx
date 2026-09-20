@@ -38,7 +38,7 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
         occurrenceLimit: occurrences,
       });
       downloadPreparedExportArtifact({
-        format: 'frequency-zip',
+        format: 'frequency-csv',
         blob: artifact.blob,
         fileName: artifact.fileName,
         entryCount: Math.min(occurrences, available ?? occurrences),
@@ -54,8 +54,8 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
     <div className="frequency-export-page">
       <p>
         {language === 'en'
-          ? 'Randomly sample normalized Telugu surface words from the corpus. The ZIP includes the complete frequency list for that sample, occurrences, transcripts, sources, and metadata.'
-          : 'కార్పస్ నుండి సాధారణీకరించిన తెలుగు పద రూపాలను యాదృచ్ఛికంగా నమూనా చేయండి. ZIPలో ఆ నమూనా కోసం పూర్తి పౌనఃపున్య జాబితా, సందర్భాలు, ట్రాన్స్‌క్రిప్ట్‌లు, మూలాలు మరియు మెటాడేటా ఉంటాయి.'}
+          ? 'Randomly sample normalized Telugu surface words from the corpus. The CSV includes just the word and its frequency for that sample.'
+          : 'కార్పస్ నుండి సాధారణీకరించిన తెలుగు పద రూపాలను యాదృచ్ఛికంగా నమూనా చేయండి. CSVలో ఆ నమూనా కోసం పదం మరియు దాని పౌనఃపున్యం మాత్రమే ఉంటాయి.'}
       </p>
       <label className="frequency-export-field">
         <span>{language === 'en' ? 'Accepted occurrences to process' : 'ప్రాసెస్ చేయాల్సిన ఆమోదించిన సందర్భాలు'}</span>
@@ -90,8 +90,8 @@ export function FrequencyExportPage({ language }: { language: UiLanguage }) {
       <button className="primary-action" type="button" disabled={exporting || available === null} onClick={() => void exportArchive()}>
         <Download aria-hidden="true" />
         {exporting
-          ? (language === 'en' ? 'Preparing ZIP…' : 'ZIP సిద్ధం చేస్తోంది…')
-          : (language === 'en' ? 'Download ZIP' : 'ZIP డౌన్‌లోడ్ చేయండి')}
+          ? (language === 'en' ? 'Preparing CSV…' : 'CSV సిద్ధం చేస్తోంది…')
+          : (language === 'en' ? 'Download CSV' : 'CSV డౌన్‌లోడ్ చేయండి')}
       </button>
       {error && <div className="settings-error">{language === 'en' ? 'Enter valid positive limits and try again.' : 'చెల్లుబాటు అయ్యే ధన పూర్ణాంకాలను నమోదు చేసి మళ్లీ ప్రయత్నించండి.'}</div>}
     </div>
