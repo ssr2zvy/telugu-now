@@ -15,7 +15,14 @@ export function frequencyIndexIdentity(options: FrequencyIndexOptions): string {
   return JSON.stringify({
     version: 1,
     tokenizerVersion: TOKENIZER_VERSION,
-    canonical: [path.resolve(options.corpusDatabasePath), stat.size, stat.mtimeMs],
+    canonical: [
+      path.resolve(options.corpusDatabasePath),
+      stat.dev,
+      stat.ino,
+      stat.size,
+      stat.mtimeMs,
+      stat.ctimeMs,
+    ],
   });
 }
 

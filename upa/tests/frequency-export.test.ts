@@ -95,7 +95,22 @@ test('frequency snapshot persists accepted occurrences, locations and whole-corp
       source_id: 'source-a', source_key: 'record-1', token_ordinal: 4,
       start_offset: 29, end_offset: 32,
     });
+
     index.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('frequency snapshot rejects a replaced canonical database even with preserved size and modification time', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    const bytes = fs.readFileSync(databasePath);
+    const modified = fs.statSync(databasePath).mtime;
+    fs.unlinkSync(databasePath);
+    fs.writeFileSync(databasePath, bytes);
+    fs.utimesSync(databasePath, modified, modified);
+    assert.equal(openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath }), null);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
