@@ -136,7 +136,7 @@ export function generateFrequencyExport(
   random: RandomIndex = randomInt,
   frequencyPath = databasePath === config.corpusDatabasePath
     ? config.corpusFrequencyPath : `${databasePath}.frequency.sqlite`,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
   validateRequest(request);
   const frequency = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
   if (!frequency) throw new Error('CORPUS_FREQUENCY_MISSING_OR_INCOMPATIBLE');

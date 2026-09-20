@@ -31,7 +31,7 @@ function uint32(view: DataView, offset: number, value: number): void {
   view.setUint32(offset, value >>> 0, true);
 }
 
-function concatenate(parts: readonly Uint8Array[]): Uint8Array {
+function concatenate(parts: readonly Uint8Array[]): Uint8Array<ArrayBuffer> {
   const output = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let offset = 0;
   for (const part of parts) {
@@ -41,7 +41,7 @@ function concatenate(parts: readonly Uint8Array[]): Uint8Array {
   return output;
 }
 
-export function createStoredZip(entries: readonly StoredZipEntry[]): Uint8Array {
+export function createStoredZip(entries: readonly StoredZipEntry[]): Uint8Array<ArrayBuffer> {
   if (entries.length === 0 || entries.length > 0xffff) throw new Error('Invalid ZIP entry count.');
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];
