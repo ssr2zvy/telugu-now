@@ -10,7 +10,7 @@ import {
   getAvailableFrequencyOccurrences,
   InvalidFrequencyExportRequestError,
 } from '../server/src/services/frequency-export-service';
-import { refreshFrequencyIndex } from '../server/src/services/frequency-index';
+import { openFrequencyIndex, refreshFrequencyIndex } from '../server/src/services/frequency-index';
 import { clean_word, token_spans } from '../server/src/services/telugu-tokenizer';
 
 function fixture(): { directory: string; databasePath: string; frequencyPath: string } {
@@ -73,6 +73,34 @@ test('Wikipedia-compatible tokenizer keeps Telugu surface forms and original cod
   assert.equal(clean_word(spans[3]!.token), 'మాట');
 });
 
+test('frequency snapshot persists accepted occurrences, locations and whole-corpus counts', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    const index = openFrequencyIndex({ corpusDatabasePath: databasePath, corpusFrequencyPath: frequencyPath });
+    assert.ok(index);
+    assert.deepEqual(index.prepare(`
+      SELECT normalized_word, occurrence_count FROM frequencies
+      ORDER BY occurrence_count DESC, normalized_word ASC
+    `).all(), [
+      { normalized_word: 'తెలుగు', occurrence_count: 2 },
+      { normalized_word: 'చివరి', occurrence_count: 1 },
+      { normalized_word: 'పదం', occurrence_count: 1 },
+      { normalized_word: 'మరో', occurrence_count: 1 },
+      { normalized_word: 'మాట', occurrence_count: 1 },
+    ]);
+    assert.deepEqual(index.prepare(`
+      SELECT source_id, source_key, token_ordinal, start_offset, end_offset
+      FROM occurrences WHERE normalized_word = 'మాట'
+    `).get(), {
+      source_id: 'source-a', source_key: 'record-1', token_ordinal: 4,
+      start_offset: 29, end_offset: 32,
+    });
+    index.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('frequency ZIP preserves deterministic sample mappings and complete totals', () => {
   const { directory, databasePath, frequencyPath } = fixture();
   try {
@@ -117,6 +145,26 @@ test('oversized samples include every occurrence and every sampled frequency row
     assert.equal(metadata.counts.actualProcessedOccurrences, 6);
     assert.equal(metadata.counts.exportedFrequencyRows, 5);
     assert.equal(metadata.frequencyListCompleteForSample, true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('occurrence limits select a random sample without replacement', () => {
+  const { directory, databasePath, frequencyPath } = fixture();
+  try {
+    const low = zipEntries(generateFrequencyExport(
+      { occurrenceLimit: 2 }, databasePath, new Date(), () => 0, frequencyPath,
+    )).get('occurrences.csv');
+    const high = zipEntries(generateFrequencyExport(
+      { occurrenceLimit: 2 }, databasePath, new Date(), maximum => maximum - 1, frequencyPath,
+    )).get('occurrences.csv');
+    assert.notEqual(low, high);
+    for (const output of [low!, high!]) {
+      const rows = output.trim().split('\r\n').slice(1);
+      assert.equal(rows.length, 2);
+      assert.equal(new Set(rows).size, 2);
+    }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

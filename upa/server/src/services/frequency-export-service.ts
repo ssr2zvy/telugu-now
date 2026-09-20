@@ -172,10 +172,17 @@ export function generateFrequencyExport(
         contributingBySource.set(occurrence.source_id, sourceTranscripts);
       }
     }
-    const ranking = [...frequencies.entries()]
-      .sort(([leftWord, leftCount], [rightWord, rightCount]) =>
-        rightCount - leftCount || (leftWord < rightWord ? -1 : leftWord > rightWord ? 1 : 0))
-      .map(([word, frequencyCount], index) => ({ rank: index + 1, word, frequency: frequencyCount }));
+    const ranking = occurrences.length === indexMetadata.total_occurrences
+      ? (frequency.prepare(`
+          SELECT normalized_word AS word, occurrence_count AS frequency
+          FROM frequencies
+          ORDER BY occurrence_count DESC, normalized_word ASC
+        `).all() as Array<{ word: string; frequency: number }>)
+          .map((item, index) => ({ rank: index + 1, ...item }))
+      : [...frequencies.entries()]
+          .sort(([leftWord, leftCount], [rightWord, rightCount]) =>
+            rightCount - leftCount || (leftWord < rightWord ? -1 : leftWord > rightWord ? 1 : 0))
+          .map(([word, frequencyCount], index) => ({ rank: index + 1, word, frequency: frequencyCount }));
     const indexedSourceCounts = new Map(
       (frequency.prepare('SELECT source_id, transcript_count, occurrence_count FROM source_counts').all() as Array<{
         source_id: string; transcript_count: number; occurrence_count: number;

@@ -31,6 +31,12 @@ export function openFrequencyIndex(options: FrequencyIndexOptions = config): Dat
       database.close();
       return null;
     }
+    database.prepare(`
+      SELECT occurrence_index, source_id, source_key, token_ordinal, start_offset,
+             end_offset, original_token, normalized_word FROM occurrences LIMIT 0
+    `).all();
+    database.prepare('SELECT normalized_word, occurrence_count FROM frequencies LIMIT 0').all();
+    database.prepare('SELECT source_id, transcript_count, occurrence_count FROM source_counts LIMIT 0').all();
     return database;
   } catch (error) {
     database.close();

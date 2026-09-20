@@ -47,5 +47,8 @@ start().catch(error => {
   if (!config.corpusAvailabilityWorkerEnabled && !config.corpusAvailabilityRebuildOnStartup) {
     logger.fatal('corpus_snapshot_unavailable', { failureCategory: 'missing-or-incompatible-snapshot' });
   }
+  if (!config.corpusFrequencyRebuildOnStartup) {
+    logger.fatal('frequency_snapshot_unavailable', { failureCategory: 'missing-or-incompatible-snapshot' });
+  }
   process.exitCode = 1;
 });
