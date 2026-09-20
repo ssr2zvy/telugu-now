@@ -44,7 +44,7 @@ primary_region = "iad"
   force_https = true
   # Keep the Machine running rather than rebuilding on traffic-driven starts.
   auto_stop_machines = "off"
-  auto_start_machines = false
+  auto_start_machines = true
 
   [[http_service.checks]]
     grace_period = "1m"
