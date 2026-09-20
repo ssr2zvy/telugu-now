@@ -131,3 +131,15 @@ test('frequency export rejects non-positive and non-integer limits', () => {
     InvalidFrequencyExportRequestError,
   );
 });
+
+test('settings expose occurrence sampling separately from frequency row truncation', () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const navigation = fs.readFileSync(path.join(root, 'frontend/src/settings/navigation.ts'), 'utf8');
+  const view = fs.readFileSync(path.join(root, 'frontend/src/settings/SettingsView.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'frontend/src/settings/pages/FrequencyExportPage.tsx'), 'utf8');
+  assert.match(navigation, /'frequencyExport'/u);
+  assert.match(view, /<FrequencyExportPage language=\{language\}/u);
+  assert.match(page, /setOccurrenceLimit\(String\(available\)\)/u);
+  assert.match(page, /frequencyLimit: complete \? null : rows/u);
+  assert.match(page, /downloadFrequencyExport/u);
+});

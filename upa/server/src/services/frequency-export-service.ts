@@ -183,9 +183,16 @@ export function generateFrequencyExport(
       : completeRanking.slice(0, request.frequencyLimit);
     const actualOccurrences = occurrences.length;
     const completeFrequencyTotal = completeRanking.reduce((sum, item) => sum + item.frequency, 0);
+    const topXIsCompleteRankingPrefix = ranking.every((item, index) => {
+      const complete = completeRanking[index];
+      return complete?.rank === item.rank
+        && complete.word === item.word
+        && complete.frequency === item.frequency;
+    });
     if (completeFrequencyTotal !== actualOccurrences || occurrences.length !== actualOccurrences) {
       throw new Error('Frequency export totals do not match.');
     }
+    if (!topXIsCompleteRankingPrefix) throw new Error('Frequency export ranking is not a prefix.');
 
     const includedSourceIds = sources
       .filter(source => (counts.get(source.source_id)?.processedOccurrences ?? 0) > 0)
@@ -232,7 +239,7 @@ export function generateFrequencyExport(
         completeFrequencyTotal,
         occurrenceMappingRows: occurrences.length,
         totalsMatch: completeFrequencyTotal === actualOccurrences,
-        topXIsCompleteRankingPrefix: true,
+        topXIsCompleteRankingPrefix,
       },
     };
 
