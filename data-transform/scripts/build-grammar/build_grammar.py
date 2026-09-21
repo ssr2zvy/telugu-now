@@ -5,8 +5,8 @@ Tigris publication belongs to the Node host, which inherits the existing SDK cre
 import argparse, csv, hashlib, json, os, sqlite3, time
 from pathlib import Path
 from original_collector import token_spans
-from parser_adapter import initialize, analyze_word, PARSER_VERSION
-from progression_targets import progression_identity
+from parser_adapter import initialize, analyze_word, parser_information, PARSER_VERSION
+from progression_targets import PROGRESSION_POLICY, progression_base_id, progression_identity
 ROOT=Path(__file__).resolve().parent
 
 def digest(path):
@@ -25,7 +25,7 @@ def build(corpus,output,availability=None):
  initial=corpus.stat(); report(phase='fingerprinting',processed=0)
  sha=digest(corpus)
  parser_sha=hashlib.sha256(''.join(digest(p) for p in sorted((ROOT/'parser').iterdir()) if p.is_file() and p.suffix in {'.py','.json','.txt'}).encode()).hexdigest()
- identity=dict(schema=1,adapter_sha256=digest(ROOT/'parser_adapter.py'),tokenizer_sha256=digest(ROOT/'original_collector.py'),availability_sha256=digest(availability) if availability else None,corpus_sha256=sha,parser_version=PARSER_VERSION,parser_sha256=parser_sha,policy='shared-chain-v2')
+ identity=dict(schema=1,adapter_sha256=digest(ROOT/'parser_adapter.py'),tokenizer_sha256=digest(ROOT/'original_collector.py'),progression_sha256=digest(ROOT/'progression_targets.py'),availability_sha256=digest(availability) if availability else None,corpus_sha256=sha,parser_version=PARSER_VERSION,parser_sha256=parser_sha,policy=PROGRESSION_POLICY)
  src=sqlite3.connect(corpus.as_uri()+'?mode=ro',uri=True);src.row_factory=sqlite3.Row
  out=sqlite3.connect(output);out.execute('PRAGMA journal_mode=DELETE');out.execute('PRAGMA cache_size=-8192');out.execute('PRAGMA temp_store=FILE')
  out.executescript('''
@@ -38,7 +38,7 @@ def build(corpus,output,availability=None):
  CREATE TABLE IF NOT EXISTS vocabulary(word TEXT PRIMARY KEY,rank INTEGER,frequency INTEGER,probability REAL);
  ''')
  previous=out.execute("SELECT value FROM metadata WHERE key='identity'").fetchone()
- if previous and {k:v for k,v in json.loads(previous[0]).items() if k!='inventory_id'}!=identity:raise ValueError('Staged build belongs to a different corpus/parser; use a new output path')
+ if previous and {k:v for k,v in json.loads(previous[0]).items() if k!='inventory_id'}!=identity:raise ValueError('Staged build belongs to a different corpus/parser/policy; use a new output path')
  out.execute("INSERT OR REPLACE INTO metadata VALUES('identity',?)",(json.dumps(identity),));out.commit()
  query="SELECT source_id,source_key,text,audio_object_key FROM source_rows WHERE source_id IN (SELECT source_id FROM sources WHERE status='ready')"
  if availability:
@@ -49,6 +49,7 @@ def build(corpus,output,availability=None):
  words=out.execute('SELECT COUNT(*) FROM words').fetchone()[0]
  last=out.execute("SELECT value FROM metadata WHERE key='cursor'").fetchone();cursor=json.loads(last[0]) if last else ['', '']
  initialize(); started=time.monotonic()
+ out.execute("INSERT OR REPLACE INTO metadata VALUES('parser_info',?)",(json.dumps(parser_information()),));out.commit()
  report(phase='analyzing',processed=processed,total=total,uniqueWords=words)
  for row in src.execute(query+' AND (source_id,source_key) > (?,?) ORDER BY source_id,source_key',cursor):
   spans=list(token_spans(row['text']));length=sum(w is not None for _,_,_,w in spans)
@@ -62,7 +63,7 @@ def build(corpus,output,availability=None):
     if parsed['eligible']:
      t=dict(parsed,ordered_modifier_chain='|'.join(parsed['ordered_modifier_chain']))
      tid,level=progression_identity(t)
-     out.execute('INSERT OR IGNORE INTO targets VALUES(?,?,?,?,?)',(tid,level,json.dumps(parsed['ordered_modifier_chain']),parsed['base_id'] if level==1 else '',parsed['nesting_signature']))
+     out.execute('INSERT OR IGNORE INTO targets VALUES(?,?,?,?,?)',(tid,level,json.dumps(parsed['ordered_modifier_chain']),progression_base_id(parsed),parsed['nesting_signature']))
     plain=parsed['status']=='parsed' and parsed['base_type']=='dictionary_non_core_base' and not parsed['gi_relevant']
     out.execute('INSERT INTO words VALUES(?,?,?,?)',(word,json.dumps(parsed,ensure_ascii=False),tid,int(plain)));words+=1
    if parsed['status']=='parsed' and parsed['base_type']=='dictionary_non_core_base' and not parsed['gi_relevant']:
@@ -83,6 +84,12 @@ def build(corpus,output,availability=None):
  with (ROOT/'fixed_vocabulary.csv').open() as f:
   for row in csv.DictReader(f):out.execute('INSERT OR REPLACE INTO vocabulary VALUES(?,?,?,?)',(row['word'],int(row['rank']),int(row['frequency']),float(row['probability'])))
  stats={'observations':processed,'words':words,'targets':out.execute('SELECT COUNT(*) FROM targets').fetchone()[0],'occurrences':out.execute('SELECT COUNT(*) FROM occurrences').fetchone()[0]}
+ stats['acceptedOccurrences']=out.execute('SELECT COALESCE(SUM(length),0) FROM observations').fetchone()[0]
+ stats['parsedWords']=out.execute("SELECT COUNT(*) FROM words WHERE json_extract(parse_json,'$.status')='parsed'").fetchone()[0]
+ stats['eligibleWords']=out.execute('SELECT COUNT(*) FROM words WHERE target_id IS NOT NULL').fetchone()[0]
+ stats['plainVocabularyWords']=out.execute('SELECT COUNT(*) FROM words WHERE plain_noncore=1').fetchone()[0]
+ exclusions=dict(out.execute("SELECT COALESCE(NULLIF(json_extract(parse_json,'$.eligibility_reason'),''),'not_eligible'),COUNT(*) FROM words WHERE target_id IS NULL GROUP BY 1"))
+ out.execute("INSERT OR REPLACE INTO metadata VALUES('exclusions',?)",(json.dumps(exclusions),))
  if not stats['targets']:raise ValueError('No eligible targets')
  if corpus.stat().st_mtime_ns!=initial.st_mtime_ns or corpus.stat().st_size!=initial.st_size:raise ValueError('Corpus changed during build')
  identity['inventory_id']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()

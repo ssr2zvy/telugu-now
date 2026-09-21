@@ -392,10 +392,10 @@ test('Settings routes import, export, controls, and deployment information indep
   const aboutPage = read('frontend/src/settings/pages/AboutPage.tsx');
   const styles = read('frontend/src/styles/settings-layout.css');
 
-  for (const page of ['export', 'import', 'controlsGuide', 'about']) {
+  for (const page of ['archiveImport', 'controlsGuide', 'about']) {
     assert.ok(settingsView.includes(`if (page === '${page}')`), `${page} needs an explicit route`);
   }
-  assert.match(navigation, /'export', 'import', 'controlsGuide', 'about'/);
+  assert.match(navigation, /external: \['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'\]/);
   assert.doesNotMatch(exportPage, /importAppArchive|type="file"/);
   assert.match(importPage, /importAppArchive\(file\)/);
   assert.match(importPage, /type="file"/);
@@ -406,135 +406,19 @@ test('Settings routes import, export, controls, and deployment information indep
   assert.match(aboutPage, /metadata\.deployedAt/);
   assert.match(settingsView, /return null;\s*\n}/);
 });
-test(
-  'Settings export uses a transient format chooser and keeps format out of selection',
-  () => {
-    const settingsView =
-      read(
-        'frontend/src/settings/SettingsView.tsx',
-      );
-    const exportPage =
-      read(
-        'frontend/src/settings/pages/ExportPage.tsx',
-      );
-    const controller =
-      read(
-        'frontend/src/settings/useSettingsController.ts',
-      );
-    const language =
-      read(
-        'frontend/src/settings/language.ts',
-      );
-    const styles =
-      read(
-        'frontend/src/styles/settings-layout.css',
-      );
-    assert.ok(
-      settingsView.includes(
-        'formatChooserOpen={formatChooserOpen}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'onRequestExport={controller.requestExport}',
-      ),
-    );
-    assert.ok(
-      settingsView.includes(
-        'controller.chooseExportFormat(format)',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'className="export-format-modal"',
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('epub')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        "onChooseFormat('html')",
-      ),
-    );
-    assert.ok(
-      exportPage.includes(
-        'downloadPreparedExportArtifact(preparedArtifact)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [generatedExport, setGeneratedExport]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'const [preparedArtifact, setPreparedArtifact]',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'setFormatChooserOpen(true)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'result = await generateExport(profileCode, { count })',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        "format === 'epub'",
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareEpubExport(result)',
-      ),
-    );
-    assert.ok(
-      controller.includes(
-        'await prepareHtmlExport(result)',
-      ),
-    );
-    assert.equal(
-      controller.includes(
-        'generateExport(profileCode, { count, format',
-      ),
-      false,
-    );
-    assert.ok(
-      language.includes(
-        "chooseExportFormat: 'Choose export format'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "epubDescription: 'iPhone / iPad · Apple Books · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      language.includes(
-        "htmlDescription: 'Browser / Desktop · Interactive · Offline'",
-      ),
-    );
-    assert.ok(
-      styles.includes(
-        '.export-format-modal::backdrop',
-      ),
-    );
-    assert.ok(exportPage.includes('dialog.showModal()'));
-    assert.ok(exportPage.includes('role="progressbar"'));
-    assert.equal(controller.includes('let result = generatedExport'), false);
-    assert.ok(
-      styles.includes(
-        '.export-format-modal',
-      ),
-    );
-  },
-);
+test('Settings export uses a dedicated format page and keeps format out of selection', () => {
+  const view = read('frontend/src/settings/SettingsView.tsx');
+  const page = read('frontend/src/settings/pages/ExportPage.tsx');
+  const controller = read('frontend/src/settings/useSettingsController.ts');
+  assert.match(view, /format=\{exportFormatForPage\[page\]\}/);
+  assert.match(view, /controller.chooseExportFormat\(exportFormatForPage\[page\]\)/);
+  assert.doesNotMatch(page, /<dialog|formatChooserOpen/);
+  assert.match(page, /downloadPreparedExportArtifact\(preparedArtifact\)/);
+  assert.match(page, /role="progressbar"/);
+  assert.match(controller, /generateExport\(profileCode, \{ count \}\)/);
+  assert.doesNotMatch(controller, /generateExport\(profileCode, \{ count, format/);
+  for (const packager of ['prepareEpubExport', 'prepareHtmlExport', 'prepareAppArchive']) assert.ok(controller.includes(`await ${packager}(result`));
+});
 test(
   'export packaging has one shared viewer runtime and separate HTML/EPUB wrappers',
   () => {

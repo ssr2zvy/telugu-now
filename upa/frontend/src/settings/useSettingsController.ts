@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type {
   ExportResponse,
   ProfileAudioSettings,
   ProfileSelectionSettings,
   ProfileStateResponse,
 } from '../../../shared/contracts';
-import { generateExport, resetQueue as requestQueueReset, updateAudioSettings, updateSelectionSettings } from '../api';
+import { generateExport, resetQueue as requestQueueReset, updateAudioSettings } from '../api';
 import type {
   ExportFormat,
   PreparedExportArtifact,
@@ -14,11 +14,9 @@ import { prepareEpubExport } from '../export-epub';
 import { prepareHtmlExport } from '../export-html';
 import { prepareAppArchive } from '../app-archive';
 import { useAppearance } from '../appearance';
-import { draftFromSettings } from './settings-utils';
 import { parentSettingsPage } from './navigation';
 import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../shared/audio';
 import type {
-  SettingsDraft,
   SettingsPage,
   UiLanguage,
 } from './types';
@@ -32,9 +30,6 @@ interface UseSettingsControllerOptions {
 export interface SettingsController {
   page: SettingsPage;
   language: UiLanguage;
-  draft: SettingsDraft | null;
-  settingsSaving: boolean;
-  settingsError: boolean;
   queueResetting: boolean;
   queueResetError: boolean;
   playbackRateDraft: string;
@@ -45,40 +40,28 @@ export interface SettingsController {
   exporting: boolean;
   exportPhase: 'selecting' | 'packaging';
   exportError: boolean;
-  formatChooserOpen: boolean;
   generatedExport: ExportResponse | null;
   preparedArtifact: PreparedExportArtifact | null;
   prepareOpen: () => void;
   enterPage: (page: Exclude<SettingsPage, 'index'>) => void;
   backToIndex: () => void;
   toggleLanguage: () => void;
-  setDraft: (draft: SettingsDraft) => void;
-  clearSettingsError: () => void;
-  saveComplexitySettings: () => Promise<void>;
-  saveSourceSettings: () => Promise<void>;
-  saveQuestionSettings: () => Promise<void>;
   resetQueue: () => Promise<void>;
   setPlaybackRateDraft: (rate: string) => void;
   setPlaybackAutoplayDraft: (autoplay: boolean) => void;
   clearPlaybackError: () => void;
   savePlaybackSettings: () => Promise<void>;
   setExportCount: (count: string) => void;
-  requestExport: () => void;
-  cancelFormatChoice: () => void;
   chooseExportFormat: (format: ExportFormat) => Promise<void>;
 }
 export function useSettingsController({
   profileCode,
   state,
-  onSettingsSaved,
   onAudioSettingsSaved,
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
   const { language, updateLanguage } = useAppearance();
-  const [draft, setDraftState] = useState<SettingsDraft | null>(null);
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsError, setSettingsError] = useState(false);
   const [queueResetting, setQueueResetting] = useState(false);
   const [queueResetError, setQueueResetError] = useState(false);
   const [playbackRateDraft, setPlaybackRateDraftState] = useState('1');
@@ -89,158 +72,44 @@ export function useSettingsController({
   const [exporting, setExporting] = useState(false);
   const [exportPhase, setExportPhase] = useState<'selecting' | 'packaging'>('selecting');
   const [exportError, setExportError] = useState(false);
-  const [formatChooserOpen, setFormatChooserOpen] = useState(false);
+  const exportBusy = useRef(false);
   const [generatedExport, setGeneratedExport] = useState<ExportResponse | null>(null);
   const [preparedArtifact, setPreparedArtifact] =
     useState<PreparedExportArtifact | null>(null);
   const invalidateExport = () => {
     setGeneratedExport(null);
     setPreparedArtifact(null);
-    setFormatChooserOpen(false);
     setExportError(false);
   };
   const prepareOpen = () => {
     if (!state) return;
-    setDraftState(draftFromSettings(state.selectionSettings));
     setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
     setPlaybackAutoplayDraft(state.audioSettings.autoplay);
-    setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    setFormatChooserOpen(false);
     setPage('index');
   };
   const enterPage = (
     nextPage: Exclude<SettingsPage, 'index'>,
   ) => {
-    if (
-      state &&
-      (nextPage === 'complexity' || nextPage === 'sources' || nextPage === 'questions')
-    ) {
-      setDraftState(draftFromSettings(state.selectionSettings));
-    }
     if (state && nextPage === 'playback') {
       setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
       setPlaybackAutoplayDraft(state.audioSettings.autoplay);
     }
-    setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    setFormatChooserOpen(false);
     setPage(nextPage);
   };
   const backToIndex = () => {
-    setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    setFormatChooserOpen(false);
     setPage(parentSettingsPage(page));
   };
   const toggleLanguage = () => {
     updateLanguage(language === 'te' ? 'en' : 'te');
-  };
-  const saveComplexitySettings = async () => {
-    if (!profileCode || !state || !draft) return;
-    const target = Number(draft.targetPercent) / 100;
-    const spread = Number(draft.spreadPercent) / 100;
-    const valid =
-      Number.isFinite(target) &&
-      target >= 0 &&
-      target <= 1 &&
-      Number.isFinite(spread) &&
-      spread > 0;
-    if (!valid) {
-      setSettingsError(true);
-      return;
-    }
-    setSettingsSaving(true);
-    setSettingsError(false);
-    try {
-      const saved = await updateSelectionSettings(profileCode, {
-        sourceWeights: state.selectionSettings.sourceWeights,
-        complexityPercentileTarget: target,
-        complexityPercentileSpread: spread,
-      });
-      onSettingsSaved(saved);
-      setDraftState(draftFromSettings(saved));
-      invalidateExport();
-    } catch {
-      setSettingsError(true);
-    } finally {
-      setSettingsSaving(false);
-    }
-  };
-  const saveSourceSettings = async () => {
-    if (!profileCode || !state || !draft) return;
-    const sourceWeights = Object.fromEntries(
-      Object.entries(draft.sourceWeights).map(([sourceId, value]) => [
-        sourceId,
-        Number(value),
-      ]),
-    );
-    const weights = Object.values(sourceWeights);
-    const valid =
-      weights.length > 0 &&
-      weights.every(
-        (value) =>
-          Number.isFinite(value) &&
-          value >= 0 &&
-          value <= 1,
-      ) &&
-      Math.max(...weights) === 1;
-    if (!valid) {
-      setSettingsError(true);
-      return;
-    }
-    setSettingsSaving(true);
-    setSettingsError(false);
-    try {
-      const saved = await updateSelectionSettings(profileCode, {
-        sourceWeights,
-        complexityPercentileTarget:
-          state.selectionSettings.complexityPercentileTarget,
-        complexityPercentileSpread:
-          state.selectionSettings.complexityPercentileSpread,
-      });
-      onSettingsSaved(saved);
-      setDraftState(draftFromSettings(saved));
-      invalidateExport();
-    } catch {
-      setSettingsError(true);
-    } finally {
-      setSettingsSaving(false);
-    }
-  };
-  const saveQuestionSettings = async () => {
-    if (!profileCode || !state || !draft) return;
-    const probabilities = [draft.questionPercent, draft.seenQuestionPercent, draft.audioGivenQuestionPercent]
-      .map(value => Number(value) / 100);
-    if (!probabilities.every(value => Number.isFinite(value) && value >= 0 && value <= 1)) {
-      setSettingsError(true);
-      return;
-    }
-    setSettingsSaving(true);
-    setSettingsError(false);
-    try {
-      const saved = await updateSelectionSettings(profileCode, state.grammarActive ? {audioGivenQuestionProbability: probabilities[2]!} : {
-        sourceWeights: state.selectionSettings.sourceWeights,
-        complexityPercentileTarget: state.selectionSettings.complexityPercentileTarget,
-        complexityPercentileSpread: state.selectionSettings.complexityPercentileSpread,
-        questionProbability: probabilities[0]!,
-        seenQuestionProbability: probabilities[1]!,
-        audioGivenQuestionProbability: probabilities[2]!,
-      });
-      onSettingsSaved(saved);
-      setDraftState(draftFromSettings(saved));
-      invalidateExport();
-    } catch {
-      setSettingsError(true);
-    } finally {
-      setSettingsSaving(false);
-    }
   };
   const resetQueue = async () => {
     if (!profileCode) return;
@@ -282,26 +151,14 @@ export function useSettingsController({
     setExportCountState(count);
     invalidateExport();
   };
-  const requestExport = () => {
-    const count = Number(exportCount);
-    if (!Number.isInteger(count) || count <= 0) {
-      setFormatChooserOpen(false);
-      setPreparedArtifact(null);
-      setExportError(true);
-      return;
-    }
-    setExportError(false);
-    setFormatChooserOpen(true);
-  };
   const chooseExportFormat = async (format: ExportFormat) => {
-    if (!profileCode) return;
+    if (!profileCode || exportBusy.current) return;
     const count = Number(exportCount);
-    if (!Number.isInteger(count) || count <= 0) {
-      setFormatChooserOpen(false);
+    if (!Number.isInteger(count) || count <= 0 || count > 500) {
       setExportError(true);
       return;
     }
-    setFormatChooserOpen(false);
+    exportBusy.current = true;
     setExporting(true);
     setExportPhase('selecting');
     setExportError(false);
@@ -319,15 +176,13 @@ export function useSettingsController({
     } catch {
       setExportError(true);
     } finally {
+      exportBusy.current = false;
       setExporting(false);
     }
   };
   return {
     page,
     language,
-    draft,
-    settingsSaving,
-    settingsError,
     queueResetting,
     queueResetError,
     playbackRateDraft,
@@ -338,26 +193,18 @@ export function useSettingsController({
     exporting,
     exportPhase,
     exportError,
-    formatChooserOpen,
     generatedExport,
     preparedArtifact,
     prepareOpen,
     enterPage,
     backToIndex,
     toggleLanguage,
-    setDraft: setDraftState,
-    clearSettingsError: () => setSettingsError(false),
-    saveComplexitySettings,
-    saveSourceSettings,
-    saveQuestionSettings,
     resetQueue,
     setPlaybackRateDraft,
     setPlaybackAutoplayDraft,
     clearPlaybackError,
     savePlaybackSettings,
     setExportCount,
-    requestExport,
-    cancelFormatChoice: () => setFormatChooserOpen(false),
     chooseExportFormat,
   };
 }

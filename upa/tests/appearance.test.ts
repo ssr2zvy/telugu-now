@@ -291,12 +291,12 @@ test('surface colors remain independent while corner colors adapt to palette and
   assert.match(appearanceCornerColor(extreme), /^#[0-9a-f]{6}$/);
 });
 
-test('settings leaf pages return to their group and reset remains last', () => {
-  assert.equal(parentSettingsPage('complexity'), 'sampling');
+test('settings leaf pages return to their observation or display group', () => {
+  assert.equal(parentSettingsPage('dataSources'), 'observations');
   assert.equal(parentSettingsPage('global'), 'diagnostic');
   assert.equal(parentSettingsPage('appearance'), 'display');
-  assert.equal(parentSettingsPage('sampling'), 'index');
-  assert.equal(settingsGroups.index?.at(-1), 'reset');
+  assert.equal(parentSettingsPage('external'), 'index');
+  assert.equal(settingsGroups.observations?.at(-1), 'reset');
 });
 
 test('non-object persisted appearance values recover all defaults', () => {
