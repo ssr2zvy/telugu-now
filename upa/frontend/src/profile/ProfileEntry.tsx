@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
-import { CircleAlert, LoaderCircle, ServerOff, UserRound } from 'lucide-react';
+import { CircleAlert, ServerOff } from 'lucide-react';
 interface ProfileEntryProps {
   invalidCode: boolean;
   loadUnavailable: boolean;
@@ -47,15 +47,15 @@ export function ProfileEntry({
       } as CSSProperties}
     >
       <div className="entry-wrap">
-        <div
+        {!submitting && (invalidCode || loadUnavailable) ? <div
           className="entry-status"
-          data-state={submitting ? 'loading' : invalidCode ? 'invalid' : loadUnavailable ? 'unavailable' : 'idle'}
-          role={invalidCode || loadUnavailable || submitting ? 'status' : undefined}
-          aria-label={submitting ? 'Loading profile' : invalidCode ? 'Invalid profile code' : loadUnavailable ? 'Profile server unavailable' : undefined}
-          title={!submitting && loadUnavailable ? 'Profile server unavailable' : undefined}
+          data-state={invalidCode ? 'invalid' : 'unavailable'}
+          role="status"
+          aria-label={invalidCode ? 'Invalid profile code' : 'Profile server unavailable'}
+          title={loadUnavailable ? 'Profile server unavailable' : undefined}
         >
-          {submitting ? <LoaderCircle aria-hidden="true" /> : invalidCode ? <CircleAlert aria-hidden="true" /> : loadUnavailable ? <ServerOff aria-hidden="true" /> : <UserRound aria-hidden="true" />}
-        </div>
+          {invalidCode ? <CircleAlert aria-hidden="true" /> : <ServerOff aria-hidden="true" />}
+        </div> : null}
         <div className="entry-code" data-invalid={invalidCode} aria-busy={submitting}>
           <input
             ref={inputRef}

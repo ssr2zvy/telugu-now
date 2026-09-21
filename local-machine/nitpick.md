@@ -1,0 +1,19 @@
+- when we right click and the menu shows up, and we hover over the icon, we do not want it to bring up a higlihght box, we want it to change the icon color itself, just like how all the other icons in the app work. 
+- the above point concern about the icon handling -- this also applies to the back button for the settings back betting to get out. 
+- when user starts a recording they may speak too soon so
+ in the plyabck some of their audio gets cut off; needs solution
+- adding the allignment logic (many areas of integration, many many)
+- for some reason, on a questions comp page, scroll/swipe still works to move audio bars and it leads to this half state..........I mean you want me to describe the half state -- bars hanging in a limbo state often half off screen, etc, etc
+- the sampling settings should be a bar with both sides instead if a box will number
+- i like audio bar with the rectangle bars, nice stylistically. not sure if its only not there in mobile where im currenrlt using and reporting
+- question mark appearing too quockly after arrow go right arrow pops up
+- only observations after question validation are getting the observation icon top right, shoiod be all of them though.
+- in menu bar (with copy and blacklisr and one with settings) is putting box behind letter instead of highlighting like the other icons
+- the keyboard typed font is always the same
+- the keyboard fot. size on mobile seems off. same with distance to keyboard and distance to audio bar
+- identify "island" regions in the gradient which arent genuine real modifiers
+- need some sort of visual indicator when copied or blacklist confirmed
+- the top right icons on a page we have also need to be in the audio bar color
+- the scroll to scrol back in a keyboard entry is not there
+- single word page shoukd gave the optioj to copy word.
+- on image page double coick to gonthrough inages seems unreliable

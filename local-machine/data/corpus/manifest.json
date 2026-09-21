@@ -1,0 +1,44 @@
+{
+  "complexityMetric": "grapheme-count",
+  "complexityMetricVersion": 1,
+  "corpusFormatVersion": 1,
+  "generatedAt": "2026-09-14T18:54:44.729439+00:00",
+  "sources": [
+    {
+      "acceptedRows": 100,
+      "catalogVersion": 1,
+      "complexityMetric": "grapheme-count",
+      "displayName": "FLEURS",
+      "license": "CC BY 4.0",
+      "provider": "Google",
+      "rejectedRows": 0,
+      "sourceId": "fleurs-te",
+      "status": "ready",
+      "upstreamUrl": "https://huggingface.co/datasets/google/fleurs"
+    },
+    {
+      "acceptedRows": 100,
+      "catalogVersion": 1,
+      "complexityMetric": "grapheme-count",
+      "displayName": "Shrutilipi",
+      "license": "CC BY 4.0",
+      "provider": "AI4Bharat",
+      "rejectedRows": 0,
+      "sourceId": "shrutilipi-te",
+      "status": "ready",
+      "upstreamUrl": "https://huggingface.co/datasets/ai4bharat/Shrutilipi"
+    },
+    {
+      "acceptedRows": 100,
+      "catalogVersion": 1,
+      "complexityMetric": "grapheme-count",
+      "displayName": "IndicVoices",
+      "license": "CC BY 4.0",
+      "provider": "AI4Bharat",
+      "rejectedRows": 0,
+      "sourceId": "indicvoices-te",
+      "status": "ready",
+      "upstreamUrl": "https://huggingface.co/datasets/ai4bharat/IndicVoices"
+    }
+  ]
+}

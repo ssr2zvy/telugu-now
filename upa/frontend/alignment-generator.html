@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Telugu alignment generator</title></head>
+<body>
+<script type="module">
+  import { installLiveObservationFontFaces } from './src/font-assets.ts';
+  import { generateTeluguFontModelArtifact } from './src/observation/telugu-gradient-renderer.ts';
+
+  installLiveObservationFontFaces();
+  window.generateTeluguFontModelArtifact = generateTeluguFontModelArtifact;
+</script>
+</body>
+</html>

@@ -19,12 +19,15 @@ export function validateAudioSettings(request: UpdateAudioSettingsRequest): void
       `Playback rate must be between ${AUDIO_PLAYBACK_RATE_MIN} and ${AUDIO_PLAYBACK_RATE_MAX}.`,
     );
   }
+  if (request.autoplay !== undefined && typeof request.autoplay !== 'boolean') {
+    throw new InvalidAudioSettingsError('Autoplay must be a boolean.');
+  }
 }
 
 function ensureRow(profileCode: string): void {
   db.prepare(`
-    INSERT INTO profile_audio_settings (profile_code, playback_rate, updated_at)
-    VALUES (?, ?, ?)
+    INSERT INTO profile_audio_settings (profile_code, playback_rate, autoplay, updated_at)
+    VALUES (?, ?, 1, ?)
     ON CONFLICT(profile_code) DO NOTHING
   `).run(profileCode, config.defaultAudioPlaybackRate, Date.now());
 }
@@ -32,10 +35,10 @@ function ensureRow(profileCode: string): void {
 export function getProfileAudioSettings(profileCode: string): ProfileAudioSettings {
   ensureRow(profileCode);
   const row = db.prepare(`
-    SELECT playback_rate FROM profile_audio_settings WHERE profile_code = ?
-  `).get(profileCode) as { playback_rate: number } | undefined;
+    SELECT playback_rate, autoplay FROM profile_audio_settings WHERE profile_code = ?
+  `).get(profileCode) as { playback_rate: number; autoplay: number } | undefined;
   if (!row) throw new Error(`Audio settings missing for profile ${profileCode}.`);
-  return { playbackRate: clampPlaybackRate(row.playback_rate) };
+  return { playbackRate: clampPlaybackRate(row.playback_rate), autoplay: Boolean(row.autoplay) };
 }
 
 export function updateProfileAudioSettings(
@@ -45,7 +48,7 @@ export function updateProfileAudioSettings(
   validateAudioSettings(request);
   ensureRow(profileCode);
   db.prepare(`
-    UPDATE profile_audio_settings SET playback_rate = ?, updated_at = ? WHERE profile_code = ?
-  `).run(request.playbackRate, Date.now(), profileCode);
+    UPDATE profile_audio_settings SET playback_rate = ?, autoplay = COALESCE(?, autoplay), updated_at = ? WHERE profile_code = ?
+  `).run(request.playbackRate, request.autoplay === undefined ? null : Number(request.autoplay), Date.now(), profileCode);
   return getProfileAudioSettings(profileCode);
 }

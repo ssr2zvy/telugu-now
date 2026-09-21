@@ -13,7 +13,7 @@ export const COPY = {
     resettingQueue: 'Resetting…',
     resetQueueError: 'Could not reset the queue',
 
-    playbackSpeed: 'Playback speed',
+    playbackSpeed: 'Playback Speed',
     defaultPlaybackRate: 'Default speed (x)',
 
     target: 'Target',
@@ -39,6 +39,11 @@ export const COPY = {
     epubDescription: 'iPhone / iPad · Apple Books · Interactive · Offline',
     html: 'HTML',
     htmlDescription: 'Browser / Desktop · Interactive · Offline',
+    appArchive: 'App Archive',
+    appArchiveDescription: 'Installed app · Versioned backup · Includes audio',
+    importArchive: 'Import App Archive',
+    archiveImported: 'Archive stored for offline use',
+    invalidArchive: 'Archive could not be imported',
     cancel: 'Cancel',
   },
   te: {
@@ -80,6 +85,11 @@ export const COPY = {
     epubDescription: 'iPhone / iPad · Apple Books · పరస్పర · ఆఫ్‌లైన్',
     html: 'HTML',
     htmlDescription: 'బ్రౌజర్ / డెస్క్‌టాప్ · పరస్పర · ఆఫ్‌లైన్',
+    appArchive: 'యాప్ ఆర్కైవ్',
+    appArchiveDescription: 'ఇన్‌స్టాల్ చేసిన యాప్ · సంచిక బ్యాకప్ · ఆడియోతో',
+    importArchive: 'యాప్ ఆర్కైవ్ దిగుమతి',
+    archiveImported: 'ఆఫ్‌లైన్ ఉపయోగం కోసం ఆర్కైవ్ భద్రపరచబడింది',
+    invalidArchive: 'ఆర్కైవ్ దిగుమతి కాలేదు',
     cancel: 'రద్దు',
   },
 } as const;

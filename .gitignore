@@ -1,8 +1,8 @@
-data/
-data-transform/
-impl-iterations/
+local-machine/data-transform/.venv/
+local-machine/dev-secrets.env
+local-machine/data/.corpus.prepare-*/
+local-machine/data/.corpus.backup-*/
+**/__pycache__/
 upa/test-results/
 upa/playwright-report/
-/env
-/control.sh
-/current.md
+example/**

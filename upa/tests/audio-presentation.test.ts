@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX, clampPlaybackRate, precisionSeekTime } from '../shared/audio';
+import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX, PRECISION_DRAG_THRESHOLD_SECONDS, clampPlaybackRate, exceedsPrecisionDragThreshold, magnifierSeekTime, precisionSeekTime } from '../shared/audio';
 import { AUDIO_PLAYER_PRESENTATION } from '../frontend/src/observation/audio/audio-player-presentation';
 
 test('playback bounds include 0.1 to 1.5 and clamp older saved defaults', () => {
@@ -18,6 +18,15 @@ test('precision dragging moves one millisecond per pixel without accumulating fe
   assert.equal(precisionSeekTime(20, -100, 300), 19.9);
   assert.equal(precisionSeekTime(0, -100, 300), 0);
   assert.equal(precisionSeekTime(300, 100, 300), 300);
+});
+
+test('magnifier clicks map directly into its visible window and dragging starts beyond one millisecond', () => {
+  assert.equal(PRECISION_DRAG_THRESHOLD_SECONDS, 0.001);
+  assert.equal(magnifierSeekTime(100, 100, 200, 19.5, 20.5), 19.5);
+  assert.equal(magnifierSeekTime(200, 100, 200, 19.5, 20.5), 20);
+  assert.equal(magnifierSeekTime(300, 100, 200, 19.5, 20.5), 20.5);
+  assert.equal(exceedsPrecisionDragThreshold(20, 20.001), false);
+  assert.equal(exceedsPrecisionDragThreshold(20, 20.001001), true);
 });
 
 test('playback rate clamping preserves fractions and handles lower and non-finite bounds', () => {

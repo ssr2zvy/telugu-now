@@ -1,0 +1,55 @@
+app = "telugu-now"
+primary_region = "iad"
+
+# The container entrypoint prepares mounted directories, then runs as node (UID/GID 1000).
+
+[build]
+  dockerfile = "ci-cd/Containerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  CORPUS_BACKEND = "tigris"
+  DATA_DIRECTORY = "/data"
+  CORPUS_DATABASE_PATH = "/data/corpus/corpus.sqlite"
+  CORPUS_AVAILABILITY_PATH = "/data/corpus/availability.sqlite"
+  CORPUS_OBJECTS_PREFIX = "corpus/objects/"
+  # Rebuild availability from Tigris before serving, one-shot at startup.
+  CORPUS_AVAILABILITY_REBUILD_ON_STARTUP = "true"
+  # Force the volume's cached catalog to be refetched from Tigris on this deploy.
+  CORPUS_CATALOG_FORCE_REDOWNLOAD = "false"
+  AWS_ENDPOINT_URL_S3 = "https://fly.storage.tigris.dev"
+  AWS_REGION = "auto"
+  BUCKET_NAME = "telugu-now-corpus"
+
+  # Injected at runtime from same-name Fly secrets, not configured in this file:
+  # AWS_ACCESS_KEY_ID = "<Fly secret: AWS_ACCESS_KEY_ID>"
+  # AWS_SECRET_ACCESS_KEY = "<Fly secret: AWS_SECRET_ACCESS_KEY>"
+  # Optional for temporary AWS credentials only:
+  # AWS_SESSION_TOKEN = "<Fly secret: AWS_SESSION_TOKEN>"
+  # Image-generation secret, read before the optional local env file:
+  # pollinations_api_key = "<Fly secret: pollinations_api_key>"
+
+[[mounts]]
+  source = "telugu_now_data"
+  destination = "/data"
+  initial_size = "3gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep the Machine running rather than rebuilding on traffic-driven starts.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+
+  [[http_service.checks]]
+    grace_period = "1m"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"

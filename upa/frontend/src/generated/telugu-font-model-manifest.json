@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "simpleFormCount": 525,
+  "fonts": {
+    "Noto Sans Telugu": {
+      "fontSha256": "98b86e85da4f346bad6585b1e8b695696e38d002ed0e874da26c762f488f3d57",
+      "url": "/font-models/811c4af218734103987249f8767754465879627ed3e4a56b0fdf7d87545d2577.json"
+    },
+    "Noto Serif Telugu": {
+      "fontSha256": "580b25337f62d4d2517beae261ce727df1d7185bd99d77f8f41734f4a2ab5a3e",
+      "url": "/font-models/4c232bd80887ebaf6ce8a2589c228bd1ebdd4bb725a6889bbbd656d29686c04b.json"
+    },
+    "Mandali": {
+      "fontSha256": "112d2e0e4c0332bb14805b428bb599a151b7e487870357ba9275ed89527e7efb",
+      "url": "/font-models/379bf510858559ebe205595a26bf05ad46886f4bc9f9c7d2f92f33959f0f59d1.json"
+    },
+    "Ramabhadra": {
+      "fontSha256": "0028672152c6340e0c20cacf42178b2b551a25a217e84aebe1e4a28feae54b13",
+      "url": "/font-models/e04c17d4477d2d1e62ad74c3d44461bd5e22b0282b7cff9ebaaf770e24410c50.json"
+    },
+    "NTR": {
+      "fontSha256": "adb318648856883f868922b00e1af85811f1e06b977fc5478d3af0fa7e380e25",
+      "url": "/font-models/dcbe77c3e346eb3178724df2dbeef7bea6efe98bd74c8889c50202cac36f6bfe.json"
+    },
+    "Peddana": {
+      "fontSha256": "303a5be33e4307976fb5d87d2f7345762fc9a90e2005526ee7666db482d588cd",
+      "url": "/font-models/203d8cb19086f993728b70a13c509661db74fd9ea374961e3d84b888a7b8420a.json"
+    },
+    "Ramaraja": {
+      "fontSha256": "918319755e3995b5de63a197151397d21c7a64b8218ca608b0b8eabb4aa01d69",
+      "url": "/font-models/98ec97746d1ff5c462f0a799c1d0184690ec8244f1cd1e8bcaac9773b495d3c5.json"
+    },
+    "Sree Krushnadevaraya": {
+      "fontSha256": "0254377ec1def99fd3ed936a2633f537e52e6a6f7c9f1c99df15dd5f4a78a7cc",
+      "url": "/font-models/6b2b88e00a27cc26958ea4acdb680a2d8f4f47569088e45f81e53bb83671e52a.json"
+    },
+    "Suranna": {
+      "fontSha256": "30fbdc67608c0c08e652bd4bd795864863ea5de44477b650b11e24074a901ac2",
+      "url": "/font-models/99e41869f8bda2ba4551586e2a00b0e13f13231f34c3fc22095b309db11a3b75.json"
+    },
+    "Tenali Ramakrishna": {
+      "fontSha256": "99678825a3993d93b4ba5af50ef744e51e135cdbcf27fb5730e0f62e1d16de15",
+      "url": "/font-models/132514ca4bdbf10f56e9b2a2167b552064683afc1454184f3353b731aece0de5.json"
+    }
+  }
+}

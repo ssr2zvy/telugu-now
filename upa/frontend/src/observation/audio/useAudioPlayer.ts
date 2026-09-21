@@ -1,33 +1,25 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
-import {
-  computeNormalizationGain,
-  computeWaveformPeaks,
-} from './audio-normalization';
-import {
-  loadBookmarks,
-  saveBookmarks,
-} from './audio-bookmarks-storage';
-import {
-  deleteNearestPriorBookmark,
-  insertBookmark,
-  nearestPriorBookmark,
-} from './bookmarks';
+import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';
+import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';
+import { bookmarkLoopRange, deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark, type BookmarkLoopRange } from './bookmarks';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { useAppearance } from '../../appearance';
+import { observePlaybackFeedback } from './playback-feedback';
+import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';
+import { reportClientTelemetry } from '../../api';
 
 export interface AudioPlayerState {
   audioRef: RefObject<HTMLAudioElement | null>;
   playing: boolean;
+  loading: boolean;
+  preparationProgress: number;
+  playbackStatus: string | null;
   playbackError: string | null;
   currentTime: number;
   duration: number;
   playbackRate: number;
+  loopMode: 'off' | 'all' | 'bookmark';
   waveformPeaks: number[];
   bookmarks: number[];
   bookmarksBusy: boolean;
@@ -36,56 +28,14 @@ export interface AudioPlayerState {
   togglePlay: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  beginPointerSeek: (time: number) => void;
+  updatePointerSeek: (time: number) => void;
+  endPointerSeek: () => void;
   setPlaybackRate: (rate: number) => void;
+  toggleWholeLoop: () => void;
+  toggleBookmarkLoop: () => void;
   clickBookmarkButton: () => void;
-}
-
-type AudioContextLike = AudioContext;
-
-let sharedAudioContext: AudioContextLike | null = null;
-
-// Amplitude low enough to be inaudible, but non-zero: this keeps the audio
-// device/driver continuously active (rather than idling and "waking up" with
-// startup latency) so the beginning of real playback is never clipped.
-const DEVICE_PRIMING_AMPLITUDE = 0.0006;
-const DEVICE_PRIMING_BUFFER_SECONDS = 1;
-const AUDIO_LEAD_IN_MS = 500;
-
-function primeAudioDevice(context: AudioContextLike): void {
-  const frameCount = Math.max(1, Math.floor(context.sampleRate * DEVICE_PRIMING_BUFFER_SECONDS));
-  const buffer = context.createBuffer(1, frameCount, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let index = 0; index < frameCount; index += 1) {
-    data[index] = (Math.random() * 2 - 1) * DEVICE_PRIMING_AMPLITUDE;
-  }
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
-  // Bypass the per-clip gain node: priming must stay at a fixed, negligible
-  // level regardless of that clip's loudness-normalization gain.
-  source.connect(context.destination);
-  source.start();
-}
-
-function getAudioContext(): AudioContextLike | null {
-  if (typeof window === 'undefined') return null;
-  const AudioContextClass =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return null;
-  if (!sharedAudioContext) {
-    try {
-      sharedAudioContext = new AudioContextClass();
-    } catch {
-      return null;
-    }
-    try {
-      primeAudioDevice(sharedAudioContext);
-    } catch {
-      // Priming is a best-effort mitigation; real playback still proceeds without it.
-    }
-  }
-  return sharedAudioContext;
+  prepareReplacementAt: (speechTime: number) => void;
 }
 
 export function useAudioPlayer(
@@ -93,22 +43,37 @@ export function useAudioPlayer(
   sourceId: string | null,
   sourceKey: string | null,
   defaultPlaybackRate: number,
+  observationId?: string | null,
+  autoplay = true,
+  playbackEnabled = true,
 ): AudioPlayerState {
   const { profileCode } = useAppearance();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const normalizationGainRef = useRef(1);
-  const connectedElementRef = useRef<HTMLAudioElement | null>(null);
+  const leaseRef = useRef<AudioLease | null>(null);
   const bookmarkClickCountRef = useRef(0);
   const bookmarkClickTimerRef = useRef<number | null>(null);
-  const leadInTimerRef = useRef<number | undefined>(undefined);
-
+  const playRequestRef = useRef(0);
+  const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
+  const wantsPlaybackRef = useRef(true);
+  const naturallyCompletedRef = useRef(false);
+  const bookmarkLoopRef = useRef<BookmarkLoopRange | null>(null);
+  const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);
+  const replacementCursorRef = useRef<number | null>(null);
+  const suppressReplacementAutoplayRef = useRef(false);
+  const retryPreparationRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(Boolean(audio));
+  const [preparationProgress, setPreparationProgress] = useState(audio ? 0 : 1);
+  const [playbackStatus, setPlaybackStatus] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(audio?.durationSeconds ?? 0);
-  const [playbackRate, setPlaybackRateState] = useState(defaultPlaybackRate);
+  const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));
+  const [loopMode, setLoopMode] = useState<'off' | 'all' | 'bookmark'>('off');
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
+  // Persistence remains in original speech seconds, including pending retries.
   const [bookmarks, setBookmarks] = useState<number[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(true);
   const [bookmarksSaving, setBookmarksSaving] = useState(false);
@@ -117,6 +82,37 @@ export function useAudioPlayer(
   const bookmarkVersion = useRef(0);
   const pendingBookmarks = useRef<number[] | null>(null);
   const bookmarkWriteInFlight = useRef(false);
+
+  const requestPlayback = (element: HTMLAudioElement) => {
+    naturallyCompletedRef.current = false;
+    wantsPlaybackRef.current = autoplay;
+    naturallyCompletedRef.current = false;
+    pointerSeekRef.current = null;
+    setPlaybackError(null);
+    setMediaError(null);
+    setPlaybackStatus('Loading audio…');
+    if (element.error) element.load();
+    if (element.ended) element.currentTime = 0;
+    const request = ++playRequestRef.current;
+    const source = element.src;
+    void element.play().catch((error: unknown) => {
+      if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;
+      wantsPlaybackRef.current = false;
+      element.pause();
+      setPlaying(false);
+      setPlaybackStatus(null);
+      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Tap above the bottom third to start audio, or allow sound for this site.'
+        : 'This audio file could not be played. Tap above the bottom third to retry.');
+      reportClientTelemetry({
+        event: 'observation_audio_failed',
+        ...(observationId ? { observationId } : {}),
+        stage: 'playback',
+        failureCategory: error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'playback-not-allowed' : 'playback-rejected',
+      });
+    });
+  };
 
   useEffect(() => {
     const version = ++bookmarkVersion.current;
@@ -134,125 +130,197 @@ export function useAudioPlayer(
       }).catch(() => {
         if (bookmarkVersion.current === version) setBookmarkError('Could not load bookmarks.');
       }).finally(() => { if (bookmarkVersion.current === version) setBookmarksLoading(false); });
-    }
+    } else setBookmarksLoading(false);
     return () => {
       bookmarkVersion.current += 1;
       if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
     };
   }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);
 
-  // Connect the one persistent <audio> element to a gain node exactly once;
-  // MediaElementAudioSourceNode can only ever be created a single time per element.
-  const connectAudioOutput = () => {
-    const element = audioRef.current;
-    if (!element || connectedElementRef.current === element) return;
-    const context = getAudioContext();
-    if (!context || context.state !== 'running') return;
-    try {
-      const gain = context.createGain();
-      gain.gain.value = normalizationGainRef.current;
-      gain.connect(context.destination);
-      const source = context.createMediaElementSource(element);
-      source.connect(gain);
-      gainNodeRef.current = gain;
-      connectedElementRef.current = element;
-    } catch {
-      // Playback still works through the element's own output if this fails.
-    }
-  };
-  useEffect(() => connectAudioOutput());
-
-  // Reset transport/analysis state whenever a new observation's audio arrives.
   useEffect(() => {
-    window.clearTimeout(leadInTimerRef.current);
-    leadInTimerRef.current = undefined;
+    const element = audioRef.current;
+    if (!element) return;
+    let disposed = false;
+    const replacementCursor = replacementCursorRef.current;
+    const replacingAudio = replacementCursor !== null;
+    if (!replacingAudio) suppressReplacementAutoplayRef.current = false;
+    playRequestRef.current++;
+    wantsPlaybackRef.current = replacingAudio ? false : autoplay && playbackEnabled;
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
     setPlaying(false);
+    setLoading(Boolean(audio));
+    setPreparationProgress(audio ? 0 : 1);
     setPlaybackError(null);
-    setCurrentTime(0);
-    setWaveformPeaks([]);
-    setDuration(audio?.durationSeconds ?? 0);
-    setPlaybackRateState(defaultPlaybackRate);
-    normalizationGainRef.current = 1;
-    if (gainNodeRef.current) gainNodeRef.current.gain.value = 1;
-
-    if (!audio) return;
-    let cancelled = false;
-    const context = getAudioContext();
-    if (context) {
-      void fetch(audio.url)
-        .then((response) => response.arrayBuffer())
-        .then((buffer) => context.decodeAudioData(buffer))
-        .then((decoded) => {
-          if (cancelled) return;
-          setWaveformPeaks(computeWaveformPeaks(decoded));
-          normalizationGainRef.current = computeNormalizationGain(decoded);
-          if (gainNodeRef.current) gainNodeRef.current.gain.value = normalizationGainRef.current;
-        })
-        .catch(() => {
-          // Loudness analysis/waveform are enhancements; direct playback still works.
-        });
+    setMediaError(null);
+    setPlaybackStatus(audio ? 'Preparing audio…' : null);
+    if (!replacingAudio) {
+      setCurrentTime(0);
+      setDuration(0);
+      setWaveformPeaks([]);
+      setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));
+      setLoopMode('off');
+      bookmarkLoopRef.current = null;
+      element.loop = false;
+      playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);
     }
-    return () => {
-      cancelled = true;
-      window.clearTimeout(leadInTimerRef.current);
-      leadInTimerRef.current = undefined;
+    element.preservesPitch = true;
+    const legacy = element as HTMLAudioElement & { webkitPreservesPitch?: boolean };
+    legacy.webkitPreservesPitch = true;
+    if (!audio) return;
+    const lease = preparedAudioCache.acquire(audio.url, 'active', retryPreparationRef.current);
+    const unsubscribeProgress = lease.subscribeProgress(setPreparationProgress);
+    retryPreparationRef.current = false;
+    leaseRef.current = lease;
+    const attach = (clip: NonNullable<ReturnType<AudioLease['value']>>) => {
+      if (disposed) return;
+      element.src = clip.url;
+      element.defaultPlaybackRate = playbackRateRef.current;
+      element.playbackRate = playbackRateRef.current;
+      element.load();
+      setDuration(clip.duration);
+      setWaveformPeaks(clip.waveformPeaks);
+      setLoading(false);
+      setPreparationProgress(1);
+      setPlaybackStatus(null);
+      if (replacementCursor !== null) {
+        const restoredTime = Math.min(replacementCursor, clip.duration);
+        const restoreCursor = () => {
+          if (disposed) return;
+          element.pause();
+          element.currentTime = restoredTime;
+          setCurrentTime(restoredTime);
+          setPlaying(false);
+          replacementCursorRef.current = null;
+        };
+        if (element.readyState >= HTMLMediaElement.HAVE_METADATA) restoreCursor();
+        else element.addEventListener('loadedmetadata', restoreCursor, { once: true });
+      } else if (wantsPlaybackRef.current && playbackEnabled) requestPlayback(element);
     };
-    // defaultPlaybackRate intentionally excluded: it should only seed state on change of clip.
+    const cached = lease.value();
+    if (cached) attach(cached);
+    else void lease.ready.then(attach).catch(error => {
+      if (disposed) return;
+      setLoading(false);
+      setPlaybackStatus(null);
+      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap above the bottom third to retry.`);
+    });
+    return () => {
+      disposed = true;
+      playRequestRef.current++;
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+      leaseRef.current = null;
+      unsubscribeProgress();
+      // Release only after the native element no longer owns the Blob URL.
+      lease.release();
+    };
+    // Settings seed a new clip, not an already active transport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audio?.url, sourceId, sourceKey]);
+  }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
   useEffect(() => {
     const element = audioRef.current;
-    // Guard against ever handing the element a non-finite/invalid rate: some
-    // browsers throw when assigning it, which previously left the element in
-    // a broken state that even reverting the rate afterward could not recover.
-    if (!element || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
-    try {
-      element.playbackRate = playbackRate;
-    } catch {
-      // Ignore out-of-range rejections; the element keeps its prior rate.
-    }
-  }, [playbackRate]);
+    if (suppressReplacementAutoplayRef.current || !playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current?.value()) return;
+    wantsPlaybackRef.current = true;
+    requestPlayback(element);
+  }, [playbackEnabled, autoplay, loading, audio?.url]);
+
+  useEffect(() => {
+    if (playbackEnabled) return;
+    wantsPlaybackRef.current = false;
+    playRequestRef.current++;
+    audioRef.current?.pause();
+    setPlaying(false);
+    setPlaybackStatus(null);
+  }, [playbackEnabled]);
 
   useEffect(() => {
     const element = audioRef.current;
     if (!element) return;
-    const onPlay = () => { setPlaying(true); setPlaybackError(null); };
-    const onPause = () => {
-      window.clearTimeout(leadInTimerRef.current);
-      leadInTimerRef.current = undefined;
+    const stopFeedback = observePlaybackFeedback(element, message => {
+      setMediaError(message);
       setPlaying(false);
-    };
-    const onError = () => {
-      onPause();
-      setPlaybackError(element.error?.code === MediaError.MEDIA_ERR_NETWORK
-        ? 'Audio could not be loaded. Check your connection and retry.'
-        : 'This audio file could not be played.');
-    };
-    const onLoadedMetadata = () => {
+      setPlaybackStatus(null);
+      reportClientTelemetry({
+        event: 'observation_audio_failed',
+        ...(observationId ? { observationId } : {}),
+        stage: 'playback',
+        failureCategory: 'browser-media-error',
+      });
+    }, actuallyPlaying => {
+      setMediaError(null);
+      if (actuallyPlaying) {
+        setPlaying(true);
+        setPlaybackError(null);
+        setPlaybackStatus(null);
+      }
+    });
+    const sync = () => {
+      if (!element.getAttribute('src')) return;
+      const loop = bookmarkLoopRef.current;
+      if (loop && !element.paused && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+        element.currentTime = loop.start;
+      }
+      setCurrentTime(element.currentTime);
       if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
     };
-    const onTimeUpdate = () => setCurrentTime(element.currentTime);
-    element.addEventListener('play', onPlay);
-    element.addEventListener('pause', onPause);
-    element.addEventListener('error', onError);
-    element.addEventListener('loadedmetadata', onLoadedMetadata);
-    element.addEventListener('timeupdate', onTimeUpdate);
-    return () => {
-      element.removeEventListener('play', onPlay);
-      element.removeEventListener('pause', onPause);
-      element.removeEventListener('error', onError);
-      element.removeEventListener('loadedmetadata', onLoadedMetadata);
-      element.removeEventListener('timeupdate', onTimeUpdate);
+    const onPlaying = () => {
+      if (element.paused || element.ended || !leaseRef.current?.value()) return;
+      setPlaying(true);
+      setPlaybackError(null);
+      setPlaybackStatus(null);
     };
-  }, [audio?.url]);
+    const onPause = () => {
+      if (!element.paused && !element.ended) return;
+      setPlaying(false);
+      if (leaseRef.current?.value()) setPlaybackStatus(null);
+      sync();
+    };
+    const onEnded = () => {
+      const loop = bookmarkLoopRef.current;
+      if (loop) {
+        element.currentTime = loop.start;
+        requestPlayback(element);
+        return;
+      }
+      naturallyCompletedRef.current = true;
+      onPause();
+    };
+    const onWaiting = () => { if (!element.paused) setPlaybackStatus('Loading audio…'); };
+    element.addEventListener('playing', onPlaying);
+    element.addEventListener('pause', onPause);
+    element.addEventListener('waiting', onWaiting);
+    element.addEventListener('loadedmetadata', sync);
+    element.addEventListener('timeupdate', sync);
+    element.addEventListener('seeked', sync);
+    element.addEventListener('ended', onEnded);
+    return () => {
+      stopFeedback();
+      element.removeEventListener('playing', onPlaying);
+      element.removeEventListener('pause', onPause);
+      element.removeEventListener('waiting', onWaiting);
+      element.removeEventListener('loadedmetadata', sync);
+      element.removeEventListener('timeupdate', sync);
+      element.removeEventListener('seeked', sync);
+      element.removeEventListener('ended', onEnded);
+    };
+  }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
 
-  // 'timeupdate' fires too coarsely for a smooth scrubber; interpolate while playing.
   useEffect(() => {
     if (!playing) return;
     let frame: number;
     const tick = () => {
-      if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+      const element = audioRef.current;
+      if (element) {
+        const loop = bookmarkLoopRef.current;
+        if (loop && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+          element.currentTime = loop.start;
+        }
+        setCurrentTime(element.currentTime);
+      }
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -260,64 +328,121 @@ export function useAudioPlayer(
   }, [playing]);
 
   const pause = () => {
-    window.clearTimeout(leadInTimerRef.current);
-    leadInTimerRef.current = undefined;
+    naturallyCompletedRef.current = false;
+    pointerSeekRef.current = null;
+    wantsPlaybackRef.current = false;
+    playRequestRef.current++;
     audioRef.current?.pause();
+    setCurrentTime(audioRef.current?.currentTime ?? 0);
     setPlaying(false);
+    setPlaybackStatus(null);
+  };
+
+  const prepareReplacementAt = (speechTime: number) => {
+    replacementCursorRef.current = speechTime === 0 ? 0 : toPlayerTime(speechTime);
+    suppressReplacementAutoplayRef.current = true;
+    pause();
   };
 
   const togglePlay = () => {
+    suppressReplacementAutoplayRef.current = false;
     const element = audioRef.current;
-    if (!element) return;
-    if (!element.paused || leadInTimerRef.current !== undefined) {
-      pause();
+    if (!element || !audio) return;
+    if (!element.paused) { pause(); return; }
+    if (!leaseRef.current?.value()) {
+      if (loading) {
+        wantsPlaybackRef.current = !wantsPlaybackRef.current;
+        setPlaybackStatus(wantsPlaybackRef.current ? 'Preparing audio…' : null);
+      } else {
+        retryPreparationRef.current = true;
+        setAttempt(value => value + 1);
+      }
       return;
     }
-    setPlaybackError(null);
-    if (element.error) element.load();
-    const context = getAudioContext();
-    if (context && context.state !== 'running' && context.state !== 'closed') {
-      try {
-        void context.resume().catch(() => undefined);
-      } catch {}
-    }
-    const startPlayback = () => {
-      leadInTimerRef.current = undefined;
-      if (audioRef.current !== element || !element.isConnected) return;
-      connectAudioOutput();
-      void element.play().catch((error: unknown) => {
-        if (audioRef.current !== element || !element.isConnected) return;
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setPlaying(false);
-        setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-          ? 'Playback was blocked. Allow sound for this site and retry.'
-          : 'This audio file could not be played.');
-      });
-    };
-    if (element.currentTime === 0 || element.ended) {
-      setPlaying(true);
-      leadInTimerRef.current = window.setTimeout(startPlayback, AUDIO_LEAD_IN_MS);
-    } else {
-      startPlayback();
-    }
+    if (element.ended || (duration > 0 && element.currentTime >= duration)) element.currentTime = 0;
+    requestPlayback(element);
   };
 
-  const seek = (time: number) => {
-    if (leadInTimerRef.current !== undefined) pause();
+  const seekTo = (time: number, resumeNaturalCompletion: boolean) => {
     const element = audioRef.current;
-    const safeTime = Math.min(Math.max(0, time), duration > 0 ? duration : time);
-    if (element) element.currentTime = safeTime;
+    if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+    const safeTime = Math.min(Math.max(0, time), duration);
+    const shouldResume = resumeNaturalCompletion && naturallyCompletedRef.current
+      && safeTime < duration - PRECISION_DRAG_THRESHOLD_SECONDS;
+    element.currentTime = safeTime;
     setCurrentTime(safeTime);
+    if (shouldResume) requestPlayback(element);
+  };
+  const seek = (time: number) => seekTo(time, true);
+
+  const beginPointerSeek = (time: number) => {
+    const element = audioRef.current;
+    if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+    const wasPlaying = (!element.paused && !element.ended) || naturallyCompletedRef.current;
+    pointerSeekRef.current = { startTime: time, wasPlaying, dragging: false };
+    seekTo(time, false);
+  };
+
+  const updatePointerSeek = (time: number) => {
+    const interaction = pointerSeekRef.current;
+    const element = audioRef.current;
+    if (!interaction || !element || !Number.isFinite(time)) return;
+    if (!interaction.dragging && exceedsPrecisionDragThreshold(interaction.startTime, time)) {
+      interaction.dragging = true;
+      playRequestRef.current++;
+      element.pause();
+      setPlaying(false);
+      setPlaybackStatus(null);
+    }
+    seekTo(time, false);
+  };
+
+  const endPointerSeek = () => {
+    const interaction = pointerSeekRef.current;
+    pointerSeekRef.current = null;
+    const element = audioRef.current;
+    if (interaction?.dragging && interaction.wasPlaying && element) requestPlayback(element);
   };
 
   const applyPlaybackRate = (rate: number) => {
     if (!Number.isFinite(rate)) return;
-    setPlaybackRateState(
-      Math.min(
-        AUDIO_PLAYER_PRESENTATION.playbackRateMax,
-        Math.max(AUDIO_PLAYER_PRESENTATION.playbackRateMin, rate),
-      ),
-    );
+    const safeRate = clampPlaybackRate(rate);
+    const element = audioRef.current;
+    try {
+      if (element) {
+        element.preservesPitch = true;
+        element.playbackRate = safeRate;
+        element.defaultPlaybackRate = safeRate;
+      }
+      playbackRateRef.current = safeRate;
+      setPlaybackRateState(safeRate);
+    } catch {
+      setPlaybackError('This browser does not support that playback speed.');
+    }
+  };
+
+  const toggleWholeLoop = () => {
+    const element = audioRef.current;
+    if (!element) return;
+    const enabled = loopMode !== 'all';
+    bookmarkLoopRef.current = null;
+    element.loop = enabled;
+    setLoopMode(enabled ? 'all' : 'off');
+  };
+
+  const toggleBookmarkLoop = () => {
+    const element = audioRef.current;
+    if (!element || duration <= 0) return;
+    element.loop = false;
+    if (loopMode === 'bookmark') {
+      bookmarkLoopRef.current = null;
+      setLoopMode('off');
+      return;
+    }
+    const range = bookmarkLoopRange(bookmarks.map(toPlayerTime), element.currentTime, duration);
+    bookmarkLoopRef.current = range;
+    setLoopMode('bookmark');
+    seek(range.start);
   };
 
   const persistBookmarks = async (next: number[]) => {
@@ -337,45 +462,36 @@ export function useAudioPlayer(
     }
   };
 
-  // Resolved once no further click arrives within the window: 1 click seeks to
-  // the nearest prior bookmark, 2 creates one at the current position, 3 (or
-  // more) deletes the nearest prior bookmark.
   const clickBookmarkButton = () => {
     if (bookmarksLoading || bookmarkWriteInFlight.current || bookmarkError) return;
-    bookmarkClickCountRef.current += 1;
+    bookmarkClickCountRef.current++;
     if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
     bookmarkClickTimerRef.current = window.setTimeout(() => {
       const clicks = Math.min(3, bookmarkClickCountRef.current);
       bookmarkClickCountRef.current = 0;
       bookmarkClickTimerRef.current = null;
-      const time = audioRef.current?.currentTime ?? currentTime;
+      const playerTime = audioRef.current?.currentTime ?? currentTime;
+      const time = toSpeechTime(playerTime);
       if (clicks === 1) {
-        const target = nearestPriorBookmark(bookmarks, time);
+        const target = nearestPriorBookmark(bookmarks.map(toPlayerTime), playerTime);
         if (target !== null) seek(target);
       } else if (clicks === 2) {
         void persistBookmarks(insertBookmark(bookmarks, time));
-      } else {
+      } else if (playerTime >= toPlayerTime(0)) {
         void persistBookmarks(deleteNearestPriorBookmark(bookmarks, time));
       }
     }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
   };
 
   return {
-    audioRef,
-    playing,
-    playbackError,
-    currentTime,
-    duration,
-    playbackRate,
-    waveformPeaks,
-    bookmarks,
+    audioRef, playing, loading, preparationProgress, playbackStatus,
+    playbackError: mediaError ?? playbackError,
+    currentTime, duration, playbackRate, loopMode, waveformPeaks,
+    bookmarks: bookmarks.map(toPlayerTime),
     bookmarksBusy: bookmarksLoading || bookmarksSaving,
     bookmarkError,
-    retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(attempt => attempt + 1),
-    togglePlay,
-    pause,
-    seek,
-    setPlaybackRate: applyPlaybackRate,
-    clickBookmarkButton,
+    retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
+    togglePlay, pause, seek, beginPointerSeek, updatePointerSeek, endPointerSeek,
+    setPlaybackRate: applyPlaybackRate, toggleWholeLoop, toggleBookmarkLoop, clickBookmarkButton, prepareReplacementAt,
   };
 }

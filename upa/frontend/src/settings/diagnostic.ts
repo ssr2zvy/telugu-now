@@ -17,11 +17,16 @@ export interface DiagnosticSection {
   rows: DiagnosticRow[];
 }
 export type DiagnosticSectionKey =
+  | 'questions'
   | 'trigger'
   | 'source'
   | 'complexity'
   | 'global';
 const DIAGNOSTIC_SECTION_LABELS = {
+  questions: {
+    en: 'Questions',
+    te: 'ప్రశ్నలు',
+  },
   trigger: {
     en: 'Trigger & acquisition',
     te: 'ట్రిగర్ & సేకరణ',
@@ -48,9 +53,34 @@ export function diagnosticSectionLabel(
   ][language];
 }
 const DIAGNOSTIC_LABELS = {
+  observationKind: { en: 'Current observation kind', te: 'ప్రస్తుత పరిశీలన రకం' },
+  questionMode: { en: 'Question mode', te: 'ప్రశ్న విధానం' },
+  questionRequestedPool: { en: 'Requested source pool', te: 'అభ్యర్థించిన మూల సమూహం' },
+  questionPhase: { en: 'Question phase', te: 'ప్రశ్న దశ' },
+  questionKeyboard: { en: 'Keyboard profile', te: 'కీబోర్డ్ ప్రొఫైల్' },
+  questionPromptAudio: { en: 'Prompt audio', te: 'ప్రాంప్ట్ ఆడియో' },
+  questionResponseText: { en: 'Response text', te: 'సమాధాన వచనం' },
+  questionResponseAudio: { en: 'Response audio', te: 'సమాధాన ఆడియో' },
+  normalObservationWeight: { en: 'Normal observation weight', te: 'సాధారణ పరిశీలన బరువు' },
+  questionWeight: { en: 'Question weight', te: 'ప్రశ్న బరువు' },
+  seenQuestionWeight: { en: 'Seen-source question weight', te: 'చూసిన మూల ప్రశ్న బరువు' },
+  unseenQuestionWeight: { en: 'Unseen-source question weight', te: 'చూడని మూల ప్రశ్న బరువు' },
+  audioGivenWeight: { en: 'Audio-given weight', te: 'ఆడియో ఇచ్చిన ప్రశ్న బరువు' },
+  textGivenWeight: { en: 'Text-given weight', te: 'వచనం ఇచ్చిన ప్రశ్న బరువు' },
+  recordingRepeat: { en: 'Repeat recording?', te: 'రికార్డింగ్ పునరావృతమా?' },
+  recordingOccurrence: { en: 'Times shown (recorded)', te: 'నమోదైన ప్రదర్శనల సంఖ్య' },
+  recordingPreviousSeen: { en: 'Previously shown', te: 'గత ప్రదర్శన' },
+  sameTextOtherRecordings: { en: 'Same text in another recording?', te: 'అదే వచనం మరో రికార్డింగ్‌లో వచ్చిందా?' },
+  sameTextOtherCount: { en: 'Other-recording appearances', te: 'ఇతర రికార్డింగ్‌ల ప్రదర్శనలు' },
+  sameTextOtherSeen: { en: 'Other recording last shown', te: 'ఇతర రికార్డింగ్ గత ప్రదర్శన' },
+  preparationError: { en: 'Queue preparation error', te: 'క్యూ సిద్ధీకరణ లోపం' },
   observationId: {
     en: 'Observation ID',
     te: 'పరిశీలన ఐడీ',
+  },
+  fontFamily: {
+    en: 'Font',
+    te: 'ఫాంట్',
   },
   acquisitionNumber: {
     en: 'Acquisition',
@@ -440,6 +470,7 @@ function complexityInfoRows(
 export function buildDiagnosticSections(
   state: ProfileStateResponse,
   language: UiLanguage,
+  fontFamily: string | null = null,
 ): DiagnosticSection[] | null {
   const observation =
     state
@@ -584,10 +615,54 @@ export function buildDiagnosticSections(
             } ms`,
     },
   ];
+  const repeat = diagnostic.repeat;
+  const date = (value: number | null | undefined) => value == null ? '—' : new Date(value).toLocaleString();
+  if (repeat) triggerRows.splice(1, 0,
+    { key: 'recordingRepeat', value: t(language, repeat.recording.knownOccurrenceCount > 1 ? 'yes' : 'no') },
+    { key: 'recordingOccurrence', value: String(repeat.recording.knownOccurrenceCount) },
+    { key: 'recordingPreviousSeen', value: date(repeat.recording.previousSeenAt) },
+    { key: 'sameTextOtherRecordings', value: t(language, repeat.sameTextOtherRecordings.knownPreviousDisplayCount > 0 ? 'yes' : 'no') },
+    { key: 'sameTextOtherCount', value: String(repeat.sameTextOtherRecordings.knownPreviousDisplayCount) },
+    { key: 'sameTextOtherSeen', value: date(repeat.sameTextOtherRecordings.previousSeenAt) },
+  );
+  if (state.queue.preparationError) triggerRows.push({
+    key: 'preparationError',
+    value: `${state.queue.preparationError.code} · ${state.queue.preparationError.attempts}/3${
+      state.queue.preparationError.retryAt ? ` · ${date(state.queue.preparationError.retryAt)}`
+        : language === 'te' ? ' · సిద్ధీకరణ ఆగిపోయింది; మూల లభ్యతను తనిఖీ చేసి క్యూ రీసెట్ చేయండి'
+          : ' · preparation stopped; check source availability and reset queue to retry'
+    }`,
+  });
   const sections:
     DiagnosticSection[] = [
     { key: 'trigger', rows: triggerRows },
   ];
+  const question = observation.question;
+  const questionProbability = state.selectionSettings.questionProbability ?? .3;
+  const seenProbability = state.selectionSettings.seenQuestionProbability ?? .75;
+  const audioGivenProbability = state.selectionSettings.audioGivenQuestionProbability ?? .6;
+  const keyboardName = question?.keyboard === 'windows-inscript' ? 'Windows InScript'
+    : question?.keyboard === 'mac-standard' ? 'macOS Telugu'
+      : question?.keyboard === 'chromebook-dictation' ? 'Chromebook dictation' : '—';
+  sections.push({
+    key: 'questions',
+    rows: [
+      { key: 'observationKind', value: observation.kind },
+      { key: 'questionMode', value: question?.mode ?? '—' },
+      { key: 'questionRequestedPool', value: question?.requestedPool ?? '—' },
+      { key: 'questionPhase', value: question?.phase ?? '—' },
+      { key: 'questionKeyboard', value: keyboardName },
+      { key: 'questionPromptAudio', value: observation.audio ? t(language, 'yes') : t(language, 'no') },
+      { key: 'questionResponseText', value: question?.responseText || '—' },
+      { key: 'questionResponseAudio', value: question?.responseAudio ? t(language, 'yes') : t(language, 'no') },
+      { key: 'normalObservationWeight', value: formatPercent(1 - questionProbability) },
+      { key: 'questionWeight', value: formatPercent(questionProbability) },
+      { key: 'seenQuestionWeight', value: formatPercent(seenProbability) },
+      { key: 'unseenQuestionWeight', value: formatPercent(1 - seenProbability) },
+      { key: 'audioGivenWeight', value: formatPercent(audioGivenProbability) },
+      { key: 'textGivenWeight', value: formatPercent(1 - audioGivenProbability) },
+    ],
+  });
   const selection =
     diagnostic.selection;
   sections.push({
@@ -614,6 +689,10 @@ export function buildDiagnosticSections(
       {
         key: 'observationId',
         value: observation.id,
+      },
+      {
+        key: 'fontFamily',
+        value: fontFamily ?? t(language, 'unavailable'),
       },
       {
         key: 'overallProbability',

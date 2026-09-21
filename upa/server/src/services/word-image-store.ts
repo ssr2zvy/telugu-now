@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { createHash, randomUUID } from 'node:crypto';
+import { config } from '../config/config';
 import { MAX_IMAGE_BYTES } from './pollinations-service';
 import type Database from 'better-sqlite3';
 
@@ -13,6 +13,40 @@ export interface WordImageRecord {
   image: Buffer;
 }
 
+export interface WordImageMetadata {
+  id: string;
+  mimeType: ImageMimeType;
+  createdAt: number;
+  method: 'generation' | 'source';
+  vendor: string;
+  file: string;
+  title?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  originalUrl?: string;
+  license?: 'CC BY 4.0' | 'CC BY-SA 4.0';
+  licenseUrl?: string;
+  batchId?: string;
+  batchCreatedAt?: number;
+  batchIndex?: number;
+}
+
+export interface WordImageSearchRejection {
+  imageUrl: string;
+  reason: string;
+  rejectedAt: number;
+}
+
+export interface WordImageSearchState {
+  nextPage: number;
+  rejections: WordImageSearchRejection[];
+}
+
+type WordImageDetails = Pick<WordImageMetadata, 'method' | 'vendor'>
+  & Partial<Pick<WordImageMetadata, 'title' | 'sourceName' | 'sourceUrl' | 'originalUrl' | 'license' | 'licenseUrl'
+    | 'batchId' | 'batchCreatedAt' | 'batchIndex'>>
+  & { createdAt?: number };
+
 export function migrateLegacyWordImages(database: Database.Database, directory = defaultWordImageDirectory()): void {
   if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_images'").get()) return;
   const store = wordImageStore(directory);
@@ -23,23 +57,50 @@ export function migrateLegacyWordImages(database: Database.Database, directory =
     if (imageType(record.image) !== record.mime_type) throw new Error('Could not transfer a saved word image.');
     const current = store.save(record.root, { image: record.image, mimeType: record.mime_type }, record.created_at);
     if (!current.image.equals(record.image)) {
-      const folder = path.join(directory, createHash('sha256').update(record.root.normalize('NFC').trim()).digest('hex'));
-      const digest = createHash('sha256').update(record.image).digest('hex');
-      const file = path.join(folder, `image-${digest}.${imageFiles[record.mime_type].split('.')[1]}`);
-      if (!fs.existsSync(file)) fs.writeFileSync(file, record.image, { flag: 'wx' });
-      if (!fs.readFileSync(file).equals(record.image)) throw new Error('Could not verify a transferred word image.');
+      store.add(record.root, { image: record.image, mimeType: record.mime_type }, {
+        method: 'generation', vendor: 'Legacy', createdAt: record.created_at,
+      });
     }
   }
   database.exec('DROP TABLE word_images');
 }
 
-export function defaultWordImageDirectory(): string {
-  let directory = path.dirname(fileURLToPath(import.meta.url));
-  while (path.dirname(directory) !== directory) {
-    if (fs.existsSync(path.join(directory, 'control.sh'))) return path.join(directory, 'data', 'word-images');
-    directory = path.dirname(directory);
+export function migrateLegacyWordImageSearchState(database: Database.Database, directory = defaultWordImageDirectory()): void {
+  const hasRejections = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_image_search_rejections_v2'").get();
+  const hasPages = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'word_image_search_state_v2'").get();
+  if (!hasRejections && !hasPages) return;
+  const store = wordImageStore(directory);
+  const roots = new Set<string>();
+  if (hasRejections) {
+    const records = database.prepare('SELECT root FROM word_image_search_rejections_v2').all() as Array<{ root: string }>;
+    for (const record of records) roots.add(record.root);
   }
-  return path.resolve('../data/word-images');
+  if (hasPages) {
+    const records = database.prepare('SELECT root FROM word_image_search_state_v2').all() as Array<{ root: string }>;
+    for (const record of records) roots.add(record.root);
+  }
+  for (const root of roots) {
+    const page = hasPages
+      ? database.prepare('SELECT next_page FROM word_image_search_state_v2 WHERE root = ?').get(root) as { next_page: number } | undefined
+      : undefined;
+    const rejections = hasRejections
+      ? database.prepare(`SELECT image_url, reason, rejected_at FROM word_image_search_rejections_v2
+          WHERE root = ? ORDER BY rejected_at DESC LIMIT 4096`).all(root) as Array<{ image_url: string; reason: string; rejected_at: number }>
+      : [];
+    const existing = store.readSearchState(root);
+    store.writeSearchState(root, {
+      nextPage: Math.max(existing.nextPage, page?.next_page ?? 1),
+      rejections: [...existing.rejections, ...rejections.map(record => ({
+        imageUrl: record.image_url, reason: record.reason, rejectedAt: record.rejected_at,
+      }))],
+    });
+  }
+  database.exec(`${hasRejections ? 'DROP TABLE word_image_search_rejections_v2;' : ''}
+    ${hasPages ? 'DROP TABLE word_image_search_state_v2;' : ''}`);
+}
+
+export function defaultWordImageDirectory(): string {
+  return path.join(config.dataDirectory, 'word-images');
 }
 
 export function imageType(bytes: Buffer): ImageMimeType | null {
@@ -50,61 +111,254 @@ export function imageType(bytes: Buffer): ImageMimeType | null {
   return null;
 }
 
+export function wordImageId(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 export function wordImageStore(directory = defaultWordImageDirectory()) {
   const imageDirectory = (root: string) => path.join(directory, createHash('sha256').update(root.normalize('NFC').trim()).digest('hex'));
-  const get = (root: string): WordImageRecord | undefined => {
+  const metadata = (root: string): WordImageMetadata[] => {
     const folder = imageDirectory(root);
     try {
       fs.statSync(folder);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
       throw new Error('Could not read the saved word image.');
     }
     try {
+      const galleryPath = path.join(folder, 'gallery.json');
+      if (fs.existsSync(galleryPath)) {
+        if (fs.statSync(galleryPath).size > 1024 * 1024) throw new Error('Invalid gallery');
+        const gallery: unknown = JSON.parse(fs.readFileSync(galleryPath, 'utf8'));
+        if (!Array.isArray(gallery)) throw new Error('Invalid gallery');
+        return gallery.map(value => {
+          if (!value || typeof value !== 'object') throw new Error('Invalid gallery');
+          const entry = value as Partial<WordImageMetadata>;
+          if (typeof entry.id !== 'string' || typeof entry.createdAt !== 'number'
+            || typeof entry.mimeType !== 'string' || !Object.hasOwn(imageFiles, entry.mimeType)
+            || (entry.method !== 'generation' && entry.method !== 'source')
+            || typeof entry.vendor !== 'string' || typeof entry.file !== 'string'
+            || (entry.title !== undefined && typeof entry.title !== 'string')
+            || (entry.sourceName !== undefined && typeof entry.sourceName !== 'string')
+            || (entry.sourceUrl !== undefined && typeof entry.sourceUrl !== 'string')
+            || (entry.originalUrl !== undefined && typeof entry.originalUrl !== 'string')
+            || (entry.license !== undefined && entry.license !== 'CC BY 4.0' && entry.license !== 'CC BY-SA 4.0')
+            || (entry.licenseUrl !== undefined && typeof entry.licenseUrl !== 'string')
+            || (entry.batchId !== undefined && typeof entry.batchId !== 'string')
+            || (entry.batchCreatedAt !== undefined && typeof entry.batchCreatedAt !== 'number')
+            || (entry.batchIndex !== undefined && (!Number.isSafeInteger(entry.batchIndex) || entry.batchIndex < 0))
+            || !/^image(?:-[a-f0-9]{64})?\.(?:png|jpg|webp)$/.test(entry.file)) throw new Error('Invalid gallery');
+          return entry as WordImageMetadata;
+        });
+      }
       const metadataPath = path.join(folder, 'metadata.json');
+      if (!fs.existsSync(metadataPath)) return [];
       if (fs.statSync(metadataPath).size > 4096) throw new Error('Invalid metadata');
-      const metadata: unknown = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
-      if (!metadata || typeof metadata !== 'object' || !('root' in metadata) || metadata.root !== root.normalize('NFC').trim()
-        || !('mimeType' in metadata) || typeof metadata.mimeType !== 'string' || !Object.hasOwn(imageFiles, metadata.mimeType)) {
+      const value: unknown = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+      if (!value || typeof value !== 'object' || !('root' in value) || value.root !== root.normalize('NFC').trim()
+        || !('mimeType' in value) || typeof value.mimeType !== 'string' || !Object.hasOwn(imageFiles, value.mimeType)) {
         throw new Error('Invalid metadata');
       }
-      const mimeType = metadata.mimeType as ImageMimeType;
-      const fileName = 'file' in metadata ? metadata.file : imageFiles[mimeType];
+      const legacy = value as { mimeType: ImageMimeType; file?: unknown; createdAt?: unknown; method?: unknown; vendor?: unknown;
+        title?: unknown; sourceName?: unknown; sourceUrl?: unknown; originalUrl?: unknown; license?: unknown; licenseUrl?: unknown;
+        batchId?: unknown; batchCreatedAt?: unknown; batchIndex?: unknown };
+      const mimeType = legacy.mimeType;
+      const fileName = legacy.file ?? imageFiles[mimeType];
       if (typeof fileName !== 'string' || (fileName !== imageFiles[mimeType]
         && !new RegExp(`^image-[a-f0-9]{64}\\.${imageFiles[mimeType].split('.')[1]}$`).test(fileName))) {
         throw new Error('Invalid image file');
       }
-      const file = path.join(folder, fileName);
-      if (fs.statSync(file).size > MAX_IMAGE_BYTES) throw new Error('Oversized image');
-      const image = fs.readFileSync(file);
-      if (imageType(image) !== mimeType) throw new Error('Invalid image');
-      return { mimeType, image };
+      if ((legacy.title !== undefined && typeof legacy.title !== 'string')
+        || (legacy.sourceName !== undefined && typeof legacy.sourceName !== 'string')
+        || (legacy.sourceUrl !== undefined && typeof legacy.sourceUrl !== 'string')
+        || (legacy.originalUrl !== undefined && typeof legacy.originalUrl !== 'string')
+        || (legacy.license !== undefined && legacy.license !== 'CC BY 4.0' && legacy.license !== 'CC BY-SA 4.0')
+        || (legacy.licenseUrl !== undefined && typeof legacy.licenseUrl !== 'string')
+        || (legacy.batchId !== undefined && typeof legacy.batchId !== 'string')
+        || (legacy.batchCreatedAt !== undefined && typeof legacy.batchCreatedAt !== 'number')
+        || (legacy.batchIndex !== undefined && (!Number.isSafeInteger(legacy.batchIndex) || Number(legacy.batchIndex) < 0))) throw new Error('Invalid image source metadata');
+      return [{
+        id: wordImageId(fs.readFileSync(path.join(folder, fileName))),
+        mimeType,
+        createdAt: typeof legacy.createdAt === 'number' ? legacy.createdAt : 0,
+        method: legacy.method === 'source' ? 'source' : 'generation',
+        vendor: typeof legacy.vendor === 'string' ? legacy.vendor : 'Pollinations',
+        file: fileName,
+        ...(typeof legacy.title === 'string' ? { title: legacy.title } : {}),
+        ...(typeof legacy.sourceName === 'string' ? { sourceName: legacy.sourceName } : {}),
+        ...(typeof legacy.sourceUrl === 'string' ? { sourceUrl: legacy.sourceUrl } : {}),
+        ...(typeof legacy.originalUrl === 'string' ? { originalUrl: legacy.originalUrl } : {}),
+        ...(legacy.license === 'CC BY 4.0' || legacy.license === 'CC BY-SA 4.0' ? { license: legacy.license } : {}),
+        ...(typeof legacy.licenseUrl === 'string' ? { licenseUrl: legacy.licenseUrl } : {}),
+        ...(typeof legacy.batchId === 'string' ? { batchId: legacy.batchId } : {}),
+        ...(typeof legacy.batchCreatedAt === 'number' ? { batchCreatedAt: legacy.batchCreatedAt } : {}),
+        ...(typeof legacy.batchIndex === 'number' ? { batchIndex: legacy.batchIndex } : {}),
+      }];
     } catch {
       throw new Error('Could not read the saved word image.');
     }
   };
-  const save = (root: string, record: WordImageRecord, createdAt = Date.now(), replace = false): WordImageRecord => {
+  const get = (root: string, id?: string): WordImageRecord | undefined => {
+    const folder = imageDirectory(root);
+    let entries: WordImageMetadata[];
+    try { entries = metadata(root); }
+    catch (error) {
+      if (!fs.existsSync(folder)) return undefined;
+      throw error;
+    }
+    const entry = id ? entries.find(candidate => candidate.id === id) : entries[0];
+    if (!entry) return undefined;
+    try {
+      const file = path.join(folder, entry.file);
+      if (fs.statSync(file).size > MAX_IMAGE_BYTES) throw new Error('Oversized image');
+      const image = fs.readFileSync(file);
+      if (imageType(image) !== entry.mimeType) throw new Error('Invalid image');
+      return { mimeType: entry.mimeType, image };
+    } catch {
+      throw new Error('Could not read the saved word image.');
+    }
+  };
+  const list = (root: string): WordImageMetadata[] => {
+    try { return metadata(root); }
+    catch (error) {
+      if (!fs.existsSync(imageDirectory(root))) return [];
+      throw error;
+    }
+  };
+  const writeGallery = (root: string, entries: WordImageMetadata[]) => {
+    const folder = imageDirectory(root);
+    const temporary = path.join(folder, `.gallery-${process.pid}-${randomUUID()}.json`);
+    fs.writeFileSync(temporary, JSON.stringify(entries, null, 2) + '\n', { flag: 'wx' });
+    try { fs.renameSync(temporary, path.join(folder, 'gallery.json')); }
+    finally { fs.rmSync(temporary, { force: true }); }
+  };
+  const readSearchState = (root: string): WordImageSearchState => {
+    const file = path.join(imageDirectory(root), 'search-state.json');
+    if (!fs.existsSync(file)) return { nextPage: 1, rejections: [] };
+    try {
+      if (fs.statSync(file).size > 2 * 1024 * 1024) throw new Error('Invalid search state');
+      const value: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!value || typeof value !== 'object') throw new Error('Invalid search state');
+      const state = value as Partial<WordImageSearchState>;
+      if (!Number.isSafeInteger(state.nextPage) || Number(state.nextPage) < 1 || !Array.isArray(state.rejections)) throw new Error('Invalid search state');
+      const rejections = state.rejections.map(rejection => {
+        if (!rejection || typeof rejection !== 'object' || typeof rejection.imageUrl !== 'string'
+          || typeof rejection.reason !== 'string' || typeof rejection.rejectedAt !== 'number') throw new Error('Invalid search state');
+        return rejection;
+      });
+      return { nextPage: Number(state.nextPage), rejections };
+    } catch {
+      throw new Error('Could not read word image search state.');
+    }
+  };
+  const writeSearchState = (root: string, state: WordImageSearchState): void => {
+    const newest = new Map<string, WordImageSearchRejection>();
+    for (const rejection of state.rejections) {
+      const current = newest.get(rejection.imageUrl);
+      if (!current || rejection.rejectedAt > current.rejectedAt) newest.set(rejection.imageUrl, rejection);
+    }
+    const normalized = {
+      nextPage: Number.isSafeInteger(state.nextPage) && state.nextPage >= 1 ? state.nextPage : 1,
+      rejections: [...newest.values()].sort((left, right) => right.rejectedAt - left.rejectedAt).slice(0, 4096),
+    };
+    const folder = imageDirectory(root);
+    fs.mkdirSync(folder, { recursive: true });
+    const temporary = path.join(folder, `.search-state-${process.pid}-${randomUUID()}.json`);
+    fs.writeFileSync(temporary, JSON.stringify(normalized, null, 2) + '\n', { flag: 'wx' });
+    try { fs.renameSync(temporary, path.join(folder, 'search-state.json')); }
+    finally { fs.rmSync(temporary, { force: true }); }
+  };
+  const rememberSearchRejection = (root: string, rejection: WordImageSearchRejection): void => {
+    const state = readSearchState(root);
+    writeSearchState(root, { ...state, rejections: [rejection, ...state.rejections] });
+  };
+  const writeSearchPage = (root: string, nextPage: number): void => {
+    writeSearchState(root, { ...readSearchState(root), nextPage });
+  };
+  const add = (root: string, record: WordImageRecord, details: WordImageDetails): WordImageRecord => {
+    if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
+    const existing = list(root);
+    if (!existing.length) return save(root, record, Date.now(), false, details);
+    const id = wordImageId(record.image);
+    if (existing.some(entry => entry.id === id)) return get(root, id)!;
+    const folder = imageDirectory(root);
+    const extension = imageFiles[record.mimeType].split('.')[1];
+    const file = `image-${id}.${extension}`;
+    const imagePath = path.join(folder, file);
+    try { fs.writeFileSync(imagePath, record.image, { flag: 'wx' }); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(imagePath).equals(record.image)) throw error;
+    }
+    const entry = { id, mimeType: record.mimeType, createdAt: details.createdAt ?? Date.now(), ...details, file };
+    const insertionIndex = details.method === 'generation'
+      ? existing.findIndex(image => image.method === 'source')
+      : existing.findIndex(image => image.method === 'source'
+        && ((image.batchCreatedAt ?? image.createdAt) > (details.batchCreatedAt ?? entry.createdAt)
+          || ((image.batchCreatedAt ?? image.createdAt) === (details.batchCreatedAt ?? entry.createdAt)
+            && (image.batchIndex ?? 0) > (details.batchIndex ?? 0))));
+    const index = insertionIndex < 0 ? existing.length : insertionIndex;
+    writeGallery(root, [...existing.slice(0, index), entry, ...existing.slice(index)]);
+    return record;
+  };
+  const remove = (root: string, id: string): boolean => {
+    const entries = list(root);
+    const removed = entries.find(entry => entry.id === id);
+    if (!removed) return false;
+    const remaining = entries.filter(entry => entry.id !== id);
+    if (remaining.length) writeGallery(root, remaining);
+    else {
+      const folder = imageDirectory(root);
+      for (const file of fs.readdirSync(folder)) {
+        if (file !== 'search-state.json') fs.rmSync(path.join(folder, file), { recursive: true, force: true });
+      }
+      if (!fs.existsSync(path.join(folder, 'search-state.json'))) fs.rmdirSync(folder);
+    }
+    if (remaining.length && !remaining.some(entry => entry.file === removed.file)) fs.rmSync(path.join(imageDirectory(root), removed.file), { force: true });
+    return true;
+  };
+  function save(root: string, record: WordImageRecord, createdAt = Date.now(), replace = false,
+    details: WordImageDetails = { method: 'generation', vendor: 'Pollinations' }): WordImageRecord {
     const existing = get(root);
     if (existing && !replace) return existing;
     if (imageType(record.image) !== record.mimeType) throw new Error('Unsupported image.');
+    const existingMetadata = existing ? metadata(root) : [];
     fs.mkdirSync(directory, { recursive: true });
     const temporary = fs.mkdtempSync(path.join(directory, '.pending-'));
     try {
       if (existing && replace) {
-        const digest = createHash('sha256').update(record.image).digest('hex');
+        const digest = wordImageId(record.image);
         const file = `image-${digest}.${imageFiles[record.mimeType].split('.')[1]}`;
         fs.writeFileSync(path.join(temporary, file), record.image, { flag: 'wx' });
-        fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt, file }, null, 2) + '\n', { flag: 'wx' });
+        if (fs.existsSync(path.join(imageDirectory(root), 'gallery.json'))) {
+          const target = path.join(imageDirectory(root), file);
+          try { fs.renameSync(path.join(temporary, file), target); }
+          catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(target).equals(record.image)) throw error;
+          }
+          writeGallery(root, [{ id: digest, mimeType: record.mimeType, createdAt, ...details, file }, ...existingMetadata.slice(1)]);
+          return record;
+        }
+        fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt, file, ...details }, null, 2) + '\n', { flag: 'wx' });
         fs.renameSync(path.join(temporary, file), path.join(imageDirectory(root), file));
         fs.renameSync(path.join(temporary, 'metadata.json'), path.join(imageDirectory(root), 'metadata.json'));
         return record;
       }
       fs.writeFileSync(path.join(temporary, imageFiles[record.mimeType]), record.image, { flag: 'wx' });
-      fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt }, null, 2) + '\n', { flag: 'wx' });
+      fs.writeFileSync(path.join(temporary, 'metadata.json'), JSON.stringify({ root: root.normalize('NFC').trim(), mimeType: record.mimeType, createdAt, ...details }, null, 2) + '\n', { flag: 'wx' });
       try {
         fs.renameSync(temporary, imageDirectory(root));
       } catch (error) {
         if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+        const folder = imageDirectory(root);
+        if (!fs.existsSync(path.join(folder, 'metadata.json')) && !fs.existsSync(path.join(folder, 'gallery.json'))) {
+          const source = path.join(temporary, imageFiles[record.mimeType]);
+          const target = path.join(folder, imageFiles[record.mimeType]);
+          try { fs.renameSync(source, target); }
+          catch (publishError) {
+            if ((publishError as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(target).equals(record.image)) throw publishError;
+          }
+          fs.renameSync(path.join(temporary, 'metadata.json'), path.join(folder, 'metadata.json'));
+        }
       }
       const saved = get(root);
       if (!saved) throw new Error('Missing saved image');
@@ -112,6 +366,7 @@ export function wordImageStore(directory = defaultWordImageDirectory()) {
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
-  };
-  return { get, save, replace: (root: string, record: WordImageRecord) => save(root, record, Date.now(), true) };
+  }
+  return { get, list, save, add, remove, readSearchState, writeSearchState, rememberSearchRejection, writeSearchPage,
+    replace: (root: string, record: WordImageRecord) => save(root, record, Date.now(), true) };
 }

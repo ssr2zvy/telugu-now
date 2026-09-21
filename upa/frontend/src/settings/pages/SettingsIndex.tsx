@@ -43,7 +43,11 @@ export function SettingsIndex({
       ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
       : t(language, 'unavailable'),
     display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
+    eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     export: 'EPUB / HTML',
+    import: language === 'en' ? 'Restore an app archive' : 'యాప్ ఆర్కైవ్‌ను పునరుద్ధరించండి',
+    controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',
+    about: language === 'en' ? 'Build and deployment information' : 'బిల్డ్ మరియు అమలు సమాచారం',
     reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
   } : {};
   return (
@@ -64,8 +68,6 @@ export function SettingsIndex({
             <button
               key={page}
               type="button"
-              aria-label={settingsPageLabel(page, language)}
-              aria-describedby={summaries[page] ? `settings-summary-${page}` : undefined}
               onClick={() =>
                 onNavigate(page as Exclude<SettingsPage, 'index'>)
               }
@@ -73,7 +75,7 @@ export function SettingsIndex({
               <Icon className="settings-entry-icon" aria-hidden="true" />
               <span className="settings-entry-text">
                 <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
-                {summaries[page] && <span className="settings-entry-meta" id={`settings-summary-${page}`}>
+                {summaries[page] && <span className="settings-entry-meta">
                   {page === 'display' && <span className="settings-palette-preview" aria-hidden="true" />}
                   <span>{summaries[page]}</span>
                 </span>}

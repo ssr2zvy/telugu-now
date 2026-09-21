@@ -4,6 +4,7 @@ import {
   buildEpubBytes,
   prepareEpubExport,
 } from '../frontend/src/export-epub';
+import { prepareExportAudio } from '../frontend/src/export-audio';
 import {
   OBSERVATION_FONT_ASSETS,
   type ObservationFontBundle,
@@ -21,19 +22,26 @@ async function assertPackagedAudio(): Promise<void> {
   const result = sampleExport();
   result.entries[0]!.audio = { url: '/api/audio/test.wav', mimeType: 'audio/wav', durationSeconds: 1 };
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3]))) as typeof fetch;
+  globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3]), {
+    headers: { 'Content-Type': 'audio/mpeg' },
+  })) as typeof fetch;
   try {
     const prepared = await prepareEpubExport(result);
     const entries = parseStoredZip(new Uint8Array(await prepared.blob.arrayBuffer()));
-    const clip = entries.find(entry => entry.name === 'EPUB/audio/clip-1.wav');
+    const clip = entries.find(entry => entry.name === 'EPUB/audio/clip-1.mp3');
     assert.deepEqual(clip?.data, new Uint8Array([1, 2, 3]));
     const decoder = new TextDecoder();
     const manifest = decoder.decode(entries.find(entry => entry.name === 'EPUB/package.opf')!.data);
-    assert.match(manifest, /href="audio\/clip-1.wav" media-type="audio\/wav"/);
+    assert.match(manifest, /href="audio\/clip-1.mp3" media-type="audio\/mpeg"/);
     const data = JSON.parse(decoder.decode(entries.find(entry => entry.name === 'EPUB/data.json')!.data));
-    assert.equal(data.entries[0].audio.url, 'audio/clip-1.wav');
+    assert.equal(data.entries[0].audio.url, 'audio/clip-1.mp3');
+    assert.equal(data.entries[0].audio.mimeType, 'audio/mpeg');
     const script = decoder.decode(entries.find(entry => entry.name === 'EPUB/viewer.js')!.data);
     assert.doesNotMatch(script, /\/api\/audio\//);
+    const audioPage = decoder.decode(entries.find(entry => entry.name === 'EPUB/audio.xhtml')!.data);
+    assert.match(audioPage, /<source src="audio\/clip-1.mp3" type="audio\/mpeg" \/>/);
+    assert.match(audioPage, /<a href="audio\/clip-1.mp3">Open audio file/);
+    assert.doesNotMatch(audioPage, /<script|\/api\/audio\//);
   } finally { globalThis.fetch = originalFetch; }
 }
 
@@ -617,6 +625,106 @@ test(
         ),
       );
     }
+  },
+);
+test(
+  'audio EPUB opens with script-free text, native audio sources, and visible fallback links',
+  () => {
+    const result = sampleExport();
+    result.entries[0]!.text = 'తెలుగు & <test> "quoted"';
+    result.entries[0]!.audio = { url: 'audio/clip-1.mp3', mimeType: 'audio/mpeg', durationSeconds: 1 };
+    const entries = new Map(parseStoredZip(buildEpubBytes(result, sampleFontBundle(), {
+      audioAssets: [{ path: 'audio/clip-1.mp3', mimeType: 'audio/mpeg', bytes: new Uint8Array([1, 2, 3]) }],
+    })).map(entry => [entry.name, text(entry)]));
+    const audioPage = entries.get('EPUB/audio.xhtml')!;
+    assert.match(audioPage, /తెలుగు &amp; &lt;test&gt; &quot;quoted&quot;/);
+    assert.ok(audioPage.includes(result.entries[1]!.text));
+    assert.match(audioPage, /<audio controls="controls" preload="none">/);
+    assert.match(audioPage, /<source src="audio\/clip-1.mp3" type="audio\/mpeg" \/>/);
+    assert.match(audioPage, /<\/audio>\s*<p lang="en"><a href="audio\/clip-1.mp3">Open audio file \(MP3\)/);
+    assert.doesNotMatch(audioPage, /has not been converted/);
+    assert.doesNotMatch(audioPage, /<script|hidden=|viewer\.css/);
+    const manifest = entries.get('EPUB/package.opf')!;
+    assert.match(manifest, /<spine>\s*<itemref idref="audio-page"\/>/);
+    assert.match(manifest, /<itemref idref="viewer" linear="no"\/>/);
+    assert.match(manifest, /id="audio-page" href="audio.xhtml" media-type="application\/xhtml\+xml"\/>/);
+    assert.match(manifest, /id="audio-help" href="audio-help.xhtml" media-type="application\/xhtml\+xml"\/>/);
+    assert.match(manifest, /href="audio\/clip-1.mp3" media-type="audio\/mpeg"/);
+    assert.doesNotMatch(manifest, /fallback="audio-help"/);
+    assert.match(entries.get('EPUB/audio-help.xhtml')!, /extract the audio folder/);
+    assert.match(entries.get('EPUB/audio-help.xhtml')!, /MP3 copies/);
+    assert.match(entries.get('EPUB/nav.xhtml')!, /href="audio.xhtml"/);
+    assert.match(entries.get('EPUB/viewer.xhtml')!, /href="audio.xhtml"/);
+  },
+);
+test(
+  'EPUB fetches converted MP3 bytes once per original URL and leaves the source unchanged',
+  async () => {
+    const originalFetch = globalThis.fetch;
+    const bytes = new Uint8Array([1, 2, 3]);
+    try {
+      for (const [mimeType, extension] of [
+        ['audio/wav', 'wav'], ['audio/flac', 'flac'],
+      ]) {
+        const result = sampleExport();
+        result.entries[0]!.audio = { url: `/api/audio/test.${extension}`, mimeType: mimeType!, durationSeconds: 1 };
+        result.entries[1]!.audio = { ...result.entries[0]!.audio };
+        const before = structuredClone(result);
+        let fetches = 0;
+        globalThis.fetch = (async input => {
+          assert.equal(String(input), `/api/export-audio/test.${extension}`);
+          fetches++;
+          return new Response(bytes, { headers: { 'Content-Type': 'audio/mpeg' } });
+        }) as typeof fetch;
+        const audio = await prepareExportAudio(result, 'epub');
+        assert.equal(fetches, 1);
+        assert.equal(audio.assets.length, 1);
+        assert.deepEqual(audio.assets[0]!.bytes, bytes);
+        assert.equal(audio.assets[0]!.path, 'audio/clip-1.mp3');
+        assert.equal(audio.assets[0]!.mimeType, 'audio/mpeg');
+        assert.equal(audio.result.entries[0]!.audio!.mimeType, 'audio/mpeg');
+        assert.equal(audio.result.entries[1]!.audio!.mimeType, 'audio/mpeg');
+        assert.deepEqual(result, before);
+        assert.equal(audio.result.entries[0]!.audio!.url, audio.result.entries[1]!.audio!.url);
+        const entries = parseStoredZip(buildEpubBytes(audio.result, sampleFontBundle(), { audioAssets: audio.assets }));
+        const manifest = text(entries.find(entry => entry.name === 'EPUB/package.opf')!);
+        const item = manifest.match(/<item id="audio-1"[^>]+>/)![0];
+        assert.equal(item.includes('fallback="audio-help"'), false);
+        assert.deepEqual(entries.find(entry => entry.name === 'EPUB/audio/clip-1.mp3')!.data, bytes);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  },
+);
+test('EPUB rejects failed, empty, mislabeled conversion responses and non-corpus URLs', async () => {
+  const originalFetch = globalThis.fetch;
+  const result = sampleExport();
+  result.entries[0]!.audio = { url: '/api/audio/test.wav?v=2', mimeType: 'audio/wav', durationSeconds: 1 };
+  try {
+    for (const [response, message] of [
+      [new Response('failed', { status: 503 }), /convert EPUB audio: 503/],
+      [new Response(new Uint8Array()), /audio is empty/],
+      [new Response(new Uint8Array([1]), { headers: { 'Content-Type': 'audio/wav' } }), /did not return MP3/],
+    ] as const) {
+      globalThis.fetch = (async input => {
+        assert.equal(String(input), '/api/export-audio/test.wav?v=2');
+        return response;
+      }) as typeof fetch;
+      await assert.rejects(prepareExportAudio(result, 'epub'), message);
+    }
+    result.entries[0]!.audio!.url = 'https://example.com/clip.wav';
+    await assert.rejects(prepareExportAudio(result, 'epub'), /corpus audio object/);
+  } finally { globalThis.fetch = originalFetch; }
+});
+test(
+  'EPUB without audio keeps the existing viewer as its only spine document',
+  () => {
+    const entries = parseStoredZip(buildEpubBytes(sampleExport(), sampleFontBundle()));
+    assert.equal(entries.some(entry => entry.name === 'EPUB/audio.xhtml'), false);
+    const manifest = text(entries.find(entry => entry.name === 'EPUB/package.opf')!);
+    assert.doesNotMatch(manifest, /audio-page|audio-help/);
+    assert.match(manifest, /<spine>\s*<itemref idref="viewer"\/>\s*<\/spine>/);
   },
 );
 test(

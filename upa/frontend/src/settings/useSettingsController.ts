@@ -12,6 +12,7 @@ import type {
 } from '../export-artifact';
 import { prepareEpubExport } from '../export-epub';
 import { prepareHtmlExport } from '../export-html';
+import { prepareAppArchive } from '../app-archive';
 import { useAppearance } from '../appearance';
 import { draftFromSettings } from './settings-utils';
 import { parentSettingsPage } from './navigation';
@@ -37,6 +38,7 @@ export interface SettingsController {
   queueResetting: boolean;
   queueResetError: boolean;
   playbackRateDraft: string;
+  playbackAutoplayDraft: boolean;
   playbackSaving: boolean;
   playbackError: boolean;
   exportCount: string;
@@ -54,8 +56,10 @@ export interface SettingsController {
   clearSettingsError: () => void;
   saveComplexitySettings: () => Promise<void>;
   saveSourceSettings: () => Promise<void>;
+  saveQuestionSettings: () => Promise<void>;
   resetQueue: () => Promise<void>;
   setPlaybackRateDraft: (rate: string) => void;
+  setPlaybackAutoplayDraft: (autoplay: boolean) => void;
   clearPlaybackError: () => void;
   savePlaybackSettings: () => Promise<void>;
   setExportCount: (count: string) => void;
@@ -78,6 +82,7 @@ export function useSettingsController({
   const [queueResetting, setQueueResetting] = useState(false);
   const [queueResetError, setQueueResetError] = useState(false);
   const [playbackRateDraft, setPlaybackRateDraftState] = useState('1');
+  const [playbackAutoplayDraft, setPlaybackAutoplayDraft] = useState(true);
   const [playbackSaving, setPlaybackSaving] = useState(false);
   const [playbackError, setPlaybackError] = useState(false);
   const [exportCount, setExportCountState] = useState('');
@@ -98,6 +103,7 @@ export function useSettingsController({
     if (!state) return;
     setDraftState(draftFromSettings(state.selectionSettings));
     setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
+    setPlaybackAutoplayDraft(state.audioSettings.autoplay);
     setSettingsError(false);
     setExportError(false);
     setQueueResetError(false);
@@ -110,12 +116,13 @@ export function useSettingsController({
   ) => {
     if (
       state &&
-      (nextPage === 'complexity' || nextPage === 'sources')
+      (nextPage === 'complexity' || nextPage === 'sources' || nextPage === 'questions')
     ) {
       setDraftState(draftFromSettings(state.selectionSettings));
     }
     if (state && nextPage === 'playback') {
       setPlaybackRateDraftState(String(state.audioSettings.playbackRate));
+      setPlaybackAutoplayDraft(state.audioSettings.autoplay);
     }
     setSettingsError(false);
     setExportError(false);
@@ -207,6 +214,34 @@ export function useSettingsController({
       setSettingsSaving(false);
     }
   };
+  const saveQuestionSettings = async () => {
+    if (!profileCode || !state || !draft) return;
+    const probabilities = [draft.questionPercent, draft.seenQuestionPercent, draft.audioGivenQuestionPercent]
+      .map(value => Number(value) / 100);
+    if (!probabilities.every(value => Number.isFinite(value) && value >= 0 && value <= 1)) {
+      setSettingsError(true);
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsError(false);
+    try {
+      const saved = await updateSelectionSettings(profileCode, {
+        sourceWeights: state.selectionSettings.sourceWeights,
+        complexityPercentileTarget: state.selectionSettings.complexityPercentileTarget,
+        complexityPercentileSpread: state.selectionSettings.complexityPercentileSpread,
+        questionProbability: probabilities[0]!,
+        seenQuestionProbability: probabilities[1]!,
+        audioGivenQuestionProbability: probabilities[2]!,
+      });
+      onSettingsSaved(saved);
+      setDraftState(draftFromSettings(saved));
+      invalidateExport();
+    } catch {
+      setSettingsError(true);
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
   const resetQueue = async () => {
     if (!profileCode) return;
     setQueueResetting(true);
@@ -234,7 +269,7 @@ export function useSettingsController({
     setPlaybackSaving(true);
     setPlaybackError(false);
     try {
-      const saved = await updateAudioSettings(profileCode, { playbackRate: rate });
+      const saved = await updateAudioSettings(profileCode, { playbackRate: rate, autoplay: playbackAutoplayDraft });
       onAudioSettingsSaved(saved);
       setPlaybackRateDraftState(String(saved.playbackRate));
     } catch {
@@ -275,10 +310,11 @@ export function useSettingsController({
       const result = await generateExport(profileCode, { count });
       setGeneratedExport(result);
       setExportPhase('packaging');
-      const prepared =
-        format === 'epub'
-          ? await prepareEpubExport(result)
-          : await prepareHtmlExport(result);
+      const prepared = format === 'epub'
+        ? await prepareEpubExport(result)
+        : format === 'html'
+          ? await prepareHtmlExport(result)
+          : await prepareAppArchive(result, profileCode);
       setPreparedArtifact(prepared);
     } catch {
       setExportError(true);
@@ -295,6 +331,7 @@ export function useSettingsController({
     queueResetting,
     queueResetError,
     playbackRateDraft,
+    playbackAutoplayDraft,
     playbackSaving,
     playbackError,
     exportCount,
@@ -312,8 +349,10 @@ export function useSettingsController({
     clearSettingsError: () => setSettingsError(false),
     saveComplexitySettings,
     saveSourceSettings,
+    saveQuestionSettings,
     resetQueue,
     setPlaybackRateDraft,
+    setPlaybackAutoplayDraft,
     clearPlaybackError,
     savePlaybackSettings,
     setExportCount,

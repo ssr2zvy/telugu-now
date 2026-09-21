@@ -1,8 +1,4 @@
 import type { DataSource } from '../domain/source';
-import { DummyDataSource } from '../sources/dummy/dummy-data-source';
-import { source1Rows } from '../sources/dummy/data/source1';
-import { source2Rows } from '../sources/dummy/data/source2';
-import { source3Rows } from '../sources/dummy/data/source3';
 import { PreparedCorpusDataSource } from '../sources/prepared-corpus/prepared-corpus-data-source';
 import { preparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
 
@@ -14,12 +10,13 @@ const REQUIRED_PREPARED_SOURCE_IDS = [
 
 export class SourceRegistry {
   private readonly sources = new Map<string, DataSource>();
+  private revision = 0;
+
+  get generation(): string {
+    return `${this.revision}:${[...this.sources.values()].map(source => source.generation ?? '').join(':')}`;
+  }
 
   constructor(options: { includePreparedSources?: boolean } = {}) {
-    this.register(new DummyDataSource('source1', source1Rows));
-    this.register(new DummyDataSource('source2', source2Rows));
-    this.register(new DummyDataSource('source3', source3Rows));
-
     if (options.includePreparedSources === false) return;
 
     for (const sourceId of REQUIRED_PREPARED_SOURCE_IDS) {
@@ -32,6 +29,7 @@ export class SourceRegistry {
   register(source: DataSource): void {
     if (this.sources.has(source.id)) throw new Error(`Duplicate data source id: ${source.id}`);
     this.sources.set(source.id, source);
+    this.revision += 1;
   }
 
   selectableSources(): DataSource[] {

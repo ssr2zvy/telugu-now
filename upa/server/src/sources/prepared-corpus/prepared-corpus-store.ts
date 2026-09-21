@@ -1,7 +1,10 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../../config/config';
 import type { DataSourceInfo } from '../../../../shared/contracts';
+import { openAvailability, type AvailabilityOptions } from '../../services/corpus-availability';
+import { AudioValidationStore, audioStorageIdentity } from '../../services/audio-validation-store';
 
 interface CanonicalRow {
   source_id: string;
@@ -14,16 +17,99 @@ interface CanonicalRow {
   duration_seconds: number;
 }
 
+export interface CorpusGraphemeWord {
+  word: string;
+  complexity: number;
+  wordGraphemeCount: number;
+  sourceId: string;
+  sourceKey: string;
+  audioObjectKey: string;
+  audioMimeType: string;
+  durationSeconds: number;
+}
+
 export class PreparedCorpusStore {
   private readonly db: Database.Database | null;
+  private availability: Database.Database | null = null;
+  private availabilityGeneration = '';
+  private exclusionRevision = -1;
+  private readonly excluded = new Map<string, Map<number, number[]>>();
+  private readonly validation: AudioValidationStore;
 
-  constructor(databasePath = config.corpusDatabasePath) {
+  get generation(): string {
+    this.refreshExclusions();
+    return this.exclusionRevision > 0 ? `${this.availabilityGeneration}:validation-${this.exclusionRevision}` : this.availabilityGeneration;
+  }
+
+  constructor(databasePath = config.corpusDatabasePath, private readonly options: AvailabilityOptions = {
+    ...config,
+    corpusDatabasePath: databasePath,
+    corpusAvailabilityPath: databasePath === config.corpusDatabasePath
+      ? config.corpusAvailabilityPath : path.join(path.dirname(databasePath), 'availability.sqlite'),
+    corpusObjectsPath: databasePath === config.corpusDatabasePath
+      ? config.corpusObjectsPath : path.join(path.dirname(databasePath), 'objects'),
+  }) {
+    this.validation = new AudioValidationStore(
+      options.corpusAvailabilityPath === config.corpusAvailabilityPath
+        ? config.audioValidationPath : path.join(path.dirname(options.corpusAvailabilityPath), 'audio-validation.sqlite'),
+      audioStorageIdentity(options),
+    );
     this.db = fs.existsSync(databasePath)
       ? new Database(databasePath, {
           readonly: true,
           fileMustExist: true,
         })
       : null;
+    if (this.db) this.reloadAvailability();
+  }
+
+  reloadAvailability(): void {
+    const next = openAvailability(this.options);
+    if (!next) return;
+    const metadata = next.prepare('SELECT generation FROM metadata').get() as { generation: string };
+    if (metadata.generation === this.availabilityGeneration) {
+      next.close();
+      return;
+    }
+    const previous = this.availability;
+    this.availability = next;
+    this.availabilityGeneration = metadata.generation;
+    this.exclusionRevision = -1;
+    previous?.close();
+  }
+
+  close(): void {
+    this.availability?.close();
+    this.db?.close();
+    this.validation.close();
+  }
+
+  private refreshExclusions(): void {
+    if (!this.db || !this.availability) return;
+    const revision = this.validation.revision;
+    if (revision === this.exclusionRevision) return;
+    this.excluded.clear();
+    const keys = this.validation.invalidKeys();
+    if (keys.length) {
+      const rows = this.db.prepare(`
+        SELECT source_id, source_key, grapheme_count FROM source_rows
+        WHERE audio_object_key IN (SELECT value FROM json_each(?))
+      `).iterate(JSON.stringify(keys)) as Iterable<{ source_id: string; source_key: string; grapheme_count: number }>;
+      const member = this.availability.prepare(`
+        SELECT class_index FROM source_complexity_members WHERE source_id = ? AND source_key = ?
+      `);
+      for (const row of rows) {
+        const index = member.get(row.source_id, row.source_key) as { class_index: number } | undefined;
+        if (!index) continue;
+        let classes = this.excluded.get(row.source_id);
+        if (!classes) { classes = new Map(); this.excluded.set(row.source_id, classes); }
+        const indices = classes.get(row.grapheme_count) ?? [];
+        indices.push(index.class_index);
+        classes.set(row.grapheme_count, indices);
+      }
+      for (const classes of this.excluded.values()) for (const indices of classes.values()) indices.sort((a, b) => a - b);
+    }
+    this.exclusionRevision = revision;
   }
 
   hasSource(sourceId: string): boolean {
@@ -61,7 +147,7 @@ export class PreparedCorpusStore {
       license: String(row.license ?? 'unknown'),
       upstreamUrl: typeof row.upstream_url === 'string' ? row.upstream_url : null,
       catalogVersion: Number(row.catalog_version ?? 1),
-      acceptedRows: Number(row.accepted_rows ?? 0),
+      acceptedRows: this.rowCount(sourceId),
       rejectedRows: Number(row.rejected_rows ?? 0),
       complexityMetric: String(row.complexity_metric ?? 'grapheme-count') === 'word-count' ? 'word-count' : 'grapheme-count',
       status: status === 'ready' ? 'ready' : status === 'fixture' ? 'fixture' : 'invalid',
@@ -69,22 +155,28 @@ export class PreparedCorpusStore {
   }
 
   rowCount(sourceId: string): number {
-    if (!this.db) return 0;
-    const row = this.db.prepare(
-      'SELECT accepted_rows FROM sources WHERE source_id = ?',
-    ).get(sourceId) as { accepted_rows?: number } | undefined;
-    return Number(row?.accepted_rows ?? 0);
+    this.refreshExclusions();
+    if (!this.availability) return 0;
+    const row = this.availability.prepare(
+      'SELECT row_count FROM source_counts WHERE source_id = ?',
+    ).get(sourceId) as { row_count: number } | undefined;
+    const excluded = [...(this.excluded.get(sourceId)?.values() ?? [])].reduce((sum, indices) => sum + indices.length, 0);
+    return (row?.row_count ?? 0) - excluded;
   }
 
   complexityClasses(sourceId: string): Array<{ complexityValue: number; rowCount: number }> {
-    if (!this.db) return [];
-    return this.db.prepare(`
-      SELECT grapheme_count AS complexityValue, COUNT(*) AS rowCount
-      FROM source_complexity_members
+    this.refreshExclusions();
+    if (!this.availability) return [];
+    const classes = this.availability.prepare(`
+      SELECT grapheme_count AS complexityValue, row_count AS rowCount
+      FROM complexity_counts
       WHERE source_id = ?
-      GROUP BY grapheme_count
       ORDER BY grapheme_count ASC
     `).all(sourceId) as Array<{ complexityValue: number; rowCount: number }>;
+    return classes.map(item => ({
+      ...item,
+      rowCount: item.rowCount - (this.excluded.get(sourceId)?.get(item.complexityValue)?.length ?? 0),
+    })).filter(item => item.rowCount > 0);
   }
 
   sourceKeyAt(
@@ -92,11 +184,17 @@ export class PreparedCorpusStore {
     graphemeCount: number,
     classIndex: number,
   ): string {
-    if (!this.db) throw new Error(`CORPUS_SOURCE_MISSING:${sourceId}`);
-    const row = this.db.prepare(`
+    this.refreshExclusions();
+    if (!this.availability) throw new Error(`CORPUS_AVAILABILITY_MISSING:${sourceId}`);
+    let availableIndex = classIndex;
+    for (const rejected of this.excluded.get(sourceId)?.get(graphemeCount) ?? []) {
+      if (rejected > availableIndex) break;
+      availableIndex++;
+    }
+    const row = this.availability.prepare(`
       SELECT source_key FROM source_complexity_members
       WHERE source_id = ? AND grapheme_count = ? AND class_index = ?
-    `).get(sourceId, graphemeCount, classIndex) as { source_key?: string } | undefined;
+    `).get(sourceId, graphemeCount, availableIndex) as { source_key?: string } | undefined;
     if (!row?.source_key) throw new Error('CORPUS_SOURCE_KEY_MISSING:' + `${sourceId}/${graphemeCount}/${classIndex}`);
     return row.source_key;
   }
@@ -110,6 +208,41 @@ export class PreparedCorpusStore {
     `).get(sourceId, sourceKey) as CanonicalRow | undefined;
     if (!row) throw new Error(`CORPUS_ROW_MISSING:${sourceId}/${sourceKey}`);
     return row;
+  }
+
+  wordsContaining(grapheme: string): CorpusGraphemeWord[] {
+    if (!this.db) return [];
+    const target = grapheme.normalize('NFC');
+    const graphemeSegmenter = new Intl.Segmenter('te', { granularity: 'grapheme' });
+    if ([...graphemeSegmenter.segment(target)].length !== 1) return [];
+    const wordSegmenter = new Intl.Segmenter('te', { granularity: 'word' });
+    const rows = this.db.prepare(`
+      SELECT r.source_id, r.source_key, r.text, r.grapheme_count, r.audio_sha256,
+             r.audio_object_key, r.audio_mime_type, r.duration_seconds
+      FROM source_rows r JOIN sources s ON s.source_id = r.source_id
+      WHERE s.status = 'ready' AND s.complexity_metric = 'grapheme-count' AND instr(r.text, ?) > 0
+      ORDER BY r.source_id ASC, r.source_key ASC
+    `).iterate(target) as Iterable<CanonicalRow>;
+    const matches: CorpusGraphemeWord[] = [];
+    for (const row of rows) {
+      if (this.validation.invalidReason(row.audio_object_key)) continue;
+      for (const segment of wordSegmenter.segment(row.text.normalize('NFC'))) {
+        if (!segment.isWordLike || ![...graphemeSegmenter.segment(segment.segment)].some(part => part.segment === target)) continue;
+        matches.push({
+          word: segment.segment,
+          complexity: row.grapheme_count,
+          wordGraphemeCount: [...graphemeSegmenter.segment(segment.segment)].length,
+          sourceId: row.source_id,
+          sourceKey: row.source_key,
+          audioObjectKey: row.audio_object_key,
+          audioMimeType: row.audio_mime_type,
+          durationSeconds: row.duration_seconds,
+        });
+      }
+    }
+    return matches.sort((left, right) => Math.abs(left.complexity - 10) - Math.abs(right.complexity - 10)
+      || left.complexity - right.complexity || left.word.localeCompare(right.word, 'te')
+      || left.sourceId.localeCompare(right.sourceId) || left.sourceKey.localeCompare(right.sourceKey));
   }
 }
 

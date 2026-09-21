@@ -9,8 +9,10 @@ import {
   getProfileState,
   loadProfile,
   navigate,
+  reportClientTelemetry,
   setVisibility,
 } from '../api';
+import { useAudioPrewarm } from '../observation/audio/useAudioPrewarm';
 export interface ProfileSession {
   profileCode: string | null;
   state: ProfileStateResponse | null;
@@ -29,6 +31,7 @@ export interface ProfileSession {
 export function useProfileSession(settingsOpen: boolean): ProfileSession {
   const [profileCode, setProfileCode] = useState<string | null>(null);
   const [state, setState] = useState<ProfileStateResponse | null>(null);
+  useAudioPrewarm(state);
   const [invalidCode, setInvalidCode] = useState(false);
   const [loadUnavailable, setLoadUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -159,6 +162,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
     navigationSequenceRef.current += 1;
     setNavigationEvent({ sequence: navigationSequenceRef.current, direction });
     setBusy(true);
+    const startedAt = performance.now();
     try {
       const next = await navigate(
         profileCode,
@@ -173,6 +177,14 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
       return true;
     } catch {
       // Polling refreshes readiness/state.
+      if (direction === 'next' && (state?.nextStatus === 'pending' || state?.nextStatus === 'preparing')) {
+        reportClientTelemetry({
+          event: 'observation_preparation_waiting',
+          ...(state.currentObservation ? { observationId: state.currentObservation.id } : {}),
+          stage: state.nextStatus,
+          durationMs: performance.now() - startedAt,
+        });
+      }
       return false;
     } finally {
       navigationInFlightRef.current = false;

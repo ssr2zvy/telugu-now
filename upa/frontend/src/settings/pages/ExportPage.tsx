@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ChangeEvent } from 'react';
-import { BookOpen, Download, FileCode2, FileDown } from 'lucide-react';
+import { Archive, BookOpen, Download, FileCode2, FileDown } from 'lucide-react';
 import {
   downloadPreparedExportArtifact,
   type ExportFormat,
@@ -43,9 +43,10 @@ export function ExportPage({
   const progressLabel = phase === 'selecting'
     ? (language === 'en' ? 'Selecting observations' : 'పరిశీలనలను ఎంచుకుంటోంది')
     : (language === 'en' ? 'Preparing file' : 'ఫైల్ సిద్ధం చేస్తోంది');
-  const preparedFormatLabel =
-    preparedArtifact?.format === 'epub'
-      ? t(language, 'epub')
+  const preparedFormatLabel = preparedArtifact?.format === 'epub'
+    ? t(language, 'epub')
+    : preparedArtifact?.format === 'app-archive'
+      ? t(language, 'appArchive')
       : t(language, 'html');
   return (
     <div className="export-page">
@@ -136,6 +137,14 @@ export function ExportPage({
             >
               <FileCode2 aria-hidden="true" />
               <span><strong>{t(language, 'html')}</strong><small>{t(language, 'htmlDescription')}</small></span>
+            </button>
+            <button
+              className="export-format-option"
+              type="button"
+              onClick={() => onChooseFormat('app-archive')}
+            >
+              <Archive aria-hidden="true" />
+              <span><strong>{t(language, 'appArchive')}</strong><small>{t(language, 'appArchiveDescription')}</small></span>
             </button>
             <button
               className="export-format-cancel"

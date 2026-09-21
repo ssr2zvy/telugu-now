@@ -1,5 +1,31 @@
 import { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
 export { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appearance';
+export const IOS_OBSERVATION_FONTS = [
+  'Noto Sans Telugu',
+  'Noto Serif Telugu',
+  'NTR',
+] as const satisfies readonly ObservationFontFamily[];
+
+interface DeviceNavigator {
+  userAgent: string;
+  platform: string;
+  maxTouchPoints: number;
+}
+
+export function isIOSDevice(device: DeviceNavigator | null = typeof navigator === 'undefined' ? null : navigator): boolean {
+  return device !== null && (/iPhone|iPad|iPod/u.test(device.userAgent)
+    || (device.platform === 'MacIntel' && device.maxTouchPoints > 1));
+}
+
+export function compatibleObservationFonts(
+  enabledFonts: readonly ObservationFontFamily[],
+  device?: DeviceNavigator | null,
+): readonly ObservationFontFamily[] {
+  const requested = enabledFonts.length ? enabledFonts : OBSERVATION_FONTS;
+  const currentDevice = device === undefined ? (typeof navigator === 'undefined' ? null : navigator) : device;
+  if (!isIOSDevice(currentDevice)) return requested;
+  return IOS_OBSERVATION_FONTS;
+}
 export const OBSERVATION_PRESENTATION = {
   fonts: OBSERVATION_FONTS,
   fontWeight: 400,
@@ -17,7 +43,7 @@ export const OBSERVATION_PRESENTATION = {
   widthReferencePx: 650,
   contentCharacterDivisor: 12,
   contentExponent: 0.33,
-  lineHeight: 1.3,
+  lineHeight: 1.2,
   // A fixed, font-agnostic sample covering vowels, consonants, matras, and a
   // conjunct, used to measure each font's own ascent/descent asymmetry.
   verticalMetricsSampleText:

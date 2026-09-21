@@ -6,6 +6,8 @@ import test, { after, before } from 'node:test';
 import Database from 'better-sqlite3';
 import type { SelectionSnapshot } from '../shared/contracts';
 import { buildStandaloneExportHtml } from '../frontend/src/export-html';
+import { wavFixture } from './helpers/audio-fixture';
+import { buildDiagnosticSections } from '../frontend/src/settings/diagnostic';
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-iteration2-core-'));
 process.env.NODE_ENV = 'test';
@@ -23,6 +25,13 @@ for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
 }
 corpusFixture.close();
 process.env.CORPUS_DATABASE_PATH = corpusDatabasePath;
+process.env.CORPUS_AVAILABILITY_PATH = path.join(temporaryDirectory, 'availability.sqlite');
+process.env.CORPUS_OBJECTS_PATH = path.join(temporaryDirectory, 'objects');
+for (const sourceId of ['fleurs-te', 'shrutilipi-te', 'indicvoices-te']) {
+  const file = path.join(process.env.CORPUS_OBJECTS_PATH, `media/${sourceId}/fixture.wav`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, wavFixture());
+}
 
 let db: typeof import('../server/src/db/database')['db'];
 let profileService: typeof import('../server/src/services/profile-service');
@@ -30,6 +39,7 @@ let queueService: typeof import('../server/src/services/queue-service');
 let preparationService: typeof import('../server/src/services/preparation-service')['preparationService'];
 let settingsService: typeof import('../server/src/services/selection-settings-service');
 let audioSettingsService: typeof import('../server/src/services/audio-settings-service');
+let questionResponseService: typeof import('../server/src/services/question-response-service');
 let exportService: typeof import('../server/src/services/export-service');
 let sourceRecordService: typeof import('../server/src/services/source-record-service')['sourceRecordService'];
 let selectionModule: typeof import('../server/src/services/selection-engine');
@@ -51,12 +61,15 @@ let now = 1_000;
 Date.now = () => now;
 
 before(async () => {
+  const { refreshAvailability } = await import('../server/src/services/corpus-availability');
+  await refreshAvailability();
   ({ db } = await import('../server/src/db/database'));
   profileService = await import('../server/src/services/profile-service');
   queueService = await import('../server/src/services/queue-service');
   ({ preparationService } = await import('../server/src/services/preparation-service'));
   settingsService = await import('../server/src/services/selection-settings-service');
   audioSettingsService = await import('../server/src/services/audio-settings-service');
+  questionResponseService = await import('../server/src/services/question-response-service');
   exportService = await import('../server/src/services/export-service');
   ({ sourceRecordService } = await import('../server/src/services/source-record-service'));
   selectionModule = await import('../server/src/services/selection-engine');
@@ -232,6 +245,51 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(state.canNext, true);
   });
 
+  await suite.test('reports all queue preparation phases and pads empty slots', () => {
+    resetDatabase();
+    const ids = seedQueue(['pending', 'pending', 'pending', 'preparing', 'ready']);
+    db.prepare('UPDATE observations SET preparation_error = ?, preparation_retry_at = ?, preparation_attempts = 1 WHERE id = ?')
+      .run('temporary', now + 1_000, ids[1]);
+    db.prepare('UPDATE observations SET preparation_error = ?, preparation_retry_at = NULL, preparation_attempts = 3 WHERE id = ?')
+      .run('exhausted', ids[2]);
+    db.prepare("UPDATE queue_items SET queue_position = queue_position + 35 WHERE profile_code = '001'").run();
+    const view = profileService.getQueueView('001');
+    assert.equal(view.capacity, 10);
+    assert.deepEqual(view.slots.map(slot => slot.phase), [
+      'pending', 'retry-waiting', 'failed', 'preparing', 'ready',
+      'empty', 'empty', 'empty', 'empty', 'empty',
+    ]);
+    assert.equal(view.slots[0]?.fontRenderPhase, 'not-scheduled');
+    assert.equal(view.slots[1]?.preparationAttempts, 1);
+    assert.equal(view.slots[2]?.preparationError, 'exhausted');
+    assert.equal(view.slots[4]?.observationId, ids[4]);
+    assert.equal(view.slots[0]?.queuePosition, 35);
+    assert.equal(view.slots[5]?.observationId, null);
+  });
+
+  await suite.test('audio hints preserve ordered forward history and ready queue slots without consuming or exposing pending audio', context => {
+    resetDatabase();
+    context.mock.method(preparationService, 'checkQueue', () => {});
+    const ids = seedQueue(['ready', 'ready', 'pending', 'ready', 'ready', 'ready']);
+    ids.forEach((id, index) => {
+      const row = db.prepare('SELECT source_key FROM observations WHERE id = ?').get(id) as { source_key: string };
+      db.prepare("INSERT INTO source_records VALUES ('001', 'test-source', ?, 'తెలుగు', ?, ?)")
+        .run(row.source_key, JSON.stringify([{ kind: 'audio', objectKey: `${index}.wav`, mimeType: 'audio/wav', durationSeconds: 1 }]), now);
+    });
+    const urls = () => profileService.getProfileState('001', false).upcomingAudio?.map(audio => audio.url);
+    assert.deepEqual(urls(), [0, 1, 3].map(index => `/api/audio/${index}.wav?v=2`));
+    profileService.navigateNext('001', false);
+    profileService.navigateNext('001', false);
+    profileService.navigateBack('001', false);
+    const before = db.prepare("SELECT * FROM queue_items WHERE profile_code = '001' ORDER BY queue_position").all();
+    const acquisitions = acquisitionCount();
+    assert.deepEqual(urls(), [1, 3, 4].map(index => `/api/audio/${index}.wav?v=2`));
+    assert.deepEqual(db.prepare("SELECT * FROM queue_items WHERE profile_code = '001' ORDER BY queue_position").all(), before);
+    assert.equal(acquisitionCount(), acquisitions);
+    profileService.navigateNext('001', false);
+    assert.equal(profileService.getProfileState('001', false).canNext, false);
+  });
+
   await suite.test('does not allow Back from the first history entry', () => {
     resetDatabase();
     seedQueue(['ready']);
@@ -240,6 +298,71 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
       () => profileService.navigateBack('001', true),
       (error: unknown) => error instanceof profileService.NavigationUnavailableError,
     );
+  });
+
+  await suite.test('samples normal and question plans at the configured boundaries', () => {
+    const choose = (...values: number[]) => {
+      let index = 0;
+      return queueService.chooseObservationPlan(() => values[index++]!);
+    };
+    assert.equal(choose(0.3).kind, 'normal');
+    assert.deepEqual(choose(0.299, 0.599, 0.749, 0), {
+      kind: 'question', requestedPool: 'seen', questionMode: 'audio-given', keyboard: 'windows-inscript',
+    });
+    assert.deepEqual(choose(0, 0.6, 0.75), {
+      kind: 'question', requestedPool: 'unseen', questionMode: 'text-given', keyboard: null,
+    });
+    assert.equal(choose(0, 0, 0, 0.34).keyboard, 'mac-standard');
+    assert.equal(choose(0, 0, 0, 0.67).keyboard, 'chromebook-dictation');
+    assert.equal(queueService.chooseObservationPlan(() => 0.4, { question: 0.5, seen: 0.2, audioGiven: 0.1 }).kind, 'question');
+    assert.deepEqual(queueService.chooseObservationPlan(() => 0.15, { question: 1, seen: 0.1, audioGiven: 0.1 }), {
+      kind: 'question', requestedPool: 'unseen', questionMode: 'text-given', keyboard: null,
+    });
+  });
+
+  await suite.test('questions show comparison and observation stages before consuming the next observation', () => {
+    resetDatabase();
+    const [questionId, nextId] = seedQueue(['ready', 'ready']);
+    db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'audio-given', question_keyboard = 'mac-standard' WHERE observation_id = ?`).run(questionId);
+
+    const question = profileService.navigateNext('001', false);
+    assert.equal(question.currentObservation?.id, questionId);
+    assert.equal(question.currentObservation?.question?.phase, 'question');
+    const queueCount = queueService.getQueueCount('001');
+    const position = question.currentPosition;
+
+    const comparison = profileService.navigateNext('001', false);
+    assert.equal(comparison.currentObservation?.id, questionId);
+    assert.equal(comparison.currentObservation?.question?.phase, 'comparison');
+    assert.equal(comparison.currentPosition, position);
+    assert.equal(comparison.canBack, true);
+    assert.equal(queueService.getQueueCount('001'), queueCount);
+
+    const restoredQuestion = profileService.navigateBack('001', false);
+    assert.equal(restoredQuestion.currentObservation?.question?.phase, 'question');
+    profileService.navigateNext('001', false);
+    const observation = profileService.navigateNext('001', false);
+    assert.equal(observation.currentObservation?.id, questionId);
+    assert.equal(observation.currentObservation?.question?.phase, 'observation');
+    assert.equal(observation.canBack, true);
+    assert.equal(profileService.navigateBack('001', false).currentObservation?.question?.phase, 'comparison');
+    profileService.navigateNext('001', false);
+    assert.equal(profileService.navigateNext('001', false).currentObservation?.id, nextId);
+  });
+
+  await suite.test('question text and audio responses persist and reload with the question', () => {
+    resetDatabase();
+    const [questionId] = seedQueue(['ready']);
+    db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'text-given' WHERE observation_id = ?`).run(questionId);
+    profileService.navigateNext('001', false);
+
+    questionResponseService.updateQuestionText(db, '001', questionId!, { text: 'నా సమాధానం' });
+    questionResponseService.updateQuestionAudio(db, '001', questionId!, new Uint8Array([1, 2, 3]), 'audio/webm');
+    const reloaded = profileService.getProfileState('001', false).currentObservation?.question;
+    assert.equal(reloaded?.responseText, 'నా సమాధానం');
+    assert.equal(reloaded?.responseAudio?.url, `/api/profiles/001/questions/${questionId}/audio`);
+    assert.equal(reloaded?.responseAudio?.mimeType, 'audio/webm');
+    assert.deepEqual([...questionResponseService.getQuestionAudio(db, '001', questionId!)!.bytes], [1, 2, 3]);
   });
 
   await suite.test('history navigation preserves absolute and visible timing semantics', () => {
@@ -323,6 +446,93 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(replacement.trigger_observation_id, first.observation_id);
     assert.equal(replacement.trigger_history_position, 0);
     assert.equal(replacement.waiting_ahead_at_trigger, 9);
+  });
+
+  await suite.test('counts only first displays, distinguishes same text, and restores the persisted cursor on relaunch', () => {
+    resetDatabase();
+    const ids = seedQueue(['ready', 'ready', 'ready'], ['తెలుగు', 'తెలుగు', 'తెలుగు']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[2]);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM recording_displays').get() as { count: number }).count, 0);
+    const first = profileService.navigateNext('001', true);
+    assert.deepEqual(first.currentObservation!.diagnostic.repeat?.recording, {
+      isRepeat: false, occurrenceCount: 1, knownOccurrenceCount: 1, previousSeenAt: null,
+    });
+    now = 2_000;
+    const counterpart = profileService.navigateNext('001', true);
+    assert.equal(counterpart.currentObservation!.diagnostic.repeat?.recording.isRepeat, false);
+    assert.deepEqual(counterpart.currentObservation!.diagnostic.repeat?.sameTextOtherRecordings, {
+      seenBefore: true, previousDisplayCount: 1, knownPreviousDisplayCount: 1, previousSeenAt: 1_000,
+    });
+    now = 3_000;
+    const repeat = profileService.navigateNext('001', true);
+    assert.deepEqual(repeat.currentObservation!.diagnostic.repeat?.recording, {
+      isRepeat: true, occurrenceCount: 2, knownOccurrenceCount: 2, previousSeenAt: 1_000,
+    });
+    profileService.navigateBack('001', true);
+    const resumed = profileService.loadProfile('001', true);
+    assert.equal(resumed.currentObservation!.id, counterpart.currentObservation!.id);
+    assert.equal(resumed.currentPosition, 1);
+    const forward = profileService.navigateNext('001', true);
+    assert.deepEqual(forward.currentObservation!.diagnostic.repeat, repeat.currentObservation!.diagnostic.repeat);
+    assert.equal((db.prepare('SELECT SUM(occurrence_count) AS count FROM recording_displays').get() as { count: number }).count, 3);
+    const rows = buildDiagnosticSections(forward, 'en')![0]!.rows;
+    assert.equal(rows.find(row => row.key === 'recordingOccurrence')?.value, '2');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherCount')?.value, '1');
+  });
+
+  await suite.test('existing profiles get concrete counts and old history snapshots exclude future appearances', () => {
+    resetDatabase();
+    db.prepare("UPDATE profiles SET repeat_tracking_complete = 0 WHERE code = '001'").run();
+    const ids = seedQueue(['ready', 'ready'], ['తెలుగు', 'తెలుగు']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[1]);
+    const first = profileService.navigateNext('001', false);
+    assert.equal(first.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 1);
+    assert.equal(first.currentObservation!.diagnostic.repeat!.recording.isRepeat, false);
+    now = 2_000;
+    const second = profileService.navigateNext('001', false);
+    const oldSnapshot = second.currentObservation!.diagnostic.repeat!;
+    oldSnapshot.recording.occurrenceCount = null;
+    oldSnapshot.recording.isRepeat = null;
+    oldSnapshot.sameTextOtherRecordings.previousDisplayCount = null;
+    oldSnapshot.sameTextOtherRecordings.seenBefore = null;
+    db.prepare('UPDATE observations SET repeat_snapshot_json = ? WHERE id = ?').run(JSON.stringify(oldSnapshot), ids[1]);
+    db.prepare('UPDATE observations SET repeat_snapshot_json = NULL WHERE id = ?').run(ids[0]);
+    const historical = profileService.navigateBack('001', false);
+    assert.equal(historical.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 1);
+    assert.equal(historical.currentObservation!.diagnostic.repeat!.recording.previousSeenAt, null);
+    const restored = profileService.navigateNext('001', false);
+    assert.equal(restored.currentObservation!.diagnostic.repeat!.recording.occurrenceCount, 2);
+    assert.equal(restored.currentObservation!.diagnostic.repeat!.recording.previousSeenAt, 1_000);
+    const rows = buildDiagnosticSections(restored, 'en')![0]!.rows;
+    assert.equal(rows.find(row => row.key === 'recordingRepeat')?.value, 'Yes');
+    assert.equal(rows.find(row => row.key === 'recordingOccurrence')?.value, '2');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherRecordings')?.value, 'No');
+    assert.equal(rows.find(row => row.key === 'sameTextOtherCount')?.value, '0');
+    assert.ok(rows.every(row => !row.value.includes('Unknown')));
+    assert.equal((db.prepare('SELECT SUM(occurrence_count) AS count FROM recording_displays').get() as { count: number }).count, 2);
+  });
+
+  await suite.test('repeat totals outlive pruning and navigation skips missing history positions', () => {
+    resetDatabase();
+    const ids = seedQueue(['ready', 'ready', 'ready', 'ready']);
+    const firstKey = (db.prepare('SELECT source_key FROM observations WHERE id = ?').get(ids[0]) as { source_key: string }).source_key;
+    db.prepare('UPDATE observations SET source_key = ? WHERE id = ?').run(firstKey, ids[3]);
+    profileService.navigateNext('001', false);
+    now = 2_000;
+    profileService.navigateNext('001', false);
+    now = 3_000;
+    profileService.navigateNext('001', false);
+    db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 1").run();
+    assert.equal(profileService.navigateBack('001', false).currentPosition, 0);
+    assert.equal(profileService.navigateNext('001', false).currentPosition, 2);
+    db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 0").run();
+    assert.equal(profileService.getProfileState('001', false).canBack, false);
+    now = 4_000;
+    const repeated = profileService.navigateNext('001', false).currentObservation!.diagnostic.repeat;
+    assert.equal(repeated?.recording.occurrenceCount, 2);
+    assert.equal(repeated?.recording.previousSeenAt, 1_000);
   });
 });
 
@@ -467,14 +677,35 @@ test(
         settings.complexityReferenceVersion,
         2,
       );
+      assert.equal(settings.questionProbability, 0.3);
+      assert.equal(settings.seenQuestionProbability, 0.75);
+      assert.equal(settings.audioGivenQuestionProbability, 0.6);
     },
   );
+
+  await suite.test('persists configurable question sampling probabilities', () => {
+    resetDatabase();
+    ensureProfile();
+    const current = settingsService.getProfileSelectionSettings('001');
+    const saved = settingsService.updateProfileSelectionSettings('001', {
+      sourceWeights: current.sourceWeights,
+      complexityPercentileTarget: current.complexityPercentileTarget,
+      complexityPercentileSpread: current.complexityPercentileSpread,
+      questionProbability: 0.45,
+      seenQuestionProbability: 0.2,
+      audioGivenQuestionProbability: 0.8,
+    });
+    assert.equal(saved.questionProbability, 0.45);
+    assert.equal(saved.seenQuestionProbability, 0.2);
+    assert.equal(saved.audioGivenQuestionProbability, 0.8);
+  });
 
   await suite.test('persists the configured default playback rate for a new profile and exposes it in profile state', () => {
     resetDatabase();
     ensureProfile();
     const settings = audioSettingsService.getProfileAudioSettings('001');
     assert.equal(settings.playbackRate, appConfig.defaultAudioPlaybackRate);
+    assert.equal(settings.autoplay, true);
 
     const state = profileService.getProfileState('001', false);
     assert.equal(state.audioSettings.playbackRate, appConfig.defaultAudioPlaybackRate);
@@ -488,7 +719,11 @@ test(
     assert.equal(minimum.playbackRate, 0.1);
     const saved = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.5 });
     assert.equal(saved.playbackRate, 1.5);
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
+    assert.equal(saved.autoplay, true);
+    const autoplayDisabled = audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1.5, autoplay: false });
+    assert.equal(autoplayDisabled.autoplay, false);
+    assert.equal(audioSettingsService.updateProfileAudioSettings('001', { playbackRate: 1 }).autoplay, false);
+    assert.deepEqual(audioSettingsService.getProfileAudioSettings('001'), { playbackRate: 1, autoplay: false });
 
     for (const invalid of [0.09, 1.51, Number.NaN, Number.POSITIVE_INFINITY]) {
       assert.throws(
@@ -497,7 +732,7 @@ test(
       );
     }
     // A rejected update leaves the previously persisted rate untouched.
-    assert.equal(audioSettingsService.getProfileAudioSettings('001').playbackRate, 1.5);
+    assert.deepEqual(audioSettingsService.getProfileAudioSettings('001'), { playbackRate: 1, autoplay: false });
   });
 
   await suite.test('rejects every invalid settings family, including non-finite values and incomplete source maps', () => {

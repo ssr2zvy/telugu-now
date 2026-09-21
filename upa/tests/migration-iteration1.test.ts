@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import Database from 'better-sqlite3';
+import { spawnSync } from 'node:child_process';
 
 test('upgrades the accepted Iteration 1 SQLite schema without losing live state', { concurrency: false }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-iteration1-migration-'));
@@ -130,6 +131,13 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
   try {
     const observationColumns = db.prepare('PRAGMA table_info(observations)').all() as Array<{ name: string }>;
     assert.ok(observationColumns.some((column) => column.name === 'cache_hit'));
+    assert.ok(observationColumns.some((column) => column.name === 'audio_validated_at'));
+    assert.ok(observationColumns.some((column) => column.name === 'repeat_snapshot_json'));
+    assert.equal((db.prepare("SELECT repeat_tracking_complete FROM profiles WHERE code = '001'").get() as { repeat_tracking_complete: number }).repeat_tracking_complete, 0);
+    assert.deepEqual(db.prepare("SELECT occurrence_count, last_seen_at FROM recording_displays WHERE profile_code = '001'").get(), {
+      occurrence_count: 1, last_seen_at: 1100,
+    });
+    assert.equal((db.prepare("SELECT repeat_snapshot_json FROM observations WHERE id = 'legacy-ready'").get() as { repeat_snapshot_json: null }).repeat_snapshot_json, null);
 
     const acquisitionColumns = db.prepare('PRAGMA table_info(observation_acquisitions)').all() as Array<{ name: string }>;
     assert.ok(acquisitionColumns.some((column) => column.name === 'selection_snapshot_json'));
@@ -208,6 +216,27 @@ test('upgrades the accepted Iteration 1 SQLite schema without losing live state'
     }
     assert.equal(settings.complexityPercentileTarget, 0.5);
     assert.equal(settings.complexityPercentileSpread, 0.25);
+
+    const { recordFirstDisplay } = await import('../server/src/services/repeat-service');
+    db.transaction(() => {
+      db.prepare("INSERT INTO history_entries (profile_code, history_position, observation_id, absolute_started_at) VALUES ('001', 1, 'repeat-observation', 1400)").run();
+      db.prepare("UPDATE profiles SET current_position = 1 WHERE code = '001'").run();
+      recordFirstDisplay('001', 'repeat-observation', 1400);
+    })();
+    const snapshot = JSON.parse((db.prepare("SELECT repeat_snapshot_json FROM observations WHERE id = 'repeat-observation'").get() as { repeat_snapshot_json: string }).repeat_snapshot_json);
+    assert.deepEqual(snapshot.recording, { isRepeat: true, occurrenceCount: 2, knownOccurrenceCount: 2, previousSeenAt: 1100 });
+    db.prepare("DELETE FROM history_entries WHERE profile_code = '001' AND history_position = 0").run();
+    const restart = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+      const { db } = await import('./server/src/db/database.ts');
+      console.log(JSON.stringify({
+        profile: db.prepare("SELECT current_position FROM profiles WHERE code = '001'").get(),
+        count: db.prepare("SELECT SUM(occurrence_count) AS total FROM recording_displays WHERE profile_code = '001'").get(),
+        repeat: JSON.parse(db.prepare("SELECT repeat_snapshot_json FROM observations WHERE id = 'repeat-observation'").get().repeat_snapshot_json)
+      }));
+      db.close();
+    `], { encoding: 'utf8', env: { ...process.env, NODE_DISABLE_COMPILE_CACHE: '1' } });
+    assert.equal(restart.status, 0, restart.stderr);
+    assert.deepEqual(JSON.parse(restart.stdout), { profile: { current_position: 1 }, count: { total: 2 }, repeat: snapshot });
 
   } finally {
     db.close();

@@ -18,6 +18,7 @@ export interface PreparedSourceObservation {
 export interface DataSource {
   readonly id: string;
   readonly enabled: boolean;
+  readonly generation?: string;
 
   rowCount(): number;
   complexityClasses(): readonly SourceComplexityClass[];

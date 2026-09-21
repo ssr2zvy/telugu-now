@@ -1,14 +1,13 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useEffect, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
-import { useClickOutsideToClose } from './useClickOutsideToClose';
-import { precisionSeekTime } from '../../../../shared/audio';
-import { useAppearance } from '../../appearance';
+import { magnifierSeekTime, precisionSeekTime } from '../../../../shared/audio';
+import { DEFAULT_APPEARANCE } from '../../../../shared/appearance';
+
+export interface RecordingTimeline {
+  start: number;
+  end: number;
+  span: number;
+}
 
 interface AudioScrubberProps {
   currentTime: number;
@@ -16,8 +15,21 @@ interface AudioScrubberProps {
   waveformPeaks: number[];
   bookmarks: number[];
   disabled: boolean;
-  onSeek: (time: number) => void;
+  magnifierOpen: boolean;
+  precisionPanelOpen?: boolean;
+  showTimestamp?: boolean;
+  showMagnifierHighlight?: boolean;
+  bookmarkButton?: ReactNode;
+  speedButton?: ReactNode;
+  playbackControls?: ReactNode;
+  speedControls?: ReactNode;
+  recordingRange?: RecordingTimeline | null;
   onMagnifierOpen: () => void;
+  onMagnifierClose: () => void;
+  onSeek: (time: number) => void;
+  onPointerSeekStart: (time: number) => void;
+  onPointerSeekMove: (time: number) => void;
+  onPointerSeekEnd: () => void;
 }
 
 function clamp(minimum: number, maximum: number, value: number): number {
@@ -39,46 +51,50 @@ function formatPreciseTime(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${secs.toFixed(3).padStart(6, '0')}`;
 }
 
+const SCRUBBER_THUMB_GRAB_RADIUS_PX = 22;
+// A plain tap on the magnifier must not seek; only an actual drag does.
+const MAGNIFIER_DRAG_THRESHOLD_PX = 4;
+
 export function AudioScrubber({
   currentTime,
   duration,
   waveformPeaks,
   bookmarks,
   disabled,
-  onSeek,
+  magnifierOpen,
+  precisionPanelOpen = magnifierOpen,
+  showTimestamp = DEFAULT_APPEARANCE.showAudioTimestamp,
+  showMagnifierHighlight = DEFAULT_APPEARANCE.showMagnifierHighlight,
+  bookmarkButton,
+  speedButton,
+  playbackControls,
+  speedControls,
+  recordingRange = null,
   onMagnifierOpen,
+  onMagnifierClose,
+  onSeek,
+  onPointerSeekStart,
+  onPointerSeekMove,
+  onPointerSeekEnd,
 }: AudioScrubberProps) {
-  const { appearance } = useAppearance();
   const barRef = useRef<HTMLDivElement | null>(null);
-  const magnifierRef = useRef<HTMLDivElement | null>(null);
-  const magnifierTrackRef = useRef<HTMLDivElement | null>(null);
-  const holdTimerRef = useRef<number | null>(null);
-  const [magnifierOpen, setMagnifierOpen] = useState(false);
-  const fineDrag = useRef<{ clientX: number; time: number } | null>(null);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
-
-  useEffect(() => () => {
-    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
-  }, []);
-  useLayoutEffect(() => {
-    if (!magnifierOpen) return;
-    const place = () => {
-      const anchor = barRef.current?.getBoundingClientRect();
-      const panel = magnifierRef.current?.getBoundingClientRect();
-      if (!anchor || !panel) return;
-      const parent = barRef.current?.closest('.audio-player-bar')?.getBoundingClientRect();
-      if (!parent) return;
-      const left = clamp(12, Math.max(12, window.innerWidth - panel.width - 12), anchor.left + anchor.width / 2 - panel.width / 2);
-      const preferredTop = appearance.magnifierPosition === 'below' ? parent.bottom + 8 : parent.top - panel.height - 8;
-      const top = clamp(12, Math.max(12, window.innerHeight - panel.height - 12), preferredTop);
-      setPosition({ left: left - anchor.left, top: top - anchor.top });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [magnifierOpen, appearance.magnifierPosition, appearance.audioOffset]);
-
-  useClickOutsideToClose(magnifierOpen, [barRef, magnifierRef], () => setMagnifierOpen(false));
+  const barDrag = useRef<{ clientX: number; time: number; grabbedThumb: boolean } | null>(null);
+  const fineDrag = useRef<{ clientX: number; time: number; dragging: boolean } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
+  const openMagnifier = () => {
+    clearHold();
+    onMagnifierOpen();
+  };
+  useEffect(() => clearHold, []);
+  useEffect(() => {
+    if (disabled) clearHold();
+  }, [disabled]);
 
   const timeFromClientX = (clientX: number): number => {
     const rect = barRef.current?.getBoundingClientRect();
@@ -87,69 +103,88 @@ export function AudioScrubber({
     return ratio * duration;
   };
 
-  const clearHoldTimer = () => {
-    if (holdTimerRef.current !== null) {
-      window.clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-  };
-
-  // The main bar always performs a normal, coarse seek while dragging. A
-  // sustained press additionally opens the precision magnifier, which then
-  // stays open (fine dragging happens inside it) until dismissed elsewhere.
   const handleBarPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled || duration <= 0 || event.button !== 0 || !event.isPrimary) return;
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    onSeek(timeFromClientX(event.clientX));
-
-    clearHoldTimer();
-    holdTimerRef.current = window.setTimeout(() => {
-      holdTimerRef.current = null;
-      onMagnifierOpen();
-      setMagnifierOpen(true);
-    }, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const thumbClientX = rect.left + (duration > 0 ? currentTime / duration : 0) * rect.width;
+    const grabbedThumb = Math.abs(event.clientX - thumbClientX) <= SCRUBBER_THUMB_GRAB_RADIUS_PX;
+    const time = grabbedThumb ? currentTime : timeFromClientX(event.clientX);
+    barDrag.current = { clientX: event.clientX, time, grabbedThumb };
+    onPointerSeekStart(time);
+    clearHold();
+    if (!precisionPanelOpen) {
+      holdTimer.current = setTimeout(openMagnifier, AUDIO_PLAYER_PRESENTATION.magnifierHoldMs);
+      if (event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
+    }
   };
 
   const handleBarPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onSeek(timeFromClientX(event.clientX));
+    const drag = barDrag.current;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId) || !drag) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const time = drag.grabbedThumb && rect.width > 0
+      ? clamp(0, duration, drag.time + ((event.clientX - drag.clientX) / rect.width) * duration)
+      : timeFromClientX(event.clientX);
+    onPointerSeekMove(time);
+    if (!precisionPanelOpen && event.pressure >= AUDIO_PLAYER_PRESENTATION.magnifierPressureThreshold) openMagnifier();
   };
 
   const releaseBarCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
-    clearHoldTimer();
+    clearHold();
+    if (barDrag.current) {
+      barDrag.current = null;
+      onPointerSeekEnd();
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
 
-  const progress = duration > 0 ? clamp(0, 1, currentTime / duration) : 0;
-
+  const recordingWindowStart = recordingRange ? Math.max(0, recordingRange.end - recordingRange.span) : 0;
+  const displayTime = (time: number) => recordingRange ? time - recordingWindowStart : time;
+  const progress = duration > 0 ? clamp(0, 1, displayTime(currentTime) / duration) : 0;
+  const recordingStartPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.start ?? 0) / duration * 100) : 0;
+  const recordingEndPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.end ?? 0) / duration * 100) : 0;
+  const timelineFocus = currentTime;
   const windowSeconds = magnifierWindowSeconds(duration);
-  const windowStart = clamp(0, Math.max(0, duration - windowSeconds), currentTime - windowSeconds / 2);
+  const windowStart = clamp(0, Math.max(0, duration - windowSeconds), timelineFocus - windowSeconds / 2);
   const windowEnd = Math.min(duration, windowStart + windowSeconds);
-  const magnifierPeaks =
-    waveformPeaks.length > 0 && duration > 0
-      ? waveformPeaks.slice(
-          Math.floor((windowStart / duration) * waveformPeaks.length),
-          Math.max(1, Math.ceil((windowEnd / duration) * waveformPeaks.length)),
-        )
-      : [];
+  const firstPeak = duration > 0 ? Math.floor((windowStart / duration) * waveformPeaks.length) : 0;
+  const lastPeak = duration > 0 ? Math.max(1, Math.ceil((windowEnd / duration) * waveformPeaks.length)) : 0;
+  const magnifierPeaks = waveformPeaks.slice(firstPeak, lastPeak);
+
+  const windowStartPct = duration > 0 ? (windowStart / duration) * 100 : 0;
+  const windowEndPct = duration > 0 ? (windowEnd / duration) * 100 : 100;
 
   const handleMagnifierPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled || duration <= 0 || event.button !== 0 || !event.isPrimary) return;
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    fineDrag.current = { clientX: event.clientX, time: currentTime };
+    const rect = event.currentTarget.getBoundingClientRect();
+    const time = magnifierSeekTime(event.clientX, rect.left, rect.width, windowStart, windowEnd);
+    // Seeking starts only once the pointer actually moves; a plain tap is a no-op.
+    fineDrag.current = { clientX: event.clientX, time, dragging: false };
   };
   const handleMagnifierPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId) || !fineDrag.current) return;
-    onSeek(precisionSeekTime(fineDrag.current.time, event.clientX - fineDrag.current.clientX, duration));
+    const drag = fineDrag.current;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId) || !drag) return;
+    const deltaX = event.clientX - drag.clientX;
+    if (!drag.dragging) {
+      if (Math.abs(deltaX) < MAGNIFIER_DRAG_THRESHOLD_PX) return;
+      drag.dragging = true;
+      onPointerSeekStart(drag.time);
+    }
+    onPointerSeekMove(precisionSeekTime(drag.time, deltaX, duration));
   };
   const releaseMagnifierCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = fineDrag.current;
+    if (!drag) return;
     fineDrag.current = null;
+    if (drag.dragging) onPointerSeekEnd();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -162,58 +197,85 @@ export function AudioScrubber({
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div
-        ref={barRef}
-        className="audio-scrubber"
-        onPointerDown={handleBarPointerDown}
-        onPointerMove={handleBarPointerMove}
-        onPointerUp={releaseBarCapture}
-        onPointerCancel={releaseBarCapture}
-        onLostPointerCapture={clearHoldTimer}
-        role="slider"
-        tabIndex={disabled ? -1 : 0}
-        aria-disabled={disabled}
-        onKeyDown={(event) => {
-          if (disabled || duration <= 0) return;
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            if (!magnifierOpen) onMagnifierOpen();
-            setMagnifierOpen((open) => !open);
-          }
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            event.preventDefault();
-            onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));
-          }
-        }}
-        aria-label="Audio position"
-        aria-valuemin={0}
-        aria-valuemax={duration}
-        aria-valuenow={currentTime}
-      >
-        <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
-        {bookmarks.map((bookmark) => (
-          <span
-            key={bookmark}
-            className="audio-scrubber-bookmark"
-            style={{ left: `${duration > 0 ? clamp(0, 100, (bookmark / duration) * 100) : 0}%` }}
-          />
-        ))}
-        <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
+      <div className="audio-scrubber-row">
+        <div className="audio-bookmark-controls-slot" data-visible={magnifierOpen} aria-hidden={!magnifierOpen}>
+          {magnifierOpen ? bookmarkButton : null}
+        </div>
+        <div
+          ref={barRef}
+          className="audio-scrubber"
+          onPointerDown={handleBarPointerDown}
+          onPointerMove={handleBarPointerMove}
+          onPointerUp={releaseBarCapture}
+          onPointerCancel={releaseBarCapture}
+          onLostPointerCapture={(event) => releaseBarCapture(event)}
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
+          aria-disabled={disabled}
+          aria-expanded={magnifierOpen}
+          onKeyDown={(event) => {
+            if (disabled || duration <= 0) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              if (magnifierOpen) onMagnifierClose();
+              else openMagnifier();
+            }
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+              event.preventDefault();
+              onSeek(clamp(0, duration, currentTime + (event.key === 'ArrowRight' ? 1 : -1)));
+            }
+          }}
+          aria-label="Audio position"
+          aria-valuemin={0}
+          aria-valuemax={duration}
+          aria-valuenow={currentTime}
+          aria-valuetext={formatPreciseTime(currentTime)}
+        >
+          {precisionPanelOpen && !speedControls && showMagnifierHighlight ? (
+            <div
+              className="audio-scrubber-window"
+              style={{ left: `${windowStartPct}%`, width: `${windowEndPct - windowStartPct}%` }}
+            />
+          ) : null}
+          <div className="audio-scrubber-progress" style={{ width: `${progress * 100}%` }} />
+          {recordingRange ? <div
+            className="audio-scrubber-recording-range"
+            style={{ left: `${recordingStartPct}%`, width: `${Math.max(0, recordingEndPct - recordingStartPct)}%` }}
+          /> : null}
+          {bookmarks.map((bookmark) => (
+            <span
+              key={bookmark}
+              className="audio-scrubber-bookmark"
+              style={{ left: `${duration > 0 ? clamp(0, 100, displayTime(bookmark) / duration * 100) : 0}%` }}
+            />
+          ))}
+          {recordingRange || (precisionPanelOpen && !speedControls) ? null : (
+            <div className="audio-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
+          )}
+        </div>
+        <div className="audio-playback-controls-slot" data-visible={magnifierOpen} aria-hidden={!magnifierOpen}>
+          {magnifierOpen ? playbackControls ?? speedButton : null}
+        </div>
       </div>
-      {magnifierOpen ? (
-        <div ref={magnifierRef} className="audio-magnifier" style={position}>
-          <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div>
+      {precisionPanelOpen ? <div className="audio-precision-panel" data-visible="true">
+        {speedControls ?? <>
           <div
-            ref={magnifierTrackRef}
             className="audio-magnifier-track"
             role="slider"
-            tabIndex={0}
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled}
             aria-label="Precise audio position"
             aria-valuemin={0}
             aria-valuemax={duration}
             aria-valuenow={currentTime}
+            aria-valuetext={formatPreciseTime(currentTime)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setMagnifierOpen(false);
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                onMagnifierClose();
+                barRef.current?.focus({ preventScroll: true });
+              }
+              if (disabled || duration <= 0) return;
               if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                 event.preventDefault();
                 onSeek(precisionSeekTime(currentTime, event.key === 'ArrowRight' ? 10 : -10, duration));
@@ -223,24 +285,30 @@ export function AudioScrubber({
             onPointerMove={handleMagnifierPointerMove}
             onPointerUp={releaseMagnifierCapture}
             onPointerCancel={releaseMagnifierCapture}
-            onLostPointerCapture={() => { fineDrag.current = null; }}
+            onLostPointerCapture={() => {
+              const drag = fineDrag.current;
+              if (!drag) return;
+              fineDrag.current = null;
+              if (drag.dragging) onPointerSeekEnd();
+            }}
           >
             {magnifierPeaks.map((peak, index) => (
               <span
                 key={index}
                 className="audio-magnifier-bar"
-                style={{ height: `${Math.max(12, peak * 100)}%` }}
+                style={{ height: `${peak > 0 ? Math.max(12, peak * 100) : 0}%` }}
               />
             ))}
             <div
-              className="audio-magnifier-playhead"
-              style={{
-                left: `${windowEnd > windowStart ? clamp(0, 100, ((currentTime - windowStart) / (windowEnd - windowStart)) * 100) : 50}%`,
-              }}
-            />
+                className="audio-magnifier-playhead"
+                style={{
+                  left: `${windowEnd > windowStart ? clamp(0, 100, ((currentTime - windowStart) / (windowEnd - windowStart)) * 100) : 50}%`,
+                }}
+              />
           </div>
-        </div>
-      ) : null}
+          {showTimestamp ? <div className="audio-magnifier-time">{formatPreciseTime(currentTime)}</div> : null}
+        </>}
+      </div> : null}
     </div>
   );
 }

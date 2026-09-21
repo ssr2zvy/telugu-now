@@ -2,8 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config } from '../config/config';
+import { migrateUserDatabase } from './migrate-user-database';
+import { initializeEonSchema } from './eons';
+import { initializeBlacklistSchema } from './blacklist';
+import { initializeAudioAlignmentSchema } from './audio-alignments';
 
 if (config.databasePath === config.corpusDatabasePath) throw new Error('User and corpus databases must be separate files.');
+migrateUserDatabase(config.dataDirectory, config.databasePath);
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 
 export const db = new Database(config.databasePath);
@@ -96,6 +101,10 @@ db.exec(`
     waiting_ahead_at_trigger INTEGER NOT NULL DEFAULT 0,
     preparation_in_flight_at_trigger INTEGER NOT NULL DEFAULT 0 CHECK (preparation_in_flight_at_trigger IN (0, 1)),
     selection_snapshot_json TEXT NOT NULL DEFAULT '{}',
+    observation_kind TEXT NOT NULL DEFAULT 'normal' CHECK (observation_kind IN ('normal', 'question')),
+    question_requested_pool TEXT CHECK (question_requested_pool IS NULL OR question_requested_pool IN ('seen', 'unseen')),
+    question_mode TEXT CHECK (question_mode IS NULL OR question_mode IN ('audio-given', 'text-given')),
+    question_keyboard TEXT CHECK (question_keyboard IS NULL OR question_keyboard IN ('windows-inscript', 'mac-standard', 'chromebook-dictation')),
     UNIQUE (profile_code, acquisition_number),
     FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE,
@@ -108,6 +117,9 @@ db.exec(`
     profile_code TEXT PRIMARY KEY,
     complexity_percentile_target REAL NOT NULL,
     complexity_percentile_spread REAL NOT NULL,
+    question_probability REAL NOT NULL DEFAULT 0.3,
+    seen_question_probability REAL NOT NULL DEFAULT 0.75,
+    audio_given_question_probability REAL NOT NULL DEFAULT 0.6,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
@@ -123,6 +135,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS profile_audio_settings (
     profile_code TEXT PRIMARY KEY,
     playback_rate REAL NOT NULL,
+    autoplay INTEGER NOT NULL DEFAULT 1 CHECK (autoplay IN (0, 1)),
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE
   );
@@ -139,6 +152,41 @@ function columnExists(table: string, column: string): boolean {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   return rows.some((row) => row.name === column);
 }
+
+if (!columnExists('profile_audio_settings', 'autoplay')) {
+  db.exec(`ALTER TABLE profile_audio_settings ADD COLUMN autoplay INTEGER NOT NULL DEFAULT 1 CHECK (autoplay IN (0, 1));`);
+}
+
+for (const [column, definition] of [
+  ['question_probability', 'REAL NOT NULL DEFAULT 0.3'],
+  ['seen_question_probability', 'REAL NOT NULL DEFAULT 0.75'],
+  ['audio_given_question_probability', 'REAL NOT NULL DEFAULT 0.6'],
+] as const) {
+  if (!columnExists('profile_selection_settings', column)) db.exec(`ALTER TABLE profile_selection_settings ADD COLUMN ${column} ${definition};`);
+}
+
+for (const [column, definition] of [
+  ['observation_kind', "TEXT NOT NULL DEFAULT 'normal' CHECK (observation_kind IN ('normal', 'question'))"],
+  ['question_requested_pool', "TEXT CHECK (question_requested_pool IS NULL OR question_requested_pool IN ('seen', 'unseen'))"],
+  ['question_mode', "TEXT CHECK (question_mode IS NULL OR question_mode IN ('audio-given', 'text-given'))"],
+  ['question_keyboard', "TEXT CHECK (question_keyboard IS NULL OR question_keyboard IN ('windows-inscript', 'mac-standard', 'chromebook-dictation'))"],
+] as const) {
+  if (!columnExists('observation_acquisitions', column)) db.exec(`ALTER TABLE observation_acquisitions ADD COLUMN ${column} ${definition};`);
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS question_responses (
+    profile_code TEXT NOT NULL,
+    observation_id TEXT NOT NULL,
+    response_text TEXT NOT NULL DEFAULT '',
+    response_audio BLOB,
+    response_audio_mime_type TEXT,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (profile_code, observation_id),
+    FOREIGN KEY (profile_code) REFERENCES profiles(code) ON DELETE CASCADE,
+    FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+  );
+`);
 
 // Iteration 1 made (source_id, source_key) unique on observations. Iteration 2 permits
 // repeated selections, so remove that table-level uniqueness without destroying rows.
@@ -195,6 +243,40 @@ if (!columnExists('observations', 'cache_hit')) {
     ADD COLUMN cache_hit INTEGER CHECK (cache_hit IS NULL OR cache_hit IN (0, 1));
   `);
 }
+
+for (const [column, definition] of [
+  ['audio_validated_at', 'INTEGER'],
+  ['preparation_attempts', 'INTEGER NOT NULL DEFAULT 0'],
+  ['preparation_retry_at', 'INTEGER'],
+  ['preparation_error', 'TEXT'],
+  ['repeat_snapshot_json', 'TEXT'],
+] as const) {
+  if (!columnExists('observations', column)) db.exec(`ALTER TABLE observations ADD COLUMN ${column} ${definition}`);
+}
+
+if (!columnExists('profiles', 'repeat_tracking_complete')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN repeat_tracking_complete INTEGER NOT NULL DEFAULT 0');
+}
+
+if (!tableSql('recording_displays')) {
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE recording_displays (
+        profile_code TEXT NOT NULL REFERENCES profiles(code) ON DELETE CASCADE,
+        source_id TEXT NOT NULL, source_key TEXT NOT NULL, text TEXT NOT NULL,
+        occurrence_count INTEGER NOT NULL, last_seen_at INTEGER NOT NULL,
+        PRIMARY KEY (profile_code, source_id, source_key, text)
+      ) WITHOUT ROWID;
+      INSERT INTO recording_displays
+        SELECT h.profile_code, o.source_id, o.source_key, o.text,
+               COUNT(DISTINCT o.id), MAX(h.absolute_started_at)
+        FROM history_entries h JOIN observations o ON o.id = h.observation_id
+        WHERE o.text IS NOT NULL
+        GROUP BY h.profile_code, o.source_id, o.source_key, o.text;
+    `);
+  })();
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_recording_displays_text ON recording_displays(profile_code, text)');
 
 if (!columnExists('observation_acquisitions', 'selection_snapshot_json')) {
   db.exec(`
@@ -320,6 +402,24 @@ db.prepare(`
       cache_hit = NULL
   WHERE status = 'preparing'
 `).run();
+
+// Ready queue entries survive restarts, but their objects may not. Recheck metadata
+// (and reuse only identity-matched decode results) before exposing them as ready.
+db.prepare(`
+  UPDATE observations SET status = 'pending', audio_validated_at = NULL,
+    preparation_attempts = 0, preparation_retry_at = NULL
+  WHERE status = 'ready' AND id IN (SELECT observation_id FROM queue_items)
+    AND (source_id IN ('fleurs-te', 'shrutilipi-te', 'indicvoices-te') OR EXISTS (
+      SELECT 1 FROM source_records sr, json_each(sr.media_json) media
+      WHERE sr.source_id = observations.source_id AND sr.source_key = observations.source_key
+        AND json_extract(media.value, '$.kind') = 'audio'
+    ))
+`).run();
+
+// View events begin with this version; historical acquisitions are not fabricated views.
+initializeEonSchema(db);
+initializeBlacklistSchema(db);
+initializeAudioAlignmentSchema(db);
 
 const foreignKeyProblems = db.pragma('foreign_key_check') as unknown[];
 if (foreignKeyProblems.length > 0) {

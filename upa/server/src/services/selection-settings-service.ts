@@ -13,9 +13,17 @@ function assertFinite(value: number, name: string): void {
   if (!Number.isFinite(value)) throw new InvalidSelectionSettingsError(`${name} must be finite.`);
 }
 
-export function validateSelectionSettings(request: UpdateSelectionSettingsRequest): void {
+export function validateSelectionSettings(request: ProfileSelectionSettings): void {
   assertFinite(request.complexityPercentileTarget, 'complexity target');
   assertFinite(request.complexityPercentileSpread, 'complexity spread');
+  for (const [value, name] of [
+    [request.questionProbability ?? 0.3, 'question probability'],
+    [request.seenQuestionProbability ?? 0.75, 'seen question probability'],
+    [request.audioGivenQuestionProbability ?? 0.6, 'audio-given question probability'],
+  ] as const) {
+    assertFinite(value, name);
+    if (value < 0 || value > 1) throw new InvalidSelectionSettingsError(`${name} must be in [0, 1].`);
+  }
 
   if (request.complexityPercentileTarget < 0 || request.complexityPercentileTarget > 1) {
     throw new InvalidSelectionSettingsError('Complexity target must be in [0, 1].');
@@ -52,8 +60,9 @@ function ensureRows(profileCode: string): void {
   const now = Date.now();
   const insertSettings = db.prepare(`
     INSERT INTO profile_selection_settings (
-      profile_code, complexity_percentile_target, complexity_percentile_spread, updated_at
-    ) VALUES (?, ?, ?, ?)
+      profile_code, complexity_percentile_target, complexity_percentile_spread,
+      question_probability, seen_question_probability, audio_given_question_probability, updated_at
+    ) VALUES (?, ?, ?, 0.3, 0.75, 0.6, ?)
     ON CONFLICT(profile_code) DO NOTHING
   `);
   const insertWeight = db.prepare(`
@@ -80,12 +89,16 @@ function ensureRows(profileCode: string): void {
 export function getProfileSelectionSettings(profileCode: string): ProfileSelectionSettings {
   const sourceIds = sourceRegistry.selectableSourceIds();
   const readSettings = () => db.prepare(`
-    SELECT complexity_percentile_target, complexity_percentile_spread
+        SELECT complexity_percentile_target, complexity_percentile_spread,
+          question_probability, seen_question_probability, audio_given_question_probability
     FROM profile_selection_settings
     WHERE profile_code = ?
   `).get(profileCode) as {
     complexity_percentile_target: number;
     complexity_percentile_spread: number;
+    question_probability: number;
+    seen_question_probability: number;
+    audio_given_question_probability: number;
   } | undefined;
   const readWeights = () => db.prepare(`
     SELECT source_id, weight
@@ -114,6 +127,9 @@ export function getProfileSelectionSettings(profileCode: string): ProfileSelecti
     sourceWeights,
     complexityPercentileTarget: settings.complexity_percentile_target,
     complexityPercentileSpread: settings.complexity_percentile_spread,
+    questionProbability: settings.question_probability,
+    seenQuestionProbability: settings.seen_question_probability,
+    audioGivenQuestionProbability: settings.audio_given_question_probability,
     complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
   };
 }
@@ -122,14 +138,25 @@ export function updateProfileSelectionSettings(
   profileCode: string,
   request: UpdateSelectionSettingsRequest,
 ): ProfileSelectionSettings {
-  validateSelectionSettings(request);
   ensureRows(profileCode);
+  const current = getProfileSelectionSettings(profileCode);
+  const normalized: ProfileSelectionSettings = {
+    ...current,
+    ...request,
+    questionProbability: request.questionProbability ?? current.questionProbability ?? 0.3,
+    seenQuestionProbability: request.seenQuestionProbability ?? current.seenQuestionProbability ?? 0.75,
+    audioGivenQuestionProbability: request.audioGivenQuestionProbability ?? current.audioGivenQuestionProbability ?? 0.6,
+  };
+  validateSelectionSettings(normalized);
   const now = Date.now();
 
   const updateSettings = db.prepare(`
     UPDATE profile_selection_settings
     SET complexity_percentile_target = ?,
         complexity_percentile_spread = ?,
+      question_probability = ?,
+      seen_question_probability = ?,
+      audio_given_question_probability = ?,
         updated_at = ?
     WHERE profile_code = ?
   `);
@@ -141,13 +168,16 @@ export function updateProfileSelectionSettings(
 
   db.transaction(() => {
     updateSettings.run(
-      request.complexityPercentileTarget,
-      request.complexityPercentileSpread,
+      normalized.complexityPercentileTarget,
+      normalized.complexityPercentileSpread,
+      normalized.questionProbability,
+      normalized.seenQuestionProbability,
+      normalized.audioGivenQuestionProbability,
       now,
       profileCode,
     );
     for (const sourceId of sourceRegistry.selectableSourceIds()) {
-      upsertWeight.run(profileCode, sourceId, request.sourceWeights[sourceId]);
+      upsertWeight.run(profileCode, sourceId, normalized.sourceWeights[sourceId]);
     }
   })();
 

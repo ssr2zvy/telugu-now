@@ -1,26 +1,51 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { generatePollinationsImage, readPollinationsKey, MAX_IMAGE_BYTES } from '../server/src/services/pollinations-service';
 import { IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../shared/image-settings';
+
+let originalEnvironmentKey: string | undefined;
+test.beforeEach(() => {
+  originalEnvironmentKey = process.env.pollinations_api_key;
+  delete process.env.pollinations_api_key;
+});
+test.afterEach(() => {
+  if (originalEnvironmentKey === undefined) delete process.env.pollinations_api_key;
+  else process.env.pollinations_api_key = originalEnvironmentKey;
+});
 
 test('image prompt requires the placeholder and replaces every occurrence literally', () => {
   for (const value of ['', 'Draw a word', null, '<core word>'.repeat(201)]) assert.equal(validImagePrompt(value), false);
   assert.equal(renderImagePrompt('Draw <core word>, not the text <core word>.', 'అవును'), 'Draw అవును, not the text అవును.');
 });
 
-test('root env key supports dotenv syntax and can change without restarting', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'image-env-'));
-  const envPath = path.join(directory, 'env');
+test('image key comes only from the server environment and trims whitespace', () => {
+  process.env.pollinations_api_key = '  deployment-fixture  ';
+  assert.equal(readPollinationsKey(), 'deployment-fixture');
+  process.env.pollinations_api_key = 'updated-fixture';
+  assert.equal(readPollinationsKey(), 'updated-fixture');
+});
+
+test('Vite refuses to serve the local secrets file', async () => {
+  const { createServer, isFileServingAllowed } = await import('vite');
+  const server = await createServer({
+    configFile: fileURLToPath(new URL('../frontend/vite.config.ts', import.meta.url)),
+    server: { watch: null },
+  });
   try {
-    assert.equal(readPollinationsKey(envPath), '');
-    await writeFile(envPath, 'pollinations_api_key="fixture-key" # local only\n');
-    assert.equal(readPollinationsKey(envPath), 'fixture-key');
-    await writeFile(envPath, 'pollinations_api_key=updated-fixture\n');
-    assert.equal(readPollinationsKey(envPath), 'updated-fixture');
-  } finally { await rm(directory, { recursive: true, force: true }); }
+    const secretsPath = fileURLToPath(new URL('../../local-machine/dev-secrets.env', import.meta.url));
+    assert.equal(isFileServingAllowed(`/@fs${secretsPath}`, server), false);
+  } finally {
+    await server.close();
+  }
+});
+
+test('missing or blank image keys stay empty without a local file fallback', () => {
+  assert.equal(readPollinationsKey(), '');
+  for (const value of ['', '   ']) {
+    process.env.pollinations_api_key = value;
+    assert.equal(readPollinationsKey(), '');
+  }
 });
 
 test('Pollinations uses the exact model and keeps the key out of the URL', async () => {
@@ -46,7 +71,7 @@ test('provider failures never expose credentials or upstream response bodies', a
       return true;
     });
   }
-  await assert.rejects(generatePollinationsImage('word', ''), /root env file/);
+  await assert.rejects(generatePollinationsImage('word', ''), /server environment \(Fly secret\).*export it in local-machine\/dev-secrets\.env/);
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => { throw new Error('fixture-secret'); }), /could not be reached/);
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => new Response('large', { headers: { 'content-length': String(MAX_IMAGE_BYTES + 1) } })), /oversized/);
 });

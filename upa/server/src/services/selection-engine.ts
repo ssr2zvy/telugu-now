@@ -8,6 +8,8 @@ const CENTRAL_98_Z = 2.326347874;
 const SQRT_TWO = Math.SQRT2;
 const INV_SQRT_TWO_PI = 1 / Math.sqrt(2 * Math.PI);
 
+export class SelectionUnavailableError extends Error {}
+
 interface ComplexityClass {
   complexityValue: number;
   globalCount: number;
@@ -26,6 +28,9 @@ export interface SelectionResult {
   complexityValue: number;
   snapshot: SelectionSnapshot;
 }
+
+type WeightedSelectionSettings = Pick<ProfileSelectionSettings,
+  'sourceWeights' | 'complexityPercentileTarget' | 'complexityPercentileSpread' | 'complexityReferenceVersion'>;
 
 export interface ComplexityReferenceDescription {
   version: number;
@@ -97,16 +102,22 @@ function weightedPick<T>(
 }
 
 export class SelectionEngine {
-  private readonly classes: ComplexityClass[];
-  private readonly totalRows: number;
+  private classes: ComplexityClass[] = [];
+  private totalRows = 0;
+  private generation = '';
 
   constructor(
     private readonly registry: SourceRegistry = sourceRegistry,
     private readonly random: () => number = () => Math.random(),
   ) {
+    this.refreshReference();
+  }
+
+  private refreshReference(): void {
+    if (this.generation === this.registry.generation) return;
     const counts = new Map<number, number>();
 
-    for (const source of registry.selectableSources()) {
+    for (const source of this.registry.selectableSources()) {
       const sourceClasses = source.complexityClasses();
       const seenValues = new Set<number>();
       let classRowCount = 0;
@@ -122,7 +133,7 @@ export class SelectionEngine {
     }
 
     this.totalRows = [...counts.values()].reduce((sum, count) => sum + count, 0);
-    if (this.totalRows <= 0) throw new Error('Global complexity reference is empty.');
+    if (this.totalRows <= 0) throw new SelectionUnavailableError('Global complexity reference is empty.');
 
     let cumulative = 0;
     this.classes = [...counts.entries()]
@@ -137,9 +148,11 @@ export class SelectionEngine {
           percentileEnd: cumulative / this.totalRows,
         };
       });
+    this.generation = this.registry.generation;
   }
 
   describeReference(): ComplexityReferenceDescription {
+    this.refreshReference();
     return {
       version: COMPLEXITY_REFERENCE_VERSION,
       totalRows: this.totalRows,
@@ -164,7 +177,8 @@ export class SelectionEngine {
     });
   }
 
-  select(settings: ProfileSelectionSettings): SelectionResult {
+  select(settings: WeightedSelectionSettings): SelectionResult {
+    this.refreshReference();
     if (!SUPPORTED_REFERENCE_VERSIONS.has(settings.complexityReferenceVersion)) {
       throw new Error(`Unsupported complexity reference version ${settings.complexityReferenceVersion}.`);
     }
@@ -182,7 +196,7 @@ export class SelectionEngine {
       };
     });
     const totalSourceMass = sourceEntries.reduce((sum, entry) => sum + entry.sourceMass, 0);
-    if (!(totalSourceMass > 0)) throw new Error('Source selection has zero total mass.');
+    if (!(totalSourceMass > 0)) throw new SelectionUnavailableError('Source selection has zero total mass.');
 
     const selectedSourceEntry = weightedPick(sourceEntries, (entry) => entry.sourceMass, this.random);
     const sourceProbability = selectedSourceEntry.sourceMass / totalSourceMass;
@@ -243,6 +257,14 @@ export class SelectionEngine {
       complexityValue,
       snapshot,
     };
+  }
+
+  selectMatching(settings: WeightedSelectionSettings, accept: (selection: SelectionResult) => boolean, attempts = 256): SelectionResult | null {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const selected = this.select(settings);
+      if (accept(selected)) return selected;
+    }
+    return null;
   }
 }
 

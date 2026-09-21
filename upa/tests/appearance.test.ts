@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceCornerColor, appearanceSurface, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
+import { appearanceAudioColor, appearanceAudioGlass, appearanceAudioHoverColor, appearanceCornerColor, appearanceModificationColor, appearanceModificationTextShiftColor, appearanceSurface, CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
 import { chooseRandomObservationFont, preferredObservationFontSizePx, OBSERVATION_FONTS } from '../frontend/src/presentation';
 import { parentSettingsPage, settingsGroups } from '../frontend/src/settings/navigation';
 
@@ -36,10 +36,21 @@ test('appearance positions preserve existing baselines and validate persisted of
   const previous = parseAppearance({ fontScale: 75 });
   assert.equal(previous.textOffset, 0);
   assert.equal(previous.audioOffset, 0);
-  assert.equal(previous.magnifierPosition, 'above');
-  const custom = parseAppearance({ textOffset: -35, audioOffset: 60, magnifierPosition: 'below' });
+  assert.equal(previous.textOffsetOther, 0);
+  assert.equal(previous.audioOffsetOther, 0);
+  assert.equal(previous.audioTimestampGap, 1);
+  assert.equal(previous.timestampMagnifierGap, 1);
+  assert.equal(previous.magnifierPosition, 'below');
+  assert.equal(previous.toggleTrigger, 'scroll');
+  assert.equal(parseAppearance({ magnifierPosition: 'above' }).magnifierPosition, 'above');
+  assert.equal(parseAppearance({ scrollMode: false }).toggleTrigger, 'tap');
+  assert.equal(parseAppearance({ toggleTrigger: 'tap', scrollMode: true }).scrollMode, false);
+  assert.equal(parseAppearance({ toggleTrigger: 'scroll', scrollMode: false }).scrollMode, true);
+  const custom = parseAppearance({ textOffset: -35, audioOffset: 60, textOffsetOther: 15, audioOffsetOther: -40, magnifierPosition: 'below' });
   assert.equal(custom.textOffset, -35);
   assert.equal(custom.audioOffset, 60);
+  assert.equal(custom.textOffsetOther, 15);
+  assert.equal(custom.audioOffsetOther, -40);
   assert.equal(custom.magnifierPosition, 'below');
   assert.equal(parseAppearance({ textOffset: -999 }).textOffset, -200);
   assert.equal(parseAppearance({ audioOffset: 999 }).audioOffset, 200);
@@ -47,8 +58,185 @@ test('appearance positions preserve existing baselines and validate persisted of
   for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).textOffset, 0);
     assert.equal(parseAppearance({ textOffset: invalid, audioOffset: invalid }).audioOffset, 0);
-    assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'above');
+    assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).textOffsetOther, 0);
+    assert.equal(parseAppearance({ textOffsetOther: invalid, audioOffsetOther: invalid }).audioOffsetOther, 0);
+    assert.equal(parseAppearance({ controlSpacing: invalid }).audioTimestampGap, 1);
+    assert.equal(parseAppearance({ controlSpacing: invalid }).timestampMagnifierGap, 1);
+    assert.equal(parseAppearance({ magnifierPosition: invalid }).magnifierPosition, 'below');
   }
+});
+
+test('control darkness and timestamp visibility validate old and new preferences', () => {
+  assert.equal(parseAppearance({ fontScale: 75 }).controlDarkness, 15);
+  assert.equal(parseAppearance({ fontScale: 75 }).showAudioTimestamp, false);
+  assert.equal(parseAppearance({ fontScale: 75 }).showMagnifierHighlight, true);
+  assert.equal(parseAppearance({ fontScale: 75 }).highlightMods, true);
+  assert.equal(parseAppearance({ fontScale: 75 }).modificationLightness, 24);
+  assert.equal(parseAppearance({ fontScale: 75 }).modificationColor, null);
+  assert.equal(parseAppearance({ controlDarkness: -5 }).controlDarkness, 0);
+  assert.equal(parseAppearance({ controlDarkness: 999 }).controlDarkness, 60);
+  assert.equal(parseAppearance({ controlDarkness: 25.6 }).controlDarkness, 26);
+  for (const invalid of [null, undefined, '20', NaN, Infinity, -Infinity]) {
+    assert.equal(parseAppearance({ controlDarkness: invalid }).controlDarkness, 15);
+    assert.equal(parseAppearance({ showAudioTimestamp: invalid }).showAudioTimestamp, false);
+    assert.equal(parseAppearance({ showMagnifierHighlight: invalid }).showMagnifierHighlight, true);
+    assert.equal(parseAppearance({ highlightMods: invalid }).highlightMods, true);
+  }
+  assert.equal(parseAppearance({ showMagnifierHighlight: false }).showMagnifierHighlight, false);
+  assert.equal(parseAppearance({ highlightMods: false }).highlightMods, false);
+  assert.equal(parseAppearance({ modificationLightness: -5 }).modificationLightness, 0);
+  assert.equal(parseAppearance({ modificationLightness: 999 }).modificationLightness, 40);
+  assert.equal(parseAppearance({ modificationLightness: 18.6 }).modificationLightness, 19);
+  assert.equal(parseAppearance({ modificationColor: '#12AbEf' }).modificationColor, '#12AbEf');
+  assert.equal(parseAppearance({ modificationColor: 'red' }).modificationColor, null);
+  for (const showAudioTimestamp of [false, true]) {
+    const custom = parseAppearance({ controlDarkness: 30, showAudioTimestamp });
+    assert.equal(custom.showAudioTimestamp, showAudioTimestamp);
+    assert.equal(custom.controlDarkness, 30);
+    assert.deepEqual(parseAppearance(JSON.parse(JSON.stringify(custom))), custom);
+    assert.deepEqual(appearanceAudioGlass(custom), appearanceAudioGlass(DEFAULT_APPEARANCE),
+      'darkness is applied to the paint without changing gradient colors, stops, or opacity ratios');
+  }
+});
+
+test('modification color defaults to the shared audio icon color', () => {
+  const color = appearanceModificationColor(DEFAULT_APPEARANCE);
+  assert.match(color, /^#[0-9a-f]{6}$/);
+  assert.equal(color, appearanceAudioColor(DEFAULT_APPEARANCE));
+  assert.equal(
+    appearanceModificationColor({ ...DEFAULT_APPEARANCE, modificationColor: '#28a5d9' }),
+    '#28a5d9',
+  );
+});
+
+test('modification text-shift preset shifts only the reading color lightness against its background', () => {
+  const color = appearanceModificationTextShiftColor(DEFAULT_APPEARANCE);
+  assert.match(color, /^#[0-9a-f]{6}$/);
+  const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map(value => parseInt(value, 16));
+  assert.equal(channels[0], channels[1]);
+  assert.equal(channels[1], channels[2]);
+  assert.ok(channels[0]! >= parseInt(DEFAULT_APPEARANCE.foreground.slice(1, 3), 16) + 60);
+  const lightForeground = { ...DEFAULT_APPEARANCE, gradient: ['#101010', '#202020', '#303030'] as [string, string, string], foreground: '#eeeeee' };
+  assert.ok(parseInt(appearanceModificationTextShiftColor(lightForeground).slice(1, 3), 16) <= 0xee - 60);
+  assert.equal(appearanceModificationTextShiftColor({ ...DEFAULT_APPEARANCE, modificationLightness: 0 }), DEFAULT_APPEARANCE.foreground);
+  assert.notEqual(
+    appearanceModificationTextShiftColor({ ...DEFAULT_APPEARANCE, modificationLightness: 12 }),
+    appearanceModificationTextShiftColor({ ...DEFAULT_APPEARANCE, modificationLightness: 36 }),
+  );
+});
+
+test('audio hover color mirrors the invert(1) filter applied to audio icons on hover', () => {
+  const base = appearanceAudioColor(DEFAULT_APPEARANCE);
+  const hover = appearanceAudioHoverColor(DEFAULT_APPEARANCE);
+  assert.match(hover, /^#[0-9a-f]{6}$/);
+  const baseChannels = [1, 3, 5].map(offset => parseInt(base.slice(offset, offset + 2), 16));
+  const hoverChannels = [1, 3, 5].map(offset => parseInt(hover.slice(offset, offset + 2), 16));
+  assert.deepEqual(hoverChannels, baseChannels.map(channel => 255 - channel));
+});
+
+test('audio gaps migrate shared spacing and remain independent in either orientation', () => {
+  for (const [controlSpacing, expected] of [[0, 0], [1, 1], [-5, 0], [40, 1], [0.4, 0]]) {
+    const migrated = parseAppearance({ controlSpacing });
+    assert.equal(migrated.audioTimestampGap, expected);
+    assert.equal(migrated.timestampMagnifierGap, expected);
+    assert.ok(!('controlSpacing' in migrated));
+  }
+  for (const magnifierPosition of ['above', 'below']) {
+    const custom = parseAppearance({ controlSpacing: 0, audioTimestampGap: 12, timestampMagnifierGap: 32, magnifierPosition });
+    assert.equal(custom.audioTimestampGap, 12);
+    assert.equal(custom.timestampMagnifierGap, 32);
+    assert.deepEqual(parseAppearance(JSON.parse(JSON.stringify(custom))), custom);
+    const partial = parseAppearance({ controlSpacing: 0, audioTimestampGap: 24, magnifierPosition });
+    assert.equal(partial.audioTimestampGap, 24);
+    assert.equal(partial.timestampMagnifierGap, 0);
+  }
+  for (const setting of ['audioTimestampGap', 'timestampMagnifierGap'] as const) {
+    assert.equal(parseAppearance({ [setting]: -5 })[setting], CONTROL_SPACING_LIMITS.min);
+    assert.equal(parseAppearance({ [setting]: 999 })[setting], CONTROL_SPACING_LIMITS.max);
+    assert.equal(parseAppearance({ [setting]: 12.6 })[setting], 13);
+    for (const invalid of [null, '20', NaN, Infinity, -Infinity]) {
+      assert.equal(parseAppearance({ [setting]: invalid })[setting], DEFAULT_APPEARANCE[setting]);
+    }
+  }
+});
+
+test('audio controls derive their shared color from the gradient, not text or settings surfaces', () => {
+  const color = appearanceAudioColor(DEFAULT_APPEARANCE);
+  assert.match(color, /^#[0-9a-f]{6}$/);
+  assert.equal(appearanceAudioColor({ ...DEFAULT_APPEARANCE, ...parseAppearance({ foreground: '#ffffff', surface: '#ff0000' }) }), color);
+  assert.notEqual(appearanceAudioColor(parseAppearance(randomAppearanceColors(() => 0.6))), color);
+});
+
+test('audio shades retain palette color even when complementary gradient colors average to gray', () => {
+  for (const gradient of [
+    ['#cc5577', '#55cc77', '#7755cc'],
+    ['#ff0000', '#00ff00', '#0000ff'],
+    ['#344a44', '#56515e', '#354452'],
+  ]) {
+    const color = appearanceAudioColor(parseAppearance({ gradient }));
+    const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16));
+    assert.ok(Math.max(...channels) - Math.min(...channels) > 2, `${color} must retain a gradient hue`);
+    assert.ok(!gradient.includes(color), `${color} must be a distinct shade`);
+  }
+  const neutral = appearanceAudioColor(DEFAULT_APPEARANCE);
+  assert.equal(neutral.slice(1, 3), neutral.slice(3, 5));
+  assert.equal(neutral.slice(3, 5), neutral.slice(5, 7));
+});
+
+test('pastel controls retain endpoint saturation and lie beyond the gradient luminance extremes', () => {
+  const gradient = ['#dfe5f2', '#c1c9e0', '#c2dcd0'];
+  const channels = (color: string) => [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255);
+  const saturation = (color: string) => {
+    const rgb = channels(color);
+    const max = Math.max(...rgb);
+    const min = Math.min(...rgb);
+    return (max - min) / (1 - Math.abs(max + min - 1));
+  };
+  const luminance = (color: string) => channels(color)
+    .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const shade = appearanceAudioColor(parseAppearance({ gradient }));
+  assert.ok(Math.abs(saturation(shade) - saturation('#c1c9e0')) < 0.02, `${shade} must not desaturate the blue endpoint`);
+  assert.ok(Math.max(...channels(shade)) - Math.min(...channels(shade)) > 0.2, `${shade} should be visibly colored`);
+  for (const palette of [gradient, ...Array.from({ length: 5 }, (_, index) => randomAppearanceColors(() => index / 5).gradient)]) {
+    const value = luminance(appearanceAudioColor(parseAppearance({ gradient: palette })));
+    assert.ok(value < Math.min(...palette.map(luminance)) || value > Math.max(...palette.map(luminance)));
+  }
+});
+
+test('glass controls use broad palette transitions without a repeated specular stripe', () => {
+  const palette = parseAppearance({ gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'] });
+  const glass = appearanceAudioGlass(palette);
+  assert.equal(glass.stops.length, 3);
+  assert.ok(new Set(glass.stops.map(stop => stop.color)).size >= 3);
+  assert.deepEqual(glass.stops.map(stop => stop.offset), [0, 0.5, 1]);
+  for (const stop of glass.stops) {
+    assert.match(stop.color, /^#[0-9a-f]{6}$/);
+    assert.ok(stop.opacity > 0 && stop.opacity < 1);
+    assert.ok(glass.gradient.includes(`${stop.color}${Math.round(stop.opacity * 255).toString(16)}`));
+  }
+  assert.equal(glass.stops[0]!.opacity, glass.stops[2]!.opacity);
+  assert.equal(glass.stops[0]!.opacity, 0.30, 'edges remain translucent without washing out the controls');
+  assert.equal(glass.stops[1]!.opacity, 0.495);
+  assert.ok(Math.abs((glass.stops[1]!.opacity - glass.stops[0]!.opacity) / (0.59 - 0.20) - 0.5) < 1e-12,
+    'edge-to-center opacity contrast must be half the previous gradient');
+  assert.ok(glass.stops.every(stop => stop.opacity < 0.7));
+  assert.match(glass.edge, /^#[0-9a-f]{8}$/);
+  assert.ok(glass.edge.endsWith('20'), 'the specular edge must also be half as strong');
+  assert.deepEqual(appearanceAudioGlass(parseAppearance({ ...palette, foreground: '#ff0000', surface: '#000000' })), glass);
+  assert.notDeepEqual(appearanceAudioGlass(DEFAULT_APPEARANCE), glass);
+});
+
+test('glass lightness variation is halved around the previous blend midpoint', () => {
+  const appearance = parseAppearance({ gradient: ['#808080', '#808080', '#808080'] });
+  const target = parseInt(appearanceAudioColor(appearance).slice(1, 3), 16);
+  const glass = appearanceAudioGlass(appearance);
+  const previousBlendMidpoint = (0.16 + 0.62) / 2;
+  const previousBlendSpread = 0.62 - 0.16;
+  glass.stops.forEach((stop, index) => {
+    const blend = previousBlendMidpoint + (index === 1 ? 1 : -1) * previousBlendSpread / 4;
+    assert.equal(parseInt(stop.color.slice(1, 3), 16), Math.round(128 + (target - 128) * blend));
+  });
 });
 
 test('appearance auto-fade delay defaults to 15 seconds and validates saved values', () => {
@@ -88,7 +276,8 @@ test('surface colors remain independent while corner colors adapt to palette and
     const corner = appearanceCornerColor(appearance);
     assert.match(corner, /^#[0-9a-f]{6}$/);
     assert.equal(appearanceCornerColor(appearance), corner);
-    assert.ok(contrast(corner, appearance.foreground) >= 1.2, `${corner} must differ visibly from audio`);
+    assert.ok(contrast(corner, appearance.foreground) >= 1.2, `${corner} must differ visibly from text`);
+    assert.ok(contrast(corner, appearanceAudioColor(appearance)) >= 1.2, `${corner} must differ visibly from audio`);
     for (const background of appearance.gradient) {
       assert.ok(contrast(corner, background) >= 3, `${corner} must contrast with ${background}`);
     }

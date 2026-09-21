@@ -21,6 +21,9 @@ export function draftFromSettings(
           .complexityPercentileSpread *
           100,
       ),
+    questionPercent: String((settings.questionProbability ?? 0.3) * 100),
+    seenQuestionPercent: String((settings.seenQuestionProbability ?? 0.75) * 100),
+    audioGivenQuestionPercent: String((settings.audioGivenQuestionProbability ?? 0.6) * 100),
     sourceWeights:
       Object.fromEntries(
         Object.entries(

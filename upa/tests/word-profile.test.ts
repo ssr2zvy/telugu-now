@@ -6,7 +6,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { Hono } from 'hono';
 import { wordImageRoutes } from '../server/src/services/word-image-service';
-import { migrateLegacyWordImages, wordImageStore } from '../server/src/services/word-image-store';
+import { migrateLegacyWordImages, migrateLegacyWordImageSearchState, wordImageStore } from '../server/src/services/word-image-store';
 import { analyzeWord, wordAtOffset, wordDisplayParts } from '../frontend/src/observation/word/word-analysis';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt } from '../shared/image-settings';
 
@@ -36,7 +36,30 @@ test('legacy image data transfers to global files before its table is removed', 
     const folder = path.join(directory, fs.readdirSync(directory)[0]!);
     const transferred = fs.readdirSync(folder).find(file => file.startsWith('image-'))!;
     assert.deepEqual(fs.readFileSync(path.join(folder, transferred)), image);
+    const gallery = wordImageStore(directory).list('tree');
+    assert.equal(gallery.length, 2);
+    assert.deepEqual({ createdAt: gallery[1]!.createdAt, vendor: gallery[1]!.vendor }, { createdAt: 123, vendor: 'Legacy' });
     migrateLegacyWordImages(database, directory);
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('legacy search state transfers from the user database to global word files', () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'search-state-transfer-'));
+  try {
+    database.exec(`
+      CREATE TABLE word_image_search_rejections_v2 (root TEXT, image_url TEXT, reason TEXT, rejected_at INTEGER);
+      CREATE TABLE word_image_search_state_v2 (root TEXT PRIMARY KEY, next_page INTEGER NOT NULL);
+      INSERT INTO word_image_search_rejections_v2 VALUES ('tree', 'https://example.test/rejected.png', 'missing-license', 123);
+      INSERT INTO word_image_search_state_v2 VALUES ('tree', 7);
+    `);
+    migrateLegacyWordImageSearchState(database, directory);
+    assert.deepEqual(wordImageStore(directory).readSearchState('tree'), {
+      nextPage: 7,
+      rejections: [{ imageUrl: 'https://example.test/rejected.png', reason: 'missing-license', rejectedAt: 123 }],
+    });
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'word_image_search_rejections_v2'").get(), undefined);
+    assert.equal(database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'word_image_search_state_v2'").get(), undefined);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -248,6 +271,193 @@ test('word image files preserve the first image and publish metadata and bytes t
     webp.write('WEBP', 8);
     store.save('webp', { image: webp, mimeType: 'image/webp' });
     assert.deepEqual(store.get('webp'), { image: webp, mimeType: 'image/webp' });
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image galleries preserve order and metadata through append retries and removals', context => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  const webp = Buffer.alloc(20);
+  webp.write('RIFF');
+  webp.write('WEBP', 8);
+  const store = wordImageStore(directory);
+  try {
+    store.save('tree', { image: png, mimeType: 'image/png' }, 123);
+    const legacy = store.list('tree');
+    assert.equal(legacy.length, 1);
+    assert.deepEqual({ createdAt: legacy[0]!.createdAt, method: legacy[0]!.method, vendor: legacy[0]!.vendor }, {
+      createdAt: 123, method: 'generation', vendor: 'Pollinations',
+    });
+    store.add('tree', { image: jpeg, mimeType: 'image/jpeg' }, { method: 'source', vendor: 'Wikimedia' });
+    const firstGallery = store.list('tree');
+    assert.deepEqual(firstGallery.map(image => image.mimeType), ['image/png', 'image/jpeg']);
+    assert.deepEqual(store.get('tree', firstGallery[1]!.id)?.image, jpeg);
+    const rename = fs.renameSync;
+    const failure = context.mock.method(fs, 'renameSync', (source: fs.PathLike, target: fs.PathLike) => {
+      if (String(target).endsWith('gallery.json')) throw new Error('Publication failed');
+      return rename(source, target);
+    });
+    assert.throws(() => store.add('tree', { image: webp, mimeType: 'image/webp' }, { method: 'source', vendor: 'Search' }), /Publication failed/);
+    assert.deepEqual(store.list('tree').map(image => image.id), firstGallery.map(image => image.id));
+    failure.mock.restore();
+    store.add('tree', { image: webp, mimeType: 'image/webp' }, { method: 'source', vendor: 'Search' });
+    const completed = store.list('tree');
+    assert.equal(completed.length, 3);
+    assert.equal(completed[2]!.id, store.list('tree')[2]!.id);
+    assert.equal(store.remove('tree', completed[0]!.id), true);
+    assert.deepEqual(store.get('tree')?.image, jpeg);
+    assert.equal(store.remove('tree', completed[1]!.id), true);
+    assert.equal(store.remove('tree', completed[2]!.id), true);
+    assert.deepEqual(store.list('tree'), []);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image galleries keep generations first and searches ordered by batch and result rank', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-order-'));
+  const image = (marker: number) => Buffer.from([255, 216, 255, marker, 255, 217]);
+  const store = wordImageStore(directory);
+  try {
+    store.add('tree', { image: image(3), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-two', batchCreatedAt: 200, batchIndex: 1,
+    });
+    store.add('tree', { image: image(2), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-two', batchCreatedAt: 200, batchIndex: 0,
+    });
+    store.add('tree', { image: image(1), mimeType: 'image/jpeg' }, { method: 'generation', vendor: 'Pollinations' });
+    store.add('tree', { image: image(4), mimeType: 'image/jpeg' }, {
+      method: 'source', vendor: 'Serper', batchId: 'batch-three', batchCreatedAt: 300, batchIndex: 0,
+    });
+    store.add('tree', { image: image(0), mimeType: 'image/jpeg' }, { method: 'generation', vendor: 'Pollinations' });
+    assert.deepEqual(store.list('tree').map(entry => [entry.method, entry.batchId, entry.batchIndex]), [
+      ['generation', undefined, undefined],
+      ['generation', undefined, undefined],
+      ['source', 'batch-two', 0],
+      ['source', 'batch-two', 1],
+      ['source', 'batch-three', 0],
+    ]);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image gallery routes append, retrieve, list and remove ordered images', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-gallery-routes-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  let calls = 0;
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory, readKey: () => 'fixture', generate: async () => [png, jpeg][calls++]!,
+    }));
+    const imageUrl = '/api/word-images?root=tree&profile=001';
+    assert.equal((await app.request(imageUrl, { method: 'POST' })).status, 200);
+    assert.equal((await app.request(`${imageUrl}&append=1`, { method: 'POST' })).status, 200);
+    const galleryResponse = await app.request('/api/word-images/gallery?root=tree');
+    assert.equal(galleryResponse.status, 200);
+    const gallery = await galleryResponse.json() as { images: Array<{ id: string; mimeType: string; method: string; vendor: string; createdAt: number; file?: string }> };
+    assert.deepEqual(gallery.images.map(image => image.mimeType), ['image/png', 'image/jpeg']);
+    assert.ok(gallery.images.every(image => image.method === 'generation' && image.vendor === 'Pollinations' && typeof image.createdAt === 'number' && !('file' in image)));
+    assert.deepEqual(Buffer.from(await (await app.request(`/api/word-images?root=tree&id=${gallery.images[1]!.id}`)).arrayBuffer()), jpeg);
+    assert.equal((await app.request(`/api/word-images?root=tree&id=${gallery.images[0]!.id}&profile=001`, { method: 'DELETE' })).status, 200);
+    assert.deepEqual(Buffer.from(await (await app.request('/api/word-images?root=tree')).arrayBuffer()), jpeg);
+    assert.equal((await app.request(`/api/word-images?root=tree&id=${gallery.images[1]!.id}&profile=001`, { method: 'DELETE' })).status, 200);
+    assert.deepEqual(await (await app.request('/api/word-images/gallery?root=tree')).json(), { images: [] });
+  } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image search streams each licensed image after it is persisted with attribution', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-search-routes-'));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+  const jpeg = Buffer.from([255, 216, 255, 1, 255, 217]);
+  let releaseSecond = () => {};
+  const secondGate = new Promise<void>(resolve => { releaseSecond = resolve; });
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory,
+      readSearchKey: () => 'fixture-key',
+      search: async (root, key, excluded, onImage, options) => {
+        assert.equal(root, 'tree');
+        assert.equal(key, 'fixture-key');
+        assert.equal(excluded.size, 0);
+        await onImage({ record: { image: png, mimeType: 'image/png' }, title: 'Tree one', sourceName: 'Commons',
+          sourceUrl: 'https://example.test/tree-one', originalUrl: 'https://images.example.test/tree-one.png',
+          license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/', resultIndex: 0 });
+        await secondGate;
+        await onImage({ record: { image: jpeg, mimeType: 'image/jpeg' }, title: 'Tree two', sourceName: 'Archive',
+          sourceUrl: 'https://example.test/tree-two', originalUrl: 'https://images.example.test/tree-two.jpg',
+          license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/', resultIndex: 1 });
+        options?.onComplete?.({ accepted: 2, candidatesSeen: 11, pagesSearched: 1, nextPage: 2 });
+        return 2;
+      },
+    }));
+    const response = await app.request('/api/word-images/search?root=tree&profile=001', { method: 'POST' });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /application\/x-ndjson/);
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    const firstEvent = JSON.parse(new TextDecoder().decode(first.value).trim()) as { type: string; image: { id: string; sourceUrl: string; license: string; file?: string } };
+    assert.equal(firstEvent.type, 'image');
+    assert.equal(firstEvent.image.sourceUrl, 'https://example.test/tree-one');
+    assert.equal(firstEvent.image.license, 'CC BY 4.0');
+    assert.equal('file' in firstEvent.image, false);
+    const whilePending = await (await app.request('/api/word-images/gallery?root=tree')).json() as { images: Array<{ id: string }> };
+    assert.deepEqual(whilePending.images.map(image => image.id), [firstEvent.image.id]);
+    releaseSecond();
+    let tail = '';
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      tail += new TextDecoder().decode(chunk.value);
+    }
+    assert.match(tail, /"type":"image"/);
+    assert.match(tail, /"type":"complete","added":2,"inspected":11,"pagesSearched":1/);
+    const completed = await (await app.request('/api/word-images/gallery?root=tree')).json() as { images: Array<{ sourceName: string; licenseUrl: string }> };
+    assert.deepEqual(completed.images.map(image => image.sourceName), ['Commons', 'Archive']);
+    assert.match(completed.images[1]!.licenseUrl, /by-sa\/4\.0/);
+  } finally { releaseSecond(); database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('word image search skips candidates rejected by an earlier search', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'word-search-rejections-'));
+  const failedUrl = 'https://images.example.test/unlicensed.png';
+  let calls = 0;
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const database = profileDatabase();
+      const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+        imageDirectory: directory,
+        readSearchKey: () => 'fixture-key',
+        search: async (_root, _key, excluded, _onImage, options) => {
+          calls += 1;
+          if (calls === 1) {
+            assert.equal(options?.startPage, 1);
+            assert.equal(excluded.has(failedUrl), false);
+            options?.onRejected?.({ imageUrl: failedUrl, reason: 'no-exact-cc4-license' });
+          } else {
+            assert.equal(options?.startPage, 2);
+            assert.equal(excluded.has(failedUrl), true);
+          }
+          options?.onComplete?.({ accepted: 0, candidatesSeen: calls === 1 ? 1 : 0, pagesSearched: 1, nextPage: calls + 1 });
+          return 0;
+        },
+      }));
+      const response = await app.request('/api/word-images/search?root=tree&profile=001', { method: 'POST' });
+      assert.equal(response.status, 200);
+      await response.text();
+      database.close();
+    }
+    assert.equal(calls, 2);
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aElkAAAAASUVORK5CYII=', 'base64');
+    const store = wordImageStore(directory);
+    store.save('tree', { image: png, mimeType: 'image/png' });
+    assert.deepEqual(store.get('tree')?.image, png);
+    assert.equal(store.remove('tree', store.list('tree')[0]!.id), true);
+    const state = store.readSearchState('tree');
+    assert.equal(state.nextPage, 3);
+    assert.deepEqual(state.rejections.map(({ imageUrl, reason }) => ({ imageUrl, reason })), [
+      { imageUrl: failedUrl, reason: 'no-exact-cc4-license' },
+    ]);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 

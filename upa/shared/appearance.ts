@@ -19,7 +19,21 @@ export interface AppearanceSettings {
   fontScale: number;
   textOffset: number;
   audioOffset: number;
+  // Vertical offsets remembered for the magnifier position not currently
+  // active, restored automatically when switching back to it.
+  textOffsetOther: number;
+  audioOffsetOther: number;
+  audioTimestampGap: number;
+  timestampMagnifierGap: number;
+  controlDarkness: number;
+  showAudioTimestamp: boolean;
+  showMagnifierHighlight: boolean;
+  highlightMods: boolean;
+  modificationLightness: number;
+  modificationColor: string | null;
   magnifierPosition: 'above' | 'below';
+  scrollMode: boolean;
+  toggleTrigger: 'scroll' | 'tap';
   autoFadeSeconds: number;
   fonts: ObservationFontFamily[];
 }
@@ -31,19 +45,37 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   fontScale: 50,
   textOffset: 0,
   audioOffset: 0,
-  magnifierPosition: 'above',
+  textOffsetOther: 0,
+  audioOffsetOther: 0,
+  audioTimestampGap: 1,
+  timestampMagnifierGap: 1,
+  controlDarkness: 15,
+  showAudioTimestamp: false,
+  showMagnifierHighlight: true,
+  highlightMods: true,
+  modificationLightness: 24,
+  modificationColor: null,
+  magnifierPosition: 'below',
+  scrollMode: true,
+  toggleTrigger: 'scroll',
   autoFadeSeconds: 15,
   fonts: [...OBSERVATION_FONTS],
 };
 export const APPEARANCE_OFFSET_LIMIT = 200;
+export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
+export const CONTROL_DARKNESS_LIMITS = { min: 0, max: 60 } as const;
+export const MODIFICATION_LIGHTNESS_LIMITS = { min: 0, max: 40 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 const parseOffset = (value: unknown): number => typeof value === 'number' && Number.isFinite(value)
   ? Math.round(Math.max(-APPEARANCE_OFFSET_LIMIT, Math.min(APPEARANCE_OFFSET_LIMIT, value))) : 0;
+const parseControlGap = (value: unknown, fallback: number): number => typeof value === 'number' && Number.isFinite(value)
+  ? Math.round(Math.max(CONTROL_SPACING_LIMITS.min, Math.min(CONTROL_SPACING_LIMITS.max, value))) : fallback;
 
 export function parseAppearance(value: unknown): AppearanceSettings {
-  const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings>;
+  const candidate = (value && typeof value === 'object' ? value : {}) as Partial<AppearanceSettings> & { controlSpacing?: unknown };
   const fonts = OBSERVATION_FONTS.filter((font) => Array.isArray(candidate.fonts) && candidate.fonts.includes(font));
+  const legacyGap = Math.min(1, parseControlGap(candidate.controlSpacing, DEFAULT_APPEARANCE.audioTimestampGap));
   return {
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
@@ -53,7 +85,29 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
-    magnifierPosition: candidate.magnifierPosition === 'below' ? 'below' : 'above',
+    textOffsetOther: parseOffset(candidate.textOffsetOther),
+    audioOffsetOther: parseOffset(candidate.audioOffsetOther),
+    audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
+    timestampMagnifierGap: parseControlGap(candidate.timestampMagnifierGap, legacyGap),
+    controlDarkness: typeof candidate.controlDarkness === 'number' && Number.isFinite(candidate.controlDarkness)
+      ? Math.round(Math.max(CONTROL_DARKNESS_LIMITS.min, Math.min(CONTROL_DARKNESS_LIMITS.max, candidate.controlDarkness)))
+      : DEFAULT_APPEARANCE.controlDarkness,
+    showAudioTimestamp: typeof candidate.showAudioTimestamp === 'boolean'
+      ? candidate.showAudioTimestamp : DEFAULT_APPEARANCE.showAudioTimestamp,
+    showMagnifierHighlight: typeof candidate.showMagnifierHighlight === 'boolean'
+      ? candidate.showMagnifierHighlight : DEFAULT_APPEARANCE.showMagnifierHighlight,
+    highlightMods: typeof candidate.highlightMods === 'boolean'
+      ? candidate.highlightMods : DEFAULT_APPEARANCE.highlightMods,
+    modificationLightness: typeof candidate.modificationLightness === 'number' && Number.isFinite(candidate.modificationLightness)
+      ? Math.round(Math.max(MODIFICATION_LIGHTNESS_LIMITS.min, Math.min(MODIFICATION_LIGHTNESS_LIMITS.max, candidate.modificationLightness)))
+      : DEFAULT_APPEARANCE.modificationLightness,
+    modificationColor: isColor(candidate.modificationColor) ? candidate.modificationColor : null,
+    magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
+      ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
+    scrollMode: candidate.toggleTrigger === 'tap' ? false : candidate.toggleTrigger === 'scroll' ? true
+      : typeof candidate.scrollMode === 'boolean' ? candidate.scrollMode : DEFAULT_APPEARANCE.scrollMode,
+    toggleTrigger: candidate.toggleTrigger === 'scroll' || candidate.toggleTrigger === 'tap'
+      ? candidate.toggleTrigger : candidate.scrollMode === false ? 'tap' : DEFAULT_APPEARANCE.toggleTrigger,
     autoFadeSeconds: typeof candidate.autoFadeSeconds === 'number' && Number.isFinite(candidate.autoFadeSeconds)
       ? Math.round(Math.max(AUTO_FADE_SECONDS_LIMITS.min, Math.min(AUTO_FADE_SECONDS_LIMITS.max, candidate.autoFadeSeconds)))
       : DEFAULT_APPEARANCE.autoFadeSeconds,

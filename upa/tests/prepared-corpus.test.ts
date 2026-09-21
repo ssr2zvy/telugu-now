@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 import { PreparedCorpusStore } from '../server/src/sources/prepared-corpus/prepared-corpus-store';
 import { PreparedCorpusDataSource } from '../server/src/sources/prepared-corpus/prepared-corpus-data-source';
+import { refreshAvailability } from '../server/src/services/corpus-availability';
 
-test('prepared corpus store and data source expose indexed metadata', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'telugu-prepared-'));
+test('prepared corpus store and data source expose indexed metadata', async () => {
+  fs.mkdirSync(path.join(process.cwd(), 'test-results'), { recursive: true });
+  const directory = fs.mkdtempSync(path.join(process.cwd(), 'test-results/telugu-prepared-'));
   const databasePath = path.join(directory, 'corpus.sqlite');
   const db = new Database(databasePath);
   db.pragma('foreign_keys = ON');
@@ -233,7 +234,20 @@ test('prepared corpus store and data source expose indexed metadata', () => {
       'ready',
     );
     db.close();
-    const store = new PreparedCorpusStore(databasePath);
+    const options = {
+      corpusDatabasePath: databasePath,
+      corpusAvailabilityPath: path.join(directory, 'availability.sqlite'),
+      corpusObjectsPath: path.join(directory, 'objects'),
+      corpusObjectsPrefix: 'corpus/objects/',
+      corpusBackend: 'local',
+    };
+    for (const source of readySources) {
+      const file = path.join(options.corpusObjectsPath, source.objectKey);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, 'audio');
+    }
+    await refreshAvailability(options);
+    const store = new PreparedCorpusStore(databasePath, options);
     assert.equal(
       store.hasSource('fleurs-te'),
       true,
@@ -330,6 +344,10 @@ test('prepared corpus store and data source expose indexed metadata', () => {
         duration_seconds: 1.25,
       },
     );
+    assert.equal(store.wordsContaining('తె').length, 3);
+    assert.ok(store.wordsContaining('తె').every(match => match.word === 'తెలుగు'
+      && match.complexity === 2 && match.wordGraphemeCount === 3));
+    assert.deepEqual(store.wordsContaining('త'), []);
     assert.throws(
       () =>
         store.sourceInfo(
@@ -358,7 +376,7 @@ test('prepared corpus store and data source expose indexed metadata', () => {
         complexityValue: 2,
       },
     );
-    return source
+    await source
       .prepare('train:fleurs.wav')
       .then((observation) => {
         assert.equal(
@@ -386,6 +404,7 @@ test('prepared corpus store and data source expose indexed metadata', () => {
           ],
         );
       });
+    store.close();
   } finally {
     try { db.close(); } catch { /* already closed */ }
     fs.rmSync(directory, { recursive: true, force: true });
