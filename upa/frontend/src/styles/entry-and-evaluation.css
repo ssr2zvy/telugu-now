@@ -1,0 +1,46 @@
+/* Login uses real buttons only: no editable input can summon the OS keyboard. */
+.entry-keypad-screen { --entry-layout-height: 100dvh; outline: none; }
+.entry-keypad-screen .entry-wrap { gap: 24px; }
+.entry-keypad-screen .entry-digits { pointer-events: auto; }
+.entry-keypad-screen .entry-digit { cursor: pointer; }
+.entry-keypad-screen .entry-digit::before { background: var(--control-material-gradient); opacity: 0; }
+.entry-keypad-screen .entry-digit[data-active="true"]::before { opacity: .2; }
+.entry-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; width: 100%; }
+.entry-keypad button { display: grid; place-items: center; height: 48px; border: 0; border-radius: 0; background: transparent; color: var(--foreground); font-size: 1.6rem; font-weight: 500; cursor: pointer; touch-action: manipulation; }
+.entry-keypad button span { background: var(--control-material-gradient); background-clip: text; color: transparent; filter: drop-shadow(0 1px 0 var(--control-material-edge)); }
+.entry-keypad button svg { width: 22px; height: 22px; stroke: var(--control-icon-paint, currentColor); }
+.entry-keypad button :is(span, svg) { opacity: .8; transition: opacity var(--material-duration), filter var(--material-duration); }
+.entry-keypad button:is(:hover, :focus-visible, :active) { background: transparent; }
+.entry-keypad button:is(:hover, :focus-visible, :active) :is(span, svg) { opacity: 1; filter: saturate(1.16) contrast(1.08); }
+.entry-keypad button:disabled { opacity: .45; cursor: default; }
+.entry-keypad-message { position: absolute; top: calc(100% + 12px); text-align: center; font-size: .75rem; color: var(--muted); }
+/* Two explicit answers; neither is selected until the learner chooses. */
+.grammar-evaluation { position: absolute; z-index: 30; bottom: 5rem; left: 50%; transform: translateX(-50%); width: min(90vw, 32rem); color: var(--foreground); text-align: center; }
+.grammar-evaluation p { margin: 0 0 10px; font-size: .85rem; }
+.grammar-evaluation p[role="alert"] { margin-top: 8px; }
+.evaluation-switch { position: relative; isolation: isolate; display: flex; width: 216px; margin: 0 auto; padding: 3px; border: 0; border-radius: 24px; background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+.evaluation-switch label { display: grid; place-items: center; width: 50%; height: 40px; cursor: pointer; }
+.evaluation-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.evaluation-switch label span { font-size: .9rem; opacity: .7; }
+.evaluation-switch label:has(input:checked) span { opacity: 1; font-weight: 600; }
+.evaluation-switch label:has(input:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 2px; border-radius: 22px; }
+.evaluation-switch-indicator { position: absolute; z-index: -1; inset: 3px auto 3px 3px; width: calc(50% - 3px); border-radius: 22px; background: var(--control-material-gradient); opacity: .55; box-shadow: inset 0 1px 0 var(--control-material-edge), inset 0 -1px 0 #0002; transition: transform var(--material-duration), opacity var(--material-duration); }
+.evaluation-switch[data-value="unanswered"] .evaluation-switch-indicator { opacity: 0; }
+.evaluation-switch[data-value="true"] .evaluation-switch-indicator { transform: translateX(100%); }
+.evaluation-switch:disabled label { cursor: default; }
+.grammar-evaluation .evaluation-status { margin: 9px 0 0; font-size: .72rem; color: var(--muted); }
+.question-phase-indicator { animation: question-phase-indicator-arrive 260ms ease-out both; }
+.question-answer-editor { touch-action: pan-y; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
+.question-answer-editor::-webkit-scrollbar { display: block; width: 3px; }
+.question-answer-editor::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+@media (max-height: 420px) { .entry-keypad-screen .entry-wrap { gap: 12px; } .entry-keypad button { height: 36px; } }
+@media (prefers-reduced-motion: reduce) { .question-phase-indicator { animation: none; } }
+
+.reading-context-menu-status:not(:empty) { position: absolute; width: max-content; max-width: min(220px, 70vw); height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; clip-path: none; white-space: normal; top: calc(100% + 7px); left: 50%; transform: translateX(-50%); font-size: .75rem; text-align: center; color: var(--foreground); }
+.reading-context-menu[data-placement="above"] .reading-context-menu-status:not(:empty) { top: auto; bottom: calc(100% + 7px); }
+.reading-context-menu[data-feedback] .reading-context-menu-action svg { opacity: 1; filter: saturate(1.2) contrast(1.14); }
+.word-image-feedback { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: .75rem; color: var(--foreground); pointer-events: none; }
+.recording-readiness { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; font-size: .7rem; color: var(--muted); pointer-events: none; }
+
+/* The comparison separator shares the material without changing its geometry. */
+.question-comparison::after { background: var(--control-material-gradient); opacity: .65; box-shadow: 0 0 5px color-mix(in srgb, var(--audio-control-color) 10%, transparent); }

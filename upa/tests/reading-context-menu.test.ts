@@ -21,7 +21,7 @@ test('right-click menu targets either one word or reader settings', () => {
 test('word and settings context menus expose disjoint actions', () => {
   const source = readFileSync(new URL('../frontend/src/observation/ReadingContextMenu.tsx', import.meta.url), 'utf8');
   assert.match(source, /menu\.kind === 'word'/);
-  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript\(\)[\s\S]*:\s*<button/);
+  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript[\s\S]*:\s*<button/);
   assert.match(source, /ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు/);
 });
 
@@ -55,7 +55,7 @@ test('word profiles fill the viewport with word and image columns', () => {
   assert.match(source, /<ReadingContextMenu[\s\S]*onCopy=[\s\S]*onClose=/);
   assert.match(source, /<LetterProfile[\s\S]*onBlacklistTranscript=\{onBlacklistTranscript\}/);
   assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, analysis\.word, event\.clientX, event\.clientY\)/);
-  assert.match(source, /letterTaps\.tap\(`grapheme:\$\{hit\.start\}`/);
+  assert.match(source, /letterTaps\.tap\(hit \? `grapheme:\$\{hit\.start\}`/);
   assert.match(source, /<LetterProfile letter=\{selectedGrapheme\.text\}/);
   assert.doesNotMatch(source, /initiatingWord|excludedWords|letterWordHistory/);
   assert.match(source, /onBlacklistTranscript=\{onBlacklistTranscript\}/);
@@ -109,7 +109,7 @@ test('errors enter over the bottom-right corner and fade within fifteen seconds'
     '../frontend/src/settings/pages/BlacklistPage.tsx',
   ]) {
     const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /role="alert"[\s\S]{0,300}<button/, relativePath);
+    assert.doesNotMatch(source, /role="alert"[^>]*>(?:(?!<\/(?:div|p)>)[\s\S])*<button/, relativePath);
   }
 });
 

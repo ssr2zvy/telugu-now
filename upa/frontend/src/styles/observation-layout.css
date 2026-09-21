@@ -4,6 +4,11 @@
 .observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
 .telugu-gradient-text { position: relative; display: inline-block; vertical-align: baseline; line-height: inherit; overflow: visible; color: var(--foreground); }
 .telugu-word { display: inline-block; white-space: nowrap; }
+.reader-discretionary-hyphen { display: none; }
+.observation-text { text-wrap: balance; }
+.observation-text .telugu-word[data-hyphenate="true"] { display: inline; white-space: normal; hyphens: manual; -webkit-hyphens: manual; hyphenate-character: "-"; }
+.observation-text .telugu-word[data-hyphenate="true"] > .reader-discretionary-hyphen { display: inline; }
+/* The browser includes the visible '-' advance in line fitting, balancing and centering. */
 .telugu-gradient-text.is-ready { color: transparent; }
 .telugu-gradient-text.is-ready::before { content: ''; position: absolute; left: var(--telugu-gradient-left); top: var(--telugu-gradient-top); width: var(--telugu-gradient-width); height: var(--telugu-gradient-height); background: var(--telugu-gradient-image) center / 100% 100% no-repeat; pointer-events: none; }
 .telugu-gradient-text.is-ready::selection { background: var(--foreground); color: var(--surface); }
@@ -64,12 +69,6 @@
 .audio-transport-button .control-icon-fill { fill: var(--audio-icon-paint); stroke: none; }
 .audio-speed-button .settings-icon-fill-shape { fill: var(--audio-icon-paint); }
 .audio-bookmark-button[aria-pressed="true"], .audio-speed-button[aria-pressed="true"] { background: transparent; }
-/* One consistent hover effect for every audio-bar icon: invert its rendered
-   colors. The keyboard's shift/backspace icons keep their own fixed color. */
-@media (hover: hover) and (pointer: fine) {
-  .audio-transport-button:hover svg { filter: invert(1) drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
-  .audio-playback-option:hover .control-icon, .audio-glass-icon:hover { filter: invert(1); }
-}
 .audio-precision-panel { --audio-detail-track-height: 32px; --audio-detail-track-width: 48%; position: relative; grid-row: 2; grid-column: 1 / -1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--timestamp-magnifier-gap, 1px); min-width: 0; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
 .audio-precision-panel[data-visible="true"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease, visibility 0s; }
 .audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-row: 1; justify-content: flex-end; }
@@ -222,3 +221,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 }
 @media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
 @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }
+
+/* A newly entered text prompt must not fade out the previous page's audio UI. */
+.observation-screen[data-question-mode="text-given"][data-audio-motion="idle"]:not(.controls-visible) .observation-center > .audio-player-bar,
+.observation-screen[data-question-mode="text-given"][data-audio-motion="idle"] .question-record-controls[data-visible="false"] { visibility: hidden; animation: none; transition: none; }

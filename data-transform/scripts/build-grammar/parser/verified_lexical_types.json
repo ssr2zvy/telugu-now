@@ -1,0 +1,7 @@
+{
+  "version": "verified_lexical_types_v1",
+  "entries": {
+    "పిలుపు": {"pos": ["noun"], "evidence": "reviewed noun in pilupunu + iccharu example"},
+    "పిలవ": {"pos": ["verb"], "stems": {"form": "పిలవ", "stem_infinitive": "పిలవ"}, "evidence": "reviewed infinitive receiver for permission; other stems unverified"}
+  }
+}

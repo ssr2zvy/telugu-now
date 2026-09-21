@@ -224,6 +224,16 @@ def partial_for_unparsed(parser: EndPeelParser, word: str, max_depth: int = 6) -
 
 
 def gi_for_result(parser: EndPeelParser, word: str, best: Dict[str, Any] | None) -> Dict[str, Any]:
+    if best and best.get('active_features', {}).get('verified_components'):
+        parts = [gi_for_result(parser, component.get('surface', ''), component)
+                 for component in best['active_features']['verified_components']]
+        score = sum(int(part['gi_score']) for part in parts if str(part['gi_score']) != 'N/A')
+        return {'gi_relevant': score > 0, 'gi_score': str(score) if score else 'N/A',
+                'gi_base_score': sum(part['gi_base_score'] for part in parts),
+                'gi_modifier_count': sum(part['gi_modifier_count'] for part in parts),
+                'partial_barrier': '', 'partial_barrier_verified': '', 'partial_chain': '',
+                'parts_text': ' + '.join(part['parts_text'] for part in parts),
+                'parts_json': json.dumps([json.loads(part['parts_json']) for part in parts], ensure_ascii=False)}
     if best:
         chain = list(best.get("chain") or [])
         base = parsed_base_score(best)

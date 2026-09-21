@@ -49,6 +49,9 @@ def build(corpus,output,availability=None):
  words=out.execute('SELECT COUNT(*) FROM words').fetchone()[0]
  last=out.execute("SELECT value FROM metadata WHERE key='cursor'").fetchone();cursor=json.loads(last[0]) if last else ['', '']
  initialize(); started=time.monotonic()
+ from parser_adapter import _parser
+ labels={key:{'forms':obj.get('forms',[]),'kind':obj.get('kind',[])} for key,obj in _parser.engine.objects.items()}
+ out.execute("INSERT OR REPLACE INTO metadata VALUES('grammar_labels',?)",(json.dumps(labels,ensure_ascii=False),))
  out.execute("INSERT OR REPLACE INTO metadata VALUES('parser_info',?)",(json.dumps(parser_information()),));out.commit()
  report(phase='analyzing',processed=processed,total=total,uniqueWords=words)
  for row in src.execute(query+' AND (source_id,source_key) > (?,?) ORDER BY source_id,source_key',cursor):

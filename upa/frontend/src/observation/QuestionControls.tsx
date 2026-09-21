@@ -13,6 +13,7 @@ interface QuestionControlsProps {
   keyboard: QuestionKeyboard | null;
   visible: boolean;
   initialText: string;
+  fontFamily?: string;
   beginRecording: () => number;
   durationSeconds: () => number;
   onAudioSaved: (audio: ObservationAudio) => void;
@@ -42,7 +43,7 @@ function recordingFailureCategory(error: unknown): string {
   return 'recording-creation-failed';
 }
 
-export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
+export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, fontFamily, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
@@ -160,7 +161,7 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       stream.current = mediaStream;
       recorder.current = mediaRecorder;
       chunks.current = [];
-      const recordingStartedAt = performance.now();
+      let recordingStartedAt = 0;
       const updateRecordingFeedback = (now: number) => {
         const elapsed = (now - recordingStartedAt) / 1000;
         onRecordingChange({ start: recordCursor.current, end: recordCursor.current + elapsed, span: recordingSpan });
@@ -189,11 +190,15 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
           });
         });
       };
+      mediaRecorder.onstart = () => {
+        if (session !== recordingSession.current) return;
+        recordingStartedAt = performance.now();
+        setRequestingMicrophone(false);
+        setRecording(true);
+        onRecordingChange({ start: recordCursor.current, end: recordCursor.current, span: recordingSpan });
+        recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
+      };
       mediaRecorder.start();
-      setRequestingMicrophone(false);
-      setRecording(true);
-      onRecordingChange({ start: recordCursor.current, end: recordCursor.current, span: recordingSpan });
-      recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
     } catch (caught) {
       setRequestingMicrophone(false);
       if (session === recordingSession.current) {
@@ -222,11 +227,12 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       </defs>
     </svg>
     <button type="button" className="audio-transport-button question-record-button" aria-label={requestingMicrophone ? 'Requesting microphone access' : recording ? 'Stop recording' : 'Record'} aria-pressed={recording} disabled={!visible || requestingMicrophone} onClick={(event) => { event.stopPropagation(); void startRecording(); }}>{recording ? <CircleDot className="control-icon" aria-hidden="true" /> : <Mic className="control-icon" aria-hidden="true" />}</button>
+    <span className="recording-readiness" role="status">{requestingMicrophone ? 'Preparing microphone…' : recording ? 'Recording' : ''}</span>
     {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 
   return <div className="question-controls question-keyboard-controls" data-visible={visible} aria-hidden={!visible} inert={!visible}>
-    <GoogleTeluguKeyboard value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
+    <GoogleTeluguKeyboard fontFamily={fontFamily} value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
     {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 }

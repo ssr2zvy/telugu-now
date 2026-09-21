@@ -207,8 +207,8 @@ function appendGrammarObservation(profileCode: string, context: SelectionContext
   const batch=replacement?.batch ?? openBatch(profileCode)?.id;
   if(!batch)throw new Error('Grammar batch missing');
   const slot=replacement?.slot ?? (db.prepare('SELECT COUNT(*) AS n FROM grammar_attempts WHERE batch_id=?').get(batch) as {n:number}).n;
-  const selected=grammarSelect(profileCode,batch,replacement?.target),settings=getProfileSelectionSettings(profileCode);
-  const mode=Math.random()<(settings.audioGivenQuestionProbability??0.6)?'audio-given':'text-given';
+  const selected=grammarSelect(profileCode,batch,replacement?.target);
+  const mode=selected.questionType.mode;
   const keyboards=['windows-inscript','mac-standard','chromebook-dictation'];
   const id=randomUUID(),number=reserved?.acquisitionNumber??nextAcquisitionNumber(profileCode);
   insertObservation.run(id,selected.sourceId,selected.sourceKey,context.triggeredAt,batch,'launch-fill',10,slot+1);

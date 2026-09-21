@@ -10,6 +10,7 @@ Python API: Engine().generate(base, chain), Engine().analyze(text).
 Accepted analyses are proofs under this registered grammar, not certification of
 every dialect or of a sentence's meaning. Uncovered forms remain unknown.
 """
+from attachment_evidence import VERIFIED_TYPES
 import argparse
 from pathlib import Path
 import functools
@@ -204,6 +205,8 @@ class Engine:
         rules find a dictionary lemma instead of treating a suffix-bearing word
         as a whole unknown base.
         """
+        if pos == 'verb' and surface in VERIFIED_TYPES:
+            return dict(VERIFIED_TYPES[surface].get('stems', {}))
         stems={}
         if pos=='noun':
             stems['form']=surface

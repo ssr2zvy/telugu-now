@@ -1,0 +1,34 @@
+/* Case study 2. Preserve the playback gradient, timing, placement and recording
+   animation. Only cursor material and magnifier visual sampling are refined. */
+/* Remove only the fine baseline; retain the gradient progress and window. */
+.audio-scrubber::before { content: none; }
+.audio-scrubber-thumb, .audio-speed-thumb {
+  background: radial-gradient(ellipse at 30% 20%, rgb(255 255 255 / .24), transparent 64%), var(--audio-glass-gradient);
+  box-shadow: inset 0 .6px .4px var(--audio-glass-edge), inset 0 -.6px .6px rgb(0 0 0 / .16);
+  opacity: .88;
+  transition: opacity var(--material-duration) ease, filter var(--material-duration) ease, box-shadow var(--material-duration) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .audio-scrubber:not([aria-disabled='true']):hover .audio-scrubber-thumb,
+  .audio-speed-track:hover .audio-speed-thumb {
+    opacity: 1;
+    filter: brightness(var(--control-brightness, .85)) saturate(1.16) contrast(1.08);
+  }
+}
+.audio-scrubber[data-dragging='true'] .audio-scrubber-thumb,
+.audio-speed-track:active .audio-speed-thumb {
+  opacity: 1;
+  filter: brightness(var(--control-brightness, .85)) saturate(1.2) contrast(1.14);
+}
+.audio-magnifier-track { gap: var(--magnifier-gap, 2px); }
+.audio-magnifier-bar {
+  flex: 0 0 auto;
+  background-size: var(--waveform-paint-width, 100%) var(--audio-detail-track-height);
+  background-position: var(--waveform-paint-x, 0px) center;
+  background-repeat: no-repeat;
+}
+/* The Settings preview is illustrative; its existing bars still fill the track. */
+.appearance-audio-preview .audio-magnifier-bar { flex: 1 1 0; }
+@media (prefers-reduced-motion: reduce) {
+  .audio-scrubber-thumb, .audio-speed-thumb { transition: none; }
+}

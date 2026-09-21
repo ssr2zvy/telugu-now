@@ -1,3 +1,4 @@
+import { DISPLAY_HYPHEN, readerGraphemes } from './reader-hyphenation';
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import type { HighlightRun } from './telugu-highlighting';
 import type { TeluguGradientTexture } from './telugu-gradient-renderer';
@@ -32,10 +33,14 @@ export function TeluguWordText({ text, runs, textures }: {
       if (/^\s+$/u.test(part)) {
         flushWord();
         output.push(<Fragment key={`space-${key++}`}>{part}</Fragment>);
-      } else if (run.highlighted) {
-        word.push(<TeluguGradientText key={`piece-${key++}`} text={part} texture={textures?.[runIndex] ?? null} />);
       } else {
-        word.push(<Fragment key={`piece-${key++}`}>{part}</Fragment>);
+        // Highlight runs are already complete graphemes; plain runs may contain many.
+        for (const grapheme of readerGraphemes(part)) {
+          if (word.length) word.push(<span key={`break-${key++}`} className="reader-discretionary-hyphen" data-reader-display-only="true" aria-hidden="true">{DISPLAY_HYPHEN}</span>);
+          word.push(run.highlighted
+            ? <TeluguGradientText key={`piece-${key++}`} text={grapheme} texture={textures?.[runIndex] ?? null} />
+            : <Fragment key={`piece-${key++}`}>{grapheme}</Fragment>);
+        }
       }
     }
   }

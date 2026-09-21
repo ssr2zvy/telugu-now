@@ -31,7 +31,7 @@ from corpus_analyze_gi import gi_for_result, part_text, is_gi_modifier
 
 TOKEN_RE = re.compile(r"[\w\u0C00-\u0C7F]+", re.UNICODE)
 SCHEMA_VERSION = "target_schema_v1"
-PARSER_VERSION = "v20_gi_relevance_stemfix_v1"
+PARSER_VERSION = "v22_base_boundary_checks_v1"
 
 
 def read_observations(path: Path) -> List[Dict[str, str]]:
@@ -70,7 +70,7 @@ def best_analysis(parser: EndPeelParser, word: str):
     analyses = result.get("analyses") or []
     if not analyses:
         return result, None
-    analyses = sorted(analyses, key=parser.rank)
+    analyses = list(analyses)
     return result, analyses[0]
 
 
@@ -133,12 +133,11 @@ def is_eligible(result: Dict[str, Any], a: Dict[str, Any] | None, gi: Dict[str, 
         return False
     if confidence in {"uncertain", "partial", "none"}:
         return False
-    # If multiple analyses remain and the top two have equal rank, exclude until resolved.
-    analyses = result.get("analyses") or []
-    if len(analyses) > 1:
-        ranks = [EndPeelParser().rank(x) for x in analyses[:2]]  # safe but not ideal; replaced by caller? kept simple
-        if ranks[0] == ranks[1]:
-            return False
+    if 'compound_split' in chain_list(a):
+        return False
+    top = result.get('analyses') or []
+    if len(top) > 1 and result.get('overlap'):
+        return False
     return bool(target_id_for(a, gi))
 
 
@@ -155,8 +154,8 @@ def row_for_token(parser: EndPeelParser, obs: Dict[str, str], token_index: int, 
         if len(analyses) > 1:
             s0 = parser.rank(analyses[0])
             s1 = parser.rank(analyses[1])
-            tied = s0 == s1
-        eligible = (not tied) and bool(target_id_for(a, gi))
+            tied = gi_for_result(parser, '', analyses[0])['gi_score'] == gi_for_result(parser, '', analyses[1])['gi_score']
+        eligible = (not tied) and 'compound_split' not in chain_list(a) and bool(target_id_for(a, gi))
     if a:
         chain = chain_list(a)
         base_id = canon_base_id(a)
@@ -199,6 +198,10 @@ def row_for_token(parser: EndPeelParser, obs: Dict[str, str], token_index: int, 
         "parts_text": gi.get("parts_text", ""),
         "parts_json": gi.get("parts_json", ""),
         "analysis_json": analysis_json,
+        "overlap": str(bool(result.get('overlap'))).lower(),
+        "selection_policy": result.get('selection_policy', ''),
+        "verified_analyses_json": json.dumps(result.get('analyses', []), ensure_ascii=False),
+        "diagnostic_analyses_json": json.dumps(result.get('diagnostic_analyses', []), ensure_ascii=False),
     }
 
 
@@ -230,7 +233,8 @@ def main():
         "observation_id","token_index","char_start_cp","char_end_cp","token_surface","token_nfc",
         "status","eligible","parse_confidence","gi_relevant","gi_score","base_id","base_type",
         "parse_category","ordered_modifier_chain","nesting_signature","target_id","grammar_pattern_id",
-        "occurrence_id","partial_barrier","partial_chain","parts_text","parts_json","analysis_json"
+        "occurrence_id","partial_barrier","partial_chain","parts_text","parts_json","analysis_json",
+        "overlap","selection_policy","verified_analyses_json","diagnostic_analyses_json"
     ]
     write_csv(outdir/"all_token_parses.csv", all_rows, fields)
     eligible_rows = [r for r in all_rows if r["eligible"] == "true"]

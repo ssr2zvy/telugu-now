@@ -28,7 +28,7 @@ async function copyWord(text: string): Promise<void> {
     textarea.style.opacity = '0';
     document.body.appendChild(textarea);
     textarea.select();
-    try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
+    try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }
   }
 }
 
@@ -46,6 +46,10 @@ function WordImage({ root }: { root: string }) {
   const [pane, setPane] = useState<ImagePane>('action');
   const [boundary, setBoundary] = useState<'before' | 'after'>('after');
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [imageTaps] = useState(() => new ReaderTaps());
+  const [feedback, setFeedback] = useState('');
+  useEffect(() => () => imageTaps.cancel(), [imageTaps]);
+  useEffect(() => { imageTaps.cancel(); setFeedback(''); }, [pane, currentIndex, imageTaps]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'searching' | 'error'>('loading');
   const [error, setError] = useState('');
   const active = useRef(true);
@@ -156,9 +160,11 @@ function WordImage({ root }: { root: string }) {
       setPane('image');
     }
   };
-  const navigateFromDoubleClick = (event: MouseEvent<HTMLElement>) => {
+  const navigateFromTap = (event: MouseEvent<HTMLElement>) => {
+    if (event.target instanceof Element && event.target.closest('button, a, [role=menu], [role=dialog]')) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    navigate(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+    const direction = event.clientX < bounds.left + bounds.width / 2 ? -1 : 1;
+    imageTaps.tap(`image:${direction}`, event.clientX, event.clientY, () => navigate(direction));
   };
   const blacklist = async () => {
     if (!profileCode || !current) return;
@@ -178,14 +184,15 @@ function WordImage({ root }: { root: string }) {
     if (!current) return;
     setMenu(null);
     setError('');
-    try { await copyImage(await wordImageBlob(root, current.id)); }
+    try { await copyImage(await wordImageBlob(root, current.id)); if (active.current) setFeedback('Image copied.'); }
     catch (reason) { setError(wordImageError(reason)); }
   };
   const busy = status === 'loading' || status === 'generating' || status === 'searching';
   return (
     <section className="word-image-section" aria-label="Concept images" aria-busy={busy}
       style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}
-      onDoubleClick={event => { event.stopPropagation(); navigateFromDoubleClick(event); }}>
+      onClick={event => { event.stopPropagation(); navigateFromTap(event); }}
+      onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); }}>
       <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
         <defs><linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
           {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
@@ -237,6 +244,7 @@ function WordImage({ root }: { root: string }) {
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Info" aria-label="Image information" onClick={() => { setMenu(null); setPane('info'); }}><Info size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
       </div> : null}
+      {feedback ? <p className="word-image-feedback" role="status">{feedback}</p> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );
@@ -249,7 +257,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
   wordEnd: number;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onBlacklistTranscript: () => void;
+  onBlacklistTranscript: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const { appearance, profileCode } = useAppearance();
@@ -328,7 +336,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
         observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
-        onCopy={text => void copyWord(text)} onBlacklistTranscript={onBlacklistTranscript}
+        onCopy={copyWord} onBlacklistTranscript={onBlacklistTranscript}
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
@@ -357,7 +365,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
       <WordImage key={analysis.root} root={analysis.root} />
       {copyMenu ? <ReadingContextMenu
         menu={copyMenu}
-        onCopy={(text) => void copyWord(text)}
+        onCopy={copyWord}
         onClose={() => setCopyMenu(null)}
       /> : null}
       </>}

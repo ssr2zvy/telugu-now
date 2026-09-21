@@ -1,3 +1,4 @@
+import { markOversizedReaderWords, populateReaderMeasurement } from './reader-hyphenation';
 import {
   useEffect,
   useLayoutEffect,
@@ -22,6 +23,7 @@ interface ObservationPresentation {
 interface CachedTypography {
   fontSizePx: number;
   offsetPx: number;
+  preferredSizePx: number;
 }
 const typographyCache = new Map<string, CachedTypography>();
 const TYPOGRAPHY_CACHE_LIMIT = 100;
@@ -119,6 +121,8 @@ async function computeTypographyFit(
   });
   const cached = typographyCache.get(cacheKey);
   if (cached) {
+    element.style.fontSize = `${cached.preferredSizePx}px`;
+    markOversizedReaderWords(element);
     element.style.fontSize = `${cached.fontSizePx}px`;
     element.style.translate = `0 ${cached.offsetPx}px`;
     return cached;
@@ -134,6 +138,8 @@ async function computeTypographyFit(
     desired,
   )}px "${fontFamily}"`;
   const fontReady = await waitForTypographyFont(font, observation.text.slice(0, 64));
+  element.style.fontSize = `${desired}px`;
+  markOversizedReaderWords(element);
   element.style.fontSize = `${OBSERVATION_PRESENTATION.fitMinimumFontSizePx}px`;
   const minimumSize = element.scrollHeight > availableHeight + 1 || element.scrollWidth > element.clientWidth + 1
     ? 1 : OBSERVATION_PRESENTATION.fitMinimumFontSizePx;
@@ -166,7 +172,7 @@ async function computeTypographyFit(
   const baselineOffset = Math.min(20, Math.max(0, (containerRect.height - OBSERVATION_PRESENTATION.fitVerticalReservePx - element.scrollHeight) / 2 - 24));
   const offset = Math.max(topLimit - textBounds.top, Math.min(bottomLimit - textBounds.bottom, baselineOffset + textOffset));
   element.style.translate = `0 ${offset}px`;
-  const result: CachedTypography = { fontSizePx: finalSize, offsetPx: offset };
+  const result: CachedTypography = { fontSizePx: finalSize, offsetPx: offset, preferredSizePx: desired };
   if (fontReady) rememberTypography(cacheKey, result);
   return result;
 }
@@ -229,6 +235,10 @@ export async function prewarmObservationTypography(input: ObservationTypographyP
   container.style.height = `${input.containerRect.height}px`;
   const element = document.createElement('div');
   element.className = 'observation-text';
+  container.className = 'observation-center';
+  container.style.boxSizing = 'border-box';
+  element.style.fontFamily = `"${input.fontFamily}", "Noto Sans Telugu", sans-serif`;
+  populateReaderMeasurement(element, input.text);
   container.appendChild(element);
   if (input.audioTop !== null) {
     const audioBar = document.createElement('div');
@@ -315,6 +325,7 @@ export function useObservationTypography(
         appearance.fontScale,
       );
       element.style.fontSize = `${fallbackSize}px`;
+      markOversizedReaderWords(element);
       element.style.translate = `0 ${appearance.textOffset}px`;
       setFontSizePx(fallbackSize);
       diagnosticsRef.current.stage = 'deadline-fallback';
@@ -386,6 +397,7 @@ export function useObservationTypography(
               result = {
                 fontSizePx: preferredObservationFontSizePx(observation.text, containerRect.width, containerRect.height, appearance.fontScale),
                 offsetPx: appearance.textOffset,
+                preferredSizePx: preferredObservationFontSizePx(observation.text, containerRect.width, containerRect.height, appearance.fontScale),
               };
             }
             if (cancelled) return;

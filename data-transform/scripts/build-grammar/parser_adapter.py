@@ -10,7 +10,7 @@ from selection_export import (EndPeelParser, canon_base_id, chain_list,
 from corpus_analyze_gi import gi_for_result, gi_modifier_count
 from corpus_analyze_end_peel import compact
 
-ADAPTER_VERSION = 'selection_adapter_v1'
+ADAPTER_VERSION = 'selection_adapter_v3_base_boundary_checks'
 _parser = None
 
 
@@ -24,7 +24,11 @@ def parser_information():
         'dictionaryId': metadata['dictionary_id'],
         'maxDepth': _parser.max_depth if _parser is not None else None,
         'maxStates': _parser.max_states if _parser is not None else None,
-        'nesting': 'linear', 'eligibilityPolicy': 'verified-canonical-grammar-only',
+        'nesting': 'linear; joined compounds diagnostic until structured targets supported',
+        'eligibilityPolicy': 'verified-attachments-highest-gi-unique-target',
+        'attachmentPolicy': 'attachment_evidence_v1',
+        'baseBoundaryPolicy': 'continue-registered-endings-deeper-or-strong-partial-excluded',
+        'overlapPolicy': 'retain-verified-max-gi-unresolved-targets-excluded',
     }
 
 
@@ -36,7 +40,7 @@ def initialize(max_depth=6, max_states=500):
 def analyze_word(word):
     p = _parser
     result = p.analyze(word)
-    analyses = sorted(result.get('analyses') or [], key=p.rank)
+    analyses = result.get('analyses') or []
     best = analyses[0] if analyses else None
     gi = gi_for_result(p, word, best)
     confidence = parse_confidence(result, best, gi)
@@ -45,7 +49,7 @@ def analyze_word(word):
     base_type = best.get('base_type', '') if best else ''
     features = best.get('active_features') or {} if best else {}
     tid = target_id_for(best, gi) if best else ''
-    top = [a for a in analyses if p.rank(a) == p.rank(best)] if best else []
+    top = [a for a in analyses if gi_for_result(p, word, a)['gi_score'] == gi['gi_score']] if best else []
     identities = set()
     for a in top:
         agi = gi_for_result(p, word, a)
@@ -57,7 +61,7 @@ def analyze_word(word):
     if best is None:
         reason = 'unparsed_or_partial'
     elif not gi['gi_relevant'] or str(gi['gi_score']) == 'N/A':
-        reason = 'gi_irrelevant'
+        reason = ('unresolved_base_boundary' if any(a.get('validation_reason') == 'unresolved_base_boundary' for a in result.get('diagnostic_analyses', [])) else 'gi_irrelevant')
     elif confidence in {'partial', 'uncertain', 'none'}:
         reason = 'unresolved_confidence'
     elif not tid:
@@ -80,6 +84,11 @@ def analyze_word(word):
         and confidence not in {'uncertain', 'partial', 'none'} and tid
         and not (len(analyses) > 1 and p.rank(analyses[0]) == p.rank(analyses[1])))
     return {
+        'overlap': result.get('overlap', False),
+        'selection_policy': 'highest_verified_gi',
+        'verified_analyses': analyses,
+        'diagnostic_analyses': result.get('diagnostic_analyses', []),
+        'base_boundary_checks': result.get('base_boundary_checks', {}),
         'word': word, 'status': 'parsed' if best else 'unparsed',
         'gi_relevant': bool(gi['gi_relevant']),
         'gi_score': int(gi['gi_score']) if str(gi['gi_score']) != 'N/A' else None,

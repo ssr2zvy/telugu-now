@@ -221,7 +221,7 @@ test('audio-given questions keep the compact keyboard permanently visible', () =
   const observation = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(controls, /if \(!visible\) return null/);
   assert.match(controls, /question-keyboard-controls" data-visible=\{visible\} aria-hidden=\{!visible\} inert=\{!visible\}/);
-  assert.match(controls, /GoogleTeluguKeyboard value=\{text\} onChange=\{changeText\} onSubmit=/);
+  assert.match(controls, /GoogleTeluguKeyboard fontFamily=\{fontFamily\} value=\{text\} onChange=\{changeText\} onSubmit=/);
   assert.match(controls, /await updateQuestionText\(profileCode, observationId, \{ text: latestText\.current \}\);[\s\S]*onSubmit\(\)/);
   assert.match(observation, /const questionControlsAreVisible = activeQuestion\?\.mode === 'audio-given' \|\| questionControlsVisible/);
   assert.match(observation, /visible=\{questionControlsAreVisible\}/);
@@ -264,7 +264,7 @@ test('recording replaces the response from zero and waits for explicit playback'
   assert.match(playerSource, /precisionBeforeRecording\.current = precisionMode;[\s\S]*dispatchPrecision\('close'\);[\s\S]*player\.pause\(\);[\s\S]*player\.seek\(0\);[\s\S]*return 0/);
   assert.match(playerSource, /const presentedPrecisionMode = recordingActive \? CLOSED_PRECISION_MODE : precisionMode/);
   assert.match(playerSource, /dispatchPrecision\(\{ type: 'restore', mode: precisionBeforeRecording\.current \}\)/);
-  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*mediaRecorder\.start\(\);[\s\S]*setRecording\(true\)/);
+  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*mediaRecorder\.onstart = \(\) => \{[\s\S]*setRecording\(true\)[\s\S]*mediaRecorder\.start\(\);/);
   assert.doesNotMatch(controlsSource, /preRoll|setTimeout\([^,]+, 500\)/);
   assert.match(controlsSource, /audio\/mp4;codecs=mp4a\.40\.2/);
   assert.match(controlsSource, /window\.isSecureContext[\s\S]*navigator\.mediaDevices\?\.getUserMedia[\s\S]*typeof MediaRecorder/);

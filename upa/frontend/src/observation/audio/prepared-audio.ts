@@ -1,3 +1,4 @@
+import { WAVEFORM_PEAKS_PER_SECOND } from './magnifier-waveform';
 import { computeNormalizationGain, type DecodedAudioLike } from './audio-normalization';
 import { AUDIO_LEAD_IN_SECONDS } from './silent-lead-in';
 import { reportClientTelemetry } from '../../api';
@@ -83,7 +84,8 @@ export function encodePreparedAudio(buffer: DecodedAudioLike & { sampleRate: num
   text(36, 'data');
   view.setUint32(40, size - 44, true);
   const gain = computeNormalizationGain(buffer);
-  const waveformPeaks = new Array<number>(120).fill(0);
+  const peakCount = Math.max(1, Math.ceil(frames / sampleRate * WAVEFORM_PEAKS_PER_SECOND));
+  const waveformPeaks = new Array<number>(peakCount).fill(0);
   for (let channel = 0; channel < channels; channel++) {
     const samples = buffer.getChannelData(channel);
     for (let index = 0; index < length; index++) {
@@ -91,7 +93,7 @@ export function encodePreparedAudio(buffer: DecodedAudioLike & { sampleRate: num
       const pcm = Number.isFinite(sample) ? Math.round(sample * (sample < 0 ? 32768 : 32767)) : 0;
       const frame = index + silentFrames;
       view.setInt16(44 + (frame * channels + channel) * 2, pcm, true);
-      const bucket = Math.min(119, Math.floor(frame * 120 / frames));
+      const bucket = Math.min(peakCount - 1, Math.floor(frame * peakCount / frames));
       waveformPeaks[bucket] = Math.max(waveformPeaks[bucket]!, Math.abs(pcm));
     }
   }

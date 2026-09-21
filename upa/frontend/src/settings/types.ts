@@ -1,6 +1,7 @@
 export type SettingsPage =
   | 'grammarMigration'
   | 'observations'
+  | 'category'
   | 'external'
   | 'parser'
   | 'epubExport'
