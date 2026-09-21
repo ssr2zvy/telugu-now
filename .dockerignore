@@ -21,11 +21,10 @@
 !upa/scripts/write-artifact-versions.mjs
 !upa/scripts/generate-telugu-alignments.mjs
 !upa/scripts/package-grammar-worker.mjs
-!local-machine/
-!local-machine/data-transform/
-!local-machine/data-transform/scripts/
-!local-machine/data-transform/scripts/build-grammar/
-!local-machine/data-transform/scripts/build-grammar/**
+!data-transform/
+!data-transform/scripts/
+!data-transform/scripts/build-grammar/
+!data-transform/scripts/build-grammar/**
 # The existing typecheck includes test sources.
 !upa/tests/
 !upa/tests/**

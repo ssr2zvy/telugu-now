@@ -4,7 +4,7 @@ This change adds a separate, derived grammar SQLite database. It never rewrites 
 
 ## Deployment and operation
 
-1. Deploy this repository through the existing build/deploy workflow. `fly.toml` enables the temporary menu/worker with `GRAMMAR_MIGRATION_ENABLED=true`. Build packaging copies the worker from `local-machine/data-transform/scripts/build-grammar/` into the runtime artifact. Python is already installed by the Containerfile.
+1. Deploy this repository through the existing build/deploy workflow. `fly.toml` enables the temporary menu/worker with `GRAMMAR_MIGRATION_ENABLED=true`. Build packaging copies the worker from `data-transform/scripts/build-grammar/` into the runtime artifact. Python is already installed by the Containerfile.
 2. Set a private `GRAMMAR_MIGRATION_TOKEN` in the deployment's secrets. The temporary settings page asks for this operator token; regular profile codes alone cannot start a global rebuild or activate it. Existing AWS/Tigris credentials must allow multipart upload, abort, read and writes under `corpus/grammar/`. No credentials are embedded in this ZIP.
 3. Check actual free volume space. The original 1.5 GB corpus is not duplicated, but the derived catalog, SQLite journal/index work and existing user/media caches need additional space. The repository's 3 GB initial-volume setting is not a guarantee of sufficient capacity for the real data. The full derived size is not known from the 300-row sample.
 4. Open Settings → Grammar Migration, enter the operator token and click Build grammar database. Progress reports fingerprinting, transcript processing, distinct words, indexing and uploaded bytes. The page can be closed; the worker belongs to the server.
@@ -17,7 +17,7 @@ The worker uploads `corpus/grammar/<sha256>.sqlite`, then `corpus/grammar/latest
 
 Set `GRAMMAR_MIGRATION_ENABLED=false` or remove that env setting on the next deployment. Remove the migration token if desired. The temporary settings menu and build/activation endpoints are then disabled; active grammar selection and recovery keep working. Worker assets can remain dormant or be removed from the build by removing `package-grammar-worker.mjs` from build:server and the worker COPY from the Containerfile. Keep the permanent `grammar/model.ts`, `store.ts`, `service.ts`, `persistence.ts`, evaluation endpoint and UI. Removing the entire grammar feature would break stored progression; disabling the worker does not do that.
 
-`local-machine/data-transform/scripts/build-grammar/` is the canonical calculation script location. `server/src/grammar/migration.ts` is the optional process/upload host. The other grammar modules are runtime functionality. The existing grapheme updater is preserved for legacy operation and must not be used to overwrite grammatical data.
+`data-transform/scripts/build-grammar/` is the canonical calculation script location. `server/src/grammar/migration.ts` is the optional process/upload host. The other grammar modules are runtime functionality. The existing grapheme updater is preserved for legacy operation and must not be used to overwrite grammatical data.
 
 ## Agreed runtime behavior
 

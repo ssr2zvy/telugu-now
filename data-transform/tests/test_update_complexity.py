@@ -7,8 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
-SCRIPTS = REPO / "local-machine" / "data-transform" / "scripts"
+REPO = Path(__file__).resolve().parents[2]
+SCRIPTS = REPO / "data-transform" / "scripts"
 sys.path.insert(0, str(SCRIPTS / "create-tigris-schema"))
 sys.path.insert(0, str(SCRIPTS / "update-complexity"))
 

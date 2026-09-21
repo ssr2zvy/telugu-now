@@ -42,7 +42,7 @@ export async function startMigration(){
  save({id,file,phase:'starting',error:''});
  void (async()=>{
   try{
-   const dev=path.resolve('../local-machine/data-transform/scripts/build-grammar/build_grammar.py');
+   const dev=path.resolve('../data-transform/scripts/build-grammar/build_grammar.py');
    const script=fs.existsSync(dev)?dev:path.resolve('dist/server/grammar-worker/build_grammar.py');
    const child=spawn(process.env.GRAMMAR_PYTHON??'python3',[script,'--corpus',config.corpusDatabasePath,'--output',file,'--availability',config.corpusAvailabilityPath],{stdio:['ignore','pipe','pipe']});
    let stderr='';child.stderr.on('data',b=>{stderr=(stderr+b.toString()).slice(-2000);});
