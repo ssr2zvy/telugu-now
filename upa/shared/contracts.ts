@@ -321,16 +321,6 @@ export interface ExportRequest {
   count: number;
 }
 
-export interface FrequencyExportAvailability {
-  availableAcceptedOccurrences: number;
-  maximumExportOccurrences: number;
-  tokenizerVersion: string;
-}
-
-export interface FrequencyExportRequest {
-  occurrenceLimit: number;
-}
-
 export interface ExportEntryDiagnostic {
   selection: SelectionSnapshot;
   cacheHit: boolean;

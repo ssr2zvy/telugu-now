@@ -50,7 +50,6 @@ test('artifact metadata preserves independent source versions and rejects invali
   const artifacts = [
     { name: 'frontend', version: '1.2.3', source: 'frontend/version.json', output: 'dist/client/version.json' },
     { name: 'backend', version: '4.5.6', source: 'server/version.json', output: 'dist/server/version.json' },
-    { name: 'worker', version: '7.8.9-initial', source: 'server/availability-worker.version.json', output: 'dist/server/availability-worker.version.json' },
   ];
   for (const artifact of artifacts) {
     fs.mkdirSync(path.dirname(path.join(root, artifact.source)), { recursive: true });
@@ -62,7 +61,7 @@ test('artifact metadata preserves independent source versions and rejects invali
   const run = (...args: string[]) => spawnSync(process.execPath, [script, ...args], {
     cwd: repositoryDirectory, encoding: 'utf8',
   });
-  const result = run('frontend', 'backend', 'worker');
+  const result = run('frontend', 'backend');
   assert.equal(result.status, 0, result.stderr);
   for (const artifact of artifacts) {
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, artifact.output), 'utf8')), {

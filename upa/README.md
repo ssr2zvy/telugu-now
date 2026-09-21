@@ -602,7 +602,6 @@ There are three separate database files, with default paths relative to the repo
 ```text
 local-machine/data/corpus/corpus.sqlite       Global prepared corpus
 local-machine/data/corpus/availability.sqlite Shared object availability
-local-machine/data/corpus/frequency.sqlite    Indexed Telugu word occurrences
 local-machine/data/user/users.sqlite         All user data, scoped by profile_code
 ```
 There is no separate database per user. The application reads the prepared corpus;
@@ -622,9 +621,9 @@ data, not part of that exception.
 Default runtime paths are located from the repository root, regardless of the
 working directory; no `local-machine/control_local.sh` marker is required. An explicit `DATA_DIRECTORY`
 may be any persistent mount root and does not require locating the repository.
-`DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, `CORPUS_FREQUENCY_PATH`, and
+`DATABASE_PATH`, `CORPUS_DATABASE_PATH`, `CORPUS_AVAILABILITY_PATH`, and
 `CORPUS_OBJECTS_PATH` may select locations inside that root; runtime rejects paths
-outside it and rejects sharing a file between the three databases. Relative
+outside it and rejects sharing a file between the databases. Relative
 environment paths resolve against the working directory (`upa` with `local-machine/control_local.sh`).
 Tests may use isolated database paths outside the data root.
 
@@ -634,7 +633,6 @@ local-machine/data/                         # or DATA_DIRECTORY
 ├── corpus/
 │   ├── corpus.sqlite         # canonical global catalog
 │   ├── availability.sqlite   # shared object-availability state
-│   ├── frequency.sqlite      # indexed Telugu surface-word occurrences
 │   ├── objects/              # local backend audio objects
 │   ├── manifest.json
 │   └── reports/
@@ -670,16 +668,6 @@ must be an integer from 1 to 2147483647 milliseconds (the Node timer limit).
 Availability is global corpus
 state, not a user's source-record cache. Local mode does not require S3 credentials.
 Changing these settings does not create buckets, upload audio, or provision infrastructure.
-
-Frequency exports use a separate `frequency.sqlite` snapshot containing every
-accepted Telugu surface-word occurrence and its transcript location. Set
-`CORPUS_FREQUENCY_REBUILD_ON_STARTUP=true` to build it from `corpus.sqlite` when
-an existing compatible snapshot is unavailable. Compatible snapshots are reused
-and stale interrupted-build files are removed. When false, startup requires an
-existing compatible snapshot at `CORPUS_FREQUENCY_PATH`. Frequency export requests
-are limited by `MAX_FREQUENCY_EXPORT_OCCURRENCES` (default `50000`) to protect
-server memory. This lifecycle is independent of the availability worker and
-rebuild settings.
 
 On the first Tigris startup, a missing `corpus/corpus.sqlite` is streamed from that
 bucket key into a sibling staging file, checked for SQLite integrity and the
@@ -770,7 +758,6 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Dataset audio and preparation metadata | Global | Local mode uses `local-machine/data/corpus/objects/` for WAV/FLAC audio; Tigris uses `BUCKET_NAME` and `CORPUS_OBJECTS_PREFIX`. `manifest.json` and `reports/` under `local-machine/data/corpus/` describe prepared data and validation results. |
 | Built-in fixture datasets | Assets/artifacts | Committed TypeScript development fixtures in `upa/server/src/sources/dummy/data/`, not acquired corpus files or a mutable database. |
 | Corpus availability | Global | `local-machine/data/corpus/availability.sqlite`: `metadata` (generation, identity, pool hash), `source_counts`, `complexity_counts`, and dense eligible `source_complexity_members`; shared by all profiles, separate from canonical content. |
-| Frequency index | Global | `local-machine/data/corpus/frequency.sqlite`: accepted Telugu surface-word occurrences, transcript locations, and whole-corpus counts used to create random frequency exports. |
 | Appearance and language | User | `local-machine/data/user/users.sqlite`, `profile_preferences`: gradient, text/UI and surface colors, font pool and size, text/audio positions, magnifier position, scroll mode, auto-fade delay, Settings language. |
 | Eons and view history | User | `local-machine/data/user/users.sqlite`, `profile_eons` and `observation_views`: named usage periods and timestamped observation/eon links, including revisits. Original selection snapshots remain in `observation_acquisitions`. |
 | Image-generation settings | User | Same user database, `profile_preferences`: personal prompt and default-off regeneration permission. These settings do not make image files private. |
@@ -934,13 +921,10 @@ DATA_DIRECTORY=<repository-root>/data
 DATABASE_PATH=<DATA_DIRECTORY>/user/users.sqlite
 CORPUS_DATABASE_PATH=<DATA_DIRECTORY>/corpus/corpus.sqlite
 CORPUS_AVAILABILITY_PATH=<DATA_DIRECTORY>/corpus/availability.sqlite
-CORPUS_FREQUENCY_PATH=<DATA_DIRECTORY>/corpus/frequency.sqlite
 CORPUS_OBJECTS_PATH=<DATA_DIRECTORY>/corpus/objects
 CORPUS_BACKEND=local
 CORPUS_AVAILABILITY_WORKER_ENABLED=false
 CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false
-CORPUS_FREQUENCY_REBUILD_ON_STARTUP=false
-MAX_FREQUENCY_EXPORT_OCCURRENCES=50000
 CORPUS_AVAILABILITY_REFRESH_MS=7200000
 CORPUS_OBJECTS_PREFIX=corpus/objects/
 AWS_REGION=auto

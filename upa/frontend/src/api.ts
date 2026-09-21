@@ -4,8 +4,6 @@ import type {
   DataSourcesResponse,
   ExportRequest,
   ExportResponse,
-  FrequencyExportAvailability,
-  FrequencyExportRequest,
   GraphemeWord,
   LoadProfileRequest,
   NavigationRequest,
@@ -244,20 +242,3 @@ export async function generateExport(
   }));
 }
 
-export async function getFrequencyExportAvailability(signal?: AbortSignal): Promise<FrequencyExportAvailability> {
-  return parseJson<FrequencyExportAvailability>(
-    await fetch('/api/frequency-export/availability', signal ? { signal } : {}),
-  );
-}
-
-export async function downloadFrequencyExport(request: FrequencyExportRequest): Promise<{ blob: Blob; fileName: string }> {
-  const response = await fetch('/api/frequency-export', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error(String(response.status));
-  const disposition = response.headers.get('content-disposition') ?? '';
-  const fileName = /filename="([^"]+)"/u.exec(disposition)?.[1] ?? 'telugu-frequency-export.zip';
-  return { blob: await response.blob(), fileName };
-}
