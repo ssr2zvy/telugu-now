@@ -46,7 +46,7 @@ class PipelineTests(unittest.TestCase):
         (self.root / "upa").mkdir()
         self.raw = self.root / "data-transform" / "raw"
         self.sample = self.root / "data-transform" / "sample"
-        self.output = self.root / "data" / "corpus"
+        self.output = local_machine / "data" / "corpus"
         fleurs = self.raw / "FLEURS"
         fleurs.mkdir(parents=True)
         for split, count in [("dev", 106), ("test", 3), ("train", 4)]:
