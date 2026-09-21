@@ -1,0 +1,67 @@
+{
+  "dictionary_id": "tesseract_telugu_word_dawg_clean_telugu_v1",
+  "description": "Full working Telugu dictionary extracted from installed Tesseract OCR Telugu traineddata word DAWGs, filtered to clean Telugu Unicode tokens. Used only to validate non-core lexical bases/stems; core bases remain hard-coded.",
+  "sources": [
+    {
+      "name": "tesseract-ocr-tel / tel.traineddata",
+      "path": "/usr/share/tesseract-ocr/5/tessdata/tel.traineddata",
+      "version_file": "tel.traineddata.version",
+      "raw_word_file": "tel.traineddata.lstm-word-dawg",
+      "raw_lines_after_dawg2wordlist": 221189,
+      "clean_telugu_entries": 215965
+    },
+    {
+      "name": "tesseract-ocr-script-telu / Telugu.traineddata",
+      "path": "/usr/share/tesseract-ocr/5/tessdata/Telugu.traineddata",
+      "version_file": "Telugu.traineddata.version",
+      "raw_word_file": "Telugu.traineddata.lstm-word-dawg",
+      "raw_lines_after_dawg2wordlist": 559262,
+      "clean_telugu_entries": 215965
+    }
+  ],
+  "combined_clean_unique_entries": 215965,
+  "format": "one NFC-normalized Telugu token per line in lexicon_full.txt",
+  "filter": "keeps only Telugu Unicode block characters plus ZWNJ/ZWJ; excludes punctuation, Latin, digits, mixed fragments, and tokens over 60 code points",
+  "caveat": "This is a full working word dictionary, not a pure lemma-only WordNet. It may include inflected surface forms. The parser therefore ranks rule-based base+modifier analyses before exact dictionary standalones.",
+  "sample_entries": [
+    "అ",
+    "అం",
+    "అంక",
+    "అంకం",
+    "అంకంలో",
+    "అంకగణిత",
+    "అంకగణితం",
+    "అంకగణితము",
+    "అంకము",
+    "అంకమున",
+    "అంకమ్మ",
+    "అంకయ్య",
+    "అంకల్‌",
+    "అంకానికి",
+    "అంకాపూర్‌",
+    "అంకారా",
+    "అంకాల",
+    "అంకాలమ్మ",
+    "అంకింతం",
+    "అంకిత",
+    "అంకితం",
+    "అంకితభావం",
+    "అంకితభావంతో",
+    "అంకితమిచ్చాడు",
+    "అంకితమిచ్చారు",
+    "అంకితమిచ్చిన",
+    "అంకితము",
+    "అంకితమై",
+    "అంకితమైన",
+    "అంకితమైపోవాలా"
+  ],
+  "v16_supplement": {
+    "modern_exact_supplement_file": "lexicon_modern_supplement_v16.txt",
+    "modern_exact_entries": 3343,
+    "verb_receiver_supplement_file": "lexicon_verb_supplement_v16.txt",
+    "verb_receiver_entries": 161,
+    "audit_file": "lexicon_supplement_v16_audit.csv",
+    "caveat": "v16 supplement is an auditable corpus-diagnostic candidate layer, not a replacement for an independently curated WordNet-style lemma dictionary. It is kept as separate files and exact standalone hits remain lower priority than valid modifier-chain parses."
+  },
+  "combined_clean_unique_entries_after_v16": 219829
+}

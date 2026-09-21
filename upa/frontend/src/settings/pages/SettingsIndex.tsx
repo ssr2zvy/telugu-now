@@ -35,10 +35,10 @@ export function SettingsIndex({
   onResetQueue,
 }: SettingsIndexProps) {
   const { appearance } = useAppearance();
-  const entries = settingsGroups[currentPage] ?? [];
+  const entries = (settingsGroups[currentPage] ?? []).filter(page=>!(state.grammarActive&&['complexity','sources','reset'].includes(page)) && !(page==='grammarMigration'&&!state.grammarMigrationAvailable));
   const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
   const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    sampling: `${t(language, 'target')} ${percent.format(state.selectionSettings.complexityPercentileTarget)} · ${t(language, 'spread')} ${percent.format(state.selectionSettings.complexityPercentileSpread)}`,
+    sampling: state.grammarActive ? 'Grammar progression · batches of 10' : `${t(language, 'target')} ${percent.format(state.selectionSettings.complexityPercentileTarget)} · ${t(language, 'spread')} ${percent.format(state.selectionSettings.complexityPercentileSpread)}`,
     diagnostic: state.currentObservation
       ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
       : t(language, 'unavailable'),

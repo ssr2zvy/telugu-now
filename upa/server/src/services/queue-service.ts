@@ -1,3 +1,4 @@
+import { grammarActive, openBatch, newBatch, grammarSelect, recordSelection, attempt } from '../grammar/service';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/database';
 import type { AcquisitionTriggerKind, ObservationKind, PreparationGroupKind, QuestionKeyboard, QuestionMode, QuestionPool } from '../../../shared/contracts';
@@ -132,6 +133,7 @@ function appendSelectedObservation(
   context: SelectionContext,
   reserved?: { acquisitionNumber: number; queuePosition: number },
 ): string {
+  if (grammarActive()) return appendGrammarObservation(profileCode, context, reserved);
   const settings = getProfileSelectionSettings(profileCode);
   const plan = chooseObservationPlan(Math.random, {
     question: settings.questionProbability ?? 0.3,
@@ -200,7 +202,29 @@ function appendSelectedObservation(
   return observationId;
 }
 
+function appendGrammarObservation(profileCode: string, context: SelectionContext,
+  reserved?: {acquisitionNumber: number; queuePosition: number}, replacement?: {batch:string;slot:number;target:string}): string {
+  const batch=replacement?.batch ?? openBatch(profileCode)?.id;
+  if(!batch)throw new Error('Grammar batch missing');
+  const slot=replacement?.slot ?? (db.prepare('SELECT COUNT(*) AS n FROM grammar_attempts WHERE batch_id=?').get(batch) as {n:number}).n;
+  const selected=grammarSelect(profileCode,batch,replacement?.target),settings=getProfileSelectionSettings(profileCode);
+  const mode=Math.random()<(settings.audioGivenQuestionProbability??0.6)?'audio-given':'text-given';
+  const keyboards=['windows-inscript','mac-standard','chromebook-dictation'];
+  const id=randomUUID(),number=reserved?.acquisitionNumber??nextAcquisitionNumber(profileCode);
+  insertObservation.run(id,selected.sourceId,selected.sourceKey,context.triggeredAt,batch,'launch-fill',10,slot+1);
+  insertAcquisition.run(id,profileCode,number,context.triggerKind,context.triggeredByObservationId,context.triggeredByHistoryPosition,context.triggeredAt,waitingPreparationCount(),preparationInFlight()?1:0,JSON.stringify(selected.snapshot),'question',null,mode,mode==='audio-given'?keyboards[Math.floor(Math.random()*3)]:null);
+  insertQueue.run(profileCode,reserved?.queuePosition??nextQueuePosition(profileCode),id);
+  recordSelection(id,batch,slot,selected);return id;
+}
+
 export function ensureLaunchQueue(profileCode: string): boolean {
+  if(grammarActive()) {
+    if(openBatch(profileCode)||queueCount(profileCode)>0)return false;
+    db.transaction(()=>{
+      const batch=newBatch(profileCode),now=Date.now();
+      for(let i=0;i<10;i++)appendGrammarObservation(profileCode,{triggerKind:'initial-fill',triggeredByObservationId:null,triggeredByHistoryPosition:null,triggeredAt:now,legacyGroupId:batch,legacyGroupKind:'launch-fill',legacyGroupSize:10,legacyGroupPosition:i+1});
+    })();return true;
+  }
   const count = queueCount(profileCode);
   if (count >= 10) return false;
 
@@ -246,6 +270,7 @@ export function appendConsumptionReplacement(
   triggeredByHistoryPosition: number,
   triggeredAt: number,
 ): string {
+  if(grammarActive()) return '';
   return appendSelectedObservation(profileCode, {
     triggerKind: 'observation-consumed',
     triggeredByObservationId,
@@ -311,6 +336,13 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
         logger.error('queue_item_missing_acquisition_metadata', { observationId });
         throw new Error('Queued observation has no acquisition.');
       }
+      return;
+    }
+    const grammarAttempt=attempt(observationId,row.profile_code);
+    if(grammarAttempt){
+      db.prepare('DELETE FROM grammar_attempts WHERE observation_id=?').run(observationId);
+      deleteObservationById.run(observationId);
+      appendGrammarObservation(row.profile_code,row,row,{batch:grammarAttempt.batch_id,slot:grammarAttempt.slot,target:grammarAttempt.target_id});
       return;
     }
     deleteObservationById.run(observationId);

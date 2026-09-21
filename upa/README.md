@@ -1,3 +1,5 @@
+> Grammar migration update: see [GRAMMAR_MIGRATION.md](../GRAMMAR_MIGRATION.md) before deploying. The earlier sampling documentation below describes legacy mode; grammar mode replaces its source weights and complexity/spread controls.
+
 # Telugu Now
 Telugu Now is a profile-based Telugu reader with prepared speech datasets, audio playback, personal settings and bookmarks, global word images, and offline HTML/EPUB exports.
 Implementation and migration notes belong in the existing [iteration 3 document](../local-machine/impl-iterations/iteration3.md). The complete current persistence inventory is [below](#storage-inventory). Fly deployment instructions live in the [deployment guide](../ci-cd/deployingtofly.md).

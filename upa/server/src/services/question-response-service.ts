@@ -1,3 +1,4 @@
+import { attempt } from '../grammar/service';
 import type Database from 'better-sqlite3';
 import type { UpdateQuestionResponseRequest } from '../../../shared/contracts';
 import { logger } from './logger';
@@ -16,6 +17,7 @@ function assertQuestion(db: Database.Database, profileCode: string, observationI
 
 export function updateQuestionText(db: Database.Database, profileCode: string, observationId: string, request: UpdateQuestionResponseRequest): void {
   assertQuestion(db, profileCode, observationId);
+  if(attempt(observationId,profileCode)?.result!=null)throw new InvalidQuestionResponseError('Evaluation is final');
   if (typeof request.text !== 'string' || request.text.length > 10_000) {
     logger.warn('question_response_rejected', { observationId, failureCategory: 'invalid-text' });
     throw new InvalidQuestionResponseError('Question response text is invalid.');
@@ -39,6 +41,7 @@ export function updateQuestionText(db: Database.Database, profileCode: string, o
 
 export function updateQuestionAudio(db: Database.Database, profileCode: string, observationId: string, bytes: Uint8Array, mimeType: string): void {
   assertQuestion(db, profileCode, observationId);
+  if(attempt(observationId,profileCode)?.result!=null)throw new InvalidQuestionResponseError('Evaluation is final');
   if (!mimeType.startsWith('audio/') || bytes.byteLength === 0 || bytes.byteLength > 16 * 1024 * 1024) {
     logger.warn('question_response_rejected', { observationId, responseKind: 'audio', failureCategory: 'invalid-audio' });
     throw new InvalidQuestionResponseError('Question response audio is invalid.');

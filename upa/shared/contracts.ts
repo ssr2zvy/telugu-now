@@ -58,9 +58,9 @@ export interface ProfileSelectionSettings {
 }
 
 export interface UpdateSelectionSettingsRequest {
-  sourceWeights: Record<string, number>;
-  complexityPercentileTarget: number;
-  complexityPercentileSpread: number;
+  sourceWeights?: Record<string, number>;
+  complexityPercentileTarget?: number;
+  complexityPercentileSpread?: number;
   questionProbability?: number;
   seenQuestionProbability?: number;
   audioGivenQuestionProbability?: number;
@@ -210,6 +210,7 @@ export interface GraphemeWord {
 }
 
 export interface DisplayObservation {
+  grammar?: {target: Record<string,unknown>; result: boolean|null}|null;
   id: string;
   sourceId: string;
   sourceKey: string;
@@ -285,6 +286,9 @@ export interface UpcomingPresentationHint {
 }
 
 export interface ProfileStateResponse {
+  grammarError?: string|null;
+  grammarActive?: boolean;
+  grammarMigrationAvailable?: boolean;
   profileCode: string;
   currentPosition: number | null;
   historyLength: number;
@@ -322,7 +326,8 @@ export interface ExportRequest {
 }
 
 export interface ExportEntryDiagnostic {
-  selection: SelectionSnapshot;
+  selection: SelectionSnapshot | null;
+  grammar?: Record<string,unknown>;
   cacheHit: boolean;
   requestStartedAt: number | null;
   requestCompletedAt: number | null;

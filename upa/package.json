@@ -12,7 +12,7 @@
     "dev:client": "vite --config frontend/vite.config.ts",
     "build": "npm run typecheck && npm run build:client && npm run build:server",
     "build:client": "vite build --config frontend/vite.config.ts",
-    "build:server": "tsup server/src/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean && cp server/src/services/alignment-engine.py dist/server/alignment-engine.py",
+    "build:server": "tsup server/src/index.ts --format esm --platform node --target node20 --out-dir dist/server --sourcemap --clean && cp server/src/services/alignment-engine.py dist/server/alignment-engine.py && node scripts/package-grammar-worker.mjs",
     "postbuild:client": "node scripts/write-artifact-versions.mjs frontend",
     "postbuild:server": "node scripts/write-artifact-versions.mjs backend",
     "typecheck": "tsc --noEmit",

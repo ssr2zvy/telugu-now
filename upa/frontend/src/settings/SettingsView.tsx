@@ -1,3 +1,4 @@
+import { GrammarMigrationPage } from './pages/GrammarMigrationPage';
 import type { ProfileStateResponse } from '../../../shared/contracts';
 import { t } from './language';
 import { DataSourcesPage } from './pages/DataSourcesPage';
@@ -58,6 +59,8 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
+  if(page==='grammarMigration')return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
+  if(state.grammarActive&&(page==='sources'||page==='complexity'))return <SettingsShell {...shellProps} title="Grammar selection" onBack={controller.backToIndex}><p>Grammar progression now controls selection.</p></SettingsShell>;
   if (settingsGroups[page] || page === 'reset') {
     return (
       <SettingsShell
@@ -115,7 +118,7 @@ export function SettingsView({
   if (page === 'queue') {
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <QueueViewPage key={state.profileCode} profileCode={state.profileCode} language={language} />
+        <QueueViewPage grammarActive={state.grammarActive??false} key={state.profileCode} profileCode={state.profileCode} language={language} />
       </SettingsShell>
     );
   }
@@ -206,6 +209,7 @@ export function SettingsView({
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <QuestionsPage
+          grammarActive={state.grammarActive??false}
           language={language}
           draft={draft}
           saving={settingsSaving}
@@ -235,6 +239,11 @@ export function SettingsView({
         />
       </SettingsShell>
     );
+  }
+  if(state.currentObservation?.grammar && ['source','complexityInfo','global'].includes(page)) {
+    const g=state.currentObservation.grammar.target;
+    const rows=[['Selected target',g.targetId],['Category',g.categoryLevel],['Modifier chain',JSON.stringify(g.chain)],['Transcript length',g.length],['Category probabilities',JSON.stringify(g.probabilities)],['Selection probabilities',JSON.stringify(g.route)],['Route probability',g.routeProbability],['Inventory',g.inventoryId]];
+    return <SettingsShell {...shellProps} title="Grammar selection" onBack={controller.backToIndex}><table className="diagnostic-table"><tbody>{rows.map(([key,value])=><tr key={String(key)}><th>{String(key)}</th><td>{String(value??'—')}</td></tr>)}</tbody></table></SettingsShell>;
   }
   if (page === 'trigger' || page === 'source' || page === 'complexityInfo' || page === 'global' || page === 'questionInfo') {
     return (

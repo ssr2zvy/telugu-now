@@ -225,7 +225,7 @@ export function useSettingsController({
     setSettingsSaving(true);
     setSettingsError(false);
     try {
-      const saved = await updateSelectionSettings(profileCode, {
+      const saved = await updateSelectionSettings(profileCode, state.grammarActive ? {audioGivenQuestionProbability: probabilities[2]!} : {
         sourceWeights: state.selectionSettings.sourceWeights,
         complexityPercentileTarget: state.selectionSettings.complexityPercentileTarget,
         complexityPercentileSpread: state.selectionSettings.complexityPercentileSpread,

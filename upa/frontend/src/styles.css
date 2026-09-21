@@ -24,3 +24,7 @@
 	border-radius: 6px;
 }
 .profile-preferences-error button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.grammar-evaluation { position: absolute; z-index: 30; bottom: 5rem; left: 50%; transform: translateX(-50%); width: min(90vw, 32rem); padding: .8rem; background: var(--surface, #fff); color: var(--foreground, #222); border-radius: 1rem; box-shadow: 0 2px 18px #0003; text-align: center; }
+.grammar-evaluation > div { display: flex; justify-content: center; gap: 1rem; }
+.grammar-evaluation button { display: inline-flex; align-items: center; gap: .4rem; padding: .7rem; }

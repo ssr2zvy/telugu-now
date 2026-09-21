@@ -4,6 +4,7 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, Layers, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
+  grammarMigration: Database,
   index: SlidersHorizontal, sampling: SlidersHorizontal, diagnostic: Activity,
   display: Palette, export: Download, import: Upload, reset: RotateCcw, complexity: ChartNoAxesCombined,
   sources: Layers, dataSources: Database, trigger: Workflow, source: Database,
@@ -17,7 +18,7 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
-  index: ['sampling', 'diagnostic', 'display', 'eons', 'blacklist', 'export', 'import', 'controlsGuide', 'about', 'reset'],
+  index: ['grammarMigration', 'sampling', 'diagnostic', 'display', 'eons', 'blacklist', 'export', 'import', 'controlsGuide', 'about', 'reset'],
   sampling: ['questions', 'complexity', 'sources', 'dataSources'],
   diagnostic: ['queue', 'questionInfo', 'trigger', 'source', 'complexityInfo', 'global'],
   display: ['playback', 'appearance', 'images'],
@@ -28,6 +29,7 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+  if (page === 'grammarMigration') return 'Grammar Migration';
   if (page === 'sampling') return language === 'en' ? 'Sampling' : 'నమూనా ఎంపిక';
   if (page === 'questions') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';
   if (page === 'display') return language === 'en' ? 'Display' : 'ప్రదర్శన';

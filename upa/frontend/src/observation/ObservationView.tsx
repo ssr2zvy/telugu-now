@@ -1,3 +1,4 @@
+import { GrammarEvaluation } from './GrammarEvaluation';
 import {
   useCallback,
   useEffect,
@@ -673,8 +674,8 @@ export function ObservationView({
             className="question-phase-indicator"
             data-after-navigation={Boolean(navigationEvent)}
             role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
+            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
+            title={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
           >
             {observation.question?.phase === 'comparison'
               ? <Check aria-hidden="true" />
@@ -793,6 +794,8 @@ export function ObservationView({
           }}
         />
       </div>
+      {observation?.grammar && observation.question?.phase==='observation' ? <GrammarEvaluation key={observation.id} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} target={observation.grammar.target}/> : null}
+      {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}

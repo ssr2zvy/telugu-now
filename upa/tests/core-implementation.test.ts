@@ -1208,8 +1208,8 @@ test(
       assert.equal(exported.settings.complexityPercentileTarget, 0.2);
       assert.equal(exported.settings.complexityPercentileSpread, 0.3);
       assert.ok(exported.entries.every((entry) => entry.sourceId === 'source1'));
-      assert.ok(exported.entries.every((entry) => entry.diagnostic.selection.complexityPercentileTarget === 0.2));
-      assert.ok(exported.entries.every((entry) => entry.diagnostic.selection.complexityPercentileSpread === 0.3));
+      assert.ok(exported.entries.every((entry) => entry.diagnostic.selection!.complexityPercentileTarget === 0.2));
+      assert.ok(exported.entries.every((entry) => entry.diagnostic.selection!.complexityPercentileSpread === 0.3));
 
       const current = settingsService.getProfileSelectionSettings('001');
       assert.deepEqual(
