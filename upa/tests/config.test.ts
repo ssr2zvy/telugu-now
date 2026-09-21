@@ -11,11 +11,9 @@ const repositoryDirectory = path.dirname(appDirectory);
 const configUrl = new URL('../server/src/config/config.ts', import.meta.url).href;
 const environmentKeys = [
   'DATA_DIRECTORY', 'DATABASE_PATH', 'CORPUS_DATABASE_PATH', 'CORPUS_OBJECTS_PATH',
-  'CORPUS_AVAILABILITY_PATH', 'CORPUS_FREQUENCY_PATH', 'CORPUS_BACKEND', 'CORPUS_OBJECTS_PREFIX',
-  'BUCKET_NAME', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION', 'CORPUS_AVAILABILITY_REFRESH_MS',
-  'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP',
-  'CORPUS_FREQUENCY_REBUILD_ON_STARTUP',
-  'MAX_FREQUENCY_EXPORT_OCCURRENCES',
+  'CORPUS_AVAILABILITY_PATH', 'CORPUS_BACKEND', 'CORPUS_OBJECTS_PREFIX',
+  'BUCKET_NAME', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION',
+  'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'CORPUS_CATALOG_FORCE_REDOWNLOAD',
 ];
 
 function readConfig(overrides: Record<string, string> = {}, cwd = appDirectory) {
@@ -37,52 +35,35 @@ test('default data layout is repository-relative from unrelated working director
   assert.equal(config.databasePath, path.join(root, 'user/users.sqlite'));
   assert.equal(config.corpusDatabasePath, path.join(root, 'corpus/corpus.sqlite'));
   assert.equal(config.corpusAvailabilityPath, path.join(root, 'corpus/availability.sqlite'));
-  assert.equal(config.corpusFrequencyPath, path.join(root, 'corpus/frequency.sqlite'));
   assert.equal(config.corpusObjectsPath, path.join(root, 'corpus/objects'));
   assert.equal(config.corpusBackend, 'local');
   assert.equal(config.corpusObjectsPrefix, 'corpus/objects/');
   assert.equal(config.awsRegion, 'auto');
-  assert.equal(config.corpusAvailabilityRefreshMs, 7_200_000);
-  assert.equal(config.corpusAvailabilityWorkerEnabled, false);
   assert.equal(config.corpusAvailabilityRebuildOnStartup, false);
-  assert.equal(config.corpusFrequencyRebuildOnStartup, false);
-  assert.equal(config.maxFrequencyExportOccurrences, 50_000);
+  assert.equal(config.corpusCatalogForceRedownload, false);
 });
 
-test('frequency snapshot has an independent rebuild switch', () => {
-  for (const value of ['true', 'false']) {
-    const result = readConfig({ CORPUS_FREQUENCY_REBUILD_ON_STARTUP: value });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(JSON.parse(result.stdout).corpusFrequencyRebuildOnStartup, value === 'true');
-  }
-  for (const value of ['', '1', 'yes', 'FALSE']) {
-    const result = readConfig({ CORPUS_FREQUENCY_REBUILD_ON_STARTUP: value });
-    assert.notEqual(result.status, 0);
-    assert.ok(result.stderr.includes('CORPUS_FREQUENCY_REBUILD_ON_STARTUP must be true or false'));
-  }
-});
-
-test('availability switches have backend-independent defaults and explicit boolean overrides', () => {
+test('availability and catalog-redownload switches have backend-independent defaults and explicit boolean overrides', () => {
   for (const backend of ['local', 'tigris']) {
     const defaults = readConfig({ CORPUS_BACKEND: backend });
     assert.equal(defaults.status, 0, defaults.stderr);
-    assert.equal(JSON.parse(defaults.stdout).corpusAvailabilityWorkerEnabled, false);
     assert.equal(JSON.parse(defaults.stdout).corpusAvailabilityRebuildOnStartup, false);
-    for (const worker of ['true', 'false']) {
-      for (const rebuild of ['true', 'false']) {
+    assert.equal(JSON.parse(defaults.stdout).corpusCatalogForceRedownload, false);
+    for (const rebuild of ['true', 'false']) {
+      for (const forceRedownload of ['true', 'false']) {
         const result = readConfig({
           CORPUS_BACKEND: backend,
-          CORPUS_AVAILABILITY_WORKER_ENABLED: worker,
           CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: rebuild,
+          CORPUS_CATALOG_FORCE_REDOWNLOAD: forceRedownload,
         });
         assert.equal(result.status, 0, result.stderr);
         const config = JSON.parse(result.stdout);
-        assert.equal(config.corpusAvailabilityWorkerEnabled, worker === 'true');
         assert.equal(config.corpusAvailabilityRebuildOnStartup, rebuild === 'true');
+        assert.equal(config.corpusCatalogForceRedownload, forceRedownload === 'true');
       }
     }
   }
-  for (const key of ['CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP']) {
+  for (const key of ['CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'CORPUS_CATALOG_FORCE_REDOWNLOAD']) {
     for (const value of ['', '1', 'yes', 'FALSE']) {
       const result = readConfig({ [key]: value });
       assert.notEqual(result.status, 0);
@@ -98,14 +79,13 @@ test('explicit external data mount and backend overrides do not require control_
     DATABASE_PATH: path.join(root, 'custom-users.sqlite'),
     CORPUS_DATABASE_PATH: path.join(root, 'catalog.sqlite'),
     CORPUS_AVAILABILITY_PATH: path.join(root, 'available.sqlite'),
-    CORPUS_FREQUENCY_PATH: path.join(root, 'frequency-index.sqlite'),
     CORPUS_OBJECTS_PATH: path.join(root, 'audio'),
     CORPUS_BACKEND: 'tigris',
     CORPUS_OBJECTS_PREFIX: 'published/audio/',
     BUCKET_NAME: 'test-bucket',
     AWS_ENDPOINT_URL_S3: 'http://127.0.0.1:9999',
     AWS_REGION: 'test-region',
-    CORPUS_AVAILABILITY_REFRESH_MS: '25',
+    CORPUS_CATALOG_FORCE_REDOWNLOAD: 'true',
   });
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout);
@@ -113,26 +93,20 @@ test('explicit external data mount and backend overrides do not require control_
   assert.equal(config.databasePath, path.join(root, 'custom-users.sqlite'));
   assert.equal(config.corpusDatabasePath, path.join(root, 'catalog.sqlite'));
   assert.equal(config.corpusAvailabilityPath, path.join(root, 'available.sqlite'));
-  assert.equal(config.corpusFrequencyPath, path.join(root, 'frequency-index.sqlite'));
   assert.equal(config.corpusObjectsPath, path.join(root, 'audio'));
   assert.equal(config.corpusBackend, 'tigris');
   assert.equal(config.corpusObjectsPrefix, 'published/audio/');
   assert.equal(config.bucketName, 'test-bucket');
   assert.equal(config.awsEndpointUrlS3, 'http://127.0.0.1:9999');
   assert.equal(config.awsRegion, 'test-region');
-  assert.equal(config.corpusAvailabilityRefreshMs, 25);
+  assert.equal(config.corpusCatalogForceRedownload, true);
 });
 
-test('configuration rejects invalid backend, refresh interval, root and escaping paths', () => {
+test('configuration rejects invalid backend, root and escaping paths', () => {
   for (const value of ['s3', '', 'LOCAL']) {
     const result = readConfig({ CORPUS_BACKEND: value });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /CORPUS_BACKEND must be local or tigris/);
-  }
-  for (const value of ['0', '-1', '1.5', 'wat', '', 'Infinity', '2147483648']) {
-    const result = readConfig({ CORPUS_AVAILABILITY_REFRESH_MS: value });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /CORPUS_AVAILABILITY_REFRESH_MS/);
   }
   const root = path.join(appDirectory, 'test-results/config-mount');
   for (const databasePath of [root, path.join(root, '../outside.sqlite')]) {
@@ -235,7 +209,7 @@ test('controller requires local prepared data but never generates a corpus for T
   fs.writeFileSync(npmStub, `#!/usr/bin/env node
 console.log('npm ' + process.argv.slice(2).join(' '));
 console.log('alignment-python:' + process.env.AUDIO_ALIGNMENT_PYTHON);
-console.log('dev-config:' + ['CORPUS_BACKEND', 'CORPUS_AVAILABILITY_WORKER_ENABLED', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'DATA_DIRECTORY', 'CORPUS_DATABASE_PATH', 'API_DEV_PORT'].map(key => process.env[key]).join('|'));
+console.log('dev-config:' + ['CORPUS_BACKEND', 'CORPUS_AVAILABILITY_REBUILD_ON_STARTUP', 'DATA_DIRECTORY', 'CORPUS_DATABASE_PATH', 'API_DEV_PORT'].map(key => process.env[key]).join('|'));
 if (process.env.CHECK_LOCAL_SECRETS === 'true') {
   if (process.env.LOCAL_TEST_SECRET !== 'literal $(echo must-not-run) # value') process.exit(31);
   if (process.env.pollinations_api_key !== process.env.EXPECTED_TEST_KEY) process.exit(32);
@@ -277,7 +251,7 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   assert.equal(prepared.status, 0, prepared.stderr);
   assert.match(prepared.stdout, /^npm run dev$/m);
   assert.deepEqual(prepared.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
-    'local', 'false', 'true', path.join(scratch, 'mount'), path.join(corpusPath, 'catalog.sqlite'), '8787',
+    'local', 'true', path.join(scratch, 'mount'), path.join(corpusPath, 'catalog.sqlite'), '8787',
   ]);
 
   const overridden = spawnSync('bash', args, {
@@ -287,7 +261,7 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   assert.equal(overridden.status, 0, overridden.stderr);
   assert.match(overridden.stdout, /^alignment-python:\/custom\/python$/m);
   assert.deepEqual(overridden.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
-    'tigris', 'false', 'false', path.join(scratch, 'mount'), path.join(scratch, 'mount/corpus/corpus.sqlite'), '9898',
+    'tigris', 'false', path.join(scratch, 'mount'), path.join(scratch, 'mount/corpus/corpus.sqlite'), '9898',
   ]);
 
   const defaultsEnv = { ...env };
@@ -299,7 +273,7 @@ process.exit(Number(process.env.TEST_NPM_EXIT || 0));
   const defaults = spawnSync('bash', args, { env: defaultsEnv, cwd: '/', encoding: 'utf8' });
   assert.equal(defaults.status, 0, defaults.stderr);
   assert.deepEqual(defaults.stdout.split('\n').find(line => line.startsWith('dev-config:'))?.slice(11).split('|'), [
-    'local', 'false', 'true', path.join(scratch, 'local-machine/data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
+    'local', 'true', path.join(scratch, 'local-machine/data'), path.join(defaultCorpus, 'corpus.sqlite'), '8787',
   ]);
 
   const secretsFile = path.join(scratch, 'local-machine/dev-secrets.env');

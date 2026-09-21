@@ -32,17 +32,10 @@ import { preparationService } from './services/preparation-service';
 import { InvalidSelectionSettingsError } from './services/selection-settings-service';
 import { InvalidAudioSettingsError, updateProfileAudioSettings } from './services/audio-settings-service';
 import { generateExport, InvalidExportRequestError } from './services/export-service';
-import {
-  generateFrequencyExport,
-  getAvailableFrequencyOccurrences,
-  InvalidFrequencyExportRequestError,
-} from './services/frequency-export-service';
-import { TOKENIZER_VERSION } from './services/telugu-tokenizer';
 import { sourceRegistry } from './services/source-registry';
 import type {
   DataSourcesResponse,
   ExportRequest,
-  FrequencyExportRequest,
   LoadProfileRequest,
   NavigationRequest,
   UpdateAudioSettingsRequest,
@@ -181,23 +174,6 @@ app.post('/api/profiles/:code/export', async (c) => {
   return c.json(await generateExport(c.req.param('code'), body.count));
 });
 
-app.get('/api/frequency-export/availability', (c) => c.json({
-  availableAcceptedOccurrences: getAvailableFrequencyOccurrences(),
-  maximumExportOccurrences: config.maxFrequencyExportOccurrences,
-  tokenizerVersion: TOKENIZER_VERSION,
-}));
-
-app.post('/api/frequency-export', async (c) => {
-  const body = await c.req.json<FrequencyExportRequest>();
-  const archive = generateFrequencyExport(body);
-  const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
-  return c.body(archive, 200, {
-    'Content-Type': 'application/zip',
-    'Content-Disposition': `attachment; filename="telugu-frequency-export-${timestamp}.zip"`,
-    'Content-Length': String(archive.byteLength),
-  });
-});
-
 app.onError((error, c) => {
   if (error instanceof InvalidProfileCodeError) {
     return c.json({ error: 'invalid-profile-code' }, 404);
@@ -216,9 +192,6 @@ app.onError((error, c) => {
   }
   if (error instanceof InvalidExportRequestError) {
     return c.json({ error: 'invalid-export-request' }, 400);
-  }
-  if (error instanceof InvalidFrequencyExportRequestError) {
-    return c.json({ error: 'invalid-frequency-export-request' }, 400);
   }
 
   logger.error('http_request_failed', {

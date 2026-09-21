@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { lstat, mkdir, link, unlink, open } from 'node:fs/promises';
+import { lstat, mkdir, link, rename, unlink, open } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -99,12 +99,14 @@ export class CorpusObjectStore {
     } while (token);
   }
 
-  async ensureCorpusDatabase(localPath = config.corpusDatabasePath): Promise<boolean> {
-    try {
-      await lstat(localPath);
-      return false;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  async ensureCorpusDatabase(localPath = config.corpusDatabasePath, forceRedownload = false): Promise<boolean> {
+    if (!forceRedownload) {
+      try {
+        await lstat(localPath);
+        return false;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
     }
     await mkdir(path.dirname(localPath), { recursive: true });
     const staged = `${localPath}.${randomUUID()}.download`;
@@ -138,11 +140,16 @@ export class CorpusObjectStore {
                  audio_object_key, audio_mime_type, duration_seconds FROM source_rows LIMIT 0
         `).all();
       } finally { database.close(); }
-      // A hard link publishes atomically without ever replacing a concurrently created cache.
-      try { await link(staged, localPath); }
-      catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
-        throw error;
+      // A hard link publishes atomically without ever replacing a concurrently created cache,
+      // unless forceRedownload requests an atomic replace of any existing catalog.
+      if (forceRedownload) {
+        await rename(staged, localPath);
+      } else {
+        try { await link(staged, localPath); }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+          throw error;
+        }
       }
       const directory = await open(path.dirname(localPath), 'r');
       try { await directory.sync(); } finally { await directory.close(); }
@@ -160,6 +167,6 @@ export function getCorpusObjectStore(): CorpusObjectStore {
   return store ??= new CorpusObjectStore(config);
 }
 
-export async function ensureCorpusDatabase(localPath = config.corpusDatabasePath): Promise<boolean> {
-  return getCorpusObjectStore().ensureCorpusDatabase(localPath);
+export async function ensureCorpusDatabase(localPath = config.corpusDatabasePath, forceRedownload = false): Promise<boolean> {
+  return getCorpusObjectStore().ensureCorpusDatabase(localPath, forceRedownload);
 }

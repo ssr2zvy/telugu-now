@@ -227,10 +227,9 @@ test('local inventory excludes symlinks escaping the audio root', async t => {
 });
 
 for (const backend of ['local', 'tigris'] as const) {
-for (const mode of ['reuse', 'missing', 'invalid', 'incompatible', 'rebuild', 'worker', 'worker-with-rebuild', 'worker-first-start'] as const) {
+for (const mode of ['reuse', 'missing', 'invalid', 'incompatible', 'rebuild'] as const) {
 test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, async t => {
-  const workerEnabled = mode === 'worker' || mode === 'worker-with-rebuild' || mode === 'worker-first-start';
-  const rebuildOnStartup = mode === 'rebuild' || mode === 'worker-with-rebuild';
+  const rebuildOnStartup = mode === 'rebuild';
   const failsStartup = mode === 'missing' || mode === 'invalid' || mode === 'incompatible';
   const options = fixture(t);
   const canonical = new Database(options.corpusDatabasePath);
@@ -272,7 +271,7 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
   fs.writeFileSync(path.join(options.corpusObjectsPath, 'c.wav'), 'audio');
   await refreshAvailability(options, inventory([{ key: 'a.wav', size: 1 }, { key: 'c.wav', size: 1 }]));
   fs.unlinkSync(path.join(options.corpusObjectsPath, 'c.wav'));
-  if (mode === 'missing' || mode === 'worker-first-start') fs.unlinkSync(options.corpusAvailabilityPath);
+  if (mode === 'missing') fs.unlinkSync(options.corpusAvailabilityPath);
   if (mode === 'invalid') fs.writeFileSync(options.corpusAvailabilityPath, 'not sqlite');
   if (mode === 'incompatible') {
     const snapshot = new Database(options.corpusAvailabilityPath);
@@ -292,11 +291,8 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
       CORPUS_DATABASE_PATH: options.corpusDatabasePath,
       CORPUS_AVAILABILITY_PATH: options.corpusAvailabilityPath,
       CORPUS_OBJECTS_PATH: options.corpusObjectsPath,
-      CORPUS_BACKEND: backend, CORPUS_AVAILABILITY_REFRESH_MS: '100',
-      CORPUS_AVAILABILITY_WORKER_ENABLED: String(workerEnabled),
+      CORPUS_BACKEND: backend,
       CORPUS_AVAILABILITY_REBUILD_ON_STARTUP: String(rebuildOnStartup),
-      CORPUS_FREQUENCY_PATH: path.join(path.dirname(options.corpusDatabasePath), 'frequency.sqlite'),
-      CORPUS_FREQUENCY_REBUILD_ON_STARTUP: 'true',
       ...(backend === 'tigris' ? {
         AWS_ENDPOINT_URL_S3: endpoint, AWS_REGION: 'us-east-1', BUCKET_NAME: 'test',
         CORPUS_OBJECTS_PREFIX: 'corpus/objects/',
@@ -355,24 +351,15 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
     const requestsAfterStartup = inventoryRequests;
     fs.writeFileSync(path.join(options.corpusObjectsPath, 'c.wav'), 'audio');
     uploaded = true;
-    if (!workerEnabled) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      assert.equal(await count(), initialCount);
-    } else {
-      await until(async () => await count() === 3);
-    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.equal(await count(), initialCount);
     fs.renameSync(options.corpusObjectsPath, `${options.corpusObjectsPath}.away`);
     inventoryFails = true;
-    if (!workerEnabled) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      assert.equal(await count(), initialCount);
-      assert.equal(output.includes('retaining the last complete snapshot'), false);
-      assert.deepEqual(fs.readFileSync(options.corpusAvailabilityPath), snapshot);
-      assert.equal(inventoryRequests, requestsAfterStartup);
-    } else {
-      await until(() => output.includes('retaining the last complete snapshot'));
-      assert.equal(await count(), 3);
-    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.equal(await count(), initialCount);
+    assert.equal(output.includes('retaining the last complete snapshot'), false);
+    assert.deepEqual(fs.readFileSync(options.corpusAvailabilityPath), snapshot);
+    assert.equal(inventoryRequests, requestsAfterStartup);
     assert.equal((await fetch(`${url}/api/health`)).status, 200);
   } finally {
     child.kill('SIGTERM');
