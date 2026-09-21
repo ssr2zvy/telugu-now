@@ -373,3 +373,13 @@ export interface ExportResponse {
 export interface ApiErrorResponse {
   error: string;
 }
+
+export interface GrammarCategoryDiagnostics {
+  available: boolean;
+  position: number;
+  completed: boolean;
+  stateSource: 'batch' | 'progress' | 'initial';
+  categories: Array<{ level: number; probability: number; initialProbability: number; reversal: number; targetCount: number }>;
+  coreBases: Array<{ id: string; forms: string[]; examples: string[]; streak: number }>;
+  singleModifiers: Array<{ id: string; forms: string[]; examples: string[]; streak: number }>;
+}

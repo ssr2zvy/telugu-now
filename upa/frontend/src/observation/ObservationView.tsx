@@ -1,7 +1,11 @@
+import { useNavigationFeedback } from './useNavigationFeedback';
+import { NAVIGATION_FEEDBACK_MS } from './navigation-feedback';
+import { copyOriginalReaderText } from './reader-hyphenation';
 import { GrammarEvaluation } from './GrammarEvaluation';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
@@ -53,7 +57,7 @@ async function copyToClipboard(text: string): Promise<void> {
   textarea.style.opacity = '0';
   document.body.appendChild(textarea);
   textarea.select();
-  try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
+  try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }
 }
 function fontAvailability(fontFamily: string, text: string): boolean | null {
   try {
@@ -190,18 +194,20 @@ export function ObservationView({
     ? questionControlsVisible
     : controlsVisible || Boolean(activeQuestion && visibleAudio);
   const questionControlsAreVisible = activeQuestion?.mode === 'audio-given' || questionControlsVisible;
-  useEffect(() => {
+  // Reset page-owned presentation before paint, including any old exit animation.
+  useLayoutEffect(() => {
     taps.cancel();
     seamlessAudioKey.current = null;
+    setAudioError(null);
     setQuestionControlsVisible(false);
     setAudioMotion('idle');
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
-    setControlsVisible(Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && (observation.audio || observation.question.responseAudio)));
+    setControlsVisible(Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
     setReadingMenu(null);
     return () => taps.cancel();
-  }, [taps, observation?.id, observation?.question?.phase, appearance.scrollMode]);
+  }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
   const showsObservationText = observationShowsText(observation);
   const typography =
     useObservationTypography(
@@ -417,16 +423,18 @@ export function ObservationView({
     });
     observationLoadStartedAt.current = null;
   }, [entryReady, observation?.id]);
+  const navigationFeedback = useNavigationFeedback(state?.profileCode ?? null, navigationEvent, !busy && entryReady);
+  const activeNavigation = navigationFeedback.event;
   const [transitionLoaderVisible, setTransitionLoaderVisible] = useState(false);
   useEffect(() => {
-    if (!navigationEvent || entryReady) {
+    if (!activeNavigation || (!busy && entryReady)) {
       setTransitionLoaderVisible(false);
       return;
     }
     const timer = window.setTimeout(() => setTransitionLoaderVisible(true), 500);
     return () => window.clearTimeout(timer);
-  }, [navigationEvent?.sequence, entryReady]);
-  const showEntryLoadingIndicator = !navigationEvent || transitionLoaderVisible;
+  }, [activeNavigation?.sequence, busy, entryReady]);
+  const showEntryLoadingIndicator = !activeNavigation || transitionLoaderVisible;
   const progressParts = [
     ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
     ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
@@ -634,16 +642,20 @@ export function ObservationView({
         event.preventDefault();
       }}
     >
-      {navigationEvent ? (
+      {activeNavigation ? (
         <div
-          key={navigationEvent.sequence}
+          key={navigationFeedback.generation}
           className="navigation-feedback"
-          data-loading={Boolean(observation && !entryReady)}
+          data-loading={!navigationFeedback.ready}
+          style={{ animationDuration: `${NAVIGATION_FEEDBACK_MS}ms` }}
+          onAnimationEnd={event => {
+            if (event.target === event.currentTarget && event.animationName === 'navigation-feedback') navigationFeedback.finish();
+          }}
           role="status"
-          aria-label={navigationEvent.direction === 'next' ? 'Next' : 'Back'}
-          data-sequence={navigationEvent.sequence}
+          aria-label={activeNavigation.direction === 'next' ? 'Next' : 'Back'}
+          data-sequence={activeNavigation.sequence}
         >
-          {navigationEvent.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
+          {activeNavigation.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
         </div>
       ) : null}
       <div className="nav-region">
@@ -669,17 +681,16 @@ export function ObservationView({
         className="observation-center"
         data-entry-loading={Boolean(observation && !entryReady)}
       >
-        {observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
+        {!activeNavigation && observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
           <div
             className="question-phase-indicator"
-            data-after-navigation={Boolean(navigationEvent)}
             role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
+            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
+            title={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
           >
             {observation.question?.phase === 'comparison'
               ? <Check aria-hidden="true" />
-              : observation.question?.phase === 'observation'
+              : !observation.question || observation.question.phase === 'observation'
                 ? <AlignJustify aria-hidden="true" />
                 : <CircleHelp aria-hidden="true" />}
           </div>
@@ -697,6 +708,7 @@ export function ObservationView({
           <div
             ref={typography.textRef}
             className="observation-text"
+            onCopy={copyOriginalReaderText}
             style={{ ...typography.style, opacity: entryReady ? 1 : 0 }}
           >
             <TeluguWordText
@@ -764,6 +776,7 @@ export function ObservationView({
             keyboard={activeQuestion.keyboard}
             visible={questionControlsAreVisible}
             initialText={activeQuestion.responseText}
+            fontFamily={typography.fontFamily}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}
             durationSeconds={() => playerRef.current?.duration() ?? 0}
             onAudioSaved={(audio) => {
@@ -802,16 +815,18 @@ export function ObservationView({
           observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onBlacklistTranscript={() => {
-            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
+            if (!state || !observation) return Promise.reject(new Error('No transcript selected.'));
+            return addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).then(() => {});
           }}
           onClose={() => setSelectedWord(null)} />
       ) : null}
       {readingMenu ? (
         <ReadingContextMenu
           menu={readingMenu}
-          onCopy={() => void copyToClipboard(observation?.text ?? '')}
+          onCopy={copyToClipboard}
           onBlacklistTranscript={() => {
-            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
+            if (!state || !observation) return Promise.reject(new Error('No transcript selected.'));
+            return addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).then(() => {});
           }}
           onOpenSettings={() => onOpenSettings(typography.fontFamily)}
           onClose={() => setReadingMenu(null)}

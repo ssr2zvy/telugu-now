@@ -27,7 +27,7 @@
 .word-image-glass-action svg { width: 32px; height: 32px; fill: none; stroke: var(--audio-icon-paint); stroke-width: 2; filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
 .word-image-glass-action:disabled { opacity: .55; cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-  .word-image-glass-action:not(:disabled):hover svg { filter: invert(1) drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
+  .word-image-glass-action:not(:disabled):hover svg { filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)) saturate(1.16) contrast(1.08); }
 }
 .word-image-gallery { width: 100%; height: 100%; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 2px; padding: 2px; background: var(--surface); scrollbar-width: thin; }
 .word-image-gallery button { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; overflow: hidden; border: 0; background: var(--wash); cursor: pointer; }

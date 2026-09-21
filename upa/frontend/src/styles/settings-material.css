@@ -1,0 +1,54 @@
+/* Settings may change its layout, but every route and form control is retained.
+   The existing page structure stays intact; space and type replace framing. */
+.settings-screen { background: color-mix(in srgb, var(--surface) 32%, transparent); }
+.settings-screen::before { display: none; }
+.settings-screen .settings-rail { background: color-mix(in srgb, var(--surface) 18%, transparent); border-color: transparent; }
+.settings-index { row-gap: 6px; }
+.settings-index button:not(:last-child)::after { display: none; }
+.settings-screen :is(.settings-form label + label, .blacklist-entry, .queue-slots, .queue-slots li, .data-source-card, .appearance-element, .appearance-subsection, .appearance-fonts label, .eon-history li) { border-color: transparent; }
+.settings-screen :is(.appearance-element, .data-source-card) + :is(.appearance-element, .data-source-card) { margin-top: 12px; }
+.settings-screen :is(.settings-index button, .settings-rail-link, .settings-rail-disclosure, .settings-rail-group-heading):is(:hover, [data-touch-pressed]),
+.settings-screen :is(.settings-rail-link[aria-current='page'], .settings-rail-group-heading:has(> .settings-rail-link[aria-current='page'])) { background: transparent; box-shadow: none; }
+.settings-screen .settings-rail-link[aria-current='page'] { color: var(--audio-control-color); font-weight: 650; }
+.settings-screen .settings-rail-link[aria-current='page'] svg { opacity: 1; }
+.settings-screen .settings-entry-chevron { transition: none; }
+.settings-screen .settings-index button:hover .settings-entry-chevron { transform: none; }
+.settings-screen :is(.settings-form input:not([type='checkbox']), .export-page input, .eon-start input, .settings-form .field-value, .image-generation-settings textarea) {
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent;
+}
+.settings-screen :is(.settings-form input, .export-page input, .eon-start input, .image-generation-settings textarea):focus,
+.settings-screen .settings-form .field-value:focus-within { background: transparent; box-shadow: inset 0 -1px var(--audio-control-color); }
+.settings-screen .settings-form .field-value input { border: 0; box-shadow: none; }
+.settings-screen .appearance-scale input { color: var(--audio-control-color); }
+.settings-screen .appearance-scale input::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--audio-control-color) var(--range-progress), var(--line) var(--range-progress));
+}
+.settings-screen .appearance-scale input::-webkit-slider-thumb {
+  background: radial-gradient(ellipse at 30% 20%, rgb(255 255 255 / .24), transparent 64%), var(--control-material-gradient);
+  box-shadow: inset 0 .6px var(--control-material-edge), inset 0 -.6px rgb(0 0 0 / .16);
+  transition: filter var(--material-duration) ease;
+}
+.settings-screen .appearance-scale input::-moz-range-thumb {
+  background: radial-gradient(ellipse at 30% 20%, rgb(255 255 255 / .24), transparent 64%), var(--control-material-gradient);
+  box-shadow: inset 0 .6px var(--control-material-edge), inset 0 -.6px rgb(0 0 0 / .16);
+  transition: filter var(--material-duration) ease;
+}
+.settings-screen .appearance-scale input:not(:disabled):is(:hover, :active, :focus-visible)::-webkit-slider-thumb { filter: saturate(1.16) contrast(1.08); }
+.settings-screen .appearance-scale input:not(:disabled):is(:hover, :active, :focus-visible)::-moz-range-thumb { filter: saturate(1.16) contrast(1.08); }
+.settings-screen :is(.settings-switch-row, .appearance-switch-row) input[type='checkbox']::before {
+  border-color: transparent; background: var(--control-material-gradient); opacity: .35;
+  box-shadow: inset 0 .5px var(--control-material-edge);
+  transition: opacity var(--material-duration) ease;
+}
+.settings-screen :is(.settings-switch-row, .appearance-switch-row) input[type='checkbox']:checked::before { background: var(--control-material-gradient); opacity: 1; }
+.settings-screen :is(.settings-switch-row, .appearance-switch-row) input[type='checkbox']::after {
+  background: var(--audio-control-color); box-shadow: inset 0 .6px var(--control-material-edge);
+}
+.settings-screen :is(.settings-switch-row, .appearance-switch-row) input[type='checkbox']:checked::after { background: var(--audio-control-color); }
+.settings-screen :is(.settings-switch-row, .appearance-switch-row) input[type='checkbox']:disabled { opacity: .45; }
+.settings-screen .appearance-position-options { border: 0; border-radius: 0; overflow: visible; gap: 12px; }
+.settings-screen .appearance-position-options label + label { border: 0; }
+.settings-screen .appearance-position-options input:checked + span { background: transparent; color: var(--audio-control-color); box-shadow: inset 0 -1px currentColor; }
+.settings-screen .export-progress { background: var(--line); }
+.settings-screen .export-progress > span { background: var(--control-material-gradient); box-shadow: inset 0 .5px var(--control-material-edge); }
+.settings-screen :is(input, button):disabled { cursor: default; }

@@ -4,7 +4,7 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
-  grammarMigration: Database,
+  grammarMigration: Database, category: ChartNoAxesCombined,
   index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
   display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
   dataSources: Database, trigger: Workflow, source: Database,
@@ -18,7 +18,7 @@ export const settingsPageIcons = {
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   index: ['grammarMigration', 'observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
-  observations: ['diagnostic', 'dataSources', 'blacklist', 'reset'],
+  observations: ['category', 'diagnostic', 'dataSources', 'blacklist', 'reset'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
   diagnostic: ['parser', 'queue', 'questionInfo', 'trigger', 'source', 'complexityInfo', 'global'],
   display: ['playback', 'appearance', 'images'],
@@ -30,6 +30,7 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
   if (page === 'grammarMigration') return 'Grammar Migration';
+  if (page === 'category') return language === 'en' ? 'Category' : 'వర్గం';
   if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
   if (page === 'external') return language === 'en' ? 'External' : 'బాహ్య';
   if (page === 'parser') return language === 'en' ? 'Parser' : 'పద విశ్లేషణ';
@@ -60,3 +61,4 @@ export function visibleSettingsEntries(page: SettingsPage, migrationAvailable: b
 }
 
 export const exportFormatForPage = {epubExport: 'epub', htmlExport: 'html', archiveExport: 'app-archive'} as const;
+

@@ -125,13 +125,13 @@ test('modification text-shift preset shifts only the reading color lightness aga
   );
 });
 
-test('audio hover color mirrors the invert(1) filter applied to audio icons on hover', () => {
-  const base = appearanceAudioColor(DEFAULT_APPEARANCE);
-  const hover = appearanceAudioHoverColor(DEFAULT_APPEARANCE);
+test('emphasized audio preview retains palette color and responds to darkness', () => {
+  const palette = parseAppearance({ gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'] });
+  const hover = appearanceAudioHoverColor(palette);
   assert.match(hover, /^#[0-9a-f]{6}$/);
-  const baseChannels = [1, 3, 5].map(offset => parseInt(base.slice(offset, offset + 2), 16));
-  const hoverChannels = [1, 3, 5].map(offset => parseInt(hover.slice(offset, offset + 2), 16));
-  assert.deepEqual(hoverChannels, baseChannels.map(channel => 255 - channel));
+  const channels = [1, 3, 5].map(offset => parseInt(hover.slice(offset, offset + 2), 16));
+  assert.ok(Math.max(...channels) > Math.min(...channels));
+  assert.notEqual(appearanceAudioHoverColor({ ...palette, controlDarkness: 0 }), appearanceAudioHoverColor({ ...palette, controlDarkness: 40 }));
 });
 
 test('audio gaps migrate shared spacing and remain independent in either orientation', () => {

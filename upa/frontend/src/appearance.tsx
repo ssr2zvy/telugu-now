@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import { CustomCursor } from './components/CustomCursor';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
@@ -122,11 +122,21 @@ export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradi
   return `#${best.color.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
 }
 
-// Mirrors the CSS invert(1) filter audio icons get on hover, so settings can
-// preview and offer that exact hover shade as a quick-select preset.
-export function appearanceAudioHoverColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {
-  const channels = colorChannels(appearanceAudioColor(appearance));
-  return `#${channels.map(channel => (255 - channel).toString(16).padStart(2, '0')).join('')}`;
+// Representative center tone of the emphasized icon. The full icon still
+// carries a translucent gradient, whose appearance depends on the background.
+export function appearanceAudioHoverColor(appearance: Pick<AppearanceSettings, 'gradient'> & Partial<Pick<AppearanceSettings, 'controlDarkness'>>): string {
+  const stop = appearanceAudioGlass(appearance, 1.4).stops[1]!;
+  const paint = colorChannels(stop.color);
+  const page = colorChannels(appearance.gradient[1]);
+  const brightness = 1 - (appearance.controlDarkness ?? 15) / 100;
+  const rgb = paint.map(value => value * brightness);
+  const gray = rgb[0]! * .213 + rgb[1]! * .715 + rgb[2]! * .072;
+  const result = rgb.map((value, index) => {
+    const vivid = gray + (value - gray) * 1.16;
+    const contrasted = Math.max(0, Math.min(255, (vivid - 127.5) * 1.08 + 127.5));
+    return Math.round(page[index]! * (1 - stop.opacity) + contrasted * stop.opacity);
+  });
+  return `#${result.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 // The magnifier bars and scrubber paint the translucent glass gradient over
@@ -225,6 +235,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   const pending = useRef<UpdateProfilePreferences>({});
   const saving = useRef(false);
   const appearanceRoot = useRef<HTMLDivElement>(null);
+  const materialPaintId = `control-material-${useId().replace(/:/g, '')}`;
   useEffect(() => {
     // The browser's own :focus-visible heuristic re-arms after the document
     // regains visibility, so a plain click right after alt-tabbing back in
@@ -337,8 +348,14 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     void flush();
   };
   const keyboard = appearanceKeyboardGradient(appearance);
+  // Higher paint opacity paired with the resting opacity in control-material.css
+  // provides room for emphasis without inverting or changing the palette.
+  const material = appearanceAudioGlass(appearance, 1.4);
   const style = {
     '--surface': appearanceSurface(appearance),
+    '--control-icon-paint': `url(#${materialPaintId})`,
+    '--control-material-gradient': material.gradient,
+    '--control-material-edge': material.edge,
     '--control-brightness': 1 - appearance.controlDarkness / 100,
     '--audio-control-color': appearanceAudioColor(appearance),
     // The keyboard's accent already reproduces the exact rendered color of the
@@ -353,7 +370,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     '--keyboard-accent': keyboard.accent,
     '--foreground': appearance.foreground,
     '--modification-color': appearanceModificationColor(appearance),
-    '--corner-control-color': appearanceCornerColor(appearance),
+    '--corner-control-color': appearanceAudioColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
     '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,
     '--timestamp-magnifier-gap': `${appearance.timestampMagnifierGap}px`,
@@ -362,6 +379,11 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   return (
     <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
       <div ref={appearanceRoot} className="appearance-root" style={style}>
+        <svg className="control-material-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+          <defs><linearGradient id={materialPaintId} x1="0%" y1="0%" x2="100%" y2="100%">
+            {material.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
+          </linearGradient></defs>
+        </svg>
         <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
         <CustomCursor />
         {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading"

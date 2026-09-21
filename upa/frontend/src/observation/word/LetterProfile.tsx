@@ -22,8 +22,8 @@ interface LetterProfileProps {
   profileCode: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onCopy: (word: string) => void;
-  onBlacklistTranscript: () => void;
+  onCopy: (word: string) => void | Promise<void>;
+  onBlacklistTranscript: () => void | Promise<void>;
   onBack: () => void;
 }
 

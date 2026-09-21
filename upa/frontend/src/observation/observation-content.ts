@@ -16,5 +16,5 @@ export function observationShowsPhaseIndicator(
   visibleAudio: ObservationAudio | null,
 ): boolean {
   if (observation?.kind === 'question' && observation.question?.phase === 'comparison') return true;
-  return observation?.kind === 'question' && (observationShowsText(observation) || Boolean(visibleAudio));
+  return Boolean(observation) && (observationShowsText(observation) || Boolean(visibleAudio));
 }

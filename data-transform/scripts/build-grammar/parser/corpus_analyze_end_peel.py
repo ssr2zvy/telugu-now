@@ -65,6 +65,8 @@ def load_rows(path: Path):
             tmp.cleanup()
 
 
+from attachment_evidence import VERIFIED_TYPES, attachment_reason
+
 class EndPeelParser:
     def __init__(self, max_depth=6, max_states=500):
         self.engine = Engine()
@@ -87,6 +89,7 @@ class EndPeelParser:
                 for x in verb_file.read_text(encoding="utf-8").splitlines()
                 if x.strip() and not x.lstrip().startswith("#")
             )
+        self.dictionary_verbs.update(w for w, info in VERIFIED_TYPES.items() if 'verb' in info.get('pos', []))
         self.entries, self.stem_entries = self._compile_entries()
         self.weak_modifiers = {
             "mod_question", "mod_focus", "mod_indirect_question",
@@ -602,34 +605,12 @@ class EndPeelParser:
                     break
         return out
 
-    def analyze(self, word):
+    def _analyze_simple(self, word):
         word = nfc(word)
         uc = self.engine.unicode_check(word)
         if uc.get("status") != "within_telugu_input_domain":
             return {"status": "unknown", "analyses": [], "reason": uc.get("status", "unicode_rejected")}
-        # Fast exact-base path.  If the token is already a core/dictionary base
-        # and the only visible endings are weak/final particles, return the exact
-        # base instead of exploring many false suffix paths.  Strong modifier
-        # endings still go through the normal end-peel parser.
-        top_matches = [(tail, mid, rid, req) for tail, mid, rid, req in self.entries if word.endswith(tail)]
-        # A dictionary hit must not short-circuit a registered stem/whole-form
-        # derivation merely because that derivation has no appended suffix.
-        top_matches.extend(entry for entry in self.stem_entries if self._stem_inverses(word, entry[2]))
-        top_strong = [x for x in top_matches if x[1] not in self.weak_modifiers]
-        exact_states = self._base_states(word)
-        if exact_states and not top_strong:
-            terminal = {'base_word','nominal','inflected_nominal','finite_predicate','nonfinite','relative_participle',
-                        'clitic_host','adjective','adverb','determiner','numeral','conjunction','postposition','particle',
-                        'interjection','derived_verb','plural_nominal','perfective_converb'}
-            exact_states = [s for s in exact_states if self.engine.closure(s['classes']) & terminal]
-            analyses = [self.engine.result(s, False) for s in exact_states]
-            analyses.sort(key=lambda a: self.rank(a))
-            return {
-                "status": "accepted_by_model" if analyses else "unknown",
-                "analyses": analyses[:16],
-                "search": {"visited_states": 0, "compiled_end_peel": True, "fast_exact_dictionary": True},
-            }
-
+        # A dictionary hit is one candidate, never a reason to skip endings.
         cache = {}
         active = set()
         visited = 0
@@ -714,7 +695,7 @@ class EndPeelParser:
                 self._loan_plural_analyses(word)
                 + self._modal_honorific_analyses(word)
                 + self._spelling_normalization_analyses(word)
-                + self._compound_analyses(word)
+
             ):
                 analyses.append(extra)
         analyses.sort(key=lambda a: self.rank(a))
@@ -727,6 +708,112 @@ class EndPeelParser:
                        "cycle_prunes": cycle_prunes,
                        "fallback_verified_barrier_count": len(fallback_analyses)},
         }
+
+    def _verified_simple(self, word):
+        result = self._analyze_simple(word)
+        valid, rejected = [], []
+        for analysis in result.get('analyses', []):
+            reason = attachment_reason(self.engine, analysis)
+            if reason:
+                rejected.append(dict(analysis, validation_reason=reason))
+            else:
+                valid.append(analysis)
+        return result, valid, rejected
+
+    def _joined_word_analyses(self, word):
+        # Bounded, non-recursive two-component search. This registered junction
+        # is specifically accusative -nu + i-initial finite verb -> -ni... .
+        # Both sides must parse and exact forward reconstruction must succeed.
+        results = []
+        for index in range(3, len(word) - 2):
+            prefix = word[:index]
+            if not prefix.endswith('ని'):
+                continue
+            left, right = prefix[:-1] + 'ు', 'ఇ' + word[index:]
+            _, left_analyses, _ = self._verified_simple(left)
+            left_analyses = [a for a in left_analyses if 'mod_accusative' in a.get('chain', [])]
+            # The seed grammar's accusative object exposes -ni only. Register
+            # -nu here only for independently reviewed nominal receivers.
+            nominal = left[:-2] if left.endswith('ను') else ''
+            if nominal and 'noun' in VERIFIED_TYPES.get(nominal, {}).get('pos', []):
+                left_analyses.append(self._simple_analysis(left, nominal,
+                    'dictionary_non_core_base', ['mod_accusative'],
+                    'verified_nominal_accusative_nu_v1'))
+            if not left_analyses:
+                continue
+            _, right_analyses, _ = self._verified_simple(right)
+            for la in left_analyses:
+                for ra in right_analyses:
+                    if ra.get('active_features', {}).get('pos') != 'verb' and not any(m.startswith('agr_') for m in ra.get('chain', [])):
+                        continue
+                    if not any(m.startswith('agr_') for m in ra.get('chain', [])):
+                        continue
+                    if left[:-1] + 'ి' + right[1:] != word:
+                        continue
+                    components = [la, ra]
+                    a = self._simple_analysis(word, la['base'], la['base_type'],
+                        ['compound_split'] + la.get('chain', []) + ra.get('chain', []),
+                        'verified_joined_words_v1',
+                        {'verified_components': components, 'compound_left': left,
+                         'compound_right': right, 'boundary_rule': 'accusative_nu_plus_i'})
+                    results.append(a)
+        return results
+
+    def analyze(self, word):
+        word = nfc(word)
+        result, valid, rejected = self._verified_simple(word)
+        if result.get('reason'):
+            return result
+        # Run compound candidates regardless of whether ordinary parsing succeeds.
+        for analysis in self._compound_analyses(word) + self._joined_word_analyses(word):
+            reason = attachment_reason(self.engine, analysis)
+            if reason:
+                rejected.append(dict(analysis, validation_reason=reason))
+            else:
+                valid.append(analysis)
+        # Audit the terminal base independently of the outer attachment. This
+        # catches inflected dictionary entries used to bypass receiver checks.
+        checked = {}
+        retained = []
+        for analysis in valid:
+            if analysis.get('base_type') != 'dictionary_non_core_base' or not analysis.get('chain') or analysis.get('active_features', {}).get('verified_components'):
+                retained.append(analysis)
+                continue
+            base_word = analysis.get('detected_stem') or analysis.get('base', '').split(':', 1)[-1]
+            if base_word not in checked:
+                inner_result, inner_valid, _ = self._verified_simple(base_word)
+                deeper = [a for a in inner_valid if a.get('chain') and
+                          (a.get('detected_stem') or a.get('base', '').split(':', 1)[-1]) != base_word]
+                from corpus_analyze_gi import partial_for_unparsed
+                partial = partial_for_unparsed(self, base_word) if not deeper else None
+                checked[base_word] = {'deeper_analyses': deeper, 'partial': partial,
+                    'search_incomplete': inner_result.get('search', {}).get('state_limit_reached', False)}
+            evidence = checked[base_word]
+            partial = evidence['partial'] or {}
+            # A partial suffix match is evidence of uncertainty, not a new target.
+            suspicious = evidence['deeper_analyses'] or evidence['search_incomplete'] or any(part.get('role') == 'partial_modifier' and not part.get('weak', False) for part in partial.get('parts', []))
+            if suspicious:
+                rejected.append(dict(analysis, validation_reason='unresolved_base_boundary', base_boundary_check=evidence))
+            else:
+                retained.append(analysis)
+        valid = retained
+        unique = {}
+        for analysis in valid:
+            key = json.dumps([analysis.get('base'), analysis.get('chain'),
+                analysis.get('active_features', {}).get('verified_components')], sort_keys=True, ensure_ascii=False)
+            unique[key] = analysis
+        valid = list(unique.values())
+        # Import locally to avoid the GI module's parser import cycle.
+        from corpus_analyze_gi import gi_for_result
+        def score(a):
+            value = gi_for_result(self, word, a)['gi_score']
+            return int(value) if str(value) != 'N/A' else 0
+        valid.sort(key=lambda a: (-score(a), self.rank(a)))
+        result.update(analyses=valid, diagnostic_analyses=rejected, base_boundary_checks=checked,
+            status='accepted_by_model' if valid else 'unknown',
+            overlap=len(valid) > 1, selection_policy='highest_verified_gi',
+            max_verified_gi=max((score(a) for a in valid), default=None))
+        return result
 
     def rank(self, a):
         base_type = a.get("base_type", "")

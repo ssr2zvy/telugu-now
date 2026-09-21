@@ -5,11 +5,12 @@ import Database from 'better-sqlite3';
 import { config } from '../config/config';
 import { audioStorageIdentity, audioValidationStore } from '../services/audio-validation-store';
 import { probabilities, pick, type Progress } from './model';
+import { chooseQuestionType, type QuestionTypeSelection } from './question-type';
 import type { GrammarParserDiagnostics, GrammarParserInfo } from '../../../shared/contracts';
 export const grammarDirectory=path.join(path.dirname(config.corpusDatabasePath),'grammar');
 export const progressionPolicy='grammatical-components-v3';
 export interface Target {target_id:string;level:number;chain_json:string;base_id:string;nesting:string}
-export interface GrammarChoice { sourceId:string;sourceKey:string;snapshot: Record<string,unknown>;targetId:string;category:number;targetIndex:number }
+export interface GrammarChoice { sourceId:string;sourceKey:string;snapshot: Record<string,unknown>;targetId:string;category:number;targetIndex:number;questionType:QuestionTypeSelection }
 export class GrammarCatalog {
   readonly db:Database.Database; readonly targets:Target[][]; readonly sizes:number[]; readonly identity:Record<string,string>;
   constructor(readonly filename:string) {
@@ -66,10 +67,11 @@ export class GrammarCatalog {
       giScore:parse.gi_score,normalizationConfidence:parse.normalization_confidence,normalizationOps:parse.normalization_ops,
       analysisCount:parse.analysis_count,topTargetCount:parse.top_canonical_target_count,parts:parse.parts_json,
       search:parse.search,rulesSha256:this.identity.parser_sha256}:null;
-    const route={category:requiredTarget?1:probs[j]!,target:requiredTarget?1:1/this.sizes[j]!,length:weights[li]!/weights.reduce((a,b)=>a+b,0),observation:1/chosen.count,occurrence:1/tokens.length};
+    const questionType=chooseQuestionType(this.sizes,state,random);
+    const route={questionMode:questionType.selectedProbability,category:requiredTarget?1:probs[j]!,target:requiredTarget?1:1/this.sizes[j]!,length:weights[li]!/weights.reduce((a,b)=>a+b,0),observation:1/chosen.count,occurrence:1/tokens.length};
     const vocabulary=this.db.prepare('SELECT c.*,v.rank,v.frequency,v.probability FROM vocabulary_occurrences c LEFT JOIN vocabulary v ON v.word=c.word WHERE c.observation_id=? ORDER BY c.token_index').all(obs.id);
     const chain=JSON.parse(target.chain_json) as string[];
     const components=[...(target.base_id?[{kind:'core_base',id:target.base_id}]:[]),...chain.map(id=>({kind:'modifier',id}))];
-    return {sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,targetIndex:t,snapshot:{mode:'grammar',policy:this.identity.policy,inventoryId:this.identity.inventory_id,sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,categoryLevel:target.level,coreBaseId:target.base_id||null,components,chain,nesting:target.nesting,parser,occurrence,length:chosen.length,position:state.position,probabilities:probs,route,routeProbability:Object.values(route).reduce((a,b)=>a*b,1),replacement:!!requiredTarget,vocabulary}};
+    return {sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,targetIndex:t,questionType,snapshot:{mode:'grammar',questionType:{...questionType,categoryLevel:this.targets[questionType.categoryIndex]![0]!.level},policy:this.identity.policy,inventoryId:this.identity.inventory_id,sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,categoryLevel:target.level,coreBaseId:target.base_id||null,components,chain,nesting:target.nesting,parser,occurrence,length:chosen.length,position:state.position,probabilities:probs,route,routeProbability:Object.values(route).reduce((a,b)=>a*b,1),replacement:!!requiredTarget,vocabulary}};
   }
 }
