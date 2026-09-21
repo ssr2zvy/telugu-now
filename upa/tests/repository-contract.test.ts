@@ -27,6 +27,7 @@ test('runtime user and global storage paths remain under local-machine data from
     assert.throws(() => resolveDataPath('/tmp/outside.sqlite', 'users.sqlite'), /must stay under/);
     assert.equal(resolveDataPath(path.resolve(root, '../local-machine/data/corpus/corpus.sqlite'), ''), path.resolve(root, '../local-machine/data/corpus/corpus.sqlite'));
     const controller = fs.readFileSync(path.resolve(root, '../local-machine/control_local.sh'), 'utf8');
+    assert.ok(controller.includes('DATA_TRANSFORM_DIR="$REPO_DIR/data-transform"'));
     assert.ok(controller.includes('RAW_DATA_DIR="$DATA_TRANSFORM_DIR/raw"'));
     assert.ok(controller.includes('SAMPLE_DATA_DIR="$DATA_TRANSFORM_DIR/sample"'));
     assert.ok(controller.includes('PREPARED_CORPUS_DIR="$REPO_DIR/local-machine/data/corpus"'));
@@ -254,8 +255,8 @@ test(
     assert.ok(readme.includes('./local-machine/control_local.sh'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('run_data_domain'));
     assert.ok(fs.readFileSync(control, 'utf8').includes('CORPUS_NOT_PREPARED'));
-    assert.equal(fs.existsSync(path.resolve(root, '..', 'local-machine', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);
-    assert.equal(fs.existsSync(path.resolve(root, '..', 'local-machine', 'data-transform', 'requirements.txt')), true);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'scripts', 'create-tigris-schema', 'prepare.py')), true);
+    assert.equal(fs.existsSync(path.resolve(root, '..', 'data-transform', 'requirements.txt')), true);
     const registry = read('server/src/services/source-registry.ts');
     assert.ok(registry.includes("'fleurs-te'"));
     assert.ok(registry.includes("'shrutilipi-te'"));

@@ -17,8 +17,8 @@ from unittest.mock import patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-REPO = Path(__file__).resolve().parents[3]
-SCRIPTS = REPO / "local-machine" / "data-transform" / "scripts"
+REPO = Path(__file__).resolve().parents[2]
+SCRIPTS = REPO / "data-transform" / "scripts"
 sys.path.insert(0, str(SCRIPTS / "create-tigris-schema"))
 sys.path.insert(0, str(SCRIPTS / "extract-sample-data"))
 
@@ -42,11 +42,11 @@ class PipelineTests(unittest.TestCase):
         local_machine = self.root / "local-machine"
         local_machine.mkdir()
         shutil.copy2(REPO / "local-machine" / "control_local.sh", local_machine / "control_local.sh")
-        shutil.copytree(SCRIPTS, local_machine / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(SCRIPTS, self.root / "data-transform" / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
         (self.root / "upa").mkdir()
-        self.raw = local_machine / "data-transform" / "raw"
-        self.sample = local_machine / "data-transform" / "sample"
-        self.output = self.root / "data" / "corpus"
+        self.raw = self.root / "data-transform" / "raw"
+        self.sample = self.root / "data-transform" / "sample"
+        self.output = local_machine / "data" / "corpus"
         fleurs = self.raw / "FLEURS"
         fleurs.mkdir(parents=True)
         for split, count in [("dev", 106), ("test", 3), ("train", 4)]:

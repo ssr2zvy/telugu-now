@@ -21,9 +21,9 @@ The full-size originals at the repository root were removed after verification.
 All paths below are relative to the repository root:
 
 ```text
-local-machine/data-transform/raw/{FLEURS,Shrutilipi,IndicVoices}/
+data-transform/raw/{FLEURS,Shrutilipi,IndicVoices}/
     -> data --option samples
-local-machine/data-transform/sample/{FLEURS,Shrutilipi,IndicVoices}/
+data-transform/sample/{FLEURS,Shrutilipi,IndicVoices}/
     -> data --option prepare
 local-machine/data/corpus/  (corpus.sqlite, manifest.json, objects/, reports/)
 local-machine/data/user/    (dummy user SQLite database)
@@ -46,12 +46,12 @@ and close. Only commit deliberately prepared test data, never real user data.
 ## Process All Available Rows
 
 Run from the repository root with Python 3.12, the packages declared in
-[requirements.txt](../data-transform/requirements.txt), and
+[requirements.txt](../../data-transform/requirements.txt), and
 `ffmpeg` installed. The local Python environment belongs at
-`local-machine/data-transform/.venv/`:
+`data-transform/.venv/`:
 
 ```bash
-export PYTHON="$PWD/local-machine/data-transform/.venv/bin/python"
+export PYTHON="$PWD/data-transform/.venv/bin/python"
 bash local-machine/control_local.sh data --option samples --rows all
 bash local-machine/control_local.sh data --option prepare
 ```
@@ -86,8 +86,8 @@ in `local-machine/data/corpus/manifest.json`, with rejection details under `loca
    currently in those two directories:
 
    ```bash
-   rm -rf -- local-machine/data-transform/raw local-machine/data-transform/sample
-   mkdir -p local-machine/data-transform/raw/{FLEURS,Shrutilipi,IndicVoices}
+   rm -rf -- data-transform/raw data-transform/sample
+   mkdir -p data-transform/raw/{FLEURS,Shrutilipi,IndicVoices}
    ```
 
 3. Put full upstream files in the appropriate raw folders. FLEURS needs matching
