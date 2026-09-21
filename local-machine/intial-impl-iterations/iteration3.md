@@ -9,7 +9,8 @@ commands. Interactive menus remain available, while `--option` selects an
 operation noninteractively. Deployment starts the built Node server directly
 and does not need this script.
 
-`data-transform/` and `impl-iterations/` remain tracked alongside the controller.
+`data-transform/` remains tracked at the repository root, alongside
+`local-machine/`; implementation notes remain with the controller.
 The deployment-only removal/ignore policy was undone in favor of the original
 `main` ignore policy. The temporary `current.md` was removed; this document is
 the implementation record for Iteration 3, with operational details in the
