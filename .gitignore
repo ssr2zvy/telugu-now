@@ -1,4 +1,4 @@
-local-machine/data-transform/.venv/
+data-transform/.venv/
 local-machine/dev-secrets.env
 local-machine/data/.corpus.prepare-*/
 local-machine/data/.corpus.backup-*/

@@ -11,7 +11,7 @@ Implementation and migration notes belong in the existing [iteration 3 document]
 ## Project controller
 
 ## Prepared corpus prerequisite
-Corpus acquisition and transformation are offline data-engineering operations under `local-machine/data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
+Corpus acquisition and transformation are offline data-engineering operations under `data-transform/`. Telugu Now does not parse FLEURS TSV/audio layouts or AI4Bharat Parquet files at application runtime.
 The explicit data-controller operations are:
 ```bash
 ./local-machine/control_local.sh data --option samples
@@ -22,11 +22,11 @@ The explicit data-controller operations are:
 ```
 `samples` transforms source downloads under:
 ```text
-local-machine/data-transform/raw/
+data-transform/raw/
 ```
 into source-shaped development input under:
 ```text
-local-machine/data-transform/sample/
+data-transform/sample/
 ```
 `prepare` transforms the current source-shaped input into the canonical local corpus:
 ```text
@@ -45,10 +45,10 @@ The controller keeps move semantics: consumed raw files disappear after extracti
 
 Use Python 3.12 with the declared data dependencies (the current PyArrow constraint has no Python 3.14 wheel). The controller honors `PYTHON`:
 ```bash
-python3.12 -m venv local-machine/data-transform/.venv
-local-machine/data-transform/.venv/bin/python -m pip install -r local-machine/data-transform/requirements.txt
-PYTHON="$PWD/local-machine/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
-local-machine/data-transform/.venv/bin/python -m unittest discover -s local-machine/data-transform/tests -v
+python3.12 -m venv data-transform/.venv
+data-transform/.venv/bin/python -m pip install -r data-transform/requirements.txt
+PYTHON="$PWD/data-transform/.venv/bin/python" ./local-machine/control_local.sh data --option all --rows all --batch-rows 20
+data-transform/.venv/bin/python -m unittest discover -s data-transform/tests -v
 ```
 The pipeline tests generate small temporary datasets and verify limits, all-split/all-shard coverage, incremental reads and writes, sample preservation on failure, and row/media counts. Raw, sampled, and prepared data folders are not Git-ignored. The prepared 300-row dummy corpus and its audio are committed for repository testing; temporary corpus publication/backup directories remain ignored. Data operations do not stage files or create Git commits. The repository's 100-row subsets and how to replace them with full datasets are documented in the [dummy-data README](../local-machine/data/readme.md); their one-time reduction is not a pipeline stage.
 `./local-machine/control_local.sh dev` never performs data transformation. With `CORPUS_BACKEND=local`
@@ -57,7 +57,7 @@ catalog and returns `CORPUS_NOT_PREPARED` otherwise. With `CORPUS_BACKEND=tigris
 startup skips this local-only controller check and lets the runtime validate the
 catalog and object-store configuration; it never generates a local audio corpus.
 The controller's `data` command runs the tracked extraction and preparation
-scripts under `local-machine/data-transform/`. Raw and sample working inputs stay
+scripts under `data-transform/`. Raw and sample working inputs stay
 under that directory; only the finished corpus is published to repository
 `local-machine/data/corpus/`. Other runtime data, such as user databases, remains under `local-machine/data/`.
 Runtime path overrides do not relocate the preparation workflow.
@@ -68,17 +68,17 @@ Complexity (`grapheme_count`) is embedded in `corpus.sqlite`, computed once per
 row from its `text` column when the corpus is first prepared. To recompute it
 in place on an already-published corpus — for example after changing the
 complexity metric implementation — use the standalone script under
-`local-machine/data-transform/scripts/update-complexity/`, which does not
+`data-transform/scripts/update-complexity/`, which does not
 require re-running the full ingestion pipeline or touching audio:
 ```bash
 # Local file, updated in place (a .bak backup is kept until success):
-python local-machine/data-transform/scripts/update-complexity/update_complexity.py \
+python data-transform/scripts/update-complexity/update_complexity.py \
   --database local-machine/data/corpus/corpus.sqlite
 
 # Tigris: downloads corpus/corpus.sqlite, recomputes complexity, and
 # publishes it back to the same object key (full round trip):
 BUCKET_NAME=... AWS_ENDPOINT_URL_S3=... AWS_REGION=... \
-  python local-machine/data-transform/scripts/update-complexity/update_complexity.py --tigris
+  python data-transform/scripts/update-complexity/update_complexity.py --tigris
 ```
 The Tigris mode reads the same `BUCKET_NAME`/`AWS_ENDPOINT_URL_S3`/`AWS_REGION`
 variables the server uses and relies on the standard AWS credential-provider
@@ -787,7 +787,7 @@ Every item below has user, global, credentials, downloads, or assets/artifacts s
 | Runtime configuration | Assets/artifacts | Defaults are application configuration in `upa/server/src/config/config.ts`; `upa/.env.example` documents process-environment overrides. These are deployment configuration, not saved user settings. |
 | Exports | Downloads | HTML/EPUB artifacts are packaged in browser memory; downloaded copies live wherever the browser saves them. There is no server-side export archive. |
 | Operational/generated files | Assets/artifacts | `upa/.control/` contains controller logs, process IDs and state; `upa/dist/` is build output; `upa/test-results/` and `upa/playwright-report/` contain test artifacts. These are not stores for user data or corpus data. |
-| Raw and sample inputs | Offline development | `local-machine/data-transform/raw/` and `local-machine/data-transform/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `local-machine/data/.corpus.prepare-*/` and `local-machine/data/.corpus.backup-*/` may exist during corpus publication/recovery. |
+| Raw and sample inputs | Offline development | `data-transform/raw/` and `data-transform/sample/`; successful controller operations consume inputs. They are absent until data is acquired/extracted. `local-machine/data/.corpus.prepare-*/` and `local-machine/data/.corpus.backup-*/` may exist during corpus publication/recovery. |
 | Bundled fonts and application files | Assets/artifacts | `upa/frontend/public/fonts/` contains WOFF2 assets, licenses and `font-assets.lock.json`; `upa/frontend/font-assets.json` maps families to files. Icons, static files, source code and package/config files remain with the app. Dependencies under `upa/node_modules/` are generated. |
 | User database sidecars | User | `local-machine/data/user/users.sqlite-wal` and `local-machine/data/user/users.sqlite-shm` support live SQLite transactions and remain alongside the user database. |
 | Corpus database sidecars | Global | Any SQLite sidecars remain alongside `local-machine/data/corpus/corpus.sqlite`. |
