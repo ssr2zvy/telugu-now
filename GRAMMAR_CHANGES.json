@@ -22,7 +22,13 @@
     "upa/server/src/services/question-response-service.ts",
     "upa/server/src/services/queue-service.ts",
     "upa/shared/contracts.ts",
-    "upa/tests/core-implementation.test.ts"
+    "upa/tests/core-implementation.test.ts",
+    "upa/frontend/src/settings/SettingsShell.tsx",
+    "upa/frontend/src/settings/pages/ExportPage.tsx",
+    "upa/frontend/src/settings/pages/DataSourcesPage.tsx",
+    "upa/tests/appearance.test.ts",
+    "upa/tests/eons-ui.test.ts",
+    "upa/tests/repository-contract.test.ts"
   ],
   "added": [
     "GRAMMAR_MIGRATION.md",
@@ -60,7 +66,14 @@
     "data-transform/scripts/build-grammar/parser/lexicon.json",
     "data-transform/scripts/build-grammar/parser/lexicon_modern_supplement_v16.txt",
     "data-transform/scripts/build-grammar/parser/lexicon_modern_supplement_v17.txt",
-    "data-transform/scripts/build-grammar/parser/lexicon_modern_supplement_v14.txt"
+    "data-transform/scripts/build-grammar/parser/lexicon_modern_supplement_v14.txt",
+    "upa/tests/grammar-target-policy.py",
+    "upa/tests/grammar-target-policy.test.ts",
+    "upa/frontend/src/settings/pages/ParserDiagnosticsPage.tsx",
+    "upa/tests/grammar-settings.test.ts"
   ],
-  "sample_data": "preserved from original uploaded ZIP"
+  "sample_data": "preserved from original uploaded ZIP",
+  "target_policy": "grammatical-components-v3",
+  "target_policy_revision": "Core bases contribute one component and remain in chains; vocabulary bases contribute none. Canonical modifier chains share across vocabulary bases. Rebuild derived grammar before activation; do not reuse v2 progress arrays.",
+  "settings_revision": "Observations and External groups; direct-format exports; parser diagnostics and selected-word evidence; no sampling controls or Frequency Export."
 }

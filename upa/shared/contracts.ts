@@ -140,6 +140,28 @@ export interface DataSourcesResponse {
   sources: DataSourceInfo[];
 }
 
+export interface GrammarParserInfo {
+  version?: string;
+  adapterVersion?: string;
+  targetSchemaVersion?: string;
+  dictionaryId?: string;
+  maxDepth?: number | null;
+  maxStates?: number | null;
+  nesting?: string;
+  eligibilityPolicy?: string;
+}
+
+export interface GrammarParserDiagnostics {
+  active: boolean;
+  available: boolean;
+  parser: GrammarParserInfo | null;
+  policy: string | null;
+  rulesSha256: string | null;
+  inventoryId: string | null;
+  stats: Record<string, number>;
+  exclusions: Record<string, number>;
+}
+
 export interface ObservationDiagnostic {
   acquisitionNumber: number;
   triggerKind: AcquisitionTriggerKind;

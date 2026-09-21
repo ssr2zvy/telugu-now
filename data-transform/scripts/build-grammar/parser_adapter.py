@@ -14,6 +14,20 @@ ADAPTER_VERSION = 'selection_adapter_v1'
 _parser = None
 
 
+def parser_information():
+    """Describe the actual initialized analyzer; does not change its rules."""
+    import json
+    metadata = json.loads((ROOT / 'parser' / 'lexicon_full_metadata.json').read_text())
+    return {
+        'version': PARSER_VERSION, 'adapterVersion': ADAPTER_VERSION,
+        'targetSchemaVersion': SCHEMA_VERSION,
+        'dictionaryId': metadata['dictionary_id'],
+        'maxDepth': _parser.max_depth if _parser is not None else None,
+        'maxStates': _parser.max_states if _parser is not None else None,
+        'nesting': 'linear', 'eligibilityPolicy': 'verified-canonical-grammar-only',
+    }
+
+
 def initialize(max_depth=6, max_states=500):
     global _parser
     _parser = EndPeelParser(max_depth=max_depth, max_states=max_states)

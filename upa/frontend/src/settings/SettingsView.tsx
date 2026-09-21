@@ -1,21 +1,18 @@
 import { GrammarMigrationPage } from './pages/GrammarMigrationPage';
 import type { ProfileStateResponse } from '../../../shared/contracts';
-import { t } from './language';
+import { ParserDiagnosticsPage } from './pages/ParserDiagnosticsPage';
 import { DataSourcesPage } from './pages/DataSourcesPage';
 import { SettingsShell } from './SettingsShell';
 import type { SettingsController } from './useSettingsController';
-import { ComplexityPage } from './pages/ComplexityPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
 import { ExportPage } from './pages/ExportPage';
 import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';
 import { SettingsIndex } from './pages/SettingsIndex';
-import { SourceWeightsPage } from './pages/SourceWeightsPage';
-import { settingsGroups, settingsPageLabel } from './navigation';
+import { settingsGroups, settingsPageLabel, exportFormatForPage } from './navigation';
 import { OrganizedAppearancePage } from './pages/OrganizedAppearancePage';
 import { ImageGenerationPage } from './pages/ImageGenerationPage';
 import { EonsPage } from './pages/EonsPage';
 import { BlacklistPage } from './pages/BlacklistPage';
-import { QuestionsPage } from './pages/QuestionsPage';
 import { QueueViewPage } from './pages/QueueViewPage';
 import { ImportPage } from './pages/ImportPage';
 import { ControlsGuidePage } from './pages/ControlsGuidePage';
@@ -35,9 +32,6 @@ export function SettingsView({
   const {
     page,
     language,
-    draft,
-    settingsSaving,
-    settingsError,
     queueResetting,
     queueResetError,
     playbackRateDraft,
@@ -47,20 +41,19 @@ export function SettingsView({
     exportCount,
     exporting,
     exportError,
-    formatChooserOpen,
     preparedArtifact,
   } = controller;
   const shellProps = {
     language,
     page,
     profileCode: state.profileCode,
+    migrationAvailable: state.grammarMigrationAvailable ?? false,
     onNavigate: controller.enterPage,
     onOverview: controller.prepareOpen,
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
-  if(page==='grammarMigration')return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
-  if(state.grammarActive&&(page==='sources'||page==='complexity'))return <SettingsShell {...shellProps} title="Grammar selection" onBack={controller.backToIndex}><p>Grammar progression now controls selection.</p></SettingsShell>;
+  if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
   if (settingsGroups[page] || page === 'reset') {
     return (
       <SettingsShell
@@ -143,7 +136,7 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'import') {
+  if (page === 'archiveImport') {
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <ImportPage language={language} />
@@ -164,7 +157,7 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'export') {
+  if (page === 'epubExport' || page === 'htmlExport' || page === 'archiveExport') {
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <ExportPage
@@ -173,76 +166,18 @@ export function SettingsView({
           exporting={exporting}
           phase={controller.exportPhase}
           error={exportError}
-          formatChooserOpen={formatChooserOpen}
-          preparedArtifact={preparedArtifact}
+          format={exportFormatForPage[page]}
+          preparedArtifact={preparedArtifact?.format === exportFormatForPage[page] ? preparedArtifact : null}
           onCountChange={controller.setExportCount}
-          onRequestExport={controller.requestExport}
-          onCancelFormatChoice={controller.cancelFormatChoice}
-          onChooseFormat={(format) => void controller.chooseExportFormat(format)}
+          onRequestExport={() => void controller.chooseExportFormat(exportFormatForPage[page])}
         />
       </SettingsShell>
     );
   }
-  if (!draft) {
-    return null;
-  }
-  if (page === 'complexity') {
-    return (
-      <SettingsShell
-        {...shellProps}
-        title={t(language, 'complexity')}
-        onBack={controller.backToIndex}
-      >
-        <ComplexityPage
-          language={language}
-          draft={draft}
-          saving={settingsSaving}
-          error={settingsError}
-          onDraftChange={controller.setDraft}
-          onClearError={controller.clearSettingsError}
-          onSave={() => void controller.saveComplexitySettings()}
-        />
-      </SettingsShell>
-    );
-  }
-  if (page === 'questions') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <QuestionsPage
-          grammarActive={state.grammarActive??false}
-          language={language}
-          draft={draft}
-          saving={settingsSaving}
-          error={settingsError}
-          onDraftChange={controller.setDraft}
-          onClearError={controller.clearSettingsError}
-          onSave={() => void controller.saveQuestionSettings()}
-        />
-      </SettingsShell>
-    );
-  }
-  if (page === 'sources') {
-    return (
-      <SettingsShell
-        {...shellProps}
-        title={settingsPageLabel(page, language)}
-        onBack={controller.backToIndex}
-      >
-        <SourceWeightsPage
-          language={language}
-          draft={draft}
-          saving={settingsSaving}
-          error={settingsError}
-          onDraftChange={controller.setDraft}
-          onClearError={controller.clearSettingsError}
-          onSave={() => void controller.saveSourceSettings()}
-        />
-      </SettingsShell>
-    );
-  }
+  if (page === 'parser') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} selected={state.currentObservation?.grammar?.target ?? null} language={language}/></SettingsShell>;
   if(state.currentObservation?.grammar && ['source','complexityInfo','global'].includes(page)) {
     const g=state.currentObservation.grammar.target;
-    const rows=[['Selected target',g.targetId],['Category',g.categoryLevel],['Modifier chain',JSON.stringify(g.chain)],['Transcript length',g.length],['Category probabilities',JSON.stringify(g.probabilities)],['Selection probabilities',JSON.stringify(g.route)],['Route probability',g.routeProbability],['Inventory',g.inventoryId]];
+    const rows=[['Selected target',g.targetId],['Category',g.categoryLevel],['Core grammar base',g.coreBaseId??'—'],['Grammatical components',JSON.stringify(g.components??g.chain)],['Modifier chain',JSON.stringify(g.chain)],['Transcript length',g.length],['Category probabilities',JSON.stringify(g.probabilities)],['Selection probabilities',JSON.stringify(g.route)],['Route probability',g.routeProbability],['Inventory',g.inventoryId]];
     return <SettingsShell {...shellProps} title="Grammar selection" onBack={controller.backToIndex}><table className="diagnostic-table"><tbody>{rows.map(([key,value])=><tr key={String(key)}><th>{String(key)}</th><td>{String(value??'—')}</td></tr>)}</tbody></table></SettingsShell>;
   }
   if (page === 'trigger' || page === 'source' || page === 'complexityInfo' || page === 'global' || page === 'questionInfo') {

@@ -5,7 +5,9 @@ import Database from 'better-sqlite3';
 import { config } from '../config/config';
 import { audioStorageIdentity, audioValidationStore } from '../services/audio-validation-store';
 import { probabilities, pick, type Progress } from './model';
+import type { GrammarParserDiagnostics, GrammarParserInfo } from '../../../shared/contracts';
 export const grammarDirectory=path.join(path.dirname(config.corpusDatabasePath),'grammar');
+export const progressionPolicy='grammatical-components-v3';
 export interface Target {target_id:string;level:number;chain_json:string;base_id:string;nesting:string}
 export interface GrammarChoice { sourceId:string;sourceKey:string;snapshot: Record<string,unknown>;targetId:string;category:number;targetIndex:number }
 export class GrammarCatalog {
@@ -16,6 +18,7 @@ export class GrammarCatalog {
       if((this.db.pragma('quick_check') as {quick_check:string}[])[0]?.quick_check!=='ok')throw new Error('Invalid grammar database');
       if((this.db.prepare("SELECT value FROM metadata WHERE key='complete'").get() as {value:string}|undefined)?.value!=='true')throw new Error('Incomplete grammar database');
       this.identity=JSON.parse((this.db.prepare("SELECT value FROM metadata WHERE key='identity'").get() as {value:string}).value);
+      if(this.identity.policy!==progressionPolicy)throw new Error('Grammar catalog uses an older progression policy; rebuild before activation. Active older inventories require an explicit progress migration.');
       const targets=this.db.prepare('SELECT * FROM targets ORDER BY target_id').all() as Target[];
       this.targets=[...new Set(targets.map(t=>t.level))].sort((a,b)=>a-b).map(l=>targets.filter(t=>t.level===l));
       this.sizes=this.targets.map(t=>t.length);if(!this.sizes.length)throw new Error('Empty grammar inventory');
@@ -26,6 +29,12 @@ export class GrammarCatalog {
     }catch(e){this.db.close();throw e;}
   }
   close(){this.db.close();}
+  parserDiagnostics(active:boolean):GrammarParserDiagnostics {
+    const metadata=(key:string)=>{const row=this.db.prepare('SELECT value FROM metadata WHERE key=?').get(key) as {value:string}|undefined;return row?JSON.parse(row.value):null;};
+    return {active,available:true,parser:(metadata('parser_info') ?? {version:this.identity.parser_version}) as GrammarParserInfo,
+      policy:this.identity.policy??null,rulesSha256:this.identity.parser_sha256??null,inventoryId:this.identity.inventory_id??null,
+      stats:metadata('stats')??{},exclusions:metadata('exclusions')??{}};
+  }
   private candidates=`FROM members m JOIN observations o ON o.id=m.observation_id
     JOIN corpus.source_rows r ON r.source_id=o.source_id AND r.source_key=o.source_key
     JOIN availability.source_complexity_members a ON a.source_id=o.source_id AND a.source_key=o.source_key
@@ -49,8 +58,18 @@ export class GrammarCatalog {
     const tokens=this.db.prepare('SELECT * FROM occurrences WHERE target_id=? AND observation_id=? ORDER BY token_index').all(target.target_id,obs.id) as Record<string,unknown>[];
     const occurrence=tokens[Math.floor(random()*tokens.length)]!;
     occurrence.token_surface=Array.from(obs.text).slice(Number(occurrence.start_cp),Number(occurrence.end_cp)).join('');
+    const parsedRow=this.db.prepare('SELECT parse_json FROM words WHERE word=?').get(occurrence.word) as {parse_json:string}|undefined;
+    const parse=parsedRow?JSON.parse(parsedRow.parse_json) as Record<string,unknown>:null;
+    const parser=parse?{version:parse.parser_version,adapterVersion:parse.adapter_version,targetSchemaVersion:parse.target_schema_version,
+      status:parse.status,confidence:parse.parse_confidence,eligible:parse.eligible,eligibilityReason:parse.eligibility_reason,
+      baseId:parse.base_id,baseType:parse.base_type,chain:parse.ordered_modifier_chain,modifierCount:parse.modifier_count,
+      giScore:parse.gi_score,normalizationConfidence:parse.normalization_confidence,normalizationOps:parse.normalization_ops,
+      analysisCount:parse.analysis_count,topTargetCount:parse.top_canonical_target_count,parts:parse.parts_json,
+      search:parse.search,rulesSha256:this.identity.parser_sha256}:null;
     const route={category:requiredTarget?1:probs[j]!,target:requiredTarget?1:1/this.sizes[j]!,length:weights[li]!/weights.reduce((a,b)=>a+b,0),observation:1/chosen.count,occurrence:1/tokens.length};
     const vocabulary=this.db.prepare('SELECT c.*,v.rank,v.frequency,v.probability FROM vocabulary_occurrences c LEFT JOIN vocabulary v ON v.word=c.word WHERE c.observation_id=? ORDER BY c.token_index').all(obs.id);
-    return {sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,targetIndex:t,snapshot:{mode:'grammar',inventoryId:this.identity.inventory_id,sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,categoryLevel:target.level,chain:JSON.parse(target.chain_json),nesting:target.nesting,occurrence,length:chosen.length,position:state.position,probabilities:probs,route,routeProbability:Object.values(route).reduce((a,b)=>a*b,1),replacement:!!requiredTarget,vocabulary}};
+    const chain=JSON.parse(target.chain_json) as string[];
+    const components=[...(target.base_id?[{kind:'core_base',id:target.base_id}]:[]),...chain.map(id=>({kind:'modifier',id}))];
+    return {sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,targetIndex:t,snapshot:{mode:'grammar',policy:this.identity.policy,inventoryId:this.identity.inventory_id,sourceId:obs.source_id,sourceKey:obs.source_key,targetId:target.target_id,category:j,categoryLevel:target.level,coreBaseId:target.base_id||null,components,chain,nesting:target.nesting,parser,occurrence,length:chosen.length,position:state.position,probabilities:probs,route,routeProbability:Object.values(route).reduce((a,b)=>a*b,1),replacement:!!requiredTarget,vocabulary}};
   }
 }

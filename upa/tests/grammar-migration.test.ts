@@ -12,7 +12,7 @@ test('worker resumes after upload failure, publishes derived catalog and activat
  const c=new Database(corpus);c.exec(`CREATE TABLE sources(source_id TEXT,display_name TEXT,provider TEXT,license TEXT,upstream_url TEXT,catalog_version INTEGER,accepted_rows INTEGER,rejected_rows INTEGER,complexity_metric TEXT,status TEXT);
  INSERT INTO sources VALUES('fleurs-te','Fleurs','test','test',NULL,1,1,0,'grapheme-count','ready');
  CREATE TABLE source_rows(source_id TEXT,source_key TEXT,text TEXT,grapheme_count INTEGER,audio_sha256 TEXT,audio_object_key TEXT,audio_mime_type TEXT,duration_seconds REAL);
- INSERT INTO source_rows VALUES('fleurs-te','one','నేను చేశాను.',8,'','a.wav','audio/wav',1);`);c.close();
+ INSERT INTO source_rows VALUES('fleurs-te','one','నేను చేశాను మంచానికి.',8,'','a.wav','audio/wav',1);`);c.close();
  const before=fs.readFileSync(corpus);
  Object.assign(process.env,{NODE_ENV:'test',DATA_DIRECTORY:dir,DATABASE_PATH:path.join(dir,'users.sqlite'),CORPUS_DATABASE_PATH:corpus,CORPUS_AVAILABILITY_PATH:path.join(dir,'availability.sqlite'),AUDIO_VALIDATION_PATH:path.join(dir,'audio-validation.sqlite'),CORPUS_BACKEND:'tigris',BUCKET_NAME:'mock-only',PROFILE_CODES:'001,002',GRAMMAR_MIGRATION_ENABLED:'true',GRAMMAR_MIGRATION_TOKEN:'test-operator'});
  const {config}=await import('../server/src/config/config');const {availabilityIdentity}=await import('../server/src/services/corpus-availability');
@@ -33,16 +33,27 @@ test('worker resumes after upload failure, publishes derived catalog and activat
  const {system}=await import('../server/src/grammar/service');const {grammarRoutes}=await import('../server/src/grammar/routes');const {bootstrapGrammar}=await import('../server/src/grammar/persistence');
  const app=new Hono();app.route('/api/profiles',grammarRoutes());
  assert.equal((await app.request('/api/profiles/001/grammar')).status,200);
+ assert.equal((await app.request('/api/profiles/invalid/grammar/diagnostics')).status,404);
+ assert.equal((await (await app.request('/api/profiles/001/grammar/diagnostics')).json()).available,false);
  assert.equal((await app.request('/api/profiles/001/grammar/build',{method:'POST'})).status,403);
  const wait=async()=>{const end=Date.now()+30000;while(!['ready','failed'].includes(migration.job().phase??'')){if(Date.now()>end)throw new Error('worker timeout');await new Promise(r=>setTimeout(r,30));}};
  await migration.startMigration();await assert.rejects(migration.startMigration());await wait();assert.equal(migration.job().phase,'failed');assert.equal(aborted,true);assert.equal(system().active,0);
  fail=false;await migration.startMigration();await wait();assert.equal(migration.job().phase,'ready',migration.job().error);assert.ok(remote.has('corpus/grammar/latest.json'));
  assert.ok(touched.every(k=>k.startsWith('corpus/grammar/')));assert.deepEqual(fs.readFileSync(corpus),before,'canonical corpus never changes');
- const file=migration.job().file!;const built=new Database(file,{readonly:true});assert.equal((built.prepare('SELECT COUNT(*) AS n FROM observations').get() as {n:number}).n,1);assert.equal((built.prepare('SELECT COUNT(*) AS n FROM words').get() as {n:number}).n,2);built.close();
+ const diagnostic=await (await app.request('/api/profiles/001/grammar/diagnostics')).json();
+ assert.equal(diagnostic.parser.version,'v20_gi_relevance_stemfix_v1');assert.equal(diagnostic.parser.maxDepth,6);assert.equal(diagnostic.parser.maxStates,500);assert.equal(diagnostic.stats.words,3);assert.equal(diagnostic.stats.acceptedOccurrences,3);assert.equal(diagnostic.active,false);assert.equal(diagnostic.stats.eligibleWords,3);assert.equal(typeof diagnostic.rulesSha256,'string');
+ const file=migration.job().file!;const built=new Database(file,{readonly:true});assert.equal((built.prepare('SELECT COUNT(*) AS n FROM observations').get() as {n:number}).n,1);assert.equal((built.prepare('SELECT COUNT(*) AS n FROM words').get() as {n:number}).n,3);
+ const targetRows=built.prepare('SELECT level,base_id,chain_json FROM targets').all() as {level:number;base_id:string;chain_json:string}[];
+ assert.ok(targetRows.some(t=>t.level===1 && t.base_id==='' && t.chain_json==='["mod_dative"]'));
+ assert.ok(targetRows.some(t=>t.level===3 && t.base_id==='verb_cheyu'));
+ assert.equal((built.prepare('SELECT COUNT(*) AS n FROM occurrences o JOIN targets t ON t.target_id=o.target_id WHERE o.gi!=t.level').get() as {n:number}).n,0);
+ built.close();
  for(const code of ['001','002'])db.prepare('INSERT INTO profiles(code,created_at,updated_at) VALUES(?,0,0)').run(code);
  const r=await app.request('/api/profiles/001/grammar/activate',{method:'POST',headers:{'x-grammar-operator-token':'test-operator'}});assert.equal(r.status,200,await r.text());assert.equal(system().active,1);
  // Permanent loader works after disabling the temporary worker and restores missing local bytes.
+ assert.equal((await (await app.request('/api/profiles/002/grammar/diagnostics')).json()).active,true);
  process.env.GRAMMAR_MIGRATION_ENABLED='false';fs.unlinkSync(file);await bootstrapGrammar();assert.ok(fs.existsSync(file));assert.deepEqual(fs.readFileSync(corpus),before);
  assert.equal((await app.request('/api/profiles/001/grammar/build',{method:'POST',headers:{'x-grammar-operator-token':'test-operator'}})).status,409);
+ assert.equal((await app.request('/api/profiles/001/grammar/diagnostics')).status,200);
  db.close();fs.rmSync(dir,{recursive:true,force:true});
 });

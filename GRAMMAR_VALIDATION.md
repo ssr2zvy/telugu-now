@@ -1,5 +1,41 @@
 # Validation of the grammar migration change
 
+## Settings and parser diagnostics extension
+
+- Production build passed, including type checking and packaged worker assets.
+- 35 focused Node tests passed (33 grammar/appearance/eon checks and 2 updated Settings contract checks); the grammar target test includes seven passing Python behavioral cases.
+- Rendered-component checks cover Observations/External grouping, side-menu migration visibility, separate export formats and parser evidence/fallback display. No browser-interaction smoke test was performed.
+- The real-parser migration test verifies diagnostics before build, after build, after activation and with the temporary worker disabled; invalid profile access is rejected. Selected-word snapshots retain parser evidence.
+- Parser audit: all 15 bundled parser/rules/dictionary files are byte-identical to the previous source ZIP. AST comparison confirms `initialize()` and `analyze_word()` enforcement are unchanged. Only a read-only metadata helper was added to the adapter. The audit file is included in the handoff ZIP.
+- The reviewed repository has no Frequency Export implementation or menu entry. It remains absent.
+
+Reproduce from `upa/`:
+
+```
+npm run build
+node --import tsx --test tests/grammar-*.test.ts tests/appearance.test.ts tests/eons-ui.test.ts
+node --import tsx --test --test-name-pattern='Settings routes import|Settings export uses' tests/repository-contract.test.ts
+```
+
+## Initial grammatical components revision (v3)
+
+- `npm run build` passed: TypeScript, client, server and packaged Python worker.
+- Six focused Node tests passed. One invokes seven Python behavioral cases, all passing. Coverage includes shared modifier identities across vocabulary bases; retained core bases; chain order/length/nesting; canonical variants; rejection of ineligible input; occurrence aggregation; resumability and incompatible-policy rejection.
+- The migration test uses the real parser for `నేను చేశాను మంచానికి.`. The dative-only target has category 1 with no vocabulary base; `చేశాను` retains `verb_cheyu` and has category 3. Occurrence GI and target category agree for this sample.
+- Existing scheduler parity, frozen batches, idempotent/ordered self-evaluation, profile isolation, regression and latched-completion tests still pass. Old-policy catalogs are rejected by the runtime loader.
+- Remote publication/recovery is tested with a mocked Tigris client. The original corpus bytes remain unchanged. No live upload, browser test or deployment was performed for this revision.
+- The reversing-curve equation, per-target streak update and batch size are unchanged. Their input target inventory is intentionally different, so v2 sample target counts and simulation results do not describe v3.
+
+Reproduce this revision's checks from `upa/`:
+
+```
+npm ci
+npm run build
+node --import tsx --test tests/grammar-model.test.ts tests/grammar-integration.test.ts tests/grammar-migration.test.ts tests/grammar-target-policy.test.ts
+```
+
+## Previous version validation (v2; historical results)
+
 Executed in the supplied development environment, without deploying or accessing the live Tigris bucket:
 
 - Production `npm run build`: passed, including TypeScript checking, frontend build, server build and worker-asset packaging.

@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config/config';
 import { db } from '../db/database';
-import { evaluate,system } from './service';
+import { evaluate,system,getCatalog } from './service';
+import { GrammarCatalog } from './store';
+import type { GrammarParserDiagnostics } from '../../../shared/contracts';
 import { workerEnabled,job,startMigration,validateActivation } from './migration';
 import {corpusStamp} from './persistence';
 import { clearQueue } from '../services/queue-service';
@@ -17,6 +19,15 @@ export function grammarRoutes(){
  });
  const status=()=>({enabled:workerEnabled(),active:system().active===1,job:{...job(),file:undefined},operatorTokenRequired:true});
  app.get('/:code/grammar',c=>c.json(status()));
+ app.get('/:code/grammar/diagnostics',c=>{
+  try{
+   if(system().active)return c.json(getCatalog().parserDiagnostics(true));
+   const ready=job();
+   if(ready.phase==='ready'&&ready.file){const catalog=new GrammarCatalog(ready.file);try{return c.json(catalog.parserDiagnostics(false));}finally{catalog.close();}}
+   const empty:GrammarParserDiagnostics={active:false,available:false,parser:null,policy:null,rulesSha256:null,inventoryId:null,stats:{},exclusions:{}};
+   return c.json(empty);
+  }catch(e){return c.json({error:e instanceof Error?e.message:'Parser diagnostics unavailable'},409);}
+ });
  app.post('/:code/grammar/:action',async c=>{
   if(!workerEnabled())return c.json({error:'Migration worker disabled'},409);
   const expected=process.env.GRAMMAR_MIGRATION_TOKEN,got=c.req.header('x-grammar-operator-token')??'';

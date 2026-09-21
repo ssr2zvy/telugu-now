@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import { settingsGroups, settingsPageIcons, settingsPageLabel } from './navigation';
+import { settingsGroups, settingsPageIcons, settingsPageLabel, visibleSettingsEntries } from './navigation';
 import {
   LanguageIcon,
 } from '../components/icons';
@@ -16,6 +16,7 @@ interface SettingsShellProps {
   title: string;
   page: SettingsPage;
   profileCode: string;
+  migrationAvailable?: boolean;
   onNavigate: (page: Exclude<SettingsPage, 'index'>) => void;
   onOverview: () => void;
   onBack?: () => void;
@@ -28,6 +29,7 @@ export function SettingsShell({
   title,
   page,
   profileCode,
+  migrationAvailable = false,
   onNavigate,
   onOverview,
   onBack,
@@ -159,7 +161,7 @@ export function SettingsShell({
         </div>
         <nav aria-label={language === 'en' ? 'Settings navigation' : 'అమరికల నావిగేషన్'}>
           {navigationButton('index')}
-          {settingsGroups.index?.map((group) => (
+          {visibleSettingsEntries('index', migrationAvailable).map((group) => (
             <div className="settings-rail-group" key={group}>
               <div className="settings-rail-group-heading">
                 {navigationButton(group)}
@@ -178,7 +180,7 @@ export function SettingsShell({
               </div>
               {settingsGroups[group] ? (
                 <div id={`settings-rail-${group}`} hidden={Boolean(collapsedGroups[group])}>
-                  {settingsGroups[group]?.map((child) => navigationButton(child, true))}
+                  {visibleSettingsEntries(group, migrationAvailable).map((child) => navigationButton(child, true))}
                 </div>
               ) : null}
             </div>
