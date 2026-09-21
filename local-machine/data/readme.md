@@ -112,7 +112,7 @@ in `local-machine/data/corpus/manifest.json`, with rejection details under `loca
 
    Shell environment values take precedence over these defaults. If you have
    explicitly disabled rebuilding or selected Tigris, clear those overrides or
-   set `CORPUS_BACKEND=local`, `CORPUS_AVAILABILITY_WORKER_ENABLED=false`, and
+   set `CORPUS_BACKEND=local` and
    `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true` for this command.
 
 Do not delete the entire `local-machine/data/` directory: `local-machine/data/user/` and other runtime state

@@ -61,6 +61,29 @@ under that directory; only the finished corpus is published to repository
 Runtime path overrides do not relocate the preparation workflow.
 The preparation scripts themselves accept explicit input and output paths. The same implementation processes sample-sized inputs and complete local corpora before production publication to Fly.io Tigris.
 
+### Recomputing complexity on an existing corpus
+Complexity (`grapheme_count`) is embedded in `corpus.sqlite`, computed once per
+row from its `text` column when the corpus is first prepared. To recompute it
+in place on an already-published corpus — for example after changing the
+complexity metric implementation — use the standalone script under
+`local-machine/data-transform/scripts/update-complexity/`, which does not
+require re-running the full ingestion pipeline or touching audio:
+```bash
+# Local file, updated in place (a .bak backup is kept until success):
+python local-machine/data-transform/scripts/update-complexity/update_complexity.py \
+  --database local-machine/data/corpus/corpus.sqlite
+
+# Tigris: downloads corpus/corpus.sqlite, recomputes complexity, and
+# publishes it back to the same object key (full round trip):
+BUCKET_NAME=... AWS_ENDPOINT_URL_S3=... AWS_REGION=... \
+  python local-machine/data-transform/scripts/update-complexity/update_complexity.py --tigris
+```
+The Tigris mode reads the same `BUCKET_NAME`/`AWS_ENDPOINT_URL_S3`/`AWS_REGION`
+variables the server uses and relies on the standard AWS credential-provider
+chain for credentials. After publishing to Tigris, set
+`CORPUS_CATALOG_FORCE_REDOWNLOAD=true` on the server so it fetches the updated
+catalog instead of reusing its existing local copy.
+
 The `local-machine/control_local.sh` script is the local development entry point; deployment
 starts the built server directly and does not require this controller.
 Run these commands from the repository root. Install dependencies on a new checkout:
@@ -116,14 +139,16 @@ deny rule only prevents HTTP access to the file; it does not load its contents.
 The tracked `dev.env` remains for non-secret settings only. Local corpus access
 does not require AWS/Tigris credentials.
 
-The local defaults disable the background availability worker and rebuild
-`availability.sqlite` before serving on each start, including after preparing a
-new corpus. To reuse an existing compatible snapshot instead:
+The local defaults rebuild `availability.sqlite` before serving on each start,
+including after preparing a new corpus. To reuse an existing compatible
+snapshot instead:
 ```bash
 CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false ./local-machine/control_local.sh dev --option start
 ```
-Alternatively, set `CORPUS_AVAILABILITY_WORKER_ENABLED=true` for immediate and
-periodic refreshes. These controls apply to both local and Tigris backends.
+This control applies to both local and Tigris backends. In Tigris mode, set
+`CORPUS_CATALOG_FORCE_REDOWNLOAD=true` to force a fresh `corpus.sqlite`
+download from Tigris even if a local copy already exists (for example, after
+publishing an updated corpus with `update_complexity.py`).
 Direct `npm run dev` or built-server startup does not load this file; without
 environment overrides the app still requires an existing availability snapshot.
 Fly uses its own environment from `fly.toml` and secrets, unchanged by this file.
@@ -447,7 +472,7 @@ status, reason and timestamp, scoped to the storage backend/bucket/root.
 Missing, malformed or checksum-mismatched recordings are quarantined persistently;
 the read-only canonical corpus is never edited. Quarantine exclusions update
 effective source counts, complexity classes and selection probabilities without
-requiring a background availability worker. An invalid queued reservation is
+requiring a manual rebuild step. An invalid queued reservation is
 replaced transactionally, preserving its queue slot and trigger.
 
 Network/authentication failures, unavailable FFmpeg, timeouts and operational
@@ -662,9 +687,7 @@ mount in either mode. Tigris uses `BUCKET_NAME`, `AWS_ENDPOINT_URL_S3`, `AWS_REG
 (default `auto`), and standard AWS credential-provider environment variables.
 Supply credentials through deployment secrets, not source files or browser code.
 `CORPUS_OBJECTS_PREFIX` defaults to `corpus/objects/`; it is a bucket key prefix,
-not a filesystem path. `CORPUS_AVAILABILITY_REFRESH_MS` applies to the worker in either backend,
-defaults to `7200000` (two hours), and
-must be an integer from 1 to 2147483647 milliseconds (the Node timer limit).
+not a filesystem path.
 Availability is global corpus
 state, not a user's source-record cache. Local mode does not require S3 credentials.
 Changing these settings does not create buckets, upload audio, or provision infrastructure.
@@ -672,10 +695,13 @@ Changing these settings does not create buckets, upload audio, or provision infr
 On the first Tigris startup, a missing `corpus/corpus.sqlite` is streamed from that
 bucket key into a sibling staging file, checked for SQLite integrity and the
 canonical schema, then published atomically. A failed download leaves no partial
-catalog. An existing catalog is never downloaded again or rewritten by runtime.
+catalog. An existing catalog is not downloaded again automatically; set
+`CORPUS_CATALOG_FORCE_REDOWNLOAD=true` to force a fresh download and atomically
+replace the local catalog even when one already exists (for example, after
+publishing an updated corpus with `update_complexity.py`, see below).
 Tigris needs only the two SQLite files under `corpus/` on the mount; local audio,
 `manifest.json`, and `reports/` are not required in this mode. The application
-does not download an audio mirror.
+does not download an audio mirror or upload the catalog back to Tigris at runtime.
 
 Both modes build `availability.sqlite` from the same canonical rows. Eligible
 audio must be a nonempty local file or a nonzero-size object in a fully completed,
@@ -684,31 +710,18 @@ separate rows; runtime never deduplicates or edits the corpus. Dense zero-based
 indexes per source/grapheme-count class and stored class/source totals drive the
 same source-weight, complexity, and random-row algorithm in both modes.
 
-Availability startup behavior is independent of the backend:
+Availability startup behavior is independent of the backend and is a one-shot
+build, never a background worker:
 
-| Worker enabled | Rebuild on startup | Behavior |
-|---|---|---|
-| `false` (default) | `false` (default) | Use the existing compatible `availability.sqlite`; fail startup if missing, invalid, or incompatible. No inventory scan or rebuild. |
-| `false` | `true` | Rebuild once before serving, even if a snapshot exists; fail startup if rebuilding fails. No worker or timer. |
-| `true` | Either (ignored) | Start immediate and periodic background refreshes. |
+| Rebuild on startup | Behavior |
+|---|---|
+| `false` (default) | Use the existing compatible `availability.sqlite`; fail startup if missing, invalid, or incompatible. No inventory scan or rebuild. |
+| `true` | Rebuild once before serving, even if a snapshot exists; fail startup if rebuilding fails. |
 
-Set these with `CORPUS_AVAILABILITY_WORKER_ENABLED` and
-`CORPUS_AVAILABILITY_REBUILD_ON_STARTUP`; both accept only `true` or `false`.
-Tigris catalog downloads and audio access are unchanged by these settings.
-With the worker disabled, audio inventory changes are not reflected until an
-explicit rebuild and application restart.
-
-When enabled, the worker thread inventories audio immediately and waits
-the configured refresh interval after each pass completes before starting again.
-It builds a complete sibling snapshot before atomically
-replacing `availability.sqlite`. Failed scans, malformed or interrupted
-pagination, and failed builds are logged and leave the previous complete pool
-in service; retry occurs after the interval. The first launch waits if no matching
-snapshot exists and fails safely if that initial build fails. Existing compatible
-snapshots allow serving immediately while refresh runs. Allow disk space for the
-old snapshot and its replacement. Each API process with the worker enabled manages its own refresh
-worker. Publication notifies the backend to reload the snapshot without restarting
-the service; the UI continues using the same API and does not contact the worker.
+Set this with `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP`; it accepts only `true`
+or `false`. Tigris catalog downloads and audio access are unchanged by this
+setting. With rebuild-on-startup disabled, audio inventory changes are not
+reflected until an explicit rebuild and application restart.
 
 Snapshot metadata records its generation, eligible-pool hash, canonical file
 identity, and backend location. Unchanged inventories do not publish a new
@@ -804,8 +817,8 @@ npm --prefix upa ci
 The script resolves paths from its own location, so it also works from another
 working directory. It runs the existing `npm run build` without installing
 dependencies or reading `fly.toml`. Outputs stay in the already-ignored
-`upa/dist/client/` and `upa/dist/server/`. The frontend, backend, and availability
-worker are always built together; worker activation is a runtime setting.
+`upa/dist/client/` and `upa/dist/server/`. The frontend and backend are always
+built together.
 
 Image and artifact versions are independent, initially `0.0.1-initial`:
 
@@ -814,7 +827,6 @@ Image and artifact versions are independent, initially `0.0.1-initial`:
 | Image | `ci-cd/Containerfile` | OCI label `org.opencontainers.image.version` |
 | Frontend | `upa/frontend/version.json` | `upa/dist/client/version.json` |
 | Backend | `upa/server/version.json` | `upa/dist/server/version.json` |
-| Worker | `upa/server/availability-worker.version.json` | `upa/dist/server/availability-worker.version.json` |
 
 The npm post-build hooks copy each artifact's own version metadata into its
 output, including when building the client or server separately. The workspace
@@ -845,7 +857,7 @@ after the volume is mounted. It creates `DATA_DIRECTORY` (default `/data`) and
 its `corpus/`, `user/`, and `word-images/` directories and assigns just those
 directories to `node:node`. It then uses `gosu` to recheck access as the
 unprivileged `node` user (UID/GID 1000) and execute `node dist/server/index.js`
-from `/app/upa`. The backend and worker run non-root and serve port 8080.
+from `/app/upa`. The backend runs non-root and serves port 8080.
 
 Initialization is idempotent, does not recursively change existing files or
 subdirectories, and fails explicitly for empty/root paths, symbolic links in
@@ -865,10 +877,9 @@ API health check with Fly's maximum one-minute startup grace period. The initial
 corpus download may take longer; allow a longer deployment wait timeout, such as
 `--wait-timeout 5m`, when deploying. Autostop is disabled to avoid
 traffic-driven startup rebuilds.
-This deployment explicitly sets `CORPUS_AVAILABILITY_WORKER_ENABLED=false`
-and `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup rebuilds
-`availability.sqlite` from the Tigris inventory before serving, without a
-background availability worker. Existing corpus and user databases are reused.
+This deployment sets `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup
+rebuilds `availability.sqlite` from the Tigris inventory before serving. Existing
+corpus and user databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
 Ordinary pushes and merges do not deploy. From a clean `main` checkout, explicitly
@@ -906,7 +917,7 @@ Supply `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` through Fly secrets
 with bucket-list access for `corpus/objects/` and read access to the corpus SQLite
 and audio objects; the runtime does not require write access. Do not put
 credentials in `fly.toml`, build arguments, or the container image. Backend,
-paths, bucket, endpoint, region, and refresh delay are non-secret `[env]` settings;
+paths, bucket, endpoint, and region are non-secret `[env]` settings;
 avoid conflicting same-name Fly secrets, which override `[env]`.
 
 For image generation, supply the lowercase `pollinations_api_key` through a
@@ -923,9 +934,8 @@ CORPUS_DATABASE_PATH=<DATA_DIRECTORY>/corpus/corpus.sqlite
 CORPUS_AVAILABILITY_PATH=<DATA_DIRECTORY>/corpus/availability.sqlite
 CORPUS_OBJECTS_PATH=<DATA_DIRECTORY>/corpus/objects
 CORPUS_BACKEND=local
-CORPUS_AVAILABILITY_WORKER_ENABLED=false
 CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=false
-CORPUS_AVAILABILITY_REFRESH_MS=7200000
+CORPUS_CATALOG_FORCE_REDOWNLOAD=false
 CORPUS_OBJECTS_PREFIX=corpus/objects/
 AWS_REGION=auto
 SOURCE1_WEIGHT=1
