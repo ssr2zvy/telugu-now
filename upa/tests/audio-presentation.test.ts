@@ -12,10 +12,10 @@ test('playback bounds include 0.1 to 1.5 and clamp older saved defaults', () => 
   assert.equal(clampPlaybackRate(NaN), 1);
 });
 
-test('precision dragging moves one millisecond per pixel without accumulating feedback', () => {
-  assert.equal(precisionSeekTime(20, 100, 300), 20.1);
-  assert.equal(precisionSeekTime(20, 200, 300), 20.2);
-  assert.equal(precisionSeekTime(20, -100, 300), 19.9);
+test('precision dragging moves 1.5 milliseconds per pixel without accumulating feedback', () => {
+  assert.equal(precisionSeekTime(20, 100, 300), 20.15);
+  assert.equal(precisionSeekTime(20, 200, 300), 20.3);
+  assert.equal(precisionSeekTime(20, -100, 300), 19.85);
   assert.equal(precisionSeekTime(0, -100, 300), 0);
   assert.equal(precisionSeekTime(300, 100, 300), 300);
 });
@@ -43,8 +43,8 @@ test('playback rate clamping preserves fractions and handles lower and non-finit
 });
 
 test('precision seeking retains subpixel accuracy and clamps short and empty clips', () => {
-  assert.ok(Math.abs(precisionSeekTime(12.345, 0.5, 60) - 12.3455) < 1e-12);
-  assert.ok(Math.abs(precisionSeekTime(12.345, -0.5, 60) - 12.3445) < 1e-12);
+  assert.ok(Math.abs(precisionSeekTime(12.345, 0.5, 60) - 12.34575) < 1e-12);
+  assert.ok(Math.abs(precisionSeekTime(12.345, -0.5, 60) - 12.34425) < 1e-12);
   assert.equal(precisionSeekTime(0.001, 1_000_000, 0.002), 0.002);
   assert.equal(precisionSeekTime(0.001, -1_000_000, 0.002), 0);
   assert.equal(precisionSeekTime(0, 100, 0), 0);

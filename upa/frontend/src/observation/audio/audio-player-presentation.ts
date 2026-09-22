@@ -8,7 +8,7 @@ export const AUDIO_PLAYER_PRESENTATION = {
   // Milliseconds a press must be held before the precision magnifier engages.
   magnifierHoldMs: 300,
   magnifierPressureThreshold: 0.75,
-  // Fixed one-second window is owned by magnifier-waveform.ts.
+  // Fixed half-second window is owned by magnifier-waveform.ts.
   magnifierWidthPx: 260,
   // A run of clicks on the bookmark button is only resolved once no further
   // click arrives within this window.

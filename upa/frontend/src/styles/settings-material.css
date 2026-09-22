@@ -1,8 +1,8 @@
 /* Settings may change its layout, but every route and form control is retained.
    The existing page structure stays intact; space and type replace framing. */
-.settings-screen { background: color-mix(in srgb, var(--surface) 32%, transparent); }
+.settings-screen { background: transparent; }
 .settings-screen::before { display: none; }
-.settings-screen .settings-rail { background: color-mix(in srgb, var(--surface) 18%, transparent); border-color: transparent; }
+.settings-screen .settings-rail { background: transparent; border-color: transparent; }
 .settings-index { row-gap: 6px; }
 .settings-index button:not(:last-child)::after { display: none; }
 .settings-screen :is(.settings-form label + label, .blacklist-entry, .queue-slots, .queue-slots li, .data-source-card, .appearance-element, .appearance-subsection, .appearance-fonts label, .eon-history li) { border-color: transparent; }
@@ -52,3 +52,17 @@
 .settings-screen .export-progress { background: var(--line); }
 .settings-screen .export-progress > span { background: var(--control-material-gradient); box-shadow: inset 0 .5px var(--control-material-edge); }
 .settings-screen :is(input, button):disabled { cursor: default; }
+
+/* Case study 1 applies to icon pixels, never the navigation hit area. */
+.appearance-root .settings-screen :is(.settings-index button, .settings-rail-link, .settings-rail-disclosure, .settings-rail-group-heading, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action),
+.appearance-root .settings-screen :is(.settings-index button, .settings-rail-link, .settings-rail-disclosure, .settings-rail-group-heading, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action):is(:hover, :active, :focus-visible, [data-touch-pressed], [aria-current='page']) {
+  background: transparent; box-shadow: none; -webkit-tap-highlight-color: transparent;
+}
+.appearance-root .settings-screen .settings-rail-group-heading:has(> .settings-rail-link:is(:hover, [aria-current='page'])) { background: transparent; box-shadow: none; }
+.appearance-root .settings-screen .settings-rail-link[aria-current='page'] { color: var(--foreground); }
+.appearance-root .settings-screen :is(.settings-index button, .settings-rail-link, .settings-rail-disclosure):is(:active, [data-touch-pressed], [aria-current='page']) > svg {
+  opacity: 1; filter: drop-shadow(0 .25px .3px var(--material-edge)) brightness(var(--control-brightness, .85)) saturate(1.2) contrast(1.14);
+}
+/* Avoid a gray scrim or translucent panel over the theme. Hide the covered content instead. */
+.settings-screen .settings-rail-scrim { background: transparent; }
+.settings-overview-open.settings-overview-nested :is(.settings-header, .settings-page-content) { visibility: hidden; }

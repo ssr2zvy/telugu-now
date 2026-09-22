@@ -5,8 +5,11 @@ export function clampPlaybackRate(rate: number): number {
   return Number.isFinite(rate) ? Math.min(AUDIO_PLAYBACK_RATE_MAX, Math.max(AUDIO_PLAYBACK_RATE_MIN, rate)) : 1;
 }
 
+// Fine dragging uses a fixed sensitivity, independent of clip or magnifier duration.
+export const PRECISION_SECONDS_PER_PIXEL = 0.0015;
+
 export function precisionSeekTime(startTime: number, deltaPixels: number, duration: number): number {
-  return Math.min(duration, Math.max(0, startTime + deltaPixels * 0.001));
+  return Math.min(duration, Math.max(0, startTime + deltaPixels * PRECISION_SECONDS_PER_PIXEL));
 }
 
 export const PRECISION_DRAG_THRESHOLD_SECONDS = 0.001;

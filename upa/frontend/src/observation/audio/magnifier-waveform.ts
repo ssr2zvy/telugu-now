@@ -1,5 +1,5 @@
 /** Visual sampling only. Neither this module nor its constants change seeking. */
-export const MAGNIFIER_WINDOW_SECONDS = 1;
+export const MAGNIFIER_WINDOW_SECONDS = 0.5;
 export const WAVEFORM_PEAKS_PER_SECOND = 160;
 export const MAGNIFIER_BAR_WIDTH_PX = 4;
 export const MAGNIFIER_BAR_GAP_PX = 2;
