@@ -80,6 +80,6 @@ export function draftCoreBatch(profile: string, random = Math.random): { choices
     const neighbors = new Set(next.target.neighbors);
     next = pick(targets.filter(t => neighbors.has(t.id)));
   }
-  return { choices, core: p.core, inventoryId: catalog.identity.inventoryId, stopDecision: choices.length < 10 ? decision : undefined,
+  return { choices, core: p.core, inventoryId: catalog.identity.inventoryId, ...(choices.length < 10 ? { stopDecision: decision } : {}),
     endReason: choices.length === 10 ? 'batch-full' : choices.length ? 'no-unused-neighbor' : 'no-unused-unmastered-target' };
 }
