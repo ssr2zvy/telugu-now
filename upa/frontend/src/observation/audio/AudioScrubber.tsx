@@ -1,4 +1,4 @@
-import { magnifierWindow, magnifierBarLayout, magnifierWaveform } from './magnifier-waveform';
+import { magnifierWindow, magnifierBarLayout, coarseMagnifierWaveform } from './magnifier-waveform';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { magnifierSeekTime, precisionSeekTime } from '../../../../shared/audio';
@@ -158,8 +158,8 @@ export function AudioScrubber({
   const recordingStartPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.start ?? 0) / duration * 100) : 0;
   const recordingEndPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.end ?? 0) / duration * 100) : 0;
   const { start: windowStart, end: windowEnd } = magnifierWindow(duration, currentTime);
-  const bars = magnifierBarLayout(magnifierWidth);
-  const magnifierPeaks = magnifierWaveform(waveformPeaks, duration, windowStart, windowEnd, bars.count);
+  const magnifierPeaks = coarseMagnifierWaveform(waveformPeaks, duration, windowStart, windowEnd);
+  const bars = magnifierBarLayout(magnifierWidth, magnifierPeaks.length);
 
   const windowStartPct = duration > 0 ? (windowStart / duration) * 100 : 0;
   const windowEndPct = duration > 0 ? (windowEnd / duration) * 100 : 100;
