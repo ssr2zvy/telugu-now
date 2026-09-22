@@ -1,7 +1,6 @@
 import { stream } from 'hono/streaming';
 import { parsingDiagnostics, diagnosticEvents, diagnosticExport } from './diagnostics';
 import { Hono } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config/config';
 import { db } from '../db/database';
 import { coreProgress, graph, selectionMode, switchMode, type SelectionMode } from './state';
@@ -26,11 +25,10 @@ export function parsingStatus(profile: string): ParsingStatus {
     }) };
   } catch (e) { error = e instanceof Error ? e.message : 'Progress is unavailable'; }
   const { file: _file, ...safeJob } = job();
-  return { mode: selectionMode(profile), ready, running, error, stats, progress, job: safeJob,
-    operatorTokenRequired: true, operatorConfigured: Boolean(process.env.GRAMMAR_MIGRATION_TOKEN) };
+  return { mode: selectionMode(profile), ready, running, error, stats, progress, job: safeJob };
 }
 
-export function parsingRoutes() {
+export function parsingRoutes(startBuild: () => void = startParsing) {
   const app = new Hono();
   app.use('/:code/parsing/*', async (c, next) => {
     if (!config.profileCodes.has(c.req.param('code') ?? '')) return c.json({ error: 'invalid-profile-code' }, 404);
@@ -66,14 +64,8 @@ export function parsingRoutes() {
     });
   });
   app.post('/:code/parsing/build', c => {
-    // Keep the existing global-worker operator gate. Mode choices and reading
-    // statistics remain profile operations and need no operator credential.
-    const required = process.env.GRAMMAR_MIGRATION_TOKEN;
-    if (!required) return c.json({ error: 'Configure the existing grammar operator token before starting a corpus build' }, 503);
-    const token = c.req.header('x-grammar-operator-token') ?? '';
-    const a = Buffer.from(required), b = Buffer.from(token);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return c.json({ error: 'Invalid operator token' }, 403);
-    try { startParsing(); return c.json(parsingStatus(c.req.param('code')), 202); }
+    // A valid profile can start/resume parsing directly; the worker keeps its single-job lock.
+    try { startBuild(); return c.json(parsingStatus(c.req.param('code')), 202); }
     catch (e) { return c.json({ error: e instanceof Error ? e.message : 'Unable to start parsing' }, 409); }
   });
   app.post('/:code/parsing/mode', async c => {

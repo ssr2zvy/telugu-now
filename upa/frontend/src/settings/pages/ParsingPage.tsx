@@ -6,7 +6,6 @@ import type { ParsingStatus, SelectionMode } from '../../../../shared/parsing';
 export function ParsingPage({ profileCode, onState }: { profileCode: string; onState: (state: ProfileStateResponse) => void }) {
   const [status, setStatus] = useState<ParsingStatus | null>(null);
   const [error, setError] = useState('');
-  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const base = `/api/profiles/${encodeURIComponent(profileCode)}/parsing`;
@@ -43,10 +42,10 @@ export function ParsingPage({ profileCode, onState }: { profileCode: string; onS
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setError('');
     try {
-      const response = await fetch(`${base}/build`, { method: 'POST', headers: { 'x-grammar-operator-token': token } });
+      const response = await fetch(`${base}/build`, { method: 'POST' });
       const data = await response.json() as ParsingStatus & { error?: string };
       if (!response.ok) throw new Error(data.error ?? 'Could not start parsing');
-      setStatus(data); setToken('');
+      setStatus(data);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not start parsing'); }
     finally { inFlight.current = false; setBusy(false); }
   };
@@ -60,9 +59,7 @@ export function ParsingPage({ profileCode, onState }: { profileCode: string; onS
     <p role="status">{status?.mode === 'core' ? 'Core progression is active.' : status?.mode === 'random' ? 'Every available audio observation has the same selection probability.' : 'Normal complexity and source weighting are active.'}</p>
     <hr />
     <p>Parse the entire corpus once. Repeated words reuse their saved analysis. You may leave this page while parsing continues.</p>
-    <label>Operator token<input type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} /></label>
-    {status && !status.operatorConfigured ? <p>The existing grammar operator token must be configured before a corpus build can start.</p> : null}
-    <button type="button" disabled={busy || status?.running || !status?.operatorConfigured || !token} onClick={() => void parse()}>
+    <button type="button" disabled={busy || !status || status.running} onClick={() => void parse()}>
       {status?.running ? 'Parsing corpus…' : resume ? 'Resume corpus parsing' : status?.ready ? 'Reparse entire corpus' : 'Parse entire corpus'}
     </button>
     <p role="status">{status?.job.phase ?? 'Not started'}{status?.job.total ? ` — ${(status.job.processed ?? 0).toLocaleString()} / ${status.job.total.toLocaleString()} observations` : ''}</p>
