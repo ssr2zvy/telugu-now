@@ -124,5 +124,9 @@ test('Core batches, mastery, per-core no repeats, parked queues and independent 
     assert.equal((await app.request('/001/parsing/build', { method: 'POST' })).status, 403);
     assert.equal((await app.request('/001/parsing/mode', { method: 'POST', headers: { origin: 'https://other.test', host: 'localhost' } })).status, 403);
     assert.equal((await app.request('/001/parsing/mode', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"mode":"invalid"}' })).status, 400);
+    db.prepare("DELETE FROM profiles WHERE code='001'").run();
+    for (const table of ['selection_modes', 'parked_queues', 'core_progress', 'core_streaks', 'core_used', 'core_batches', 'selection_attempts']) {
+      assert.equal((db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE profile_code='001'`).get() as { n: number }).n, 0);
+    }
   } finally { Math.random = oldRandom; }
 });
