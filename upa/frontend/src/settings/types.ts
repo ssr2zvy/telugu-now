@@ -1,5 +1,8 @@
 export type SettingsPage =
   | 'grammarMigration'
+  | 'parsingMode'
+  | 'complexity'
+  | 'sources'
   | 'observations'
   | 'category'
   | 'external'

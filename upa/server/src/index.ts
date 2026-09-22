@@ -14,8 +14,8 @@ async function start(): Promise<void> {
     if (!snapshot) throw new Error('CORPUS_AVAILABILITY_MISSING_OR_INCOMPATIBLE');
     snapshot.close();
   }
-  const { bootstrapGrammar } = await import('./grammar/persistence');
-  await bootstrapGrammar();
+  const { recoverWorker } = await import('./parsing/worker');
+  recoverWorker();
   await import('./app');
 }
 

@@ -1,4 +1,7 @@
-import { grammarActive, openBatch, newBatch, grammarSelect, recordSelection, attempt } from '../grammar/service';
+import { openBatch, grammarSelect, recordSelection, attempt } from '../grammar/service';
+import { selectionMode, initializeMode, questionChoice, recordAttempt, graph, coreProgress, applyFinishedBatch, attempt as selectionAttempt } from '../parsing/state';
+import { draftCoreBatch, getParsingCatalog, selectionContext, type CoreSelection } from '../parsing/catalog';
+import { uniformAudioRow } from '../parsing/random';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/database';
 import type { AcquisitionTriggerKind, ObservationKind, PreparationGroupKind, QuestionKeyboard, QuestionMode, QuestionPool } from '../../../shared/contracts';
@@ -133,15 +136,22 @@ function appendSelectedObservation(
   context: SelectionContext,
   reserved?: { acquisitionNumber: number; queuePosition: number },
 ): string {
-  if (grammarActive()) return appendGrammarObservation(profileCode, context, reserved);
+  const mode = selectionMode(profileCode);
+  if (mode === 'core') throw new Error('Core observations must belong to a frozen batch');
+  const questionType = questionChoice(profileCode);
   const settings = getProfileSelectionSettings(profileCode);
   const plan = chooseObservationPlan(Math.random, {
-    question: settings.questionProbability ?? 0.3,
+    question: 1,
     seen: settings.seenQuestionProbability ?? 0.75,
     audioGiven: settings.audioGivenQuestionProbability ?? 0.6,
   });
+  plan.questionMode = questionType.mode;
+  plan.keyboard = questionType.mode === 'audio-given' ? (plan.keyboard ?? 'windows-inscript') : null;
   let selected;
-  if (plan.kind === 'question') {
+  if (mode === 'random') {
+    selected = uniformAudioRow();
+    plan.requestedPool = null;
+  } else if (plan.kind === 'question') {
     const seen = seenRecordingKeys(profileCode);
     const inRequestedPool = (candidate: { sourceId: string; sourceKey: string }) =>
       seen.has(`${candidate.sourceId}\u0000${candidate.sourceKey}`) === (plan.requestedPool === 'seen');
@@ -183,7 +193,7 @@ function appendSelectedObservation(
     context.triggeredAt,
     waitingAhead,
     inFlight ? 1 : 0,
-    JSON.stringify(selected.snapshot),
+    JSON.stringify({ ...selected.snapshot, mode, questionType }),
     plan.kind,
     plan.requestedPool,
     plan.questionMode,
@@ -191,6 +201,7 @@ function appendSelectedObservation(
   );
 
   insertQueue.run(profileCode, queuePosition, observationId);
+  recordAttempt(observationId, profileCode, mode);
   logger.info('observation_selected_and_queued', {
     observationId,
     sourceId: selected.sourceId,
@@ -218,12 +229,28 @@ function appendGrammarObservation(profileCode: string, context: SelectionContext
 }
 
 export function ensureLaunchQueue(profileCode: string): boolean {
-  if(grammarActive()) {
-    if(openBatch(profileCode)||queueCount(profileCode)>0)return false;
-    db.transaction(()=>{
-      const batch=newBatch(profileCode),now=Date.now();
-      for(let i=0;i<10;i++)appendGrammarObservation(profileCode,{triggerKind:'initial-fill',triggeredByObservationId:null,triggeredByHistoryPosition:null,triggeredAt:now,legacyGroupId:batch,legacyGroupKind:'launch-fill',legacyGroupSize:10,legacyGroupPosition:i+1});
-    })();return true;
+  initializeMode(profileCode);
+  // Undisplayed weighted reservations from the earlier app become questions;
+  // their original source and complexity selections remain unchanged.
+  const old = db.prepare(`SELECT q.observation_id FROM queue_items q LEFT JOIN selection_attempts a ON a.observation_id=q.observation_id WHERE q.profile_code=? AND a.observation_id IS NULL`).all(profileCode) as Array<{observation_id:string}>;
+  for (const row of old) {
+    const question = questionChoice(profileCode);
+    db.prepare("UPDATE observation_acquisitions SET observation_kind='question',question_mode=?,question_keyboard=? WHERE observation_id=?")
+      .run(question.mode, question.mode==='audio-given'?'windows-inscript':null,row.observation_id);
+    recordAttempt(row.observation_id,profileCode,selectionMode(profileCode));
+  }
+  if (selectionMode(profileCode) === 'core') {
+    if (db.prepare('SELECT 1 FROM core_batches WHERE profile_code=? AND applied=0').get(profileCode) || queueCount(profileCode)>0) return false;
+    return db.transaction(() => {
+      const draft = draftCoreBatch(profileCode);
+      if (draft.endReason === 'completed') return false;
+      if (!draft.choices.length) throw new Error(`Core ${draft.core} is blocked: no unused audio observation for an unmastered target. Progress is preserved.`);
+      const batch = randomUUID();
+      db.prepare('INSERT INTO core_batches(id,profile_code,inventory_id,core,size,snapshot_json,end_reason) VALUES(?,?,?,?,?,?,?)')
+        .run(batch,profileCode,draft.inventoryId,draft.core,draft.choices.length,JSON.stringify(coreProgress(profileCode)),draft.endReason);
+      draft.choices.forEach((choice,slot)=>appendCoreObservation(profileCode,batch,slot,draft.choices.length,choice));
+      return true;
+    }).immediate();
   }
   const count = queueCount(profileCode);
   if (count >= 10) return false;
@@ -270,7 +297,7 @@ export function appendConsumptionReplacement(
   triggeredByHistoryPosition: number,
   triggeredAt: number,
 ): string {
-  if(grammarActive()) return '';
+  if(selectionMode(profileCode)==='core') return '';
   return appendSelectedObservation(profileCode, {
     triggerKind: 'observation-consumed',
     triggeredByObservationId,
@@ -332,12 +359,18 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
       WHERE o.id = ?
     `).get(observationId) as (SelectionContext & { profile_code: string; queuePosition: number; acquisitionNumber: number }) | undefined;
     if (!row) {
+      if (db.prepare('SELECT 1 FROM parked_queues WHERE observation_id=?').get(observationId)) {
+        db.prepare("UPDATE observations SET status='pending',preparation_attempts=0,preparation_error=NULL,preparation_retry_at=NULL WHERE id=?").run(observationId);
+        return;
+      }
       if (db.prepare('SELECT 1 FROM queue_items WHERE observation_id = ?').get(observationId)) {
         logger.error('queue_item_missing_acquisition_metadata', { observationId });
         throw new Error('Queued observation has no acquisition.');
       }
       return;
     }
+    const coreAttempt=selectionAttempt(observationId,row.profile_code);
+    if(coreAttempt?.mode==='core'){ replaceCoreObservation(row.profile_code,observationId,row);return; }
     const grammarAttempt=attempt(observationId,row.profile_code);
     if(grammarAttempt){
       db.prepare('DELETE FROM grammar_attempts WHERE observation_id=?').run(observationId);
@@ -356,4 +389,40 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
       ...getQueueCounts(row.profile_code),
     });
   })();
+}
+
+
+function appendCoreObservation(profile: string, batch: string, slot: number, size: number, choice: CoreSelection,
+  reserved?: {acquisitionNumber:number;queuePosition:number}): string {
+  const id=randomUUID(), cat=getParsingCatalog(), questionType=questionChoice(profile);
+  const snapshot={mode:'core',inventoryId:cat.identity.inventoryId,targetId:choice.target.id,
+    category:choice.target.core-1,categoryLevel:choice.target.core,core:choice.target.core,
+    label:choice.target.label,kind:choice.target.kind,chain:choice.target.chain??null,
+    chainAlternatives:choice.target.chain_alternatives??null,nesting:'linear',
+    sourceId:choice.row.source_id,sourceKey:choice.row.source_key,rowId:choice.row.id,
+    textHash:choice.row.text_hash,length:choice.row.length,transition:choice.transition,
+    questionType,...cat.evidence(choice.row,choice.target.id)};
+  insertObservation.run(id,choice.row.source_id,choice.row.source_key,Date.now(),batch,'launch-fill',size,slot+1);
+  insertAcquisition.run(id,profile,reserved?.acquisitionNumber??nextAcquisitionNumber(profile),'initial-fill',null,null,Date.now(),waitingPreparationCount(),preparationInFlight()?1:0,JSON.stringify(snapshot),'question',null,questionType.mode,questionType.mode==='audio-given'?'windows-inscript':null);
+  insertQueue.run(profile,reserved?.queuePosition??nextQueuePosition(profile),id);
+  recordAttempt(id,profile,'core',{batch,slot,target:choice.target.id,core:choice.target.core,textHash:choice.row.text_hash});
+  return id;
+}
+
+function replaceCoreObservation(profile: string, id: string, reserved: {acquisitionNumber:number;queuePosition:number}): void {
+  const a=selectionAttempt(id,profile)!;
+  const batch=db.prepare('SELECT size FROM core_batches WHERE id=?').get(a.batch_id) as {size:number};
+  const context=selectionContext(profile,a.core!);
+  const replacement=getParsingCatalog().shortest(a.target_id!,context.excluded,context.blocked);
+  if(replacement){
+    deleteObservationById.run(id);
+    appendCoreObservation(profile,a.batch_id!,a.slot!,batch.size,{target:graph().nodes[a.target_id!]!,row:replacement,transition:a.slot===0?'seed':'neighbor'},reserved);
+    return;
+  }
+  // A failed media reservation is not a wrong answer. Close the walk before
+  // this slot, release its undisplayed suffix, and apply only real answers.
+  const suffix=db.prepare('SELECT observation_id FROM selection_attempts WHERE batch_id=? AND slot>=? AND displayed_at IS NULL').all(a.batch_id,a.slot) as Array<{observation_id:string}>;
+  for(const r of suffix){db.prepare('DELETE FROM queue_items WHERE observation_id=?').run(r.observation_id);db.prepare('DELETE FROM parked_queues WHERE observation_id=?').run(r.observation_id);deleteObservationById.run(r.observation_id);}
+  db.prepare("UPDATE core_batches SET size=(SELECT COUNT(*) FROM selection_attempts WHERE batch_id=?),end_reason='unavailable-media-neighbor' WHERE id=?").run(a.batch_id,a.batch_id);
+  applyFinishedBatch(a.batch_id!);
 }

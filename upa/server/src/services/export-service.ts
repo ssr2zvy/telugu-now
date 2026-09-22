@@ -19,7 +19,8 @@ export async function generateExport(profileCode: string, count: number): Promis
   // Immutable snapshot: every selection in this export uses these exact values even if
   // profile settings are changed before this async operation finishes.
   const settings = getProfileSelectionSettings(profileCode);
-  const grammarState=grammarActive()?progress(profileCode):null;
+  // Exports preserve the original weighted selection and never consume Core progress.
+  const grammarState: ReturnType<typeof progress> | null = null;
   const entries: ExportResponse['entries'] = [];
 
   for (let index = 0; index < count; index += 1) {
