@@ -32,7 +32,7 @@ test('Core batches, mastery, per-core no repeats, parked queues and independent 
   a.prepare('INSERT INTO complexity_counts VALUES(?,?,?)').run('fleurs-te', 2, odd);
   Object.assign(process.env, { NODE_ENV: 'test', DATA_DIRECTORY: directory, DATABASE_PATH: path.join(directory, 'users.sqlite'),
     CORPUS_DATABASE_PATH: corpus, CORPUS_AVAILABILITY_PATH: availability, AUDIO_VALIDATION_PATH: path.join(directory, 'audio-validation.sqlite'),
-    CORPUS_BACKEND: 'local', PROFILE_CODES: '001,002,003', PARSING_ASSETS_DIRECTORY: assets, GRAMMAR_MIGRATION_TOKEN: 'test-operator' });
+    CORPUS_BACKEND: 'local', PROFILE_CODES: '001,002,003', PARSING_ASSETS_DIRECTORY: assets });
   const { config } = await import('../server/src/config/config');
   const { availabilityIdentity } = await import('../server/src/services/corpus-availability');
   a.prepare('INSERT INTO metadata VALUES(?,?)').run('test', availabilityIdentity(config)); a.close();
@@ -118,12 +118,20 @@ test('Core batches, mastery, per-core no repeats, parked queues and independent 
     const draws = Array.from({ length: 9 }, (_, i) => uniformAudioRow(registry, () => (i + 0.5) / 9));
     assert.equal(new Set(draws.map(r => r.sourceId + r.sourceKey)).size, 9);
     assert.ok(draws.every(r => r.snapshot.rowProbability === 1 / 9));
-    // Global builds retain the existing operator authorization, while invalid
-    // profile codes and cross-origin mutations are rejected before any work.
+    // Corpus builds no longer require an operator token. Keep profile/origin
+    // validation, and stub only the worker launch so no Python process is started.
     const { Hono } = await import('hono'); const { parsingRoutes } = await import('../server/src/parsing/routes');
-    const app = new Hono(); app.route('/', parsingRoutes());
+    let buildStarts = 0;
+    const app = new Hono(); app.route('/', parsingRoutes(() => { buildStarts += 1; }));
     assert.equal((await app.request('/999/parsing/status')).status, 404);
-    assert.equal((await app.request('/001/parsing/build', { method: 'POST' })).status, 403);
+    delete process.env.GRAMMAR_MIGRATION_TOKEN;
+    assert.equal((await app.request('/001/parsing/build', { method: 'POST' })).status, 202);
+    process.env.GRAMMAR_MIGRATION_TOKEN = 'obsolete-value';
+    assert.equal((await app.request('/001/parsing/build', { method: 'POST' })).status, 202);
+    delete process.env.GRAMMAR_MIGRATION_TOKEN;
+    assert.equal((await app.request('/999/parsing/build', { method: 'POST' })).status, 404);
+    assert.equal((await app.request('/001/parsing/build', { method: 'POST', headers: { origin: 'https://other.test', host: 'localhost' } })).status, 403);
+    assert.equal(buildStarts, 2);
     assert.equal((await app.request('/001/parsing/mode', { method: 'POST', headers: { origin: 'https://other.test', host: 'localhost' } })).status, 403);
     assert.equal((await app.request('/001/parsing/mode', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"mode":"invalid"}' })).status, 400);
     db.prepare("DELETE FROM profiles WHERE code='001'").run();
