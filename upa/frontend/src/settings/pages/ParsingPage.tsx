@@ -1,3 +1,4 @@
+import { ParsingDiagnostics } from './ParsingDiagnostics';
 import { useEffect, useRef, useState } from 'react';
 import type { ProfileStateResponse } from '../../../../shared/contracts';
 import type { ParsingStatus, SelectionMode } from '../../../../shared/parsing';
@@ -80,5 +81,6 @@ export function ParsingPage({ profileCode, onState }: { profileCode: string; onS
     </> : null}
     {(error || status?.job.error) ? <p role="alert">{error || status?.job.error}</p> : null}
     {status?.error && status.stats ? <p role="alert">{status.error}</p> : null}
+    <ParsingDiagnostics key={profileCode} profileCode={profileCode} />
   </div>;
 }

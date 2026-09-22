@@ -139,7 +139,7 @@ class PreparationService {
       let exhausted = row.preparation_attempts + 1 >= MAX_ATTEMPTS;
       if ((error instanceof AudioValidationError || error instanceof BlacklistedTextError) && error.permanent) {
         try {
-          replaceRejectedQueuedObservation(row.id);
+          replaceRejectedQueuedObservation(row.id, code);
           logger.warn('observation_preparation_rejected', {
             observationId: row.id,
             sourceId: row.source_id,

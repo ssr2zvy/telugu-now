@@ -59,15 +59,18 @@ export function selectionContext(profile: string, core: number) {
   const blocked = db.prepare('SELECT text FROM profile_blacklisted_sentences WHERE profile_code=?').all(profile) as Array<{ text: string }>;
   return { excluded: [...new Set([...used, ...reserved].map(r => r.text_hash))], blocked: blocked.map(r => r.text) };
 }
-export interface CoreSelection { target: CoreTarget; row: CoreRow; transition: 'seed' | 'neighbor'; }
-export function draftCoreBatch(profile: string, random = Math.random): { choices: CoreSelection[]; core: number; inventoryId: string; endReason: string } {
+export interface CoreSelection { target: CoreTarget; row: CoreRow; transition: 'seed' | 'neighbor'; decision?: { considered: string[]; available: string[] };  }
+export function draftCoreBatch(profile: string, random = Math.random): { choices: CoreSelection[]; core: number; inventoryId: string; endReason: string; stopDecision?: { considered:string[]; available:string[] } } {
   const catalog = getParsingCatalog(), p = coreProgress(profile, catalog.identity.inventoryId);
   if (p.core === 4) return { choices: [], core: 4, inventoryId: catalog.identity.inventoryId, endReason: 'completed' };
   const { excluded, blocked } = selectionContext(profile, p.core);
   const targets = Object.values(graph().nodes).filter(n => n.core === p.core);
+  let decision = { considered: [] as string[], available: [] as string[] };
   const pick = (options: CoreTarget[]) => {
     const candidates = options.flatMap(target => { const row = catalog.shortest(target.id, excluded, blocked); return row ? [{ target, row }] : []; });
-    return candidates[Math.floor(random() * candidates.length)];
+    decision = { considered:options.map(t=>t.id), available:candidates.map(c=>c.target.id) };
+    const selected = candidates[Math.floor(random() * candidates.length)];
+    return selected ? { ...selected, decision } : undefined;
   };
   const choices: CoreSelection[] = [];
   let next = pick(targets.filter(t => (p.streaks[t.id] ?? 0) < 3));
@@ -77,6 +80,6 @@ export function draftCoreBatch(profile: string, random = Math.random): { choices
     const neighbors = new Set(next.target.neighbors);
     next = pick(targets.filter(t => neighbors.has(t.id)));
   }
-  return { choices, core: p.core, inventoryId: catalog.identity.inventoryId,
+  return { choices, core: p.core, inventoryId: catalog.identity.inventoryId, ...(choices.length < 10 ? { stopDecision: decision } : {}),
     endReason: choices.length === 10 ? 'batch-full' : choices.length ? 'no-unused-neighbor' : 'no-unused-unmastered-target' };
 }
