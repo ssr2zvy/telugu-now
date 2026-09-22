@@ -28,6 +28,8 @@ interface UseSettingsControllerOptions {
   onQueueReset: (state: ProfileStateResponse) => void;
 }
 export interface SettingsController {
+  acceptState: (state: ProfileStateResponse) => void;
+  acceptSettings: (settings: ProfileSelectionSettings) => void;
   page: SettingsPage;
   language: UiLanguage;
   queueResetting: boolean;
@@ -58,6 +60,7 @@ export function useSettingsController({
   profileCode,
   state,
   onAudioSettingsSaved,
+  onSettingsSaved,
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
@@ -181,6 +184,8 @@ export function useSettingsController({
     }
   };
   return {
+    acceptState: onQueueReset,
+    acceptSettings: onSettingsSaved,
     page,
     language,
     queueResetting,

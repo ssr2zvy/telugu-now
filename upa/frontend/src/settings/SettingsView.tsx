@@ -1,3 +1,5 @@
+import { ParsingPage } from './pages/ParsingPage';
+import { NormalWeightingPage } from './pages/NormalWeightingPage';
 import { CategoryPage } from './pages/CategoryPage';
 import { GrammarQuestionTypePage } from './pages/GrammarQuestionTypePage';
 import { GrammarMigrationPage } from './pages/GrammarMigrationPage';
@@ -55,6 +57,8 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
+  if(page==='parsingMode')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParsingPage key={state.profileCode} profileCode={state.profileCode} onState={controller.acceptState}/></SettingsShell>;
+  if(page==='complexity'||page==='sources')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><NormalWeightingPage key={state.profileCode+page} profileCode={state.profileCode} settings={state.selectionSettings} section={page} language={language} onSaved={controller.acceptSettings}/></SettingsShell>;
   if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;
   if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
   if (settingsGroups[page] || page === 'reset') {
@@ -179,7 +183,7 @@ export function SettingsView({
   }
   if (page === 'parser') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} selected={state.currentObservation?.grammar?.target ?? null} language={language}/></SettingsShell>;
   if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;
-  if(state.currentObservation?.grammar && ['source','complexityInfo','global'].includes(page)) {
+  if(['core','grammar'].includes(String(state.currentObservation?.grammar?.target.mode)) && state.currentObservation?.grammar && ['source','complexityInfo','global'].includes(page)) {
     const g=state.currentObservation.grammar.target;
     const rows=[['Selected target',g.targetId],['Category',g.categoryLevel],['Core grammar base',g.coreBaseId??'—'],['Grammatical components',JSON.stringify(g.components??g.chain)],['Modifier chain',JSON.stringify(g.chain)],['Transcript length',g.length],['Category probabilities',JSON.stringify(g.probabilities)],['Selection probabilities',JSON.stringify(g.route)],['Route probability',g.routeProbability],['Inventory',g.inventoryId]];
     return <SettingsShell {...shellProps} title="Grammar selection" onBack={controller.backToIndex}><table className="diagnostic-table"><tbody>{rows.map(([key,value])=><tr key={String(key)}><th>{String(key)}</th><td>{String(value??'—')}</td></tr>)}</tbody></table></SettingsShell>;

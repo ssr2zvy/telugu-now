@@ -37,7 +37,8 @@ export function SettingsIndex({
   const { appearance } = useAppearance();
   const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
   const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    observations: state.grammarActive ? (language === 'en' ? 'Grammar progression · batches of 10' : 'వ్యాకరణ పురోగతి · పది ప్రశ్నల సమూహాలు') : (language === 'en' ? 'Grammar selection awaits activation' : 'వ్యాకరణ ఎంపిక ఇంకా ప్రారంభం కాలేదు'),
+    parsingMode: state.selectionMode==='core'?'Core progression':state.selectionMode==='random'?'Full random':'Normal weighted selection',
+    observations: 'Complexity · Source weights · Diagnostics',
     external: 'EPUB · HTML · App Archive',
     diagnostic: state.currentObservation
       ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`

@@ -36,7 +36,7 @@ export function recordSelection(observation:string,batch:string,slot:number,sele
   db.prepare('INSERT INTO grammar_attempts(observation_id,batch_id,slot,target_id,category,target_index) VALUES(?,?,?,?,?,?)').run(observation,batch,slot,selection.targetId,selection.category,selection.targetIndex);
 }
 export function attempt(observation:string,profile:string){return db.prepare(`SELECT g.*,b.profile_code FROM grammar_attempts g JOIN grammar_batches b ON b.id=g.batch_id WHERE g.observation_id=? AND b.profile_code=?`).get(observation,profile) as {observation_id:string;batch_id:string;slot:number;target_id:string;result:number|null}|undefined;}
-export function evaluate(profile:string,observation:string,result:boolean) {
+export function evaluate(profile:string,observation:string,result:boolean,applyProgress=true) {
   return db.transaction(()=>{
     const a=attempt(observation,profile);if(!a)throw new Error('Grammar question missing');
     // A retried identical request is idempotent even after the user has moved on.
@@ -45,7 +45,7 @@ export function evaluate(profile:string,observation:string,result:boolean) {
     if(!visible||JSON.parse(visible.presentation_state_json).questionPhase!=='observation')throw new Error('Open the evaluation page first');
     db.prepare('UPDATE grammar_attempts SET result=?,answered_at=? WHERE observation_id=? AND result IS NULL').run(Number(result),Date.now(),observation);
     const rows=db.prepare('SELECT * FROM grammar_attempts WHERE batch_id=? ORDER BY slot').all(a.batch_id) as {observation_id:string;category:number;target_index:number;result:number|null}[];
-    if(rows.length===10&&rows.every(r=>r.result!==null)){
+    if(applyProgress&&rows.length===10&&rows.every(r=>r.result!==null)){
       const batch=db.prepare('SELECT state_json,applied FROM grammar_batches WHERE id=?').get(a.batch_id) as {state_json:string;applied:number};
       if(batch.applied)return;
       const state:Progress=JSON.parse(batch.state_json),sizes=getCatalog().sizes;

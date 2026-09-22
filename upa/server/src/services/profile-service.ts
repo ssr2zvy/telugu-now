@@ -1,4 +1,5 @@
-import { grammarActive, attempt, system } from '../grammar/service';
+import { selectionMode, attempt as selectionAttempt, markDisplayed } from '../parsing/state';
+import { attempt, system } from '../grammar/service';
 import { db } from '../db/database';
 import { config } from '../config/config';
 import type {
@@ -294,7 +295,7 @@ function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
     if (value.complexityMetric === undefined && typeof value.wordCount === 'number') {
       return { ...value, complexityMetric: 'word-count', intrinsicComplexityValue: value.wordCount, globalRowsAtComplexityValue: value.globalRowsAtWordCount ?? 0, selectedSourceRowsAtComplexityValue: value.selectedSourceRowsAtWordCount ?? 0 } as SelectionSnapshot;
     }
-    if ((value as {mode?:string}).mode==='grammar') return null;
+    if (['grammar','core','random'].includes((value as {mode?:string}).mode??'')) return null;
     return value as SelectionSnapshot;
   } catch { return null; }
 }
@@ -372,7 +373,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
         durationSeconds: 0,
       } : null,
     } : null,
-    grammar: attempt(row.id,code) ? {target:JSON.parse(row.selection_snapshot_json),result:attempt(row.id,code)!.result===null?null:attempt(row.id,code)!.result===1} : null,
+    grammar: (selectionAttempt(row.id,code)??attempt(row.id,code)) ? {target:JSON.parse(row.selection_snapshot_json),result:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===null?null:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===1} : null,
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
@@ -506,7 +507,7 @@ export function loadProfile(code: string, visible: boolean): ProfileStateRespons
     // visible interval at its last heartbeat rather than counting the whole absence.
     closeStaleVisibleInterval(code, now);
     preparationService.checkQueue(code, true);
-    if(grammarActive()){try{ensureLaunchQueue(code);}catch{/* The state response exposes blocked grammar pools. */}}else ensureLaunchQueue(code);
+    if(selectionMode(code)==='core'){try{ensureLaunchQueue(code);}catch{/* The state response exposes blocked grammar pools. */}}else ensureLaunchQueue(code);
     setTailVisibility(code, visible, now);
     recordCurrentObservationView(db, code, 'load', now);
   }).immediate();
@@ -519,7 +520,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   ensureProfileRow(code);
   const now = Date.now();
   let grammarError: string|null=null;
-  if(grammarActive()){try{ensureLaunchQueue(code);}catch(e){grammarError=e instanceof Error?e.message:'Grammar selection unavailable';}}
+  if(selectionMode(code)==='core'){try{ensureLaunchQueue(code);}catch(e){grammarError=e instanceof Error?e.message:'Grammar selection unavailable';}}
   preparationService.checkQueue(code);
   preparationService.kick();
   setTailVisibility(code, visible, now);
@@ -535,8 +536,9 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
 
   return {
     grammarError,
-    grammarActive: grammarActive(),
-    grammarMigrationAvailable: process.env.GRAMMAR_MIGRATION_ENABLED==='true',
+    grammarActive: selectionMode(code)==='core',
+    grammarMigrationAvailable: false,
+    selectionMode: selectionMode(code),
     profileCode: code,
     currentPosition: profile.current_position,
     historyLength: length,
@@ -575,7 +577,7 @@ export function setProfileVisibility(code: string, visible: boolean): void {
 export function resetQueue(code: string, visible: boolean): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
-  if (grammarActive()) {
+  if (selectionMode(code)==='core') {
     db.prepare(`UPDATE observations SET preparation_attempts=0,preparation_retry_at=NULL,preparation_error=NULL WHERE status='pending' AND preparation_error IS NOT NULL AND id IN(SELECT observation_id FROM queue_items WHERE profile_code=?)`).run(code);
     preparationService.kick();return getProfileState(code,visible);
   }
@@ -591,9 +593,8 @@ export function updateSelectionSettingsAndResetQueue(
 ): ProfileSelectionSettings {
   assertValidProfileCode(code);
   ensureProfileRow(code);
-  if(grammarActive() && (request.sourceWeights!==undefined || request.complexityPercentileTarget!==undefined || request.complexityPercentileSpread!==undefined || request.questionProbability!==undefined || request.seenQuestionProbability!==undefined)) throw new NavigationUnavailableError('Legacy sampling controls have been replaced');
   const settings = updateProfileSelectionSettings(code, request);
-  if(!grammarActive()){clearQueue(code);ensureLaunchQueue(code);preparationService.kick();}
+  if(selectionMode(code)==='weighted'){clearQueue(code);ensureLaunchQueue(code);preparationService.kick();}
   return settings;
 }
 
@@ -662,9 +663,9 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
 
     if(profile.current_position!==null){
       const currentId=(db.prepare('SELECT observation_id FROM history_entries WHERE profile_code=? AND history_position=?').get(code,profile.current_position) as {observation_id:string}|undefined)?.observation_id;
-      if(currentId && attempt(currentId,code)?.result===null)throw new NavigationUnavailableError('Self-evaluate this question first');
+      if(currentId && (selectionAttempt(currentId,code)??attempt(currentId,code))?.result===null)throw new NavigationUnavailableError('Self-evaluate this question first');
     }
-    if(grammarActive())ensureLaunchQueue(code);
+    if(selectionMode(code)==='core')ensureLaunchQueue(code);
 
     // History mode: walk right through already-seen entries and do not consume queue.
     if (
@@ -703,6 +704,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
       ) VALUES (?, ?, ?, ?, ?)
     `).run(code, newHistoryPosition, queued.observation_id, now, visible ? now : null);
     recordFirstDisplay(code, queued.observation_id, now);
+    markDisplayed(code, queued.observation_id);
 
     db.prepare(`
       DELETE FROM queue_items
