@@ -1,3 +1,4 @@
+import { coreEvent, initializeCoreDiagnostics } from './audit';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -43,6 +44,8 @@ CREATE INDEX IF NOT EXISTS attempts_for_batch ON selection_attempts(batch_id,slo
 CREATE INDEX IF NOT EXISTS attempts_for_profile_core ON selection_attempts(profile_code,core,displayed_at);
 `);
 
+initializeCoreDiagnostics();
+
 export interface ParsingSystem { catalog_path: string | null; inventory_id: string | null; corpus_stamp: string | null; job_json: string }
 export const system = () => db.prepare('SELECT * FROM parsing_system WHERE id=1').get() as ParsingSystem;
 export const selectionMode = (profile: string): SelectionMode => (db.prepare('SELECT mode FROM selection_modes WHERE profile_code=?').get(profile) as { mode: SelectionMode } | undefined)?.mode ?? 'weighted';
@@ -66,6 +69,7 @@ export function switchMode(profile: string, mode: SelectionMode): void {
     db.prepare('INSERT INTO queue_items SELECT profile_code,queue_position,observation_id FROM parked_queues WHERE profile_code=? AND mode=?').run(profile, mode);
     db.prepare('DELETE FROM parked_queues WHERE profile_code=? AND mode=?').run(profile, mode);
     db.prepare('UPDATE selection_modes SET mode=? WHERE profile_code=?').run(mode, profile);
+    coreEvent(profile, 'mode-changed', {}, { from: old, to: mode });
   }).immediate();
 }
 
@@ -106,26 +110,31 @@ export function markDisplayed(profile: string, id: string): void {
     db.prepare('INSERT INTO core_used VALUES(?,?,?,?,?)').run(profile, a.core, a.text_hash, id, now);
   }
   db.prepare('UPDATE selection_attempts SET displayed_at=? WHERE observation_id=?').run(now, id);
+  if (a.mode === 'core') coreEvent(profile, 'observation-displayed', { core:a.core,batchId:a.batch_id,observationId:id,targetId:a.target_id,slot:a.slot }, { displayedAt:now }, `displayed:${id}`);
 }
 
 export function applyFinishedBatch(batchId: string): void {
   const batch = db.prepare('SELECT * FROM core_batches WHERE id=?').get(batchId) as { profile_code: string; inventory_id: string; core: number; size: number; applied: number };
   if (batch.applied) return;
-  const rows = db.prepare('SELECT target_id,result FROM selection_attempts WHERE batch_id=? ORDER BY slot').all(batchId) as Array<{ target_id: string; result: number | null }>;
+  const rows = db.prepare('SELECT target_id,result,observation_id,slot FROM selection_attempts WHERE batch_id=? ORDER BY slot').all(batchId) as Array<{ target_id: string; result: number | null; observation_id:string; slot:number }>;
   if (rows.length !== batch.size || rows.some(r => r.result === null)) return;
   const p = coreProgress(batch.profile_code, batch.inventory_id);
   if (p.core !== batch.core) throw new Error('Core batch is out of sequence');
   for (const r of rows) {
+    const before = p.streaks[r.target_id] ?? 0;
     const streak = r.result === 1 ? Math.min(3, (p.streaks[r.target_id] ?? 0) + 1) : 0;
     p.streaks[r.target_id] = streak;
+    coreEvent(batch.profile_code, 'progress-applied', { inventoryId:batch.inventory_id,core:batch.core,batchId,observationId:r.observation_id,targetId:r.target_id,slot:r.slot }, { result:r.result===1,before,after:streak,masteredBefore:before===3,masteredAfter:streak===3 }, `progress:${r.observation_id}`);
     db.prepare('INSERT INTO core_streaks VALUES(?,?,?,?,?) ON CONFLICT(profile_code,inventory_id,target_id) DO UPDATE SET streak=excluded.streak')
       .run(batch.profile_code, batch.inventory_id, batch.core, r.target_id, streak);
   }
   const targets = Object.values(graph().nodes).filter(n => n.core === p.core);
   if (targets.length && targets.every(t => (p.streaks[t.id] ?? 0) >= 3)) {
     db.prepare('UPDATE core_progress SET core=core+1 WHERE profile_code=?').run(batch.profile_code);
+    coreEvent(batch.profile_code, 'core-advanced', { inventoryId:batch.inventory_id,core:batch.core,batchId }, { from:batch.core,to:batch.core+1 }, `advance:${batchId}`);
   }
   db.prepare('UPDATE core_batches SET applied=1 WHERE id=?').run(batchId);
+  coreEvent(batch.profile_code, 'batch-applied', { inventoryId:batch.inventory_id,core:batch.core,batchId }, { answers:rows.length,streaks:p.streaks }, `applied:${batchId}`);
 }
 
 export function evaluate(profile: string, id: string, result: boolean): void {
@@ -140,6 +149,7 @@ export function evaluate(profile: string, id: string, result: boolean): void {
     if (!visible || JSON.parse(visible.presentation_state_json).questionPhase !== 'observation') throw new Error('Open the evaluation page first');
     markDisplayed(profile, id);
     db.prepare('UPDATE selection_attempts SET result=?,answered_at=? WHERE observation_id=?').run(Number(result), Date.now(), id);
+    if (a.mode === 'core') coreEvent(profile, 'answer-recorded', { core:a.core,batchId:a.batch_id,observationId:id,targetId:a.target_id,slot:a.slot }, { result,applied:false }, `answer:${id}`);
     if (a.batch_id) applyFinishedBatch(a.batch_id);
   }).immediate();
 }

@@ -1,3 +1,5 @@
+import { stream } from 'hono/streaming';
+import { parsingDiagnostics, diagnosticEvents, diagnosticExport } from './diagnostics';
 import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config/config';
@@ -39,6 +41,30 @@ export function parsingRoutes() {
     await next();
   });
   app.get('/:code/parsing/status', c => c.json(parsingStatus(c.req.param('code'))));
+  app.get('/:code/parsing/diagnostics', c => {
+    c.header('Cache-Control','no-store');
+    try { return c.json(parsingDiagnostics(c.req.param('code'))); }
+    catch(e) { return c.json({error:e instanceof Error?e.message:'Diagnostics unavailable'},409); }
+  });
+  app.get('/:code/parsing/diagnostics/events', c => {
+    c.header('Cache-Control','no-store');
+    const core=Number(c.req.query('core')??1), before=Number(c.req.query('before')??Number.MAX_SAFE_INTEGER);
+    if (![1,2,3].includes(core)||!Number.isSafeInteger(before)||before<1) return c.json({error:'Invalid core or cursor'},400);
+    const events=diagnosticEvents(c.req.param('code'),core,before);
+    return c.json({events,nextBefore:events.length===50?events.at(-1)!.seq:null});
+  });
+  app.get('/:code/parsing/diagnostics/export', c => {
+    let result:ReturnType<typeof diagnosticExport>;
+    try {result=diagnosticExport(c.req.param('code'));}
+    catch(e) {return c.json({error:e instanceof Error?e.message:'Export unavailable'},409);}
+    c.header('Content-Type','application/json; charset=utf-8');
+    c.header('Content-Disposition',`attachment; filename="telugu-core-diagnostics-${new Date().toISOString().replace(/[:.]/g,'-')}.json"`);
+    c.header('Cache-Control','no-store');
+    return stream(c,async output=>{
+      try {for await(const chunk of result.chunks) {if(output.aborted) break;await output.write(chunk);}}
+      finally {result.close();}
+    });
+  });
   app.post('/:code/parsing/build', c => {
     // Keep the existing global-worker operator gate. Mode choices and reading
     // statistics remain profile operations and need no operator credential.

@@ -1,3 +1,4 @@
+import { coreEvent } from '../parsing/audit';
 import { openBatch, grammarSelect, recordSelection, attempt } from '../grammar/service';
 import { selectionMode, initializeMode, questionChoice, recordAttempt, graph, coreProgress, applyFinishedBatch, attempt as selectionAttempt } from '../parsing/state';
 import { draftCoreBatch, getParsingCatalog, selectionContext, type CoreSelection } from '../parsing/catalog';
@@ -241,16 +242,31 @@ export function ensureLaunchQueue(profileCode: string): boolean {
   }
   if (selectionMode(profileCode) === 'core') {
     if (db.prepare('SELECT 1 FROM core_batches WHERE profile_code=? AND applied=0').get(profileCode) || queueCount(profileCode)>0) return false;
-    return db.transaction(() => {
+    let blockedError: string | null = null;
+    const added = db.transaction(() => {
       const draft = draftCoreBatch(profileCode);
       if (draft.endReason === 'completed') return false;
-      if (!draft.choices.length) throw new Error(`Core ${draft.core} is blocked: no unused audio observation for an unmastered target. Progress is preserved.`);
+      if (!draft.choices.length) {
+        blockedError = `Core ${draft.core} is blocked: no unused audio observation for an unmastered target. Progress is preserved.`;
+        const last = db.prepare('SELECT type,core,inventory_id FROM core_diagnostic_events WHERE profile_code=? ORDER BY seq DESC LIMIT 1').get(profileCode) as {type:string;core:number;inventory_id:string}|undefined;
+        if (last?.type !== 'walk-blocked' || last.core !== draft.core || last.inventory_id !== draft.inventoryId)
+          coreEvent(profileCode, 'walk-blocked', {inventoryId:draft.inventoryId,core:draft.core}, {reason:draft.endReason,decision:draft.stopDecision});
+        return false;
+      }
       const batch = randomUUID();
+      const previous = db.prepare('SELECT id,core,end_reason FROM core_batches WHERE profile_code=? ORDER BY rowid DESC LIMIT 1').get(profileCode) as {id:string;core:number;end_reason:string}|undefined;
       db.prepare('INSERT INTO core_batches(id,profile_code,inventory_id,core,size,snapshot_json,end_reason) VALUES(?,?,?,?,?,?,?)')
         .run(batch,profileCode,draft.inventoryId,draft.core,draft.choices.length,JSON.stringify(coreProgress(profileCode)),draft.endReason);
+      coreEvent(profileCode, 'walk-started', {inventoryId:draft.inventoryId,core:draft.core,batchId:batch},
+        {reason:!previous?'initial-seed':previous.core!==draft.core?'core-advanced':previous.end_reason,
+         previousBatchId:previous?.id??null,previousCore:previous?.core??null,randomRestart:Boolean(previous),size:draft.choices.length}, `start:${batch}`);
       draft.choices.forEach((choice,slot)=>appendCoreObservation(profileCode,batch,slot,draft.choices.length,choice));
+      coreEvent(profileCode, 'walk-closed', {inventoryId:draft.inventoryId,core:draft.core,batchId:batch},
+        {reason:draft.endReason,stage:'draft',size:draft.choices.length,lastTargetId:draft.choices.at(-1)?.target.id,decision:draft.stopDecision}, `close:${batch}`);
       return true;
     }).immediate();
+    if (blockedError) throw new Error(blockedError);
+    return added;
   }
   const count = queueCount(profileCode);
   if (count >= 10) return false;
@@ -345,7 +361,7 @@ export function clearQueue(profileCode: string): void {
   logger.info('queue_reset', { removed: queued.length, durationMs: Date.now() - startedAt, ...getQueueCounts(profileCode) });
 }
 
-export function replaceRejectedQueuedObservation(observationId: string): void {
+export function replaceRejectedQueuedObservation(observationId: string, rejectionReason = 'rejected-reservation'): void {
   const startedAt = Date.now();
   db.transaction(() => {
     const row = db.prepare(`
@@ -370,7 +386,7 @@ export function replaceRejectedQueuedObservation(observationId: string): void {
       return;
     }
     const coreAttempt=selectionAttempt(observationId,row.profile_code);
-    if(coreAttempt?.mode==='core'){ replaceCoreObservation(row.profile_code,observationId,row);return; }
+    if(coreAttempt?.mode==='core'){ replaceCoreObservation(row.profile_code,observationId,row,rejectionReason);return; }
     const grammarAttempt=attempt(observationId,row.profile_code);
     if(grammarAttempt){
       db.prepare('DELETE FROM grammar_attempts WHERE observation_id=?').run(observationId);
@@ -406,17 +422,21 @@ function appendCoreObservation(profile: string, batch: string, slot: number, siz
   insertAcquisition.run(id,profile,reserved?.acquisitionNumber??nextAcquisitionNumber(profile),'initial-fill',null,null,Date.now(),waitingPreparationCount(),preparationInFlight()?1:0,JSON.stringify(snapshot),'question',null,questionType.mode,questionType.mode==='audio-given'?'windows-inscript':null);
   insertQueue.run(profile,reserved?.queuePosition??nextQueuePosition(profile),id);
   recordAttempt(id,profile,'core',{batch,slot,target:choice.target.id,core:choice.target.core,textHash:choice.row.text_hash});
+  const prior = db.prepare('SELECT target_id FROM selection_attempts WHERE batch_id=? AND slot=?').get(batch,slot-1) as {target_id:string}|undefined;
+  coreEvent(profile,'observation-selected',{inventoryId:cat.identity.inventoryId,core:choice.target.core,batchId:batch,observationId:id,targetId:choice.target.id,slot},
+    {snapshot,catalogIdentity:cat.identity,text:choice.row.text,fromTargetId:prior?.target_id??null,transition:choice.transition,decision:choice.decision??null},`selected:${id}`);
   return id;
 }
 
-function replaceCoreObservation(profile: string, id: string, reserved: {acquisitionNumber:number;queuePosition:number}): void {
+function replaceCoreObservation(profile: string, id: string, reserved: {acquisitionNumber:number;queuePosition:number}, rejectionReason: string): void {
   const a=selectionAttempt(id,profile)!;
   const batch=db.prepare('SELECT size FROM core_batches WHERE id=?').get(a.batch_id) as {size:number};
   const context=selectionContext(profile,a.core!);
   const replacement=getParsingCatalog().shortest(a.target_id!,context.excluded,context.blocked);
   if(replacement){
     deleteObservationById.run(id);
-    appendCoreObservation(profile,a.batch_id!,a.slot!,batch.size,{target:graph().nodes[a.target_id!]!,row:replacement,transition:a.slot===0?'seed':'neighbor'},reserved);
+    const newId=appendCoreObservation(profile,a.batch_id!,a.slot!,batch.size,{target:graph().nodes[a.target_id!]!,row:replacement,transition:a.slot===0?'seed':'neighbor'},reserved);
+    coreEvent(profile,'observation-replaced',{core:a.core,batchId:a.batch_id,observationId:newId,targetId:a.target_id,slot:a.slot},{oldObservationId:id,newObservationId:newId,reason:rejectionReason,movementChanged:false},`replacement:${id}`);
     return;
   }
   // A failed media reservation is not a wrong answer. Close the walk before
@@ -424,5 +444,7 @@ function replaceCoreObservation(profile: string, id: string, reserved: {acquisit
   const suffix=db.prepare('SELECT observation_id FROM selection_attempts WHERE batch_id=? AND slot>=? AND displayed_at IS NULL').all(a.batch_id,a.slot) as Array<{observation_id:string}>;
   for(const r of suffix){db.prepare('DELETE FROM queue_items WHERE observation_id=?').run(r.observation_id);db.prepare('DELETE FROM parked_queues WHERE observation_id=?').run(r.observation_id);deleteObservationById.run(r.observation_id);}
   db.prepare("UPDATE core_batches SET size=(SELECT COUNT(*) FROM selection_attempts WHERE batch_id=?),end_reason='unavailable-media-neighbor' WHERE id=?").run(a.batch_id,a.batch_id);
+  coreEvent(profile,'walk-truncated',{core:a.core,batchId:a.batch_id,observationId:id,targetId:a.target_id,slot:a.slot},
+    {reason:'unavailable-media-neighbor',rejectionReason,discardedObservationIds:suffix.map(r=>r.observation_id),reseedAfterRemainingAnswers:true},`truncate:${id}`);
   applyFinishedBatch(a.batch_id!);
 }
