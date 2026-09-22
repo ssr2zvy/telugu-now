@@ -40,6 +40,7 @@ test('Core batches, mastery, per-core no repeats, parked queues and independent 
   for (const code of ['001', '002', '003']) db.prepare('INSERT INTO profiles(code,created_at,updated_at) VALUES(?,0,0)').run(code);
   const state = await import('../server/src/parsing/state');
   const { corpusStamp } = await import('../server/src/parsing/catalog');
+  const questions = await import('../server/src/services/question-response-service');
   const file = path.join(directory, 'parsing.sqlite'), c = new Database(file);
   c.exec(`CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);CREATE TABLE rows(id INTEGER PRIMARY KEY,source_id TEXT,source_key TEXT,text_hash TEXT,length INTEGER,audio_key TEXT);
     CREATE TABLE members(target_id TEXT,row_id INTEGER,core INTEGER,length INTEGER,PRIMARY KEY(target_id,row_id));CREATE INDEX shortest_member ON members(target_id,length,row_id);
@@ -69,6 +70,7 @@ test('Core batches, mastery, per-core no repeats, parked queues and independent 
     state.markDisplayed(profile, id); state.markDisplayed(profile, id);
     state.evaluate(profile, id, correct); state.evaluate(profile, id, correct);
     assert.throws(() => state.evaluate(profile, id, !correct), /final/);
+    assert.throws(() => questions.updateQuestionText(db, profile, id, { text: 'too late' }), /final/);
   };
   const oldRandom = Math.random; Math.random = () => 0;
   try {
