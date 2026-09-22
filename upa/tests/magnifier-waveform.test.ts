@@ -3,13 +3,13 @@ import test from 'node:test';
 import { magnifierWindow, magnifierBarLayout, magnifierWaveform } from '../frontend/src/observation/audio/magnifier-waveform';
 import { encodePreparedAudio } from '../frontend/src/observation/audio/prepared-audio';
 
-test('magnifier retains one second across clip lengths and both endpoints', () => {
+test('magnifier retains half a second across clip lengths and both endpoints', () => {
   for (const duration of [0, .25, 1, 10, 60, 120]) for (const time of [-1, 0, duration / 2, duration, duration + 1]) {
     const window = magnifierWindow(duration, time);
     assert.ok(window.start >= 0 && window.end <= duration);
-    assert.equal(window.end - window.start, Math.min(1, duration));
+    assert.equal(window.end - window.start, Math.min(.5, duration));
   }
-  assert.deepEqual(magnifierWindow(60, 25), { start: 24.5, end: 25.5 });
+  assert.deepEqual(magnifierWindow(60, 25), { start: 24.75, end: 25.25 });
   assert.deepEqual(magnifierWindow(NaN, Infinity), { start: 0, end: 0 });
 });
 test('waveform bars keep approximately four-pixel widths without overflowing', () => {

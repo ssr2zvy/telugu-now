@@ -3,6 +3,7 @@ import type { DisplayObservation, ObservationAudio } from '../../../shared/contr
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../appearance';
 import type { ObservationFontFamily } from '../presentation';
 import { AudioPlayerBar, type AudioPlayerBarHandle } from './audio/AudioPlayerBar';
+import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguWordText } from './TeluguGradientText';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
@@ -43,34 +44,19 @@ function ComparisonText({ text, fontFamily, onReady }: {
     <TeluguWordText text={text} runs={runs} textures={presentation?.key === key ? presentation.textures : null} />
   </div>;
 }
-
-function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, player, onToggle, onReady }: {
+function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, player, onReady }: {
   audio: ObservationAudio | null;
   observationId: string;
   sourceId: string;
   sourceKey: string;
   playbackRate: number;
   player: RefObject<AudioPlayerBarHandle | null>;
-  onToggle: () => void;
   onReady: () => void;
 }) {
-  const clickTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!audio) onReady();
   }, [audio, onReady]);
-  useEffect(() => () => {
-    if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
-  }, []);
-  return <div className="question-comparison-audio" onClick={event => {
-    if (event.target instanceof Element && event.target.closest('button, [role="slider"]')) return;
-    clickTimer.current = window.setTimeout(() => {
-      clickTimer.current = null;
-      onToggle();
-    }, 220);
-  }} onDoubleClick={() => {
-    if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
-    clickTimer.current = null;
-  }}>
+  return <div className="question-comparison-audio">
     {audio ? <AudioPlayerBar
       ref={player}
       observationId={observationId}
@@ -96,6 +82,8 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
   const { appearance } = useAppearance();
   const glass = useMemo(() => appearanceAudioGlass(appearance, 0.45), [appearance.gradient]);
   const question = observation.question!;
+  const [taps] = useState(() => new ReaderTaps());
+  useEffect(() => () => taps.cancel(), [taps, observation.id]);
   const correctPlayer = useRef<AudioPlayerBarHandle>(null);
   const userPlayer = useRef<AudioPlayerBarHandle>(null);
   const [userReady, setUserReady] = useState(false);
@@ -117,28 +105,41 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
   };
   return <div className="question-comparison" data-ready={userReady && correctReady}
     style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}
-    onClick={event => event.stopPropagation()}
-    onDoubleClickCapture={event => {
+    onClick={event => {
+      event.stopPropagation();
+      if (event.target instanceof Element && event.target.closest('button, [role="slider"], .audio-player-bar')) {
+        taps.cancel();
+        return;
+      }
+      const region = readerTapRegions(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect());
+      const userSide = event.target instanceof Element && Boolean(event.target.closest('.question-comparison-user'));
+      const player = userSide ? userPlayer : correctPlayer;
+      taps.tap(`${region.double}:${userSide ? 'user' : 'correct'}`, event.clientX, event.clientY, () => {
+        if (region.double === 'back') onBack();
+        else if (region.double === 'next') onAdvance();
+        else if (!textComparison) player.current?.toggleAssociatedControls();
+      }, () => {
+        if (!textComparison) (userSide ? toggleUserAudio : toggleCorrectAudio)();
+      });
+    }}
+    onDoubleClick={event => {
+      // ReaderTaps handles both mouse clicks and touch taps; never run navigation twice.
       event.preventDefault();
       event.stopPropagation();
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const horizontal = (event.clientX - bounds.left) / bounds.width;
-      if (horizontal < 1 / 3) onBack();
-      else if (horizontal >= 2 / 3) onAdvance();
     }}>
     <section className="question-comparison-side question-comparison-correct" aria-label="Correct answer">
       {textComparison
         ? <ComparisonText text={observation.text} fontFamily={fontFamily} onReady={markCorrectReady} />
         : <ComparisonAudio audio={observation.audio} observationId={`${observation.id}:correct`}
           sourceId={observation.sourceId} sourceKey={observation.sourceKey} playbackRate={playbackRate}
-          player={correctPlayer} onToggle={toggleCorrectAudio} onReady={markCorrectReady} />}
+          player={correctPlayer} onReady={markCorrectReady} />}
     </section>
     <section className="question-comparison-side question-comparison-user" aria-label="Your answer">
       {textComparison
         ? <ComparisonText text={question.responseText || '—'} fontFamily={fontFamily} onReady={markUserReady} />
         : <ComparisonAudio audio={question.responseAudio} observationId={`${observation.id}:user`}
           sourceId="question-response" sourceKey={observation.id} playbackRate={playbackRate}
-          player={userPlayer} onToggle={toggleUserAudio} onReady={markUserReady} />}
+          player={userPlayer} onReady={markUserReady} />}
     </section>
   </div>;
 }
