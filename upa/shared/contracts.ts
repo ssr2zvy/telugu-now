@@ -310,7 +310,6 @@ export interface UpcomingPresentationHint {
 export interface ProfileStateResponse {
   grammarError?: string|null;
   grammarActive?: boolean;
-  selectionMode?: 'weighted' | 'core' | 'random';
   grammarMigrationAvailable?: boolean;
   profileCode: string;
   currentPosition: number | null;

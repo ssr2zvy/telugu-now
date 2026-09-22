@@ -12,7 +12,6 @@ RUN npm ci --include=dev --no-audit --no-fund
 FROM dependencies AS build
 COPY upa/ ./
 COPY data-transform/scripts/build-grammar/ /app/data-transform/scripts/build-grammar/
-COPY data-transform/scripts/parse-core/ /app/data-transform/scripts/parse-core/
 COPY ci-cd/make-artifacts.sh /app/ci-cd/make-artifacts.sh
 RUN bash /app/ci-cd/make-artifacts.sh
 

@@ -1,4 +1,3 @@
-import { parsingRoutes } from './parsing/routes';
 import { grammarRoutes } from './grammar/routes';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -96,7 +95,6 @@ app.get('/api/data-sources', (c) =>
 app.on(['GET', 'HEAD'], '/api/audio/*', serveAudio());
 app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
-app.route('/api/profiles', parsingRoutes());
 app.route('/api/profiles', grammarRoutes());
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', profileEonsRoutes(db, code => config.profileCodes.has(code)));
