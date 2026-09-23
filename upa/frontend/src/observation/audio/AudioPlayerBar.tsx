@@ -26,6 +26,7 @@ interface AudioPlayerBarProps {
   onPlaybackErrorChange?: (error: string | null) => void;
   recordingRange?: RecordingTimeline | null;
   reserveAudioSpace?: boolean;
+  persistentDisclosure?: boolean;
 }
 
 export interface AudioPlayerBarHandle {
@@ -38,6 +39,7 @@ export interface AudioPlayerBarHandle {
   beginRecording: () => number;
   prepareAudioReplacement: (cursorSeconds: number) => void;
   isPrecisionOpen: () => boolean;
+  openAssociatedControls: () => void;
   dismissPrecision: () => boolean;
   toggleAssociatedControls: () => boolean;
 }
@@ -58,6 +60,7 @@ export function AudioPlayerBar({
   onPlaybackErrorChange,
   recordingRange = null,
   reserveAudioSpace = false,
+  persistentDisclosure = false,
 }: AudioPlayerBarProps) {
   const recordingActive = Boolean(recordingRange);
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId, autoplay, playbackEnabled);
@@ -107,6 +110,9 @@ export function AudioPlayerBar({
     },
     prepareAudioReplacement: player.prepareReplacementAt,
     isPrecisionOpen: () => magnifierOpen,
+    openAssociatedControls: () => {
+      if (controlsVisible && audio && !recordingActive && !associatedControlsOpen) dispatchPrecision('toggle-visibility');
+    },
     dismissPrecision: () => {
       if (!controlsVisible || !associatedControlsOpen) return false;
       closePrecision();
@@ -135,10 +141,10 @@ export function AudioPlayerBar({
     precisionBeforeRecording.current = null;
   }, [recordingActive]);
   useEffect(() => {
-    if (recordingActive || precisionMode.playback !== 'controls') return;
+    if (persistentDisclosure || recordingActive || precisionMode.playback !== 'controls') return;
     const timer = window.setTimeout(() => dispatchPrecision('toggle-controls'), appearance.autoFadeSeconds * 1000);
     return () => window.clearTimeout(timer);
-  }, [recordingActive, precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
+  }, [persistentDisclosure, recordingActive, precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
   const bookmarkError = associatedControlsOpen ? player.bookmarkError : null;
   const bookmarkSelected = isBookmarkAtTime(player.bookmarks, player.currentTime);
   const playerRecordingRange = recordingRange ? {

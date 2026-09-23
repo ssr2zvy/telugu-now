@@ -2,9 +2,9 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 
 export interface GrammarEvaluationHandle { commit:()=>Promise<boolean> }
 export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
-  profileCode:string;observationId:string;result:boolean|null;
-}>(function GrammarEvaluation({profileCode,observationId,result},ref){
-  const [draft,setDraft]=useState(false);
+  profileCode:string;observationId:string;result:boolean|null;initialDraft?:boolean;onDraftChange?:(value:boolean)=>void;
+}>(function GrammarEvaluation({profileCode,observationId,result,initialDraft=false,onDraftChange},ref){
+  const [draft,setDraft]=useState(initialDraft);
   const [saved,setSaved]=useState<boolean|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -27,7 +27,7 @@ export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
   return <div className="grammar-evaluation" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()}>
     <button type="button" role="switch" className="evaluation-switch" aria-label="Answer correct"
       aria-checked={value??draft} aria-busy={busy} data-value={String(value??draft)} disabled={busy||value!==null}
-      onClick={()=>setDraft(current=>!current)}>
+      onClick={()=>{setDraft(!draft);onDraftChange?.(!draft);}}>
       <span className="evaluation-switch-indicator" aria-hidden="true" />
     </button>
     {error?<p role="alert">{error}</p>:null}

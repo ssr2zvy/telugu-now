@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useImperativeHandle, type Ref, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CircleDot, Mic } from 'lucide-react';
 import type { ObservationAudio, QuestionKeyboard, QuestionMode } from '../../../shared/contracts';
 import { appearanceAudioGlass, useAppearance } from '../appearance';
@@ -6,7 +6,10 @@ import { reportClientTelemetry, updateQuestionAudio, updateQuestionText } from '
 import { GoogleTeluguKeyboard } from './GoogleTeluguKeyboard';
 import type { RecordingTimeline } from './audio/AudioScrubber';
 
+export interface QuestionControlsHandle { prepareToLeave: () => Promise<boolean> }
+
 interface QuestionControlsProps {
+  ref?: Ref<QuestionControlsHandle>;
   profileCode: string;
   observationId: string;
   mode: QuestionMode;
@@ -43,7 +46,7 @@ function recordingFailureCategory(error: unknown): string {
   return 'recording-creation-failed';
 }
 
-export function QuestionControls({ profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, fontFamily, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
+export function QuestionControls({ ref, profileCode, observationId, mode, keyboard: _keyboard, visible, initialText, fontFamily, beginRecording, durationSeconds, onAudioSaved, onRecordingChange, onSubmit }: QuestionControlsProps) {
   const { appearance } = useAppearance();
   const paintId = `record-glass-${useId().replace(/:/g, '')}`;
   const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
@@ -51,6 +54,9 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requestingMicrophone, setRequestingMicrophone] = useState(false);
+  const savePending = useRef<Promise<boolean> | null>(null);
+  const finishSave = useRef<((saved: boolean) => void) | null>(null);
+  const saveFailed = useRef(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const recordCursor = useRef(0);
@@ -130,9 +136,15 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
     onRecordingChange(null);
     setRecording(false);
   };
+  useImperativeHandle(ref, () => ({ prepareToLeave: async () => {
+    if (requestingMicrophone) return false;
+    if (recorder.current?.state === 'recording') stopRecording();
+    if (savePending.current) return savePending.current;
+    return !saveFailed.current;
+  }}));
   const startRecording = async () => {
     if (recording) { stopRecording(); return; }
-    if (requestingMicrophone) return;
+    if (requestingMicrophone || savePending.current) return;
     setError(null);
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError(recordingErrorMessage(null));
@@ -159,6 +171,14 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       const mediaRecorder = preferred ? new MediaRecorder(mediaStream, { mimeType: preferred }) : new MediaRecorder(mediaStream);
       stream.current = mediaStream;
       recorder.current = mediaRecorder;
+      saveFailed.current = false;
+      savePending.current = new Promise(resolve => { finishSave.current = resolve; });
+      const completeSave = (saved: boolean) => {
+        saveFailed.current = !saved;
+        finishSave.current?.(saved);
+        finishSave.current = null;
+        savePending.current = null;
+      };
       const recordedChunks:Blob[]=[];
       let recordingStartedAt = 0;
       const updateRecordingFeedback = (now: number) => {
@@ -179,7 +199,9 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
         void updateQuestionAudio(profileCode, observationId, raw).then(() => {
           const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
           onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: 'audio/wav', durationSeconds: 0 });
+          completeSave(true);
         }).catch(() => {
+          completeSave(false);
           setError('Recording could not be saved.');
           reportClientTelemetry({
             event: 'recording_failed',
@@ -199,6 +221,9 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       };
       mediaRecorder.start();
     } catch (caught) {
+      finishSave.current?.(false);
+      finishSave.current = null;
+      savePending.current = null;
       setRequestingMicrophone(false);
       if (session === recordingSession.current) {
         reportClientTelemetry({
