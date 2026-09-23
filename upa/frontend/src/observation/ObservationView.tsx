@@ -85,7 +85,6 @@ export function ObservationView({
   const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);
   const seamlessAudioKey = useRef<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [questionControlsVisible, setQuestionControlsVisible] = useState(false);
   const questionControlsRef = useRef<QuestionControlsHandle>(null);
   const evaluationRef=useRef<GrammarEvaluationHandle>(null);
   const evaluationNavigation=useRef(false);
@@ -158,23 +157,19 @@ export function ObservationView({
     setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
       ? current : { key, loading, progress });
   }, []);
-  const audioControlsVisible = activeQuestion?.mode === 'text-given'
-    ? questionControlsVisible
-    : controlsVisible || Boolean(activeQuestion && visibleAudio);
-  const questionControlsAreVisible = activeQuestion?.mode === 'audio-given' || questionControlsVisible;
+  const audioControlsVisible = controlsVisible;
   // Reset page-owned presentation before paint, including any old exit animation.
   useLayoutEffect(() => {
     taps.cancel();
     seamlessAudioKey.current = null;
     setAudioError(null);
-    setQuestionControlsVisible(Boolean(textGivenFlow && observation?.question?.responseAudio));
     setAudioMotion('idle');
     setPhaseMotion('idle');
     playerRef.current?.dismissPrecision();
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
-    setControlsVisible(textComparison || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
+    setControlsVisible(textComparison || Boolean(textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
     return () => taps.cancel();
   }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
   const showsObservationText = observationShowsText(observation);
@@ -484,29 +479,21 @@ export function ObservationView({
     }
   };
   const verticalSwipe = (direction: 'up' | 'down') => {
-    if (!entryReady || recordingRange) return;
-    const visible = activeQuestion?.mode === 'text-given' ? questionControlsVisible : controlsVisible;
+    if (!entryReady) return;
+    const visible = controlsVisible;
     if (direction === 'down') {
       if (!visible) {
-        if (questionPhase) setQuestionControlsVisible(true);
-        else setControlsVisible(true);
+        setControlsVisible(true);
       } else playerRef.current?.openAssociatedControls();
     } else if (!playerRef.current?.dismissPrecision()) {
-      if (questionPhase) setQuestionControlsVisible(false);
-      else setControlsVisible(false);
+      setControlsVisible(false);
     }
   };
   const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
     `${observation?.id}:${observation?.question?.phase}`, direction => {
       taps.cancel();
       if (direction === 'up' || direction === 'down') {
-        if (textGivenFlow) verticalSwipe(direction);
-        else if (!audioGivenQuestionPhase && !comparisonPhase) {
-          if (direction === 'down') {
-            if (!controlsVisible) setControlsVisible(true);
-            else playerRef.current?.openAssociatedControls();
-          } else if (!playerRef.current?.dismissPrecision()) setControlsVisible(false);
-        }
+        verticalSwipe(direction);
       }
       else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
       else gradientTravel.cancelPreview();
@@ -763,7 +750,7 @@ export function ObservationView({
             observationId={observation.id}
             mode={activeQuestion.mode}
             keyboard={activeQuestion.keyboard}
-            visible={questionControlsAreVisible}
+            visible
             initialText={activeQuestion.responseText}
             fontFamily={typography.fontFamily}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}

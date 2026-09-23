@@ -24,7 +24,7 @@ export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
     }catch(caught){setError(caught instanceof Error?caught.message:'Could not save evaluation');return false;}
     finally{inFlight.current=false;setBusy(false);}
   }}),[value,draft,profileCode,observationId,discarded]);
-  return <div className="grammar-evaluation" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()}>
+  return <div className="grammar-evaluation" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onPointerDown={event=>{event.stopPropagation();if(discarded||busy||value!==null)event.preventDefault();}}>
     <button type="button" role="switch" className="evaluation-switch" aria-label="Answer correct"
       aria-checked={value??draft} aria-busy={busy} data-value={String(value??draft)} disabled={discarded||busy||value!==null}
       onClick={()=>{setDraft(!draft);onDraftChange?.(!draft);}}>
