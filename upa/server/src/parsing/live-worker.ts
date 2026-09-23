@@ -10,7 +10,7 @@ export interface WordStats {
   matches:Record<string,number>; parserVersion:string;
   patterns?:Record<string,{needles:string[];maxCodepoints:number;scope:string}>;
 }
-export interface WordRow {source_id:string;source_key:string;text:string;audio_key:string;word:string;occurrence:Record<string,unknown>}
+export interface WordRow {source_id:string;source_key:string;text:string;audio_key:string;word:string;matched_targets:string[];observation_selection:{policy:string;poolSize:number|null;length:number;lengthMetric:string};occurrence:Record<string,unknown>}
 export interface FindResult {row:WordRow|null;pending:boolean;source:string;checked:number;matchedWords:number;
   pattern:{needles:string[];maxCodepoints:number;scope:string};stats:WordStats}
 let child:ChildProcessWithoutNullStreams|undefined;

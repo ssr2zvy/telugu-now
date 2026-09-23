@@ -1,6 +1,5 @@
 import { useEffect,useState } from 'react';
 import type { ProfileStateResponse } from '../../../../shared/contracts';
-import { ParsingDiagnostics } from './ParsingDiagnostics';
 export function ParsingPage({profileCode,onState}:{profileCode:string;onState:(state:ProfileStateResponse)=>void}){
   const [percent,setPercent]=useState(60),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false);
   useEffect(()=>{const abort=new AbortController();
@@ -24,6 +23,5 @@ export function ParsingPage({profileCode,onState}:{profileCode:string;onState:(s
     <button type="button" disabled={busy} onClick={()=>void save()}>Save question type</button>
     <p>Applies to newly selected questions. Already queued questions keep their type.</p>
     {saved?<p role="status">Saved.</p>:null}{error?<p role="alert">{error}</p>:null}
-    <ParsingDiagnostics profileCode={profileCode}/>
   </div>;
 }

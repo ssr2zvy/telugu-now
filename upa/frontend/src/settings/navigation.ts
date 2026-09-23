@@ -4,7 +4,7 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
-  parsingMode: Workflow, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
+  diagnosticsDownload: Download, parsingMode: Workflow, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
   index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
   display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
   dataSources: Database, trigger: Workflow, source: Database,
@@ -17,10 +17,9 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
-  index: ['parsingMode', 'observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
-  observations: ['parsingMode', 'diagnostic', 'dataSources', 'blacklist', 'reset'],
+  index: ['diagnostic', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
-  diagnostic: ['parser', 'queue', 'questionInfo'],
+  diagnostic: ['parsingMode', 'diagnosticsDownload', 'queue', 'dataSources', 'blacklist', 'reset'],
   display: ['playback', 'appearance', 'images'],
 };
 
@@ -29,14 +28,14 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
-  if (page === 'parsingMode') return language === 'en' ? 'Live Parsing & Question Type' : 'పద విశ్లేషణ మరియు ఎంపిక';
+  if (page === 'diagnostic' || page === 'observations' || page === 'parser') return language === 'en' ? 'Observations & diagnostics' : 'పరిశీలనలు మరియు విశ్లేషణ';
+  if (page === 'diagnosticsDownload') return language === 'en' ? 'Download full diagnostics' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';
+  if (page === 'parsingMode') return language === 'en' ? 'Question type' : 'ప్రశ్న రకం';
   if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';
   if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';
   if (page === 'grammarMigration') return 'Grammar Migration';
   if (page === 'category') return language === 'en' ? 'Category' : 'వర్గం';
-  if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
   if (page === 'external') return language === 'en' ? 'External' : 'బాహ్య';
-  if (page === 'parser') return language === 'en' ? 'Parser' : 'పద విశ్లేషణ';
   if (page === 'epubExport') return language === 'en' ? 'EPUB Export' : 'EPUB ఎగుమతి';
   if (page === 'htmlExport') return language === 'en' ? 'HTML Export' : 'HTML ఎగుమతి';
   if (page === 'archiveExport') return language === 'en' ? 'App Archive Export' : 'యాప్ ఆర్కైవ్ ఎగుమతి';

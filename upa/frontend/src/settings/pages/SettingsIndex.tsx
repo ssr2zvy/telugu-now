@@ -37,12 +37,8 @@ export function SettingsIndex({
   const { appearance } = useAppearance();
   const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
   const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    parsingMode: 'Live word parsing · always questions',
-    observations: 'Complexity · Source weights · Diagnostics',
     external: 'EPUB · HTML · App Archive',
-    diagnostic: state.currentObservation
-      ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
-      : t(language, 'unavailable'),
+    diagnostic: 'Current chain and word · Coverage · Full history download',
     display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
     eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',
