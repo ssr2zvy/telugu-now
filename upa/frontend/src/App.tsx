@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
+import { useGradientTravel } from './GradientBackdrop';
 import { AppearanceProvider } from './appearance';
 import { ObservationView } from './observation/ObservationView';
 import { ProfileEntry } from './profile/ProfileEntry';
@@ -18,16 +19,11 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
 }) {
-  const gradientStep = useRef(0);
+  const gradientTravel = useGradientTravel();
   const [diagnosticFont, setDiagnosticFont] = useState<string | null>(null);
-  useEffect(() => {
-    if (!session.state?.currentObservation?.id) return;
-    gradientStep.current += 1;
-    const root = document.documentElement;
-    root.style.setProperty('--gradient-turn-a', `${gradientStep.current * 8}deg`);
-    root.style.setProperty('--gradient-turn-b', `${gradientStep.current * -5}deg`);
-    root.style.setProperty('--gradient-shift', `${Math.sin(gradientStep.current * 0.6) * 3}%`);
-  }, [session.state?.currentObservation?.id]);
+  useLayoutEffect(() => {
+    gradientTravel.synchronize(session.state?.currentPosition ?? null);
+  }, [gradientTravel, session.state?.currentPosition]);
   const settings = useSettingsController({
     profileCode: session.profileCode,
     state: session.state,
@@ -67,6 +63,7 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
       navigationEvent={session.navigationEvent}
       onMove={session.move}
       onOpenSettings={(fontFamily) => {
+        gradientTravel.cancelPreview();
         setDiagnosticFont(fontFamily);
         settings.prepareOpen();
         session.setObservationVisible(false);
