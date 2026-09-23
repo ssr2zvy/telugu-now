@@ -103,24 +103,10 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'blacklist') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <BlacklistPage key={state.profileCode} profileCode={state.profileCode} language={language} />
-      </SettingsShell>
-    );
-  }
   if (page === 'images') {
     return (
       <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
         <ImageGenerationPage language={language} />
-      </SettingsShell>
-    );
-  }
-  if (page === 'queue') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <QueueViewPage grammarActive={state.grammarActive??false} key={state.profileCode} profileCode={state.profileCode} language={language} />
       </SettingsShell>
     );
   }
@@ -183,7 +169,7 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation}/></SettingsShell>;
+  if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation} onState={controller.acceptState}/></SettingsShell>;
   if (page === 'diagnosticsDownload') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DiagnosticsDownloadPage profileCode={state.profileCode}/></SettingsShell>;
   if (page === 'diagnostic') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')} onNavigate={controller.enterPage}/></SettingsShell>;
   if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;

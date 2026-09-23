@@ -11,9 +11,9 @@ import type { ParsingDiagnostics, TargetDiagnostic } from '../shared/parsing-dia
 test('observations hierarchy and back navigation reach each nested page', () => {
   assert.ok(visibleSettingsEntries('index',false).includes('observations'));
   assert.ok(!visibleSettingsEntries('index',false).includes('diagnostic'));
-  assert.deepEqual(visibleSettingsEntries('observations',false),['parser','parsingMode']);
+  assert.deepEqual(visibleSettingsEntries('observations',false),['parser','parsingMode','dataSources']);
   assert.deepEqual(visibleSettingsEntries('parser',false),['parserCurrent','diagnostic']);
-  for(const [child,parent] of [['parser','observations'],['parsingMode','observations'],['parserCurrent','parser'],['diagnostic','parser'],['diagnosticsDownload','diagnostic'],['queue','diagnostic']] as const) assert.equal(parentSettingsPage(child),parent);
+  for(const [child,parent] of [['parser','observations'],['parsingMode','observations'],['parserCurrent','parser'],['diagnostic','parser'],['diagnosticsDownload','diagnostic'],['dataSources','observations']] as const) assert.equal(parentSettingsPage(child),parent);
   assert.equal(settingsPageLabel('observations','en'),'Observations');
   assert.equal(settingsPageLabel('parsingMode','en'),'Questions');
 });

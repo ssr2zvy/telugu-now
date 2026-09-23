@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
-import { ArrowLeft, Ban, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
+import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
@@ -166,20 +166,6 @@ function WordImage({ root }: { root: string }) {
     const direction = event.clientX < bounds.left + bounds.width / 2 ? -1 : 1;
     imageTaps.tap(`image:${direction}`, event.clientX, event.clientY, () => navigate(direction));
   };
-  const blacklist = async () => {
-    if (!profileCode || !current) return;
-    setMenu(null);
-    setError('');
-    try {
-      await removeWordImage(root, profileCode, current.id);
-      const saved = images.filter(image => image.id !== current.id);
-      imagesRef.current = saved;
-      setImages(saved);
-      if (!saved.length) { setCurrentIndex(0); setPane('action'); return; }
-      setCurrentIndex(Math.min(currentIndex, saved.length - 1));
-      setPane('image');
-    } catch (reason) { setError(wordImageError(reason)); }
-  };
   const copyCurrent = async () => {
     if (!current) return;
     setMenu(null);
@@ -239,7 +225,6 @@ function WordImage({ root }: { root: string }) {
       {menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
         style={{ left: menu.x, top: menu.y }} onPointerDown={event => event.stopPropagation()}>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Copy" aria-label="Copy image" onClick={() => void copyCurrent()}><Copy size={18} /></button>
-        <button className="reading-context-menu-action" role="menuitem" type="button" title="Blacklist" aria-label="Blacklist image" onClick={() => void blacklist()}><Ban size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Gallery" aria-label="Open gallery" onClick={() => { setMenu(null); setPane('gallery'); }}><Images size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Info" aria-label="Image information" onClick={() => { setMenu(null); setPane('info'); }}><Info size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
@@ -250,14 +235,13 @@ function WordImage({ root }: { root: string }) {
   );
 }
 
-export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamily, playbackRate, onBlacklistTranscript, onClose }: {
+export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
   word: string;
   observationId: string;
   wordStart: number;
   wordEnd: number;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onBlacklistTranscript: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const { appearance, profileCode } = useAppearance();
@@ -336,7 +320,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
         observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
-        onCopy={copyWord} onBlacklistTranscript={onBlacklistTranscript}
+        onCopy={copyWord}
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
         const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);

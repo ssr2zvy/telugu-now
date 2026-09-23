@@ -273,3 +273,6 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 }
 
 .observation-screen[data-text-given-flow='true'][data-entry-ready='false'] .grammar-evaluation { visibility: hidden; }
+
+.observation-screen[data-swipe-navigation='true'],
+.observation-screen[data-swipe-navigation='true'] :is(.nav-zone,.nav-region) { touch-action: pinch-zoom; }

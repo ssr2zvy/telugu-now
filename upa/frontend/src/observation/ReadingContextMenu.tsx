@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Ban, Copy } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { SettingsIcon } from '../components/icons';
 
 export type ReadingContextMenuState =
@@ -13,14 +13,13 @@ export function readingContextMenuState(x: number, y: number, word: string | nul
 interface ReadingContextMenuProps {
   menu: ReadingContextMenuState;
   onCopy: (text: string) => void | Promise<void>;
-  onBlacklistTranscript?: () => void | Promise<void>;
   onOpenSettings?: () => void;
   onClose: () => void;
 }
 
 // Word menus contain word actions only; the rest of the reader opens Settings only.
-export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpenSettings, onClose }: ReadingContextMenuProps) {
-  const [status, setStatus] = useState<'copied' | 'blacklisted' | null>(null);
+export function ReadingContextMenu({ menu, onCopy, onOpenSettings, onClose }: ReadingContextMenuProps) {
+  const [status, setStatus] = useState<'copied' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const running = useRef(false);
@@ -30,7 +29,7 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
     alive.current = true;
     return () => { alive.current = false; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };
   }, []);
-  const perform = async (action: () => void | Promise<void>, next: 'copied' | 'blacklisted') => {
+  const perform = async (action: () => void | Promise<void>, next: 'copied') => {
     if (running.current) return;
     running.current = true;
     setBusy(true);
@@ -84,16 +83,6 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
         >
           <Copy size={18} aria-hidden="true" />
         </button>
-        {onBlacklistTranscript ? <button
-          type="button"
-          role="menuitem"
-          className="reading-context-menu-action"
-          aria-label="ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు"
-          disabled={busy || status !== null}
-          onClick={() => void perform(onBlacklistTranscript, 'blacklisted')}
-        >
-          <Ban size={18} aria-hidden="true" />
-        </button> : null}
       </> : <button
           type="button"
           role="menuitem"
@@ -107,7 +96,7 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
           <SettingsIcon />
         </button>}
       <span className="reading-context-menu-status" role="status" aria-live="polite">
-        {error || (busy ? '…' : status === 'copied' ? 'కాపీ అయ్యింది' : status === 'blacklisted' ? 'బ్లాక్‌లిస్ట్ చేయబడింది' : '')}
+        {error || (busy ? '…' : status === 'copied' ? 'కాపీ అయ్యింది' : '')}
       </span>
     </div>
   );

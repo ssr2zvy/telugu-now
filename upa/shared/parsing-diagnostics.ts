@@ -1,5 +1,6 @@
 export interface TargetDiagnostic {
   id: string; core: number; kind: 'vocabulary' | 'chain'; label: string;
+  example?: string;
   forms: string[]; chain: string[]; chainAlternatives: string[][];
   matchedWords: number|null; searches:number; checked:number; exhausted:number;
   pattern:{needles:string[];maxCodepoints:number;scope:string}|null;
@@ -30,5 +31,9 @@ export interface ParsingDiagnostics {
   cycles:{total:number;active:number;steps:number;reasons:Array<{reason:string;count:number}>};
   currentChain:{id:string;core:number;endReason:string|null;currentObservationId:string;
     steps:Array<{observationId:string;targetId:string;label:string;word:string|null;displayed:boolean;answered:boolean}>}|null;
+  searchTotals?:{total:number;checked:number;matched:number;exhausted:number;interrupted:number};
+  upcoming?:Array<{observationId:string;targetId:string;cycleId:string|null;word:string|null;status:string;error:string|null}>;
+  activeSearch?:{id:string;cycleId:string;targetId:string;startedAt:number;checked:number}|null;
+  recentCycles?:Array<{id:string;core:number;startedAt:number;endedAt:number|null;endReason:string|null;words:string[]}>;
   historyNotice:string;
 }

@@ -12,8 +12,8 @@ export function ParsingStatus({data}:{data:ParsingDiagnostics}) {
     {target ? <p lang="te">{target}</p> : null}
     {activity.phase === 'searching' ? <p>{activity.checked} new words checked in this search.</p> : null}
     {queue.pending + queue.preparing > 0 ? <p className="parser-muted">Matches found; audio is preparing.</p> : null}
-    {queue.failed > 0 ? <p>Retry unavailable questions in Queue.</p> : null}
-    {activity.phase === 'blocked' ? <p>Check exhausted searches, Unicode rules, audio availability and the blacklist. Selection retries automatically.</p> : null}
+    {queue.failed > 0 ? <p>Retry preparation in Current → Reset.</p> : null}
+    {activity.phase === 'blocked' ? <p>Check exhausted searches, Unicode rules, audio availability. Selection retries automatically.</p> : null}
     {worker.error || activity.error ? <p role="alert">{worker.error ?? activity.error}</p> : null}
     {queue.errors.map(error => <p role="alert" key={error}>{error}</p>)}
   </div>;

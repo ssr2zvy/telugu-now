@@ -56,7 +56,7 @@ export function getParsingCatalog(): ParsingCatalog {
 export function selectionContext(profile: string, core: number) {
   const used = db.prepare('SELECT text_hash FROM core_used WHERE profile_code=? AND core=?').all(profile, core) as Array<{ text_hash: string }>;
   const reserved = db.prepare(`SELECT a.text_hash FROM selection_attempts a JOIN core_batches b ON b.id=a.batch_id WHERE a.profile_code=? AND a.core=? AND a.displayed_at IS NULL AND b.applied=0`).all(profile, core) as Array<{ text_hash: string }>;
-  const blocked = db.prepare('SELECT text FROM profile_blacklisted_sentences WHERE profile_code=?').all(profile) as Array<{ text: string }>;
+  const blocked: Array<{text:string}> = [];
   return { excluded: [...new Set([...used, ...reserved].map(r => r.text_hash))], blocked: blocked.map(r => r.text) };
 }
 export interface CoreSelection { target: CoreTarget; row: CoreRow; transition: 'seed' | 'neighbor'; decision?: { considered: string[]; available: string[] };  }

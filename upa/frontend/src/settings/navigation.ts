@@ -5,7 +5,7 @@ import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Dow
 
 export const settingsPageIcons = {
   diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
-  parserCurrent: Activity, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
+  parserCurrent: ListOrdered, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
   display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
   dataSources: Database, trigger: Workflow, source: Database,
   complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
@@ -19,9 +19,9 @@ export const settingsPageIcons = {
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
-  observations: ['parser', 'parsingMode'],
+  observations: ['parser', 'parsingMode', 'dataSources'],
   parser: ['parserCurrent', 'diagnostic'],
-  diagnostic: ['diagnosticsDownload', 'queue', 'dataSources', 'blacklist', 'reset'],
+  diagnostic: ['diagnosticsDownload'],
   display: ['playback', 'appearance', 'images'],
 };
 

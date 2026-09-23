@@ -29,10 +29,9 @@ import { WordProfile } from './word/WordProfile';
 import { appearanceModificationColor, useAppearance } from '../appearance';
 import { LoadingSlit } from '../components/LoadingSlit';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
-import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
-import { useReaderScroll } from './useReaderScroll';
+import { type ScrollDirection } from './reader-scroll';
 import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from './ReadingContextMenu';
-import { addBlacklistEntry, reportClientTelemetry } from '../api';
+import { reportClientTelemetry } from '../api';
 import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguWordText } from './TeluguGradientText';
@@ -138,22 +137,6 @@ export function ObservationView({
   const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
   const textComparison = textGivenFlow && comparisonQuestionPhase;
   const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
-  const scrollHandlers = useReaderScroll(screenRef, !textGivenFlow && appearance.toggleTrigger === 'scroll' && !audioGivenQuestionPhase && !comparisonQuestionPhase && (questionPhase || Boolean(state?.currentObservation?.audio)), state?.currentObservation?.id, direction => {
-    taps.cancel();
-    if (questionPhase) {
-      setAudioMotionDirection(direction);
-      setQuestionControlsVisible(visible => {
-        if (visible) playerRef.current?.dismissPrecision();
-        setAudioMotion(visible ? 'exit' : 'enter');
-        return !visible;
-      });
-      return;
-    }
-    setAudioMotionDirection(direction);
-    setAudioMotion(controlsVisible ? 'exit' : 'enter');
-    setControlsVisible(scrollControlsVisible(controlsVisible));
-    setPrecisionInteraction(value => value + 1);
-  }, () => taps.cancel());
   useEffect(() => {
     const screen = screenRef.current;
     if (textGivenFlow || !controlsVisible || !screen) return;
@@ -536,11 +519,19 @@ export function ObservationView({
       else setControlsVisible(false);
     }
   };
-  const swipeHandlers = useReaderSwipes(screenRef, Boolean(textGivenFlow && !selectedWord && !readingMenu),
+  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord && !readingMenu),
     `${observation?.id}:${observation?.question?.phase}`, direction => {
       taps.cancel();
       cancelLongPress();
-      if (direction === 'up' || direction === 'down') verticalSwipe(direction);
+      if (direction === 'up' || direction === 'down') {
+        if (textGivenFlow) verticalSwipe(direction);
+        else if (!audioGivenQuestionPhase && !comparisonPhase) {
+          if (direction === 'down') {
+            if (!controlsVisible) setControlsVisible(true);
+            else playerRef.current?.openAssociatedControls();
+          } else if (!playerRef.current?.dismissPrecision()) setControlsVisible(false);
+        }
+      }
       else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
     }, () => { taps.cancel(); cancelLongPress(); });
   useEffect(() => {
@@ -562,7 +553,8 @@ export function ObservationView({
   return (
     <main
       ref={screenRef}
-      {...(textGivenFlow ? swipeHandlers : scrollHandlers)}
+      {...swipeHandlers}
+      data-swipe-navigation="true"
       data-text-given-flow={textGivenFlow}
       data-phase-motion={phaseMotion}
       data-entry-ready={entryReady}
@@ -871,20 +863,12 @@ export function ObservationView({
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}
           observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
-          onBlacklistTranscript={() => {
-            if (!state || !observation) return Promise.reject(new Error('No transcript selected.'));
-            return addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).then(() => {});
-          }}
           onClose={() => setSelectedWord(null)} />
       ) : null}
       {readingMenu ? (
         <ReadingContextMenu
           menu={readingMenu}
           onCopy={copyToClipboard}
-          onBlacklistTranscript={() => {
-            if (!state || !observation) return Promise.reject(new Error('No transcript selected.'));
-            return addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).then(() => {});
-          }}
           onOpenSettings={() => onOpenSettings(typography.fontFamily)}
           onClose={() => setReadingMenu(null)}
         />
