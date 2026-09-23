@@ -9,7 +9,7 @@ test('appearance validates persisted data and keeps a nonempty font pool', () =>
   assert.deepEqual(parseAppearance({ fonts: ['Mandali', 'unknown'] }).fonts, ['Mandali']);
   assert.equal(parseAppearance({ fontScale: 900 }).fontScale, 100);
   assert.equal(parseAppearance({ fontScale: NaN }).fontScale, 50);
-  assert.equal(parseAppearance({ foreground: 'url(bad)' }).foreground, '#171717');
+  assert.equal(parseAppearance({ foreground: 'url(bad)' }).foreground, DEFAULT_APPEARANCE.foreground);
   assert.equal(parseAppearance({ gradient: ['#ffffff'] }).gradient.length, 3);
   assert.equal(randomAppearanceColors(() => 0).gradient.length, 3);
   const previousLevels = [0x9a, 0x70, 0x51];
@@ -113,9 +113,10 @@ test('modification text-shift preset shifts only the reading color lightness aga
   const color = appearanceModificationTextShiftColor(DEFAULT_APPEARANCE);
   assert.match(color, /^#[0-9a-f]{6}$/);
   const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map(value => parseInt(value, 16));
-  assert.equal(channels[0], channels[1]);
-  assert.equal(channels[1], channels[2]);
-  assert.ok(channels[0]! >= parseInt(DEFAULT_APPEARANCE.foreground.slice(1, 3), 16) + 60);
+  assert.ok(channels[2]! > channels[0]! && channels[0]! > channels[1]!, "text shift retains the tinted foreground hue");
+  const originalChannels = [1, 3, 5].map(offset => parseInt(DEFAULT_APPEARANCE.foreground.slice(offset, offset + 2), 16));
+  const lightnessShift = (Math.max(...channels) + Math.min(...channels) - Math.max(...originalChannels) - Math.min(...originalChannels)) / 2;
+  assert.ok(Math.abs(lightnessShift - DEFAULT_APPEARANCE.modificationLightness / 100 * 255) <= 1);
   const lightForeground = { ...DEFAULT_APPEARANCE, gradient: ['#101010', '#202020', '#303030'] as [string, string, string], foreground: '#eeeeee' };
   assert.ok(parseInt(appearanceModificationTextShiftColor(lightForeground).slice(1, 3), 16) <= 0xee - 60);
   assert.equal(appearanceModificationTextShiftColor({ ...DEFAULT_APPEARANCE, modificationLightness: 0 }), DEFAULT_APPEARANCE.foreground);
@@ -293,10 +294,10 @@ test('surface colors remain independent while corner colors adapt to palette and
 
 test('settings leaf pages return to their observation or display group', () => {
   assert.equal(parentSettingsPage('dataSources'), 'observations');
-  assert.equal(parentSettingsPage('global'), 'diagnostic');
+  assert.equal(parentSettingsPage('currentSearches'), 'searchAndParse');
   assert.equal(parentSettingsPage('appearance'), 'display');
   assert.equal(parentSettingsPage('external'), 'index');
-  assert.equal(settingsGroups.observations?.at(-1), 'reset');
+  assert.equal(settingsGroups.observations?.at(-1), 'dataSources');
 });
 
 test('non-object persisted appearance values recover all defaults', () => {

@@ -15,6 +15,7 @@ export type ObservationFontFamily = (typeof OBSERVATION_FONTS)[number];
 export interface AppearanceSettings {
   gradient: [string, string, string];
   foreground: string;
+  foregroundDefaultVersion: 2;
   surface: string | null;
   fontScale: number;
   textOffset: number;
@@ -40,7 +41,8 @@ export interface AppearanceSettings {
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   gradient: ['#b6b6b6', '#969696', '#787878'],
-  foreground: '#171717',
+  foreground: '#34304a',
+  foregroundDefaultVersion: 2,
   surface: null,
   fontScale: 50,
   textOffset: 0,
@@ -79,7 +81,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   return {
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
-    foreground: isColor(candidate.foreground) ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
+    foreground: isColor(candidate.foreground) && (candidate.foregroundDefaultVersion === 2 || candidate.foreground.toLowerCase() !== '#171717') ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
+    foregroundDefaultVersion: 2,
     surface: isColor(candidate.surface) ? candidate.surface : null,
     fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,

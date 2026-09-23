@@ -88,11 +88,11 @@ export function appearanceModificationTextShiftColor(appearance: Pick<Appearance
 
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
   const palettes: Array<Pick<AppearanceSettings, 'gradient' | 'foreground'>> = [
-    { gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#20332c' },
+    { gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#30483e' },
     { gradient: ['#f4ddd2', '#e0b6bf', '#afc9d0'], foreground: '#362b36' },
-    { gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'], foreground: '#24332d' },
-    { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#f3f5ee' },
-    { gradient: ['#eef0ce', '#bfd9cc', '#d4c4dc'], foreground: '#30352b' },
+    { gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'], foreground: '#34463e' },
+    { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#d4cedf' },
+    { gradient: ['#eef0ce', '#bfd9cc', '#d4c4dc'], foreground: '#3d4934' },
   ];
   return palettes[Math.min(palettes.length - 1, Math.max(0, Math.floor(random() * palettes.length)))]!;
 }

@@ -113,12 +113,14 @@ test('errors enter over the bottom-right corner and fade within fifteen seconds'
   }
 });
 
-test('modification lightness has visible searchable settings text', () => {
+test('modification controls have dedicated labeled pages without an Automatic option', () => {
+  const labels = readFileSync(new URL('../frontend/src/settings/appearance-navigation.ts', import.meta.url), 'utf8');
   const source = readFileSync(new URL('../frontend/src/settings/pages/OrganizedAppearancePage.tsx', import.meta.url), 'utf8');
-  assert.match(source, /<label htmlFor="appearance-modification-lightness">\{text\('Modification Lightness'/);
-  assert.match(source, /text\('Automatic End Color'/);
-  assert.match(source, /text\('Gradient End Color'/);
-  assert.match(source, /type="color"[\s\S]*modificationColor/);
+  assert.match(labels, /Modification lightness/);
+  assert.match(labels, /Gradient end color/);
+  assert.match(labels, /Highlight mods/);
+  assert.doesNotMatch(source, /Automatic/);
+  assert.match(source, /type="color"/);
 });
 
 test('queue diagnostics are available under the Diagnostic settings group', () => {

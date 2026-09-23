@@ -1,9 +1,12 @@
+import { appearanceGroups, appearanceLabels, appearancePageLabel, isAppearancePage, type AppearancePage } from './appearance-navigation';
 import { diagnosticSectionLabel } from './diagnostic';
 import { t } from './language';
 import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
+  ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,
+  dataSourceDetail: Database,
   searchAttempt: Activity,
   currentChain: ListOrdered,
   nextChainSearch: Activity,
@@ -32,6 +35,8 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
+  ...appearanceGroups,
+  dataSources: ['dataSourceDetail'],
   index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
   observations: ['parser', 'parsingMode', 'dataSources'],
@@ -50,6 +55,8 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+  if(isAppearancePage(page))return appearancePageLabel(page,language);
+  if(page==='dataSourceDetail')return language==='en'?'Data source':'డేటా మూలం';
   const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};
   if(parserLabels[page])return parserLabels[page]!;
   if (page === 'searchAttempt') return 'Search and parse attempt';
@@ -68,7 +75,6 @@ export function settingsPageLabel(page: SettingsPage, language: UiLanguage): str
   if (page === 'htmlExport') return language === 'en' ? 'HTML Export' : 'HTML ఎగుమతి';
   if (page === 'archiveExport') return language === 'en' ? 'App Archive Export' : 'యాప్ ఆర్కైవ్ ఎగుమతి';
   if (page === 'display') return language === 'en' ? 'Display' : 'ప్రదర్శన';
-  if (page === 'appearance') return language === 'en' ? 'Appearance' : 'రూపం';
   if (page === 'images') return language === 'en' ? 'Image Generation' : 'చిత్ర సృష్టి';
   if (page === 'playback') return language === 'en' ? 'Playback Settings' : 'ప్లేబ్యాక్ అమరికలు';
   if (page === 'eons') return language === 'en' ? 'Eons' : 'యుగాలు';
@@ -87,8 +93,7 @@ export function settingsPageLabel(page: SettingsPage, language: UiLanguage): str
   return t(language, page in labels ? labels[page as keyof typeof labels] : page as 'complexity' | 'dataSources' | 'diagnostic' | 'export');
 }
 export function visibleSettingsEntries(page: SettingsPage, migrationAvailable: boolean): SettingsPage[] {
-  return (settingsGroups[page] ?? []).filter(entry => entry !== 'grammarMigration' || migrationAvailable);
+  return (settingsGroups[page] ?? []).filter(entry => entry !== 'dataSourceDetail' && entry !== 'appearanceFont' && (entry !== 'grammarMigration' || migrationAvailable));
 }
 
 export const exportFormatForPage = {epubExport: 'epub', htmlExport: 'html', archiveExport: 'app-archive'} as const;
-

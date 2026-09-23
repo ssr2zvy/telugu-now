@@ -397,3 +397,15 @@
 @media (min-width: 960px) { .settings-header .settings-heading { padding-top: calc(22px - 1.1375rem); } }
 
 .settings-overview-open .settings-header .settings-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); visibility: visible; pointer-events: auto; }
+
+/* Appearance uses the same page rows as the rest of Settings. */
+.appearance-paged { display: grid; gap: 24px; font-size: .875rem; }
+.appearance-control-page { display: grid; gap: 24px; }
+.appearance-control-page .appearance-section-heading { align-items: center; }
+.appearance-presets { display: grid; gap: 4px; }
+.appearance-preset { display: grid; grid-template-columns: 24px minmax(0,1fr); align-items: center; gap: 18px; min-height: 60px; width: 100%; padding: 12px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.appearance-preset-swatch { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 18%, transparent); }
+.appearance-preset[aria-pressed='true'] .appearance-preset-swatch { outline: 1px solid var(--foreground); outline-offset: 4px; }
+.appearance-preset:focus-visible { outline: 1px solid var(--foreground); outline-offset: 2px; }
+.appearance-font-sample { margin: 0; text-align: center; font-size: 3rem; line-height: 1.8; }
+.appearance-font-glyph { font-size: 1.2rem; }

@@ -1,3 +1,7 @@
+import { SettingsNavigationMemory } from './settings-memory';
+import type { DataSourceInfo } from '../../../shared/contracts';
+import type { SearchAttempt } from '../../../shared/parsing-diagnostics';
+import type { ObservationFontFamily } from '../presentation';
 import { useRef, useState } from 'react';
 import type {
   ExportResponse,
@@ -14,7 +18,6 @@ import { prepareEpubExport } from '../export-epub';
 import { prepareHtmlExport } from '../export-html';
 import { prepareAppArchive } from '../app-archive';
 import { useAppearance } from '../appearance';
-import { parentSettingsPage } from './navigation';
 import { AUDIO_PLAYBACK_RATE_MIN, AUDIO_PLAYBACK_RATE_MAX } from '../../../shared/audio';
 import type {
   SettingsPage,
@@ -28,6 +31,13 @@ interface UseSettingsControllerOptions {
   onQueueReset: (state: ProfileStateResponse) => void;
 }
 export interface SettingsController {
+  selectedAttempt:SearchAttempt|null;
+  openSearchAttempt:(attempt:SearchAttempt)=>void;
+  selectedDataSource:DataSourceInfo|null;
+  openDataSource:(source:DataSourceInfo)=>void;
+  selectedFont:ObservationFontFamily|null;
+  openAppearanceFont:(font:ObservationFontFamily)=>void;
+  openOverview:()=>void;
   acceptState: (state: ProfileStateResponse) => void;
   acceptSettings: (settings: ProfileSelectionSettings) => void;
   page: SettingsPage;
@@ -64,7 +74,10 @@ export function useSettingsController({
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
-  const pageHistory=useRef<SettingsPage[]>([]);
+  const navigation=useRef(new SettingsNavigationMemory());
+  const [selectedAttempt,setSelectedAttempt]=useState<SearchAttempt|null>(null);
+  const [selectedDataSource,setSelectedDataSource]=useState<DataSourceInfo|null>(null);
+  const [selectedFont,setSelectedFont]=useState<ObservationFontFamily|null>(null);
   const { language, updateLanguage } = useAppearance();
   const [queueResetting, setQueueResetting] = useState(false);
   const [queueResetError, setQueueResetError] = useState(false);
@@ -92,8 +105,9 @@ export function useSettingsController({
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    pageHistory.current=[];
-    setPage('index');
+    const previousScope=navigation.current.scope;
+    setPage(navigation.current.open(profileCode,state.currentObservation?.id??null));
+    if(previousScope!==navigation.current.scope){setSelectedAttempt(null);setSelectedDataSource(null);setSelectedFont(null);}
   };
   const enterPage = (
     nextPage: Exclude<SettingsPage, 'index'>,
@@ -105,14 +119,13 @@ export function useSettingsController({
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    if(nextPage!==page)pageHistory.current.push(page);
-    setPage(nextPage);
+    setPage(navigation.current.enter(nextPage));
   };
   const backToIndex = () => {
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    setPage(pageHistory.current.pop()??parentSettingsPage(page));
+    setPage(navigation.current.back());
   };
   const toggleLanguage = () => {
     updateLanguage(language === 'te' ? 'en' : 'te');
@@ -204,6 +217,10 @@ export function useSettingsController({
     generatedExport,
     preparedArtifact,
     prepareOpen,
+    openOverview:()=>setPage(navigation.current.overview()),
+    selectedAttempt,openSearchAttempt:attempt=>{setSelectedAttempt(attempt);enterPage('searchAttempt');},
+    selectedDataSource,openDataSource:source=>{setSelectedDataSource(source);enterPage('dataSourceDetail');},
+    selectedFont,openAppearanceFont:font=>{setSelectedFont(font);enterPage('appearanceFont');},
     enterPage,
     backToIndex,
     toggleLanguage,
