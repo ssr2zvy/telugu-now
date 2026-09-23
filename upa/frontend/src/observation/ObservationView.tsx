@@ -1,3 +1,6 @@
+import { useReaderSettingsFade } from './useReaderSettingsFade';
+import { readerNeedsLoadingDots } from './reader-loading';
+import { useQuestionActionPlacement } from './useQuestionActionPlacement';
 import { useReaderSwipes } from './useReaderSwipes';
 import { useNavigationFeedback } from './useNavigationFeedback';
 import { NAVIGATION_FEEDBACK_MS } from './navigation-feedback';
@@ -96,6 +99,7 @@ export function ObservationView({
   } | null>(null);
   const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
+  const settingsIdle = useReaderSettingsFade(screenRef);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
   const gesturePausedPlayback = useRef(false);
@@ -104,6 +108,7 @@ export function ObservationView({
   const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
   const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
   const textComparison = textGivenFlow && comparisonQuestionPhase;
+  useQuestionActionPlacement(screenRef, Boolean(textGivenFlow && (questionPhase || comparisonQuestionPhase)));
   const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
   useEffect(() => {
     const screen = screenRef.current;
@@ -232,7 +237,7 @@ export function ObservationView({
               if (cancelled) return;
               await waitForIdle();
               if (cancelled) return;
-              await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor);
+              await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
             }
           }
         } catch {
@@ -255,7 +260,7 @@ export function ObservationView({
     };
     void worker().catch(() => {});
     return () => { cancelled = true; };
-  }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor]);
+  }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor, appearance.gradientBarrier]);
   const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
   // On the first load, do not reveal an interactive reader while prewarm work
   // can still monopolize the main thread. Individual failures are marked done
@@ -269,7 +274,7 @@ export function ObservationView({
     setInitialGateResolved(true);
   }, [observation?.id, neighborsPrewarmed]);
   const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
-    ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, observation.text].join('\0')
+    ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, observation.text].join('\0')
     : null;
   const gradientKey = showsObservationText ? presentationGradientKey : null;
   useEffect(() => {
@@ -294,7 +299,7 @@ export function ObservationView({
         await waitForIdle();
         if (cancelled) return;
         textures.push(await renderTeluguGradientTexture(
-          highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+          highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
         ));
       }
       if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
@@ -308,7 +313,7 @@ export function ObservationView({
       });
     });
     return () => { cancelled = true; };
-  }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor]);
+  }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier]);
   useEffect(() => {
     if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
     let cancelled = false;
@@ -325,10 +330,10 @@ export function ObservationView({
         if (cancelled) return;
         if (highlightRun.highlighted) {
           if (!hasTeluguGradientTexture(
-            highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+            highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
           )) await nextFrame();
           if (cancelled) return;
-          const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor);
+          const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
           textures.push(texture);
           if (!cancelled) setGradientProgress(current => current?.key === gradientKey
             ? { ...current, completed: current.completed + 1 } : current);
@@ -386,16 +391,14 @@ export function ObservationView({
   }, [entryReady, observation?.id]);
   const navigationFeedback = useNavigationFeedback(state?.profileCode ?? null, navigationEvent, !busy && entryReady);
   const activeNavigation = navigationFeedback.event;
-  const [transitionLoaderVisible, setTransitionLoaderVisible] = useState(false);
-  useEffect(() => {
-    if (!activeNavigation || (!busy && entryReady)) {
-      setTransitionLoaderVisible(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setTransitionLoaderVisible(true), 500);
-    return () => window.clearTimeout(timer);
-  }, [activeNavigation?.sequence, busy, entryReady]);
-  const showEntryLoadingIndicator = !activeNavigation || transitionLoaderVisible;
+  const showEntryLoadingIndicator = readerNeedsLoadingDots({
+    entryReady,
+    textVisible: Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+    audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
+    comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
+    errorVisible: Boolean(audioError || state?.grammarError),
+    startVisible: Boolean(!observation && state?.canNext && !busy),
+  });
   const progressParts = [
     ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
     ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
@@ -524,6 +527,7 @@ export function ObservationView({
       data-text-given-flow={textGivenFlow}
       data-phase-motion={phaseMotion}
       data-entry-ready={entryReady}
+      data-settings-idle={settingsIdle}
       data-phase-direction={phaseDirection.current}
       data-scroll-mode={appearance.scrollMode}
       data-question-mode={textComparison ? 'text-given' : activeQuestion?.mode}
@@ -645,8 +649,6 @@ export function ObservationView({
         className="observation-center"
         data-entry-loading={Boolean(observation && !entryReady)}
       >
-        {observation?.question?.phase==='observation' && observation.grammar?.result!==null && !state?.canNext && state?.nextStatus==='pending'
-          ? <LoadingSlit label="Finding next parsed question"/> : null}
         {!activeNavigation && observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
           <div
             className="question-phase-indicator"
@@ -697,9 +699,9 @@ export function ObservationView({
             <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
           </button>
         ) : (
-          <div className="observation-placeholder"><LoadingSlit label="Loading observation" /></div>
+          <div className="observation-placeholder" />
         )}
-          {observation && !entryReady ? (
+          {showEntryLoadingIndicator ? (
             <div
               className="observation-entry-loading"
               onClick={(event) => {
@@ -711,7 +713,7 @@ export function ObservationView({
               onContextMenu={(event) => event.preventDefault()}
               onPointerDown={(event) => event.stopPropagation()}
             >
-              {showEntryLoadingIndicator ? <LoadingSlit label="Preparing observation" progress={entryProgress} /> : null}
+              <LoadingSlit key={presentationKey ?? "empty"} delayMs={250} label={observation ? "Preparing observation" : "Loading observation"} progress={entryProgress} />
             </div>
           ) : null}
           {!comparisonPhase || textComparison ? <AudioPlayerBar

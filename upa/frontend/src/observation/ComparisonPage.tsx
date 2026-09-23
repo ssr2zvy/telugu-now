@@ -17,7 +17,7 @@ function ComparisonText({ text, fontFamily, onReady }: {
   const runs = appearance.highlightMods ? teluguHighlightRuns(text) : null;
   const gradientEndColor = appearanceModificationColor(appearance);
   const key = runs?.some(run => run.highlighted)
-    ? [text, fontFamily, appearance.foreground, gradientEndColor].join('\0')
+    ? [text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
     : null;
   const [presentation, setPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);
 
@@ -30,7 +30,7 @@ function ComparisonText({ text, fontFamily, onReady }: {
         return;
       }
       const textures = await Promise.all(runs.map(run => run.highlighted
-        ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor)
+        ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier)
         : Promise.resolve(null)));
       if (cancelled) return;
       setPresentation({ key, textures });
@@ -38,7 +38,7 @@ function ComparisonText({ text, fontFamily, onReady }: {
     };
     void prepare().catch(() => { if (!cancelled) onReady(); });
     return () => { cancelled = true; };
-  }, [key, text, fontFamily, appearance.foreground, gradientEndColor, onReady]);
+  }, [key, text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, onReady]);
 
   return <div className="question-comparison-text" lang="te" style={{ fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` }}>
     <TeluguWordText text={text} runs={runs} textures={presentation?.key === key ? presentation.textures : null} />

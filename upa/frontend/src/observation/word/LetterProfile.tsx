@@ -56,14 +56,14 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
     : [], [selection?.text, letter, appearance.highlightMods]);
   const modificationColor = appearanceModificationColor(appearance);
   const gradientKey = selection
-    ? [selection.text, fontFamily, appearance.foreground, modificationColor, appearance.highlightMods].join('\0')
+    ? [selection.text, fontFamily, appearance.foreground, modificationColor, appearance.gradientBarrier, appearance.highlightMods].join('\0')
     : null;
   useEffect(() => {
     if (!gradientKey) return;
     let cancelled = false;
     void Promise.all(runs.map(run => run.highlighted
       ? renderTeluguGradientTexture(run.text, fontFamily,
-          appearance.foreground, modificationColor)
+          appearance.foreground, modificationColor, appearance.gradientBarrier)
       : Promise.resolve(null))).then(textures => {
         if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
       }).catch(() => {
@@ -83,7 +83,7 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
       <button type="button" className="word-profile-back" aria-label="Back to word" onClick={onBack}>
         <ArrowLeft size={20} aria-hidden="true" />
       </button>
-      {!ready && !error ? <LoadingSlit label="Finding a word for this letter" /> : null}
+      {!ready && !error ? <LoadingSlit key={letter} delayMs={250} label="Finding a word for this letter" /> : null}
       {selection ? <div className="letter-profile-center" data-ready={ready} onClick={event => {
         if ((event.target as HTMLElement).closest('.audio-player-bar')) return;
         player.current?.togglePlay();

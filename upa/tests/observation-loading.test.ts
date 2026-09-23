@@ -97,7 +97,7 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
   const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
   assert.match(view, /for \(const highlightRun of highlightRuns\)/);
   assert.match(view, /await nextFrame\(\)/);
-  assert.match(view, /opacity: entryReady \? 1 : 0/);
+  assert.match(view, /opacity: \(textGivenFlow \? textReady : entryReady\) \? 1 : 0/);
   assert.doesNotMatch(gradient, /useEffect|useState|renderTeluguGradientTexture/);
   assert.match(loader, /loading-slit-window[\s\S]*<i \/><i \/><i \/><i \/>/);
   assert.match(css, /@keyframes loading-slit-dot/);
@@ -106,12 +106,15 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
   assert.match(view, /const entryReady = entryPrepared && paintedPresentationKey === presentationKey/);
 });
 
-test('transition loading dots wait 500ms while the blank overlay remains immediate', () => {
+test('reader loading dots wait 250ms and are gated by visible content', () => {
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(view, /if \(!navigationEvent \|\| entryReady\) \{\s*setTransitionLoaderVisible\(false\)/);
-  assert.match(view, /setTimeout\(\(\) => setTransitionLoaderVisible\(true\), 500\)/);
-  assert.match(view, /const showEntryLoadingIndicator = !navigationEvent \|\| transitionLoaderVisible/);
-  assert.match(view, /observation && !entryReady[\s\S]*className="observation-entry-loading"[\s\S]*showEntryLoadingIndicator \? <LoadingSlit/);
+  const loader = readFileSync(new URL('../frontend/src/components/LoadingSlit.tsx', import.meta.url), 'utf8');
+  assert.match(view, /const showEntryLoadingIndicator = readerNeedsLoadingDots/);
+  assert.match(view, /showEntryLoadingIndicator \? \([\s\S]*className="observation-entry-loading"/);
+  assert.match(view, /<LoadingSlit[^>]*delayMs=\{250\}/);
+  assert.doesNotMatch(view, /Finding next parsed question|transitionLoaderVisible/);
+  assert.match(loader, /setTimeout\(\(\) => setVisible\(true\), delayMs\)/);
+  assert.match(loader, /clearTimeout\(timer\)/);
 });
 
 test('loading dots leave a blank interval between trains', () => {

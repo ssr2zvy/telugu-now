@@ -60,9 +60,9 @@ export const appearanceLabels = {
     "Gradient end color",
     "గ్రేడియంట్ ముగింపు రంగు"
   ],
-  "appearanceModificationLightness": [
-    "Modification lightness",
-    "మార్పు ప్రకాశం"
+  "appearanceGradientBarrier": [
+    "Gradient barrier",
+    "గ్రేడియంట్ అవరోధం"
   ],
   "appearanceAudio": [
     "Audio controls",
@@ -176,7 +176,7 @@ export const appearanceGroups:Partial<Record<AppearancePage,AppearancePage[]>> =
   "appearanceModifications": [
     "appearanceHighlight",
     "appearanceModificationColor",
-    "appearanceModificationLightness"
+    "appearanceGradientBarrier"
   ],
   "appearanceAudio": [
     "appearanceDarkness",

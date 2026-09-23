@@ -129,10 +129,10 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-question-mode='audio-given'] .observation-center:has(.audio-player-bar[data-has-audio='true']) { margin-bottom: 0; }
 .observation-screen[data-question-mode='audio-given'] .audio-player-bar { top: 35%; bottom: auto; transform: translate(-50%, -50%); }
 .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 50px); bottom: max(0px, env(safe-area-inset-bottom)); width: min(860px, calc(100vw - 2rem)); overflow: hidden; }
-/* Keep the complete magnifier row above the unchanged record button. The
-   lower clamp leaves space for the iPhone home indicator at every audio offset. */
-.observation-screen[data-question-mode='text-given'] { --audio-min-bottom: calc(max(24px, calc(env(safe-area-inset-bottom) + 16px)) + var(--record-button-size) + var(--record-gap)); }
-.observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: calc(var(--audio-bottom) - var(--record-gap) - var(--record-button-size)); }
+/* The primary bar uses the same anchor in every text-given phase. The action
+   is positioned separately, with collision avoidance for expanded controls. */
+.observation-screen[data-text-given-flow='true'] { --question-action-floor: max(24px, calc(env(safe-area-inset-bottom) + 16px)); }
+.observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: var(--question-action-bottom, var(--question-action-floor)); }
 .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .question-record-button { width: var(--record-button-size); height: var(--record-button-size); }
@@ -238,7 +238,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-text-given-flow='true'] .question-record-controls .recording-readiness,
 .observation-screen[data-text-given-flow='true'] .question-record-controls .question-response-error { position: absolute; top: calc(100% + 8px); }
 .observation-screen[data-text-given-flow='true'][data-question-phase='comparison'] .grammar-evaluation {
-  bottom: calc(var(--audio-bottom) - var(--record-gap) - var(--record-button-size));
+  bottom: var(--question-action-bottom, var(--question-action-floor));
   width: auto; height: var(--record-button-size);
   display: grid; place-items: center;
 }
@@ -280,3 +280,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .reader-settings { position: absolute; z-index: 40; bottom: max(16px, env(safe-area-inset-bottom)); right: max(16px, calc(env(safe-area-inset-right) - 4px)); width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--corner-control-color); cursor: pointer; }
 .reader-settings svg { width: 18px; height: 18px; stroke-width: 1.7; stroke: var(--control-icon-paint, currentColor); }
 .reader-settings:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
+
+/* Fade only the painted icon: the 44px Settings button stays hit-testable. */
+.appearance-root .observation-screen .reader-settings svg { opacity: var(--material-rest-opacity, .72); transition: opacity 220ms ease; }
+.observation-screen[data-settings-idle='true'] .reader-settings svg { opacity: 0; }
+html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .appearance-root .observation-screen .reader-settings svg { transition: none; } }

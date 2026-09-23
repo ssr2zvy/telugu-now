@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { ChevronRight, RotateCcw, Shuffle } from 'lucide-react';
 import {
   APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_DARKNESS_LIMITS,
-  CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, MODIFICATION_LIGHTNESS_LIMITS,
+  CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, GRADIENT_BARRIER_LIMITS,
   appearanceAudioColor, appearanceAudioHoverColor, appearanceModificationColor,
   appearanceModificationTextShiftColor, appearanceSurface, randomAppearanceColors, useAppearance,
 } from '../../appearance';
@@ -19,7 +19,7 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
   const text=(en:string,te:string)=>language==='en'?en:te;
   const title=appearancePageLabel(page,language);
   const reset=(apply:()=>void)=><button type="button" className="appearance-icon-action" aria-label={text('Reset','పునరుద్ధరించు')} onClick={apply}><RotateCcw aria-hidden="true"/></button>;
-  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'modificationLightness'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
+  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'gradientBarrier'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
     <section className="appearance-control-page"><div className="appearance-section-heading"><label htmlFor={`appearance-${key}`}>{title}</label>{reset(()=>updateAppearance({[key]:DEFAULT_APPEARANCE[key]}))}</div>
       <div className="appearance-scale"><input id={`appearance-${key}`} type="range" min={min} max={max} step={1} disabled={disabled} value={appearance[key]}
         style={{'--range-progress':`${(appearance[key]-min)/(max-min)*100}%`} as CSSProperties}
@@ -75,7 +75,7 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
   else if(page==='appearanceDarkness')content=slider('controlDarkness',CONTROL_DARKNESS_LIMITS.min,CONTROL_DARKNESS_LIMITS.max,'%');
   else if(page==='appearanceBarGap')content=slider('audioTimestampGap',CONTROL_SPACING_LIMITS.min,CONTROL_SPACING_LIMITS.max,' px');
   else if(page==='appearanceMagnifierGap')content=slider('timestampMagnifierGap',CONTROL_SPACING_LIMITS.min,CONTROL_SPACING_LIMITS.max,' px',!appearance.showAudioTimestamp);
-  else if(page==='appearanceModificationLightness')content=slider('modificationLightness',MODIFICATION_LIGHTNESS_LIMITS.min,MODIFICATION_LIGHTNESS_LIMITS.max,'%');
+  else if(page==='appearanceGradientBarrier')content=slider('gradientBarrier',GRADIENT_BARRIER_LIMITS.min,GRADIENT_BARRIER_LIMITS.max,'%');
   else if(page==='appearanceFade')content=slider('autoFadeSeconds',AUTO_FADE_SECONDS_LIMITS.min,AUTO_FADE_SECONDS_LIMITS.max,' s');
   else if(page==='appearanceHighlight')content=toggle('highlightMods');
   else if(page==='appearanceTimestamp')content=toggle('showAudioTimestamp');

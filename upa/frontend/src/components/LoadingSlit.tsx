@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 
-export function LoadingSlit({ label, progress }: { label: string; progress?: number }) {
+export function LoadingSlit({ label, progress, delayMs = 0 }: { label: string; progress?: number; delayMs?: number }) {
+  const [visible, setVisible] = useState(delayMs === 0);
+  useEffect(() => {
+    if (!delayMs) { setVisible(true); return; }
+    setVisible(false);
+    const timer = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, label]);
   const target = progress === undefined ? null : Math.max(0, Math.min(100, Math.round(progress * 100)));
   const [percentage, setPercentage] = useState(target);
   useEffect(() => {
@@ -13,6 +20,7 @@ export function LoadingSlit({ label, progress }: { label: string; progress?: num
     }), 40);
     return () => window.clearInterval(timer);
   }, [target, percentage]);
+  if (!visible) return null;
   return <div className="loading-slit" role="status" aria-label={label}>
     <span className="loading-slit-window" aria-hidden="true">
       <i /><i /><i /><i />

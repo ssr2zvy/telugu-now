@@ -30,7 +30,9 @@ export interface AppearanceSettings {
   showAudioTimestamp: boolean;
   showMagnifierHighlight: boolean;
   highlightMods: boolean;
+  // Legacy text-shift preset amount; retained so saved colors keep their meaning.
   modificationLightness: number;
+  gradientBarrier: number;
   modificationColor: string | null;
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
@@ -56,6 +58,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   showMagnifierHighlight: true,
   highlightMods: true,
   modificationLightness: 24,
+  gradientBarrier: 50,
   modificationColor: null,
   magnifierPosition: 'below',
   scrollMode: true,
@@ -66,6 +69,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 export const APPEARANCE_OFFSET_LIMIT = 200;
 export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
 export const CONTROL_DARKNESS_LIMITS = { min: 0, max: 60 } as const;
+export const GRADIENT_BARRIER_LIMITS = { min: 0, max: 100 } as const;
 export const MODIFICATION_LIGHTNESS_LIMITS = { min: 0, max: 40 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
@@ -104,6 +108,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     modificationLightness: typeof candidate.modificationLightness === 'number' && Number.isFinite(candidate.modificationLightness)
       ? Math.round(Math.max(MODIFICATION_LIGHTNESS_LIMITS.min, Math.min(MODIFICATION_LIGHTNESS_LIMITS.max, candidate.modificationLightness)))
       : DEFAULT_APPEARANCE.modificationLightness,
+    gradientBarrier: typeof candidate.gradientBarrier === 'number' && Number.isFinite(candidate.gradientBarrier)
+      ? Math.round(Math.max(GRADIENT_BARRIER_LIMITS.min, Math.min(GRADIENT_BARRIER_LIMITS.max, candidate.gradientBarrier)))
+      : DEFAULT_APPEARANCE.gradientBarrier,
     modificationColor: isColor(candidate.modificationColor) ? candidate.modificationColor : null,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,
