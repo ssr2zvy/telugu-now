@@ -1,3 +1,4 @@
+import { GradientBackdrop, GradientTravelProvider } from './GradientBackdrop';
 import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
 import { CustomCursor } from './components/CustomCursor';
@@ -394,13 +395,14 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
   } as CSSProperties;
   return (
     <AppearanceContext.Provider value={{ profileCode, appearance, updateAppearance, language, updateLanguage }}>
+      <GradientTravelProvider>
       <div ref={appearanceRoot} className="appearance-root" style={style}>
         <svg className="control-material-definitions" width="0" height="0" aria-hidden="true" focusable="false">
           <defs><linearGradient id={materialPaintId} x1="0%" y1="0%" x2="100%" y2="100%">
             {material.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
           </linearGradient></defs>
         </svg>
-        <div className="gradient-field" aria-hidden="true"><div /><div /><div /></div>
+        <GradientBackdrop />
         <CustomCursor />
         {loaded ? children : <main className="app-shell entry-screen profile-preferences-loading"
           aria-busy={!error} aria-label="Loading profile settings" />}
@@ -408,6 +410,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
           {loaded ? 'Settings not saved.' : 'Could not load profile settings.'}
         </div> : null}
       </div>
+      </GradientTravelProvider>
     </AppearanceContext.Provider>
   );
 }

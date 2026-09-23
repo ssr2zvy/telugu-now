@@ -118,10 +118,9 @@ button, [role="button"] {
 .appearance-root :where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label):not(.audio-player-bar *):not(.question-keyboard *):not(:where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label) *) {
   filter: brightness(var(--control-brightness, .85));
 }
-.gradient-field > div { position: absolute; left: calc(50% - 100vmax); top: calc(50% - 100vmax); width: 200vmax; height: 200vmax; transition: transform 650ms cubic-bezier(.25,.1,.25,1); }
-.gradient-field > div:nth-child(1) { background: linear-gradient(135deg, var(--gradient-start) 20%, var(--gradient-middle) 50%, var(--gradient-end) 80%); transform: rotate(var(--gradient-turn-a, 0deg)); }
-.gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); }
-.gradient-field > div:nth-child(3) { background: linear-gradient(165deg, transparent 30%, var(--gradient-end) 85%); opacity: .45; transform: translateY(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-a, 0deg)); }
+/* SVG patterns retain the existing angled gradient layers, but repeat them
+   through mirrored edges. The viewport stays covered at any history position. */
+svg.gradient-field { width: 100%; height: 100%; pointer-events: none; }
 :focus, :focus-visible { outline: none; }
 .appearance-root :is(.reading-context-menu-action, .observation-start, .audio-transport-button, .audio-playback-option, .word-profile-back, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
   background: var(--wash);
@@ -133,7 +132,6 @@ html[data-input-modality="keyboard"] .appearance-root :is(button, a[href], summa
   outline: 2px solid var(--foreground);
   outline-offset: -3px;
 }
-@media (prefers-reduced-motion: reduce) { .gradient-field > div:nth-child(n) { transition: none; transform: none; animation: none; will-change: auto; } }
 .control-icon {
   width: 1.35rem;
   height: 1.35rem;

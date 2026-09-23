@@ -1,3 +1,5 @@
+import { useGradientTravel } from '../GradientBackdrop';
+import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
 import { useReaderSettingsFade } from './useReaderSettingsFade';
 import { readerNeedsLoadingDots } from './reader-loading';
 import { useQuestionActionPlacement } from './useQuestionActionPlacement';
@@ -72,6 +74,7 @@ export function ObservationView({
   onOpenSettings,
 }: ObservationViewProps) {
   const { appearance } = useAppearance();
+  const gradientTravel = useGradientTravel();
   const [
     controlsVisible,
     setControlsVisible,
@@ -459,6 +462,7 @@ export function ObservationView({
   ) => {
     if(evaluationNavigation.current)return;
     evaluationNavigation.current=true;
+    let moved = false;
     try {
       if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
       if(direction==='next' && comparisonPhase && observation?.grammar && !observation.grammar.discarded &&
@@ -471,10 +475,13 @@ export function ObservationView({
           await new Promise(resolve => window.setTimeout(resolve, 160));
         }
       }
-      const moved=await onMove(direction);
+      moved=await onMove(direction);
       if (!moved) setPhaseMotion('idle');
       if(moved && !textGivenFlow)setControlsVisible(false);
-    } finally {evaluationNavigation.current=false;setPhaseMotion('idle');}
+    } finally {
+      if (!moved) gradientTravel.cancelPreview();
+      evaluationNavigation.current=false;setPhaseMotion('idle');
+    }
   };
   const verticalSwipe = (direction: 'up' | 'down') => {
     if (!entryReady || recordingRange) return;
@@ -502,7 +509,19 @@ export function ObservationView({
         }
       }
       else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
-    }, () => taps.cancel());
+      else gradientTravel.cancelPreview();
+    }, () => taps.cancel(), {
+      onDrag: (dx, dy, width) => {
+        if (evaluationNavigation.current || busy) return;
+        const fraction = gradientSwipeFraction(dx, dy, width);
+        const direction = fraction < 0 ? 'back' : 'next';
+        const allowed = direction === 'back' ? canBackWhileLoading : canNext;
+        if (fraction && allowed && swipeChangesObservation(observation?.question?.phase, direction)) {
+          gradientTravel.preview(fraction);
+        } else gradientTravel.cancelPreview();
+      },
+      onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
+    });
   useEffect(() => {
     if (textGivenFlow && entryReady) setPhaseMotion('enter');
   }, [textGivenFlow, entryReady, observation?.id, observation?.question?.phase]);

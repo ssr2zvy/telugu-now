@@ -1,3 +1,4 @@
+import { GradientBackdrop } from '../../GradientBackdrop';
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
@@ -313,7 +314,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
       }}>
       <CustomCursor />
       <audio ref={wordPlayer.audioRef} preload="auto" hidden />
-      <div className="gradient-field word-profile-gradient" aria-hidden="true"><div /><div /><div /></div>
+      <GradientBackdrop className="gradient-field word-profile-gradient" />
       {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme.text}
         observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
