@@ -59,7 +59,7 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       }
     },
     onPointerCancelCapture() { origin.current = null; suppressClick.current = true; callbacks.current.cancelTap(); },
-    onLostPointerCapture() { origin.current = null; },
+    onLostPointerCapture(event: PointerEvent<HTMLElement>) { if (event.target === event.currentTarget) origin.current = null; },
     onClickCapture(event: MouseEvent<HTMLElement>) {
       if (suppressClick.current) { suppressClick.current = false; event.preventDefault(); event.stopPropagation(); }
     },

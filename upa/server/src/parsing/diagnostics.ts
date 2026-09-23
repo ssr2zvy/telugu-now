@@ -1,3 +1,4 @@
+import { chainActivity } from './chain-activity';
 import Database from 'better-sqlite3';
 import { db } from '../db/database';
 import { config } from '../config/config';
@@ -21,7 +22,7 @@ export function parsingDiagnostics(profile:string,store:Database.Database=db):Pa
     FROM selection_attempts a JOIN core_batches b ON b.id=a.batch_id WHERE a.profile_code=? AND b.inventory_id=? GROUP BY target_id`).all(profile,inventory) as Array<{target_id:string;selected:number;displayed:number;answered:number}>).map(r=>[r.target_id,r]));
   const targets:TargetDiagnostic[]=Object.values(graph().nodes).map(n=>{
     const a=appearances.get(n.id),search=searches.get(n.id),matchedWords=wordStats?wordStats.matches[n.id]??0:null;
-    return {id:n.id,core:n.core,kind:n.kind,label:n.label,forms:n.forms??[],chain:n.chain??[],chainAlternatives:n.chain_alternatives??[],
+    return {id:n.id,core:n.core,kind:n.kind,label:n.label,...(n.example?{example:n.example}:{}),forms:n.forms??[],chain:n.chain??[],chainAlternatives:n.chain_alternatives??[],
       streak:streaks.get(n.id)??0,mastered:streaks.get(n.id)===3,matchedWords,
       searches:search?.searches??0,checked:search?.checked??0,exhausted:search?.exhausted??0,
       pattern:wordStats?.patterns?.[n.id]??null,
@@ -42,7 +43,9 @@ export function parsingDiagnostics(profile:string,store:Database.Database=db):Pa
       WHERE a.profile_code=? AND json_extract(q.selection_snapshot_json,'$.cycleId')=? ORDER BY q.acquisition_number`)
       .all(profile,cycle.id) as Array<{observationId:string;targetId:string;word:string|null;displayed:number|null;answered:number|null}>)
       .map(s=>({...s,label:graph().nodes[s.targetId]?.label??s.targetId,displayed:s.displayed!==null,answered:s.answered!==null}))}:null;
+  const {upcoming,activeSearch,searchTotals,recentCycles}=chainActivity(store,profile);
   return {version:1,generatedAt:Date.now(),auditStartedAt:(store.prepare('SELECT started_at FROM core_diagnostic_install WHERE id=1').get() as {started_at:number}).started_at,
+    upcoming,activeSearch:activeSearch??null,searchTotals,recentCycles,
     currentChain,currentCore:core,inventoryId:inventory,catalogError:workerError,progressError,targets,
     cache:wordStats?{total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected}:null,
     selectionPolicy:'shortest-codepoints-v1',worker:{phase:workerPhase,error:workerError},

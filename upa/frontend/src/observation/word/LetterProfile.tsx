@@ -23,7 +23,6 @@ interface LetterProfileProps {
   fontFamily: ObservationFontFamily;
   playbackRate: number;
   onCopy: (word: string) => void | Promise<void>;
-  onBlacklistTranscript: () => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -34,7 +33,7 @@ interface LetterRun {
 
 export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
   profileCode, fontFamily, playbackRate,
-  onCopy, onBlacklistTranscript, onBack }: LetterProfileProps) {
+  onCopy, onBack }: LetterProfileProps) {
   const { appearance } = useAppearance();
   const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
@@ -107,7 +106,7 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => setError(message ?? '')} />
       </div> : null}
-      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onBlacklistTranscript={onBlacklistTranscript} onClose={() => setMenu(null)} /> : null}
+      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onClose={() => setMenu(null)} /> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );

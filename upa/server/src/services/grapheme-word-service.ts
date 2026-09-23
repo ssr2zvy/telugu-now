@@ -4,7 +4,6 @@ import { bodyLimit } from 'hono/body-limit';
 import type { GraphemeWord } from '../../../shared/contracts';
 import { config } from '../config/config';
 import { preparedCorpusStore, type CorpusGraphemeWord, type PreparedCorpusStore } from '../sources/prepared-corpus/prepared-corpus-store';
-import { profileBlacklistStore } from './blacklist-service';
 
 interface GraphemeWordRequest {
   grapheme?: unknown;
@@ -32,7 +31,6 @@ export function graphemeWordRoutes(database: Database.Database, dependencies: {
   profileCodes?: ReadonlySet<string>;
 } = {}): Hono {
   const corpus = dependencies.corpus ?? preparedCorpusStore;
-  const blacklist = profileBlacklistStore(database);
   const app = new Hono();
   app.use('/:code/grapheme-word', bodyLimit({ maxSize: 32768, onError: context => context.json({ error: 'request-too-large' }, 413) }));
   app.post('/:code/grapheme-word', async context => {
@@ -49,7 +47,7 @@ export function graphemeWordRoutes(database: Database.Database, dependencies: {
     if ([...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(grapheme)].length !== 1) {
       return context.json({ error: 'invalid-grapheme-word-request' }, 400);
     }
-    const blacklisted = new Set(blacklist.list(code).entries.map(entry => entry.text.normalize('NFC')));
+    const blacklisted = new Set<string>();
     const selected = selectGraphemeWord(corpus.wordsContaining(grapheme), blacklisted);
     if (!selected) return context.json({ error: 'grapheme-word-not-found' }, 404);
     return context.json<GraphemeWord>({

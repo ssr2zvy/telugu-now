@@ -9,7 +9,7 @@ export type SelectionMode = 'weighted' | 'core' | 'random';
 export const parsingDirectory = path.join(config.dataDirectory, 'corpus', 'parsing');
 const devAssets = path.resolve('../data-transform/scripts/parse-core');
 export const parsingAssets = process.env.PARSING_ASSETS_DIRECTORY ?? (fs.existsSync(devAssets) ? devAssets : path.resolve('dist/server/parse-core'));
-export interface CoreTarget { id: string; core: number; kind: 'vocabulary' | 'chain'; label: string; forms?: string[]; chain?: string[]; chain_alternatives?: string[][]; neighbors: string[]; }
+export interface CoreTarget { id: string; core: number; kind: 'vocabulary' | 'chain'; label: string; example?: string; forms?: string[]; chain?: string[]; chain_alternatives?: string[][]; neighbors: string[]; }
 export interface CoreGraph { nodes: Record<string, CoreTarget>; edges: Array<{ left: string; right: string; core: number }>; }
 let loadedGraph: CoreGraph | undefined;
 export function graph(): CoreGraph { return loadedGraph ??= JSON.parse(fs.readFileSync(path.join(parsingAssets, 'graph.json'), 'utf8')) as CoreGraph; }

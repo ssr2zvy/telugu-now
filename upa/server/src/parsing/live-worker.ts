@@ -15,34 +15,46 @@ export interface FindResult {row:WordRow|null;pending:boolean;source:string;chec
   pattern:{needles:string[];maxCodepoints:number;scope:string};stats:WordStats}
 let child:ChildProcessWithoutNullStreams|undefined;
 let ready:Promise<void>|undefined;
+let cancelWorker:((error:Error)=>void)|undefined;
 let seq=0;
-let stopping=false;
-const pending=new Map<number,{resolve:(r:any)=>void;reject:(e:Error)=>void}>();
+const pending=new Map<number,{resolve:(r:FindResult)=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>}>();
 export let wordStats:WordStats|null=null;
 export let workerError:string|null=null;
 export let workerPhase='idle';
+const timeout = (name:string,fallback:number) => {const value=Number(process.env[name]);return Number.isFinite(value)&&value>0?value:fallback;};
 export function ensureWordWorker():Promise<void> {
   if(ready)return ready;
-  workerPhase='loading-parser';workerError=null;stopping=false;
+  workerPhase='loading-parser';workerError=null;wordStats=null;
   ready=new Promise<void>((resolve,reject)=>{
-    child=spawn(process.env.GRAMMAR_PYTHON??'python3',[path.join(parsingAssets,'live.py'),
+    const process=spawn(globalThis.process.env.GRAMMAR_PYTHON??'python3',[path.join(parsingAssets,'live.py'),
       '--frequency',config.frequencyDatabasePath,'--corpus',config.corpusDatabasePath,
       '--availability',config.corpusAvailabilityPath,'--validation',config.audioValidationPath]);
-    let stderr='';
-    child.stderr.on('data',(b:Buffer)=>{stderr=(stderr+b.toString()).slice(-4000);});
-    const fail=(error:Error)=>{workerError=error.message;workerPhase='failed';reject(error);
-      for(const p of pending.values())p.reject(error);pending.clear();};
-    child.on('error',fail);
-    child.on('close',code=>{if(stopping){child=undefined;ready=undefined;return;}fail(new Error(`Live parser stopped (${code}): ${stderr}`));
-      logger.error('live_parser_failed',{error:workerError});child=undefined;ready=undefined;});
-    createInterface({input:child.stdout}).on('line',line=>{
-      try {const message=JSON.parse(line);
-        if(message.ready){wordStats=message.stats;workerPhase='ready';resolve();return;}
-        const p=pending.get(message.id);if(!p)return;pending.delete(message.id);
-        if(message.error)p.reject(new Error(message.error));else{
-          if(message.result.stats)wordStats={...wordStats,...message.result.stats};
-          p.resolve(message.result);
-        }
+    child=process;
+    let stderr='',finished=false;
+    const startup=setTimeout(()=>fail(new Error('Parser startup timed out. Retry from Current → Reset.')),timeout('GRAMMAR_STARTUP_TIMEOUT_MS',600000));
+    startup.unref();
+    const fail=(error:Error)=>{
+      if(finished)return;finished=true;clearTimeout(startup);
+      workerError=error.message;workerPhase='failed';reject(error);
+      for(const request of pending.values()){clearTimeout(request.timer);request.reject(error);}pending.clear();
+      if(child===process){child=undefined;ready=undefined;cancelWorker=undefined;}
+      process.kill('SIGKILL');
+      logger.error('live_parser_failed',{error:error.message});
+    };
+    cancelWorker=fail;
+    process.stderr.on('data',(buffer:Buffer)=>{stderr=(stderr+buffer.toString()).slice(-4000);});
+    process.stdin.on('error',error=>fail(error));
+    process.on('error',fail);
+    process.on('close',code=>fail(new Error(`Live parser stopped (${code}): ${stderr}`)));
+    createInterface({input:process.stdout}).on('line',line=>{
+      if(finished)return;
+      try {
+        const message=JSON.parse(line);
+        if(message.ready){clearTimeout(startup);wordStats=message.stats;workerPhase='ready';resolve();return;}
+        const request=pending.get(message.id);if(!request)return;
+        pending.delete(message.id);clearTimeout(request.timer);
+        if(message.error)request.reject(new Error(message.error));
+        else {if(message.result.stats)wordStats={...wordStats,...message.result.stats};request.resolve(message.result);}
       }catch(error){fail(error instanceof Error?error:new Error(String(error)));}
     });
   });
@@ -50,12 +62,15 @@ export function ensureWordWorker():Promise<void> {
 }
 export async function findWord(request:Record<string,unknown>):Promise<FindResult>{
   await ensureWordWorker();
+  const process=child;
+  if(!process)throw new Error('Parser restarted; search will retry.');
   const id=++seq;
   return new Promise((resolve,reject)=>{
-    pending.set(id,{resolve,reject});
-    child!.stdin.write(JSON.stringify({...request,id,action:'find'})+'\n',error=>{
-      if(error){pending.delete(id);reject(error);}
+    const timer=setTimeout(()=>cancelWorker?.(new Error('Parser search timed out. Selection will retry.')),timeout('GRAMMAR_SEARCH_TIMEOUT_MS',120000));
+    timer.unref();pending.set(id,{resolve,reject,timer});
+    process.stdin.write(JSON.stringify({...request,id,action:'find'})+'\n',error=>{
+      if(error)cancelWorker?.(error);
     });
   });
 }
-export function stopWordWorker(){stopping=true;child?.kill();}
+export function stopWordWorker(){cancelWorker?.(new Error('Parser restarted.'));}

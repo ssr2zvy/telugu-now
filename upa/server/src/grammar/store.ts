@@ -42,18 +42,18 @@ export class GrammarCatalog {
     WHERE m.target_id=? AND r.text NOT IN (SELECT value FROM json_each(?))
     AND NOT EXISTS(SELECT 1 FROM validation.audio_validation v WHERE v.storage_identity=? AND v.object_key=o.audio_key AND v.status='invalid')`;
   assertUsable(profile:string){
-    const blocked=(userDb.prepare('SELECT text FROM profile_blacklisted_sentences WHERE profile_code=?').all(profile) as {text:string}[]).map(r=>r.text);
+    const blocked:string[]=[];
     const query='SELECT target_id FROM targets t WHERE NOT EXISTS(SELECT 1 '+this.candidates.replace('m.target_id=?','m.target_id=t.target_id')+') LIMIT 1';
-    if(this.db.prepare(query).get(JSON.stringify(blocked),audioStorageIdentity(config)))throw new Error('GRAMMAR_TARGET_UNAVAILABLE: restore audio or remove a blocking blacklist entry');
+    if(this.db.prepare(query).get(JSON.stringify(blocked),audioStorageIdentity(config)))throw new Error('GRAMMAR_TARGET_UNAVAILABLE: restore unavailable audio');
   }
   choose(profile:string,state:Progress,random=Math.random,requiredTarget?:string):GrammarChoice {
     const probs=probabilities(this.sizes,state);
     let j=pick(probs,random),t=Math.floor(random()*this.sizes[j]!);
     if(requiredTarget){j=this.targets.findIndex(tier=>tier.some(x=>x.target_id===requiredTarget));if(j<0)throw new Error('Unknown replacement target');t=this.targets[j]!.findIndex(x=>x.target_id===requiredTarget);}
-    const blocked=(userDb.prepare('SELECT text FROM profile_blacklisted_sentences WHERE profile_code=?').all(profile) as {text:string}[]).map(r=>r.text);
+    const blocked:string[]=[];
     const target=this.targets[j]![t]!,params=[target.target_id,JSON.stringify(blocked),audioStorageIdentity(config)];
     const lengths=this.db.prepare('SELECT m.length,COUNT(*) AS count '+this.candidates+' GROUP BY m.length ORDER BY m.length').all(...params) as {length:number;count:number}[];
-    if(!lengths.length)throw new Error('GRAMMAR_TARGET_UNAVAILABLE: restore audio or remove a blocking blacklist entry');
+    if(!lengths.length)throw new Error('GRAMMAR_TARGET_UNAVAILABLE: restore unavailable audio');
     const weights=lengths.map(l=>1/l.length**2),li=pick(weights,random),chosen=lengths[li]!;
     const obs=this.db.prepare('SELECT o.*,r.text '+this.candidates+' AND m.length=? ORDER BY o.source_id,o.source_key LIMIT 1 OFFSET ?').get(...params,chosen.length,Math.floor(random()*chosen.count)) as {id:number;source_id:string;source_key:string;text:string};
     const tokens=this.db.prepare('SELECT * FROM occurrences WHERE target_id=? AND observation_id=? ORDER BY token_index').all(target.target_id,obs.id) as Record<string,unknown>[];

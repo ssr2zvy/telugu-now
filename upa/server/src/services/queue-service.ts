@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db/database';
 import { coreEvent } from '../parsing/audit';
 import { initializeMode, coreProgress, graph, inventoryId, questionChoice, recordAttempt, attempt, applyFinishedBatch } from '../parsing/state';
-import { findWord, type WordRow } from '../parsing/live-worker';
+import { findWord, stopWordWorker, type WordRow } from '../parsing/live-worker';
 import { audioStorageIdentity } from './audio-validation-store';
 import { config } from '../config/config';
 import { logger } from './logger';
@@ -35,6 +35,7 @@ interface Chain {id:string;core:number;visited:Set<string>;exhausted:Set<string>
 const chains=new Map<string,Chain>();
 const filling=new Set<string>();
 const retryAfter=new Map<string,number>();
+const retryRequested=new Set<string>();
 export const liveSelection=new Map<string,{phase:string;target:string|null;checked:number;error:string|null}>();
 const shuffled=<T,>(items:T[]):T[]=>{for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j]!,items[i]!];}return items;};
 function closeChain(profile:string,reason:string){
@@ -104,7 +105,7 @@ async function fill(profile:string){
       let found;
       do{
         liveSelection.set(profile,{phase:'searching',target:target.id,checked:found?.checked??0,error:null});
-        const blocked=(db.prepare('SELECT text FROM profile_blacklisted_sentences WHERE profile_code=?').all(profile) as Array<{text:string}>).map(r=>r.text);
+        const blocked:string[]=[];
         found=await findWord({target:target.id,searchId,storageIdentity:audioStorageIdentity(config),blocked});
         db.prepare('UPDATE live_searches SET checked=?,pattern_json=? WHERE id=?').run(found.checked,JSON.stringify(found.pattern),searchId);
         liveSelection.set(profile,{phase:'searching',target:target.id,checked:found.checked,error:null});
@@ -119,11 +120,12 @@ async function fill(profile:string){
     liveSelection.set(profile,{phase:'ready',target:null,checked:0,error:null});
   }catch(error){
     const message=error instanceof Error?error.message:String(error);
-    closeChain(profile,'worker-error');
-    db.prepare("UPDATE live_searches SET ended_at=?,outcome='worker-error' WHERE ended_at IS NULL AND cycle_id IN(SELECT id FROM live_cycles WHERE profile_code=?)").run(Date.now(),profile);
+    const reason=retryRequested.has(profile)?'manual-retry':'worker-error';
+    closeChain(profile,reason);
+    db.prepare("UPDATE live_searches SET ended_at=?,outcome=? WHERE ended_at IS NULL AND cycle_id IN(SELECT id FROM live_cycles WHERE profile_code=?)").run(Date.now(),reason,profile);
     liveSelection.set(profile,{phase:'failed',target:null,checked:0,error:message});retryAfter.set(profile,Date.now()+30000);
     logger.error('live_selection_failed',{error:message});
-  }finally{filling.delete(profile);}
+  }finally{filling.delete(profile);if(retryRequested.delete(profile)){retryAfter.delete(profile);queueMicrotask(()=>ensureLaunchQueue(profile));}}
 }
 export function ensureLaunchQueue(profile:string):boolean{
   initializeMode(profile);
@@ -147,4 +149,12 @@ export function replaceRejectedQueuedObservation(id:string,reason='invalid-audio
     if(selected?.batch_id){db.prepare('UPDATE core_batches SET size=0 WHERE id=?').run(selected.batch_id);applyFinishedBatch(selected.batch_id);}
   })();
   ensureLaunchQueue(row.profile_code);
+}
+
+// Restart selection without deleting answers, history, or already selected observations.
+export function retryLiveSelection(profile:string):void {
+  retryAfter.delete(profile);
+  if(filling.has(profile)){retryRequested.add(profile);stopWordWorker();return;}
+  closeChain(profile,'manual-retry');
+  ensureLaunchQueue(profile);
 }

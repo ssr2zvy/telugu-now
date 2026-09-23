@@ -22,7 +22,7 @@ import type {
   TimingSummary,
   UpdateSelectionSettingsRequest,
 } from '../../../shared/contracts';
-import { liveSelection, appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
+import { retryLiveSelection, liveSelection, appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
@@ -589,7 +589,7 @@ export function resetQueue(code: string, visible: boolean): ProfileStateResponse
   ensureProfileRow(code);
   if (selectionMode(code)==='core') {
     db.prepare(`UPDATE observations SET preparation_attempts=0,preparation_retry_at=NULL,preparation_error=NULL WHERE status='pending' AND preparation_error IS NOT NULL AND id IN(SELECT observation_id FROM queue_items WHERE profile_code=?)`).run(code);
-    preparationService.kick();return getProfileState(code,visible);
+    retryLiveSelection(code);preparationService.kick();return getProfileState(code,visible);
   }
   clearQueue(code);
   ensureLaunchQueue(code);
