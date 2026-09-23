@@ -1,6 +1,5 @@
 import { parsingRoutes } from './parsing/routes';
 import { grammarRoutes } from './grammar/routes';
-import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
@@ -48,7 +47,7 @@ import type {
 import { errorCategory, logger, withRequestContext } from './services/logger';
 import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
-const app = new Hono();
+export const app = new Hono();
 
 function requestPath(path: string): string {
   return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');
@@ -216,8 +215,3 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 preparationService.kick();
-
-const port = process.env.NODE_ENV === 'production' ? config.port : config.devPort;
-serve({ fetch: app.fetch, port }, (info) => {
-  logger.info('server_started', { port: info.port });
-});
