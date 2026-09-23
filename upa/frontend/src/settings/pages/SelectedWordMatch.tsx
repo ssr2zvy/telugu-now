@@ -35,34 +35,22 @@ export function matchedWordEvidence(selected: Record<string, unknown>, sentence:
 }
 
 export function SelectedWordMatch({observation}: {observation: DisplayObservation | null}) {
-  if (!observation) return <section><h3>Current observation</h3><p>No observation is displayed yet. The preparation status below shows what the app is doing.</p></section>;
+  if (!observation) return <p>No observation loaded.</p>;
   const selected = observation.grammar?.target;
-  if (!selected) return <section><h3>Current observation</h3><p>This saved observation has no target or matched-word record. This is missing selection history, not a parser loading state.</p><p>{observation.text}</p></section>;
+  if (!selected) return <p>No selection record saved for this observation.</p>;
   const evidence = matchedWordEvidence(selected,observation.text);
-  const observationRule = record(selected.observationSelection);
-  const live = selected.policy === 'frequency-word-cache-v1';
-  const target = text(selected.label,selected.targetId);
-  const matches = Array.isArray(selected.matchedTargets) ? selected.matchedTargets.map(record) : [];
-  return <section aria-label="Current observation match">
-    <h3>Current observation: {evidence.word ? 'matched word saved' : 'word evidence unavailable'}</h3>
-    {evidence.word ? <>
-      <p>Matched word: <strong lang="te" style={{fontSize:'1.4em'}}>{evidence.word}</strong></p>
-      <p>Selected object: <strong>{target || 'Not recorded'}</strong>{selected.core ? ` · Core ${selected.core}` : ''}</p>
-      <p lang="te" style={{fontSize:'1.2em',lineHeight:1.8,overflowWrap:'anywhere'}}>{evidence.parts ? <>{evidence.parts[0]}<mark style={{background:'#ffe08a',color:'#201800',padding:'0 .12em'}}>{evidence.parts[1]}</mark>{evidence.parts[2]}</> : observation.text}</p>
-      {!evidence.parts ? <p>The word was saved, but its exact occurrence cannot be located reliably in this text.</p> : null}
-      <p>{live ? 'This word matched the selected object. The other words in this observation were not checked for this selection; they are not marked as failures.' : 'This is the word recorded by the earlier selection system. It is not a new live parse of this observation.'}</p>
-      <p>{selected.parseSource === 'cached-parse' ? 'The saved word parse was reused; parsing this word is already complete.' : selected.parseSource === 'new-parse' ? 'The word was parsed successfully when this question was selected.' : 'The saved record does not say whether its parse was new or reused.'}</p>
-      {selected.wordSelection === 'shortest-codepoints-v1' ? <p>The shortest matching word with an available observation was chosen. Length is measured in Unicode code points. Observation selection is shown below.</p> : <p>This question was selected before shortest-word selection was installed. The new rule applies to newly selected questions.</p>}
-      {observationRule.policy === 'core1-shortest-five-v1' ? <p>Core 1 observation: chosen randomly from the {String(observationRule.poolSize)} shortest usable observations containing this word (up to five). Sentence length: {String(observationRule.length)} characters, using the corpus grapheme count.</p>
-        : observationRule.policy === 'all-matching-random-v1' ? <p>Observation: chosen randomly from all usable observations containing this word.</p>
-        : <p>This saved question predates the Core 1 shortest-five observation rule. Newly selected Core 1 questions use it.</p>}
-      {Array.isArray(selected.chain) && selected.chain.length ? <p>Parsed modifier chain: {selected.chain.map(String).join(' → ')}</p> : null}
-      {matches.length > 1 ? <p>This same resolved parse also matched: {matches.filter(m=>m.id!==selected.targetId).map(m=>text(m.label,m.id)).join(' · ')}. Progress for this question belongs to the selected object above.</p> : null}
-      <details><summary>Saved match identifiers</summary><p>Object: {text(selected.targetId)}</p><p>Word in frequency: {evidence.normalized}</p><p>Source: {observation.sourceId} / {observation.sourceKey}</p><p>Observation: {observation.id}</p></details>
-    </> : <>
-      <p>Selected object: {target || 'Not recorded'}</p><p>{observation.text}</p>
-      <p>This older selection did not save which word matched. That cannot be recovered from the object name alone. Answer this question and continue; newly selected questions save the matched word and its occurrence.</p>
-      <p>This does not mean that the sentence failed parsing or that the parser is still loading.</p>
-    </>}
-  </section>;
+  const rule = record(selected.observationSelection);
+  return <div className="parser-settings">
+    <dl className="parser-metrics">
+      <dt>Word</dt><dd lang="te">{evidence.word || 'Not recorded'}</dd>
+      <dt>Parse</dt><dd>{selected.parseSource === 'cached-parse' ? 'Reused' : selected.parseSource === 'new-parse' ? 'New' : 'Not recorded'}</dd>
+      <dt>Word selection</dt><dd>{selected.wordSelection === 'shortest-codepoints-v1' ? 'Shortest match' : 'Earlier selection rule'}</dd>
+      <dt>Observation selection</dt><dd>{rule.policy === 'core1-shortest-five-v1' ? `Random among ${String(rule.poolSize)} shortest` : rule.policy === 'all-matching-random-v1' ? 'Random among all matches' : 'Earlier selection rule'}</dd>
+      <dt>Sentence length</dt><dd>{String(rule.length ?? '—')}</dd>
+    </dl>
+    <p className="parser-sentence" lang="te">{evidence.parts ? <>{evidence.parts[0]}<mark>{evidence.parts[1]}</mark>{evidence.parts[2]}</> : observation.text}</p>
+    {!evidence.parts && evidence.word ? <p>Exact word position unavailable.</p> : null}
+    <p className="parser-muted">{selected.policy === 'frequency-word-cache-v1' ? 'Only the selected word was checked for this selection.' : 'Evidence from the saved selection.'}</p>
+    <details className="parser-section"><summary>Saved record</summary><div className="parser-section-body"><pre>{JSON.stringify({observationId:observation.id,sourceId:observation.sourceId,sourceKey:observation.sourceKey,selection:selected},null,2)}</pre></div></details>
+  </div>;
 }

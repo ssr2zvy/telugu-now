@@ -1,30 +1,20 @@
 import type { ParsingDiagnostics } from '../../../../shared/parsing-diagnostics';
-
+import { targetUnicode } from '../parser-display';
 export function ParsingStatus({data}:{data:ParsingDiagnostics}) {
-  if (!data.worker || !data.queue || data.selectionPolicy !== 'shortest-codepoints-v1') return <section role="alert">
-    <h3>Server update incomplete</h3><p>This screen is updated, but the server has not reported the shortest-word selection version. Deploy the updated frontend and backend together.</p>
-  </section>;
   const {worker,activity,queue} = data;
-  const target = data.targets.find(t=>t.id===activity.target);
-  const label = target?.label ?? activity.target;
-  const phase = activity.phase;
-  return <section aria-label="Next question preparation">
-    <h3>Preparing the next questions</h3>
-    <p role="status">Parser: {worker.phase==='loading-parser' ? 'loading rules and opening the word cache. This happens automatically; wait here.' : worker.phase==='failed' ? 'stopped with an error.' : worker.phase==='ready' ? 'loaded and ready.' : 'not started yet.'}</p>
-    {worker.phase==='ready' ? <p role="status">{phase==='searching' ? `Searching for the shortest matching word for ${label}. ${activity.checked} new words checked in this search.`
-      : phase==='awaiting-answers' ? 'Waiting for answers to already selected questions. Continue with your current question.'
-      : phase==='completed' ? 'All Core objects are complete.'
-      : phase==='blocked' ? 'No usable word and observation were found for the remaining objects under their search rules. This is not loading.'
-      : phase==='failed' ? 'Question selection stopped with an error.'
-      : phase==='ready' ? 'Word matching for the queued questions is complete.'
-      : 'Waiting to select the next question.'}</p> : null}
-    <p>{queue.ready} next questions ready · {queue.pending+queue.preparing} selected and preparing audio{queue.failed ? ` · ${queue.failed} need a preparation retry` : ''}.</p>
-    {queue.pending+queue.preparing>0 ? <p>These questions already have a matching word. Audio preparation is a separate step.</p> : null}
-    {queue.failed>0 ? <p>Open Queue view and choose “Retry unavailable questions” to retry their preparation.</p> : null}
-    {phase==='blocked' ? <p>Check the objects with exhausted searches below: their Unicode and length rules, audio availability, and your sentence blacklist can prevent selection. The app retries selection automatically while open.</p> : null}
-    {phase==='failed'||worker.phase==='failed' ? <p>The app retries selection automatically while open. If it keeps failing, use the error below to correct the server configuration or data file.</p> : null}
-    {worker.error||activity.error ? <p role="alert">{worker.error??activity.error}</p> : null}
-    {queue.errors.map(error=><p role="alert" key={error}>Audio preparation: {error}</p>)}
-    <small>Matched-word diagnostics v2 · Core 1: random among five shortest observations</small>
-  </section>;
+  const target = targetUnicode(data.targets.find(item => item.id === activity.target)).join(' · ');
+  const status:Record<string,string> = {
+    searching:'Finding a matching word', 'awaiting-answers':'Waiting for answers', completed:'All cores complete',
+    blocked:'No usable match under the current search rules', failed:'Selection failed', ready:'Questions selected',
+  };
+  return <div className="parser-settings">
+    <dl className="parser-metrics"><dt>Parser</dt><dd>{worker.phase === 'loading-parser' ? 'Loading' : worker.phase.replaceAll('-',' ')}</dd><dt>Selection</dt><dd>{status[activity.phase] ?? 'Waiting'}</dd><dt>Ready</dt><dd>{queue.ready}</dd><dt>Preparing</dt><dd>{queue.pending + queue.preparing}</dd><dt>Failed</dt><dd>{queue.failed}</dd></dl>
+    {target ? <p lang="te">{target}</p> : null}
+    {activity.phase === 'searching' ? <p>{activity.checked} new words checked in this search.</p> : null}
+    {queue.pending + queue.preparing > 0 ? <p className="parser-muted">Matches found; audio is preparing.</p> : null}
+    {queue.failed > 0 ? <p>Retry unavailable questions in Queue.</p> : null}
+    {activity.phase === 'blocked' ? <p>Check exhausted searches, Unicode rules, audio availability and the blacklist. Selection retries automatically.</p> : null}
+    {worker.error || activity.error ? <p role="alert">{worker.error ?? activity.error}</p> : null}
+    {queue.errors.map(error => <p role="alert" key={error}>{error}</p>)}
+  </div>;
 }
