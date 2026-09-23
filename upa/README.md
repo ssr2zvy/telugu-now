@@ -880,8 +880,10 @@ corpus download may take longer; allow a longer deployment wait timeout, such as
 `--wait-timeout 5m`, when deploying. Autostop is disabled to avoid
 traffic-driven startup rebuilds.
 This deployment sets `CORPUS_AVAILABILITY_REBUILD_ON_STARTUP=true`. Startup
-rebuilds `availability.sqlite` from the Tigris inventory before serving. Existing
-corpus and user databases are reused.
+listens on `0.0.0.0:8080` immediately, serves the health endpoint while
+initializing, and returns HTTP 503 for other requests until it rebuilds
+`availability.sqlite` from the Tigris inventory. Existing corpus and user
+databases are reused.
 This scan repeats on each application startup while the rebuild flag is enabled.
 
 Ordinary pushes and merges do not deploy. From a clean `main` checkout, explicitly
