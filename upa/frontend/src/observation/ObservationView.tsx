@@ -681,6 +681,8 @@ export function ObservationView({
         className="observation-center"
         data-entry-loading={Boolean(observation && !entryReady)}
       >
+        {observation?.question?.phase==='observation' && observation.grammar?.result!==null && !state?.canNext && state?.nextStatus==='pending'
+          ? <LoadingSlit label="Finding next parsed question"/> : null}
         {!activeNavigation && observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
           <div
             className="question-phase-indicator"

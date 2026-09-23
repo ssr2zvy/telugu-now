@@ -1,6 +1,8 @@
 export interface TargetDiagnostic {
   id: string; core: number; kind: 'vocabulary' | 'chain'; label: string;
   forms: string[]; chain: string[]; chainAlternatives: string[][];
+  matchedWords: number|null; searches:number; checked:number; exhausted:number;
+  pattern:{needles:string[];maxCodepoints:number;scope:string}|null;
   streak: number; mastered: boolean; corpusRows: number | null;
   corpusTexts: number | null; audioReferenceRows: number | null;
   selected: number; displayed: number; answered: number; pendingAnswers: number;
@@ -20,5 +22,8 @@ export interface ParsingDiagnostics {
   version:1; generatedAt:number; auditStartedAt:number; currentCore:number;
   inventoryId:string|null; catalogError:string|null; progressError:string|null;
   levels:CoreDiagnostic[]; targets:TargetDiagnostic[];
+  cache:{total:number;checked:number;parsed:number;rejected:number}|null;
+  activity:{phase:string;target:string|null;checked:number;error:string|null};
+  cycles:{total:number;active:number;steps:number;reasons:Array<{reason:string;count:number}>};
   historyNotice:string;
 }

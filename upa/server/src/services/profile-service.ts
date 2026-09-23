@@ -22,7 +22,7 @@ import type {
   TimingSummary,
   UpdateSelectionSettingsRequest,
 } from '../../../shared/contracts';
-import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
+import { liveSelection, appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
@@ -535,7 +535,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   const displayedObservation = currentObservation(code, profile.current_position);
 
   return {
-    grammarError,
+    grammarError: grammarError ?? liveSelection.get(code)?.error ?? null,
     grammarActive: selectionMode(code)==='core',
     grammarMigrationAvailable: false,
     selectionMode: selectionMode(code),
@@ -550,7 +550,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
       || adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
     canNext: (displayedObservation?.grammar && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) ? false : Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
       || inHistoricalForwardPath || nextQueue?.status === 'ready',
-    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),
+    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? (['searching','loading-parser'].includes(liveSelection.get(code)?.phase??'') ? 'pending' : null)),
     queue: queueSummary(code),
     timing: timingSummary(code, now),
     selectionSettings: getProfileSelectionSettings(code),
@@ -720,8 +720,8 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     `).run(newHistoryPosition, now, now, code);
     recordCurrentObservationView(db, code, 'next', now);
 
-    // First-time display consumes one future slot. Reserve its replacement in this
-    // same transaction so consumption cannot commit without one-for-one replacement.
+    // Consumption schedules asynchronous live selection; an empty next slot uses
+    // the existing loading indicator until parsing and media preparation finish.
     appendConsumptionReplacement(code, queued.observation_id, newHistoryPosition, now);
     logger.info('queue_consumed_and_replacement_scheduled', {
       observationId: queued.observation_id,

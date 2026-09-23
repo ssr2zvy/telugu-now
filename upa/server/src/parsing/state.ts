@@ -4,7 +4,6 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { db } from '../db/database';
 import { config } from '../config/config';
-import { chooseQuestionType } from '../grammar/question-type';
 
 export type SelectionMode = 'weighted' | 'core' | 'random';
 export const parsingDirectory = path.join(config.dataDirectory, 'corpus', 'parsing');
@@ -48,32 +47,32 @@ initializeCoreDiagnostics();
 
 export interface ParsingSystem { catalog_path: string | null; inventory_id: string | null; corpus_stamp: string | null; job_json: string }
 export const system = () => db.prepare('SELECT * FROM parsing_system WHERE id=1').get() as ParsingSystem;
-export const selectionMode = (profile: string): SelectionMode => (db.prepare('SELECT mode FROM selection_modes WHERE profile_code=?').get(profile) as { mode: SelectionMode } | undefined)?.mode ?? 'weighted';
+export const selectionMode = (_profile: string): SelectionMode => 'core';
+let cachedInventoryId:string|undefined;
+export function inventoryId(): string {
+  if(cachedInventoryId)return cachedInventoryId;
+  const stable = (value: any): any => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map(k => [k, stable(value[k])])) : value;
+  return cachedInventoryId=createHash('sha256').update(JSON.stringify(stable(graph()))).digest('hex');
+}
+db.exec(`CREATE TABLE IF NOT EXISTS live_profile_install(profile_code TEXT PRIMARY KEY REFERENCES profiles(code) ON DELETE CASCADE, installed_at INTEGER NOT NULL)`);
 export function initializeMode(profile: string): void {
-  const inserted = db.prepare('INSERT OR IGNORE INTO selection_modes(profile_code) VALUES(?)').run(profile);
-  if (!inserted.changes) return;
-  // Old GI reservations are preserved separately; new selection never reads or
-  // clears old complexity, source weights, grammar progress or displayed history.
-  if (db.prepare("SELECT 1 FROM sqlite_master WHERE name='grammar_attempts'").get()) db.prepare(`INSERT OR IGNORE INTO parked_queues SELECT q.profile_code,'legacy-grammar',q.queue_position,q.observation_id FROM queue_items q JOIN grammar_attempts a ON a.observation_id=q.observation_id WHERE q.profile_code=?`).run(profile);
-  db.prepare(`DELETE FROM queue_items WHERE profile_code=? AND observation_id IN(SELECT observation_id FROM parked_queues WHERE mode='legacy-grammar')`).run(profile);
-}
-
-export function switchMode(profile: string, mode: SelectionMode): void {
-  if (!['weighted', 'core', 'random'].includes(mode)) throw new Error('Invalid selection mode');
-  initializeMode(profile);
-  const old = selectionMode(profile);
-  if (old === mode) return;
-  db.transaction(() => {
-    db.prepare('INSERT INTO parked_queues SELECT profile_code,?,queue_position,observation_id FROM queue_items WHERE profile_code=?').run(old, profile);
+  if(db.prepare('SELECT 1 FROM live_profile_install WHERE profile_code=?').get(profile))return;
+  db.transaction(()=>{
+    // Preserve displayed history and streaks; retire old undisplayed reservations.
     db.prepare('DELETE FROM queue_items WHERE profile_code=?').run(profile);
-    db.prepare('INSERT INTO queue_items SELECT profile_code,queue_position,observation_id FROM parked_queues WHERE profile_code=? AND mode=?').run(profile, mode);
-    db.prepare('DELETE FROM parked_queues WHERE profile_code=? AND mode=?').run(profile, mode);
-    db.prepare('UPDATE selection_modes SET mode=? WHERE profile_code=?').run(mode, profile);
-    coreEvent(profile, 'mode-changed', {}, { from: old, to: mode });
-  }).immediate();
+    db.prepare('UPDATE core_batches SET applied=1 WHERE profile_code=? AND applied=0').run(profile);
+    db.prepare("INSERT INTO selection_modes(profile_code,mode) VALUES(?,'core') ON CONFLICT(profile_code) DO UPDATE SET mode='core'").run(profile);
+    db.prepare('INSERT INTO live_profile_install VALUES(?,?)').run(profile,Date.now());
+    coreEvent(profile,'live-mode-installed',{}, {policy:'frequency-word-cache-v1'});
+  })();
+}
+export function switchMode(profile: string, mode: SelectionMode): void {
+  if(mode!=='core')throw new Error('Only live parsing is supported on this branch');
+  initializeMode(profile);
 }
 
-export function coreProgress(profile: string, inventory = system().inventory_id) {
+export function coreProgress(profile: string, inventory = inventoryId()) {
   if (!inventory) return { core: 1, inventoryId: null, streaks: {} as Record<string, number> };
   const saved = db.prepare('SELECT inventory_id,core FROM core_progress WHERE profile_code=?').get(profile) as { inventory_id: string; core: number } | undefined;
   if (saved && saved.inventory_id !== inventory) throw new Error('Core catalogue changed; explicit progress migration is required');
@@ -83,17 +82,11 @@ export function coreProgress(profile: string, inventory = system().inventory_id)
 }
 
 export function questionChoice(profile: string, random = Math.random) {
-  let progress: ReturnType<typeof coreProgress>;
-  try { progress = coreProgress(profile); }
-  catch { progress = { core: 1, inventoryId: null, streaks: {} }; }
-  const groups = [1, 2, 3].map(core => Object.values(graph().nodes).filter(n => n.core === core));
-  const sizes = groups.map(g => g.length);
-  const streaks = groups.map(g => g.map(n => progress.streaks[n.id] ?? 0));
-  const c = Math.min(3, progress.core) - 1;
-  const phase = streaks[c]!.reduce((a, b) => a + b, 0) / (3 * sizes[c]!);
-  // Reuse the existing 2/3 -> 1/3 text-given curve. The coordinate now follows
-  // this Core's streak quota, and changes only when a Core batch is applied.
-  return chooseQuestionType(sizes, { position: progress.core === 4 ? 3 : c + phase, completed: progress.core === 4, streaks }, random);
+  const row=db.prepare('SELECT audio_given_question_probability AS p FROM profile_selection_settings WHERE profile_code=?').get(profile) as {p:number}|undefined;
+  const audioGiven=row?.p??0.6,draw=random();
+  const mode = draw<audioGiven ? 'audio-given' as const : 'text-given' as const;
+  return {policy:'user-question-type-v1',mode,draw,audioGiven,textGiven:1-audioGiven,
+    selectedProbability:mode==='audio-given'?audioGiven:1-audioGiven};
 }
 
 export interface SelectionAttempt { observation_id: string; profile_code: string; mode: SelectionMode; batch_id: string | null; slot: number | null; target_id: string | null; core: number | null; text_hash: string | null; result: number | null; displayed_at: number | null; }
@@ -106,9 +99,7 @@ export function markDisplayed(profile: string, id: string): void {
   const a = attempt(id, profile);
   if (!a || a.displayed_at !== null) return;
   const now = Date.now();
-  if (a.mode === 'core') {
-    db.prepare('INSERT INTO core_used VALUES(?,?,?,?,?)').run(profile, a.core, a.text_hash, id, now);
-  }
+  // Repeated observations are allowed; do not maintain a used-observation set.
   db.prepare('UPDATE selection_attempts SET displayed_at=? WHERE observation_id=?').run(now, id);
   if (a.mode === 'core') coreEvent(profile, 'observation-displayed', { core:a.core,batchId:a.batch_id,observationId:id,targetId:a.target_id,slot:a.slot }, { displayedAt:now }, `displayed:${id}`);
 }
@@ -122,7 +113,7 @@ export function applyFinishedBatch(batchId: string): void {
   if (p.core !== batch.core) throw new Error('Core batch is out of sequence');
   for (const r of rows) {
     const before = p.streaks[r.target_id] ?? 0;
-    const streak = r.result === 1 ? Math.min(3, (p.streaks[r.target_id] ?? 0) + 1) : 0;
+    const streak = before === 3 ? 3 : r.result === 1 ? Math.min(3, (p.streaks[r.target_id] ?? 0) + 1) : 0;
     p.streaks[r.target_id] = streak;
     coreEvent(batch.profile_code, 'progress-applied', { inventoryId:batch.inventory_id,core:batch.core,batchId,observationId:r.observation_id,targetId:r.target_id,slot:r.slot }, { result:r.result===1,before,after:streak,masteredBefore:before===3,masteredAfter:streak===3 }, `progress:${r.observation_id}`);
     db.prepare('INSERT INTO core_streaks VALUES(?,?,?,?,?) ON CONFLICT(profile_code,inventory_id,target_id) DO UPDATE SET streak=excluded.streak')
