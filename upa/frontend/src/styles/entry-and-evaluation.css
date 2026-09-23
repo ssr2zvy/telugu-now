@@ -41,3 +41,15 @@ html[data-input-modality="keyboard"] .appearance-root .evaluation-switch:focus-v
 .reading-context-menu[data-feedback] .reading-context-menu-action svg { opacity: 1; filter: saturate(1.2) contrast(1.14); }
 .word-image-feedback { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: .75rem; color: var(--foreground); pointer-events: none; }
 .recording-readiness { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; font-size: .7rem; color: var(--muted); pointer-events: none; }
+
+/* A saved answer remains visible but has no native selection/tap response. */
+.grammar-evaluation, .grammar-evaluation * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.appearance-root .evaluation-switch:disabled {
+  outline: none;
+  box-shadow: none;
+}

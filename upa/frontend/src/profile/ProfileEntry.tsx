@@ -93,7 +93,7 @@ export function ProfileEntry({ invalidCode, loadUnavailable, onSubmit, onInputCh
         <button type="button" disabled={submitting} onClick={() => enterDigit('0')}><span>0</span></button>
         <button type="button" aria-label="Backspace" disabled={submitting} onClick={backspace}><Delete aria-hidden="true" /></button>
       </div>
-      <span className="entry-keypad-message" role="status">{submitting ? 'Opening profile…' : pasteError}</span>
+      <span className="entry-keypad-message" role="status">{submitting ? '' : pasteError}</span>
     </div>
   </main>;
 }

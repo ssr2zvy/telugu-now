@@ -48,10 +48,6 @@
 .observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="left"].controls-visible .observation-center > .audio-player-bar { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
 .observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="right"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
 .observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="left"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
-.observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="enter"][data-swipe-direction="right"] .question-record-controls[data-visible="true"] { animation: audio-enter-right var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
-.observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="enter"][data-swipe-direction="left"] .question-record-controls[data-visible="true"] { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
-.observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="exit"][data-swipe-direction="right"] .question-record-controls[data-visible="false"] { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
-.observation-screen[data-scroll-mode="true"][data-question-mode="text-given"][data-audio-motion="exit"][data-swipe-direction="left"] .question-record-controls[data-visible="false"] { animation: audio-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
 @keyframes audio-enter-right { from { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
 @keyframes audio-enter-left { from { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
 @keyframes audio-exit-right { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } }
@@ -227,7 +223,6 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 
 /* A newly entered text prompt must not fade out the previous page's audio UI. */
 .observation-screen[data-question-mode="text-given"][data-audio-motion="idle"]:not(.controls-visible) .observation-center > .audio-player-bar,
-.observation-screen[data-question-mode="text-given"][data-audio-motion="idle"] .question-record-controls[data-visible="false"] { visibility: hidden; animation: none; transition: none; }
 
 /* Text-given question -> comparison: one fixed text surface, one audio bar. */
 .observation-screen[data-text-given-flow='true'],
@@ -272,7 +267,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .observation-screen[data-text-given-flow='true'] :is(.audio-player-bar, .question-record-controls, .grammar-evaluation, .evaluation-switch-indicator) { animation: none !important; transition: none !important; }
 }
 
-.observation-screen[data-text-given-flow='true'][data-entry-ready='false'] .grammar-evaluation { visibility: hidden; }
+
 
 .observation-screen[data-swipe-navigation='true'],
 .observation-screen[data-swipe-navigation='true'] :is(.nav-zone,.nav-region) { touch-action: pinch-zoom; }
