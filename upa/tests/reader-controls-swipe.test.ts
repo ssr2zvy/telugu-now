@@ -4,12 +4,12 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useReaderSwipes } from '../frontend/src/observation/useReaderSwipes';
 
-test('audio gestures never navigate or preview travel; page and button swipes still work',()=>{
+test('horizontal audio drags seek; vertical audio gestures disclose; unused space still navigates',()=>{
   const savedElement=globalThis.Element,savedWindow=globalThis.window;
-  class Target { constructor(public kind:string){} closest(selector:string){return this.kind==='audio' ? this : this.kind==='button' && selector.startsWith('button') ? this : null;} }
+  class Target { constructor(public kind:string){} closest(selector:string){return (this.kind==='audio' && selector.includes('[role="slider"]')) || (this.kind==='button' && selector.startsWith('button')) || (this.kind==='space' && selector.startsWith('button')) ? this : null;} }
   Object.assign(globalThis,{Element:Target,window:{getSelection:()=>null}});
   try {
-    for(const control of ['page','button','audio']) {
+    for(const control of ['page','button','space','audio']) {
       const actions:string[]=[];const previews:number[]=[];let captures=0;let handlers:ReturnType<typeof useReaderSwipes>;
       const root={hasPointerCapture:()=>false,setPointerCapture:()=>{captures++;},getBoundingClientRect:()=>({width:400})};
       function Harness(){handlers=useReaderSwipes({current:root as unknown as HTMLElement},true,'comparison',direction=>actions.push(direction),()=>{},{onDrag:dx=>previews.push(dx),onCancel:()=>{}});return null;}
@@ -19,7 +19,7 @@ test('audio gestures never navigate or preview travel; page and button swipes st
       assert.deepEqual(actions,[],'short drags do not navigate');
       for(const [x,y,direction] of [[0,100,'next'],[200,100,'back'],[100,200,'down'],[100,0,'up']] as const){
         handlers!.onPointerDownCapture(event(100,100));const moved=event(x,y);moved.target=new Target('page');handlers!.onPointerMoveCapture(moved);handlers!.onPointerUpCapture(moved);
-        if(control==='audio'){assert.deepEqual(actions,[]);assert.deepEqual(previews,[]);assert.equal(captures,0);}else assert.equal(actions.at(-1),direction);
+        if(control==='audio' && (direction==='next'||direction==='back')){assert.deepEqual(actions,[]);assert.deepEqual(previews,[]);assert.equal(captures,0);}else assert.equal(actions.at(-1),direction);
       }
     }
   } finally {Object.assign(globalThis,{Element:savedElement,window:savedWindow});}

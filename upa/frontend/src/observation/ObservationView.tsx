@@ -169,7 +169,7 @@ export function ObservationView({
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
-    setControlsVisible(textComparison || Boolean(textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
+    setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
     return () => taps.cancel();
   }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
   const showsObservationText = observationShowsText(observation);
@@ -460,7 +460,7 @@ export function ObservationView({
     let moved = false;
     try {
       if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
-      if(direction==='next' && comparisonPhase && observation?.grammar && !observation.grammar.discarded &&
+      if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
         !(await evaluationRef.current?.commit()))return;
       if (textGivenFlow && entryReady) {
         phaseDirection.current = direction;
@@ -783,7 +783,7 @@ export function ObservationView({
           }}
         />
       </div>
-      {observation?.grammar && comparisonPhase ? <GrammarEvaluation ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+      {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase)} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
       {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (

@@ -675,7 +675,6 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
         WHERE h.profile_code = ? AND h.history_position = ?
       `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
-      if(phase==='comparison' && current && !isDiscarded(current.observation_id,code) && (selectionAttempt(current.observation_id,code)??attempt(current.observation_id,code))?.result===null)throw new NavigationUnavailableError('Confirm the comparison before advancing');
       if (phase === 'question' || phase === 'comparison') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
           .run(JSON.stringify({ questionPhase: phase === 'question' ? 'comparison' : 'observation' }), code, profile.current_position);
