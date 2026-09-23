@@ -1,4 +1,7 @@
+import type { AppearancePage } from './appearance-navigation';
 export type SettingsPage =
+  | AppearancePage
+  | 'dataSourceDetail'
   | 'searchAttempt'
   | 'currentChain'
   | 'nextChainSearch'

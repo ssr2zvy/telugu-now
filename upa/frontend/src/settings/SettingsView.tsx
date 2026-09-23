@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { SearchAttempt } from '../../../shared/parsing-diagnostics';
+import { isAppearancePage } from './appearance-navigation';
 import { ParserDetailPage } from './pages/ParserDetailPage';
 import { ParserCurrentPage } from './pages/ParserCurrentPage';
 import { DiagnosticsDownloadPage } from './pages/DiagnosticsDownloadPage';
@@ -10,7 +9,7 @@ import { GrammarQuestionTypePage } from './pages/GrammarQuestionTypePage';
 import { GrammarMigrationPage } from './pages/GrammarMigrationPage';
 import type { ProfileStateResponse } from '../../../shared/contracts';
 import { ParserDiagnosticsPage } from './pages/ParserDiagnosticsPage';
-import { DataSourcesPage } from './pages/DataSourcesPage';
+import { DataSourcesPage, DataSourceDetailPage } from './pages/DataSourcesPage';
 import { SettingsShell } from './SettingsShell';
 import type { SettingsController } from './useSettingsController';
 import { DiagnosticPage } from './pages/DiagnosticPage';
@@ -38,7 +37,6 @@ export function SettingsView({
   fontFamily,
   onClose,
 }: SettingsViewProps) {
-  const [selectedAttempt,setSelectedAttempt]=useState<SearchAttempt|null>(null);
   const {
     page,
     language,
@@ -59,11 +57,16 @@ export function SettingsView({
     profileCode: state.profileCode,
     migrationAvailable: state.grammarMigrationAvailable ?? false,
     onNavigate: controller.enterPage,
-    onOverview: controller.prepareOpen,
+    onOverview: controller.openOverview,
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
-  if(["searchAttempt", "currentChain", "nextChainSearch", "lastSearchAttempt", "currentReset", "coreProgress", "objectCoverage", "coverageNotes", "searchAndParse", "currentSearches", "allTimeSearches", "cycleHistory", "parserEvents", "parserDetails"].includes(page) && page!=='searchAndParse') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserDetailPage key={`${state.profileCode}:${page}`} page={page} selectedAttempt={selectedAttempt} onAttempt={attempt=>{setSelectedAttempt(attempt);controller.enterPage('searchAttempt');}} profileCode={state.profileCode} observation={state.currentObservation} onNavigate={controller.enterPage} onState={controller.acceptState}/></SettingsShell>;
+  if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>
+    <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>
+  </SettingsShell>;
+  if(page==='dataSources')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourcesPage language={language} onSelect={controller.openDataSource}/></SettingsShell>;
+  if(page==='dataSourceDetail')return <SettingsShell {...shellProps} title={controller.selectedDataSource?.displayName??settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourceDetailPage language={language} source={controller.selectedDataSource}/></SettingsShell>;
+  if(["searchAttempt", "currentChain", "nextChainSearch", "lastSearchAttempt", "currentReset", "coreProgress", "objectCoverage", "coverageNotes", "searchAndParse", "currentSearches", "allTimeSearches", "cycleHistory", "parserEvents", "parserDetails"].includes(page) && page!=='searchAndParse') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserDetailPage key={`${state.profileCode}:${page}`} page={page} selectedAttempt={controller.selectedAttempt} onAttempt={controller.openSearchAttempt} profileCode={state.profileCode} observation={state.currentObservation} onNavigate={controller.enterPage} onState={controller.acceptState}/></SettingsShell>;
   if(page==='parsingMode')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParsingPage key={state.profileCode} profileCode={state.profileCode} onState={controller.acceptState}/></SettingsShell>;
 
   if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;
@@ -84,20 +87,6 @@ export function SettingsView({
           onNavigate={controller.enterPage}
           onResetQueue={() => void controller.resetQueue()}
         />
-      </SettingsShell>
-    );
-  }
-  if (page === 'dataSources') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <DataSourcesPage language={language} />
-      </SettingsShell>
-    );
-  }
-  if (page === 'appearance') {
-    return (
-      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
-        <OrganizedAppearancePage language={language} />
       </SettingsShell>
     );
   }

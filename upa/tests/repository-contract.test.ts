@@ -143,18 +143,21 @@ test('Settings secondary labels and inset dividers preserve localized hierarchy'
 test('Settings structure uses distinct playback sections and Appearance visual groups', () => {
   const navigation = read('frontend/src/settings/navigation.ts');
   const appearance = read('frontend/src/settings/pages/OrganizedAppearancePage.tsx');
+  const appearanceNavigation = read('frontend/src/settings/appearance-navigation.ts');
   const player = read('frontend/src/observation/audio/useAudioPlayer.ts');
   assert.match(navigation, /'Playback Settings'/);
   assert.match(navigation, /'Image Generation'/);
-  for (const group of ['Background', 'Reading Text & Icons', 'Audio Controls', 'Settings & Popovers']) {
-    assert.ok(appearance.includes(group), `${group} must be an Appearance group`);
+  for (const group of ['Background', 'Reading text & icons', 'Audio controls', 'Settings & popovers', 'Letter modifications']) {
+    assert.ok(appearanceNavigation.includes(group), `${group} must be an Appearance group`);
   }
-  assert.match(appearance, /Automatic Surface[\s\S]*Derive a readable surface from the background/);
-  assert.match(appearance, /appearance\.highlightMods \? teluguHighlightRuns\(previewText\)/);
-  assert.match(appearance, /<CollapsibleSettingsSection className="appearance-element"/);
+  assert.match(appearance, /Theme surface/);
+  assert.doesNotMatch(appearance, /CollapsibleSettingsSection|Automatic/);
+  assert.match(appearance, /ParserLinks/);
   const dataSources = read('frontend/src/settings/pages/DataSourcesPage.tsx');
   const eons = read('frontend/src/settings/pages/EonsPage.tsx');
-  assert.match(dataSources, /<CollapsibleSettingsSection className="data-source-card"/);
+  assert.match(dataSources, /onSelect\(source\)/);
+  assert.match(dataSources, /export function DataSourceDetailPage/);
+  assert.doesNotMatch(dataSources, /CollapsibleSettingsSection/);
   assert.match(eons, /<CollapsibleSettingsSection[\s\S]*className=\{active \? 'eon-active' : 'eon-current'\}/);
   assert.match(eons, /<CollapsibleSettingsSection className="eon-history"/);
   assert.match(player, /wantsPlaybackRef\.current = autoplay/);

@@ -1,92 +1,88 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { ArrowDown, ArrowUp, RotateCcw, Shuffle } from 'lucide-react';
-import { APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_DARKNESS_LIMITS, CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, MODIFICATION_LIGHTNESS_LIMITS, appearanceAudioColor, appearanceAudioGlass, appearanceAudioHoverColor, appearanceModificationColor, appearanceModificationTextShiftColor, appearanceSurface, randomAppearanceColors, useAppearance } from '../../appearance';
-import { compatibleObservationFonts, OBSERVATION_FONTS } from '../../presentation';
+import type { CSSProperties } from 'react';
+import { ChevronRight, RotateCcw, Shuffle } from 'lucide-react';
+import {
+  APPEARANCE_OFFSET_LIMIT, AUTO_FADE_SECONDS_LIMITS, CONTROL_DARKNESS_LIMITS,
+  CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, MODIFICATION_LIGHTNESS_LIMITS,
+  appearanceAudioColor, appearanceAudioHoverColor, appearanceModificationColor,
+  appearanceModificationTextShiftColor, appearanceSurface, randomAppearanceColors, useAppearance,
+} from '../../appearance';
+import { compatibleObservationFonts, OBSERVATION_FONTS, type ObservationFontFamily } from '../../presentation';
+import { appearanceGroups, appearancePageLabel, type AppearancePage } from '../appearance-navigation';
+import { ParserLinks, type ParserNavigate } from './ParserLinks';
 import type { UiLanguage } from '../types';
-import { teluguHighlightRuns } from '../../observation/telugu-highlighting';
-import { CollapsibleSettingsSection } from '../CollapsibleSettingsSection';
 
-function ElementGroup({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <CollapsibleSettingsSection className="appearance-element" title={title} description={description}>{children}</CollapsibleSettingsSection>;
-}
-
-function Subsection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
-  return <div className="appearance-subsection"><div className="appearance-section-heading"><h3>{title}</h3>{action}</div>{children}</div>;
-}
-
-export function OrganizedAppearancePage({ language }: { language: UiLanguage }) {
-  const { appearance, updateAppearance } = useAppearance();
-  const availableFonts = compatibleObservationFonts(appearance.fonts);
-  const settingsFonts = compatibleObservationFonts(OBSERVATION_FONTS);
-  const glass = appearanceAudioGlass(appearance);
-  const modificationColor = appearanceModificationColor(appearance);
-  const text = (english: string, telugu: string) => language === 'en' ? english : telugu;
-  const modificationPresets = [
-    { label: text('Icon Color', 'చిహ్న రంగు'), color: appearanceAudioColor(appearance) },
-    { label: text('Icon Hover Color', 'చిహ్న హోవర్ రంగు'), color: appearanceAudioHoverColor(appearance) },
-    { label: text('Text Shift Color', 'అక్షర మార్పు రంగు'), color: appearanceModificationTextShiftColor(appearance) },
-  ];
-  const reset = (label: string, update: () => void) => <button type="button" className="appearance-icon-action" aria-label={label} onClick={update}><RotateCcw aria-hidden="true" /></button>;
-  const previewText = 'తెలుగు';
-  const offset = (setting: 'textOffset' | 'audioOffset', label: string) => <div className="appearance-position-field">
-    <label htmlFor={`appearance-${setting}`}>{label}</label>
-    <div className="appearance-scale appearance-offset"><ArrowUp size={16} aria-hidden="true" /><input id={`appearance-${setting}`} type="range" min={-APPEARANCE_OFFSET_LIMIT} max={APPEARANCE_OFFSET_LIMIT} step={1} value={appearance[setting]} style={{ '--range-progress': `${(appearance[setting] + APPEARANCE_OFFSET_LIMIT) / (APPEARANCE_OFFSET_LIMIT * 2) * 100}%` } as CSSProperties} aria-valuetext={`${appearance[setting]} px`} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} /><ArrowDown size={16} aria-hidden="true" /><output htmlFor={`appearance-${setting}`}>{appearance[setting] > 0 ? '+' : ''}{appearance[setting]} px</output></div>
-  </div>;
-  return <div className="appearance-page appearance-page-organized">
-    <div className="appearance-preview" role="img" aria-label={text('Appearance preview', 'రూపం నమూనా')}><span lang="te" style={{ fontFamily: `"${availableFonts[0]}"`, fontSize: `${24 + appearance.fontScale * .24}px` }}>{appearance.highlightMods ? teluguHighlightRuns(previewText).map((run, index) => run.highlighted ? <span className="telugu-modification" key={index}>{run.text}</span> : run.text) : previewText}</span></div>
-
-    <ElementGroup title={text('Background', 'నేపథ్యం')} description={text('Colors behind the reader and throughout the application.', 'రీడర్ మరియు అప్లికేషన్ అంతటా కనిపించే నేపథ్య రంగులు.')}>
-      <Subsection title={text('Colors', 'రంగులు')} action={<div className="appearance-color-actions"><button type="button" className="appearance-icon-action" aria-label={text('Randomize colors', 'యాదృచ్ఛిక రంగులు')} onClick={() => updateAppearance({ ...randomAppearanceColors(), surface: null })}><Shuffle aria-hidden="true" /></button>{reset(text('Reset background colors', 'నేపథ్య రంగులను పునరుద్ధరించు'), () => updateAppearance({ gradient: DEFAULT_APPEARANCE.gradient, surface: null }))}</div>}>
-        <div className="appearance-colors">{appearance.gradient.map((color, index) => <label key={index}><input type="color" aria-label={text(`Background color ${index + 1}`, `నేపథ్య రంగు ${index + 1}`)} value={color} onChange={event => { const gradient: [string, string, string] = [...appearance.gradient]; gradient[index] = event.target.value; updateAppearance({ gradient }); }} /><span>{text(`Color ${index + 1}`, `రంగు ${index + 1}`)}</span><output>{color.toUpperCase()}</output></label>)}</div>
-      </Subsection>
-    </ElementGroup>
-
-    <ElementGroup title={text('Reading Text & Icons', 'చదివే అక్షరాలు & చిహ్నాలు')} description={text('Shared color, size, position, and typefaces for reading content and controls.', 'చదివే విషయం మరియు నియంత్రణలకు ఉమ్మడి రంగు, పరిమాణం, స్థానం మరియు ఫాంట్లు.')}>
-      <Subsection title={text('Color', 'రంగు')} action={reset(text('Reset text and icon color', 'అక్షరాలు మరియు చిహ్నాల రంగును పునరుద్ధరించు'), () => updateAppearance({ foreground: DEFAULT_APPEARANCE.foreground }))}>
-        <label className="appearance-color-row"><span>{text('Text & Icons', 'అక్షరాలు & చిహ్నాలు')}</span><output>{appearance.foreground.toUpperCase()}</output><input type="color" aria-label={text('Text and icons color', 'అక్షరాలు మరియు చిహ్నాల రంగు')} value={appearance.foreground} onChange={event => updateAppearance({ foreground: event.target.value })} /></label>
-      </Subsection>
-      <Subsection title={text('Type Size', 'అక్షరాల పరిమాణం')} action={reset(text('Reset type size', 'అక్షరాల పరిమాణాన్ని పునరుద్ధరించు'), () => updateAppearance({ fontScale: DEFAULT_APPEARANCE.fontScale }))}>
-        <label className="appearance-scale"><input type="range" min={0} max={100} step={1} style={{ '--range-progress': `${appearance.fontScale}%` } as CSSProperties} aria-label={text('Font size scale', 'అక్షరాల పరిమాణ స్థాయి')} value={appearance.fontScale} onChange={event => updateAppearance({ fontScale: Number(event.target.value) })} /><output>{appearance.fontScale}</output></label>
-      </Subsection>
-      <Subsection title={text('Letter Modifications', 'అక్షర మార్పులు')} action={reset(text('Reset modification color', 'మార్పు రంగును పునరుద్ధరించు'), () => updateAppearance({ modificationLightness: DEFAULT_APPEARANCE.modificationLightness, modificationColor: null }))}>
-        <label className="appearance-switch-row"><span>{text('Highlight Mods', 'మార్పులను హైలైట్ చేయి')}</span><input type="checkbox" role="switch" checked={appearance.highlightMods} onChange={event => updateAppearance({ highlightMods: event.target.checked })} /></label>
-        <label className="appearance-switch-row"><span>{text('Automatic End Color', 'స్వయంచాలక ముగింపు రంగు')}</span><input type="checkbox" role="switch" checked={appearance.modificationColor === null} disabled={!appearance.highlightMods} onChange={event => updateAppearance({ modificationColor: event.target.checked ? null : modificationColor })} /></label>
-        <div className="appearance-quick-colors">{modificationPresets.map(preset => <button type="button" key={preset.label} className="appearance-quick-color" aria-label={preset.label} aria-pressed={appearance.modificationColor === preset.color} disabled={!appearance.highlightMods} style={{ '--quick-color': preset.color } as CSSProperties} onClick={() => updateAppearance({ modificationColor: preset.color })}><span /><small>{preset.label}</small></button>)}</div>
-        <label className="appearance-color-row"><span>{text('Gradient End Color', 'గ్రేడియంట్ ముగింపు రంగు')}</span><output>{modificationColor.toUpperCase()}</output><input type="color" aria-label={text('Gradient end color', 'గ్రేడియంట్ ముగింపు రంగు')} value={modificationColor} disabled={!appearance.highlightMods} onChange={event => updateAppearance({ modificationColor: event.target.value })} /></label>
-        <div className="appearance-position-field"><label htmlFor="appearance-modification-lightness">{text('Modification Lightness', 'మార్పు ప్రకాశం')}</label><div className="appearance-scale"><input id="appearance-modification-lightness" type="range" min={MODIFICATION_LIGHTNESS_LIMITS.min} max={MODIFICATION_LIGHTNESS_LIMITS.max} step={1} style={{ '--range-progress': `${appearance.modificationLightness / MODIFICATION_LIGHTNESS_LIMITS.max * 100}%` } as CSSProperties} value={appearance.modificationLightness} disabled={!appearance.highlightMods} onChange={event => updateAppearance({ modificationLightness: Number(event.target.value) })} /><output htmlFor="appearance-modification-lightness">{appearance.modificationLightness}%</output></div></div>
-      </Subsection>
-      <Subsection title={text('Position', 'స్థానం')} action={reset(text('Reset text position', 'అక్షరాల స్థానాన్ని పునరుద్ధరించు'), () => updateAppearance({ textOffset: 0 }))}>{offset('textOffset', text('Vertical Offset', 'నిలువు స్థానం'))}</Subsection>
-      <Subsection title={text('Fonts', 'ఫాంట్లు')}>
-        <div className="appearance-fonts">{settingsFonts.map(font => <label key={font}><input type="checkbox" checked={appearance.fonts.includes(font)} disabled={availableFonts.length === 1 && availableFonts.includes(font)} onChange={event => updateAppearance({ fonts: event.target.checked ? [...appearance.fonts, font] : appearance.fonts.filter(entry => entry !== font) })} /><span>{font}</span><span className="font-preview" style={{ fontFamily: `"${font}"` }} lang="te">తెలుగు</span></label>)}</div>
-      </Subsection>
-    </ElementGroup>
-
-    <ElementGroup title={text('Audio Controls', 'ఆడియో నియంత్రణలు')} description={text('Appearance, placement, spacing, and visibility behavior for the audio bar.', 'ఆడియో బార్ రూపం, స్థానం, అంతరం మరియు కనిపించే ప్రవర్తన.')}>
-      <Subsection title={text('Darkness', 'ముదురు స్థాయి')} action={reset(text('Reset control darkness', 'నియంత్రణల ముదురు స్థాయిని పునరుద్ధరించు'), () => updateAppearance({ controlDarkness: DEFAULT_APPEARANCE.controlDarkness }))}>
-        <label className="appearance-scale"><input type="range" min={CONTROL_DARKNESS_LIMITS.min} max={CONTROL_DARKNESS_LIMITS.max} step={1} style={{ '--range-progress': `${appearance.controlDarkness / CONTROL_DARKNESS_LIMITS.max * 100}%` } as CSSProperties} aria-label={text('Control darkness', 'నియంత్రణల ముదురు స్థాయి')} value={appearance.controlDarkness} onChange={event => updateAppearance({ controlDarkness: Number(event.target.value) })} /><output>{appearance.controlDarkness}%</output></label>
-      </Subsection>
-      <Subsection title={text('Position', 'స్థానం')} action={reset(text('Reset audio positions', 'ఆడియో స్థానాలను పునరుద్ధరించు'), () => updateAppearance({ audioOffset: 0, audioOffsetOther: 0, magnifierPosition: DEFAULT_APPEARANCE.magnifierPosition }))}>
-        {offset('audioOffset', text('Audio Bar Vertical Offset', 'ఆడియో బార్ నిలువు స్థానం'))}
-        <fieldset className="appearance-magnifier-position"><legend>{text('Magnifier Position', 'మాగ్నిఫైయర్ స్థానం')}</legend><div className="appearance-position-options">{(['above', 'below'] as const).map(position => <label key={position}><input type="radio" name="magnifier-position" value={position} checked={appearance.magnifierPosition === position} onChange={() => updateAppearance({ magnifierPosition: position, textOffset: appearance.textOffsetOther, audioOffset: appearance.audioOffsetOther, textOffsetOther: appearance.textOffset, audioOffsetOther: appearance.audioOffset })} /><span>{position === 'above' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />}{position === 'above' ? text('Above', 'పైన') : text('Below', 'కింద')}</span></label>)}</div></fieldset>
-      </Subsection>
-      <Subsection title={text('Spacing', 'అంతరం')} action={reset(text('Reset control spacing', 'నియంత్రణల అంతరాన్ని పునరుద్ధరించు'), () => updateAppearance({ audioTimestampGap: DEFAULT_APPEARANCE.audioTimestampGap, timestampMagnifierGap: DEFAULT_APPEARANCE.timestampMagnifierGap }))}>
-        <div className="appearance-audio-preview" role="img" aria-label={text('Audio spacing preview', 'ఆడియో అంతరం నమూనా')} style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}><div className="audio-player-bar" data-magnifier-position={appearance.magnifierPosition} aria-hidden="true"><div className="audio-scrubber-row"><div className="audio-scrubber"><div className="audio-scrubber-progress" style={{ width: '40%' }} /><div className="audio-scrubber-thumb" style={{ left: '40%' }} /></div></div><div className="audio-precision-panel">{appearance.showAudioTimestamp ? <div className="audio-magnifier-time">0:12.340</div> : null}<div className="audio-magnifier-track">{[16, 24, 40, 28, 60, 84, 48, 32, 68, 100, 72, 44, 28, 52, 80, 60, 36, 20, 44, 64, 40, 24, 16].map((height, index) => <span key={index} className="audio-magnifier-bar" style={{ height: `${height}%` }} />)}<div className="audio-magnifier-playhead" style={{ left: '50%' }} /></div></div></div></div>
-        {(['audioTimestampGap', 'timestampMagnifierGap'] as const).filter(setting => appearance.showAudioTimestamp || setting === 'audioTimestampGap').map(setting => <div className="appearance-position-field" key={setting}><label htmlFor={`appearance-${setting}`}>{setting === 'audioTimestampGap' ? (appearance.showAudioTimestamp ? text('Audio Bar to Timestamp', 'ఆడియో బార్ నుండి సమయముద్ర వరకు') : text('Audio Bar to Magnifier', 'ఆడియో బార్ నుండి మాగ్నిఫైయర్ వరకు')) : text('Timestamp to Magnifier', 'సమయముద్ర నుండి మాగ్నిఫైయర్ వరకు')}</label><div className="appearance-scale appearance-gap"><input id={`appearance-${setting}`} type="range" min={CONTROL_SPACING_LIMITS.min} max={CONTROL_SPACING_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance[setting] - CONTROL_SPACING_LIMITS.min) / (CONTROL_SPACING_LIMITS.max - CONTROL_SPACING_LIMITS.min) * 100}%` } as CSSProperties} value={appearance[setting]} onChange={event => updateAppearance({ [setting]: Number(event.target.value) })} /><output>{appearance[setting]} px</output></div></div>)}
-      </Subsection>
-      <Subsection title={text('Behavior', 'ప్రవర్తన')}>
-        <div className="appearance-setting-list"><label className="appearance-switch-row"><span>{text('Show Audio Timestamp', 'ఆడియో సమయముద్రను చూపించు')}</span><input type="checkbox" role="switch" checked={appearance.showAudioTimestamp} onChange={event => updateAppearance({ showAudioTimestamp: event.target.checked })} /></label><label className="appearance-switch-row"><span>{text('Show Magnifier Highlight', 'మాగ్నిఫైయర్ హైలైట్‌ను చూపించు')}</span><input type="checkbox" role="switch" checked={appearance.showMagnifierHighlight} onChange={event => updateAppearance({ showMagnifierHighlight: event.target.checked })} /></label></div>
-        <fieldset className="appearance-magnifier-position appearance-toggle-trigger"><legend>{text('Toggle Trigger', 'టాగుల్ ట్రిగ్గర్')}</legend><div className="appearance-position-options">{(['scroll', 'tap'] as const).map(trigger => <label key={trigger}><input type="radio" name="toggle-trigger" value={trigger} checked={appearance.toggleTrigger === trigger} onChange={() => updateAppearance({ toggleTrigger: trigger, scrollMode: trigger === 'scroll' })} /><span>{trigger === 'scroll' ? text('Scroll Mode', 'స్క్రోల్ మోడ్') : text('Tap Mode', 'టాప్ మోడ్')}</span></label>)}</div></fieldset>
-      </Subsection>
-      <Subsection title={text('Auto-Fade', 'స్వయంచాలకంగా దాచడం')} action={reset(text('Reset auto-fade delay', 'దాచే సమయాన్ని పునరుద్ధరించు'), () => updateAppearance({ autoFadeSeconds: DEFAULT_APPEARANCE.autoFadeSeconds }))}>
-        <label className="appearance-scale"><input type="range" min={AUTO_FADE_SECONDS_LIMITS.min} max={AUTO_FADE_SECONDS_LIMITS.max} step={1} style={{ '--range-progress': `${(appearance.autoFadeSeconds - AUTO_FADE_SECONDS_LIMITS.min) / (AUTO_FADE_SECONDS_LIMITS.max - AUTO_FADE_SECONDS_LIMITS.min) * 100}%` } as CSSProperties} aria-label={text('Auto-fade delay', 'దాచే సమయం')} value={appearance.autoFadeSeconds} onChange={event => updateAppearance({ autoFadeSeconds: Number(event.target.value) })} /><output>{appearance.autoFadeSeconds} s</output></label>
-      </Subsection>
-    </ElementGroup>
-
-    <ElementGroup title={text('Settings & Popovers', 'అమరికలు & పాప్‌ఓవర్లు')} description={text('Surface color used behind Settings pages, menus, and popovers.', 'అమరికల పేజీలు, మెనూలు మరియు పాప్‌ఓవర్ల వెనుక ఉపయోగించే ఉపరితల రంగు.')}>
-      <Subsection title={text('Surface Color', 'ఉపరితల రంగు')} action={reset(text('Reset surface color', 'ఉపరితల రంగును పునరుద్ధరించు'), () => updateAppearance({ surface: null }))}>
-        <label className="appearance-color-row"><span>{text('Surface', 'ఉపరితలం')}</span><output>{appearanceSurface(appearance).toUpperCase()}</output><input type="color" disabled={appearance.surface === null} aria-label={text('Settings and popovers color', 'అమరికలు మరియు పాప్‌ఓవర్ల రంగు')} value={appearanceSurface(appearance)} onChange={event => updateAppearance({ surface: event.target.value })} /></label>
-        <label className="appearance-switch-row"><span><strong>{text('Automatic Surface', 'స్వయంచాలక ఉపరితలం')}</strong><small>{text('Derive a readable surface from the background. Turn this off to choose the surface color manually.', 'నేపథ్యం నుండి చదవగల ఉపరితలాన్ని రూపొందిస్తుంది. ఉపరితల రంగును స్వయంగా ఎంచుకోవడానికి దీనిని ఆపండి.')}</small></span><input type="checkbox" role="switch" checked={appearance.surface === null} onChange={event => updateAppearance({ surface: event.target.checked ? null : appearanceSurface(appearance) })} /></label>
-      </Subsection>
-    </ElementGroup>
-  </div>;
+export function OrganizedAppearancePage({language,page='appearance',onNavigate,font,onFont}:{
+  language:UiLanguage;page?:AppearancePage;onNavigate:ParserNavigate;
+  font:ObservationFontFamily|null;onFont:(font:ObservationFontFamily)=>void;
+}) {
+  const {appearance,updateAppearance}=useAppearance();
+  const text=(en:string,te:string)=>language==='en'?en:te;
+  const title=appearancePageLabel(page,language);
+  const reset=(apply:()=>void)=><button type="button" className="appearance-icon-action" aria-label={text('Reset','పునరుద్ధరించు')} onClick={apply}><RotateCcw aria-hidden="true"/></button>;
+  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'modificationLightness'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
+    <section className="appearance-control-page"><div className="appearance-section-heading"><label htmlFor={`appearance-${key}`}>{title}</label>{reset(()=>updateAppearance({[key]:DEFAULT_APPEARANCE[key]}))}</div>
+      <div className="appearance-scale"><input id={`appearance-${key}`} type="range" min={min} max={max} step={1} disabled={disabled} value={appearance[key]}
+        style={{'--range-progress':`${(appearance[key]-min)/(max-min)*100}%`} as CSSProperties}
+        onChange={event=>updateAppearance({[key]:Number(event.target.value)})}/><output htmlFor={`appearance-${key}`}>{appearance[key]}{unit}</output></div>
+    </section>;
+  const toggle=(key:'highlightMods'|'showAudioTimestamp'|'showMagnifierHighlight')=><label className="appearance-switch-row"><span>{title}</span><input type="checkbox" role="switch" checked={appearance[key]} onChange={event=>updateAppearance({[key]:event.target.checked})}/></label>;
+  const basePage=page.endsWith('Wheel')?page.slice(0,-5):page;
+  const colorSetting=basePage==='appearanceForeground'?'foreground':basePage==='appearanceModificationColor'?'modificationColor':basePage==='appearanceSurfaceColor'?'surface':null;
+  const backgroundIndex=['appearanceBackground1','appearanceBackground2','appearanceBackground3'].indexOf(basePage);
+  const colorPage=colorSetting!==null||backgroundIndex>=0;
+  const currentColor=backgroundIndex>=0?appearance.gradient[backgroundIndex]!:colorSetting==='foreground'?appearance.foreground:colorSetting==='modificationColor'?appearanceModificationColor(appearance):appearanceSurface(appearance);
+  const setColor=(color:string|null)=>{
+    if(backgroundIndex>=0&&color){const gradient:[string,string,string]=[...appearance.gradient];gradient[backgroundIndex]=color;updateAppearance({gradient});}
+    else if(colorSetting==='foreground'&&color)updateAppearance({foreground:color,foregroundDefaultVersion:2});
+    else if(colorSetting==='modificationColor')updateAppearance({modificationColor:color});
+    else if(colorSetting==='surface')updateAppearance({surface:color});
+  };
+  const swatch=(label:string,color:string,value:string|null,selected:boolean)=><button type="button" key={label} className="appearance-preset" aria-pressed={selected} onClick={()=>setColor(value)}>
+    <span className="appearance-preset-swatch" style={{backgroundColor:color}} aria-hidden="true"/><span>{label}</span>
+  </button>;
+  let content;
+  if(colorPage){
+    if(page.endsWith('Wheel'))content=<label className="appearance-color-row"><span>{text('Color','రంగు')}</span><output>{currentColor.toUpperCase()}</output><input type="color" aria-label={text('Color wheel','రంగు చక్రం')} value={currentColor} onChange={event=>setColor(event.target.value)}/></label>;
+    else {
+      const presets:Array<{label:string;color:string;value:string|null}>=colorSetting==='modificationColor'?[
+        {label:text('Icon color','చిహ్న రంగు'),color:appearanceAudioColor(appearance),value:null},
+        {label:text('Icon hover color','చిహ్న హోవర్ రంగు'),color:appearanceAudioHoverColor(appearance),value:appearanceAudioHoverColor(appearance)},
+        {label:text('Text shift color','అక్షర మార్పు రంగు'),color:appearanceModificationTextShiftColor(appearance),value:appearanceModificationTextShiftColor(appearance)},
+      ]:colorSetting==='foreground'?[
+        {label:text('Violet','ఊదా'),color:DEFAULT_APPEARANCE.foreground,value:DEFAULT_APPEARANCE.foreground},
+        {label:text('Pine','ఆకుపచ్చ'),color:'#30483e',value:'#30483e'},
+        {label:text('Plum','ప్లమ్'),color:'#513751',value:'#513751'},
+        {label:text('Blue','నీలం'),color:'#30435f',value:'#30435f'},
+        {label:text('Lavender','లావెండర్'),color:'#d4cedf',value:'#d4cedf'},
+      ]:colorSetting==='surface'?[
+        {label:text('Theme surface','థీమ్ ఉపరితలం'),color:appearanceSurface({...appearance,surface:null}),value:null},
+        ...appearance.gradient.map((color,index)=>({label:text(`Background ${index+1}`,`నేపథ్యం ${index+1}`),color,value:color})),
+        {label:text('Slate','స్లేట్'),color:'#323844',value:'#323844'},
+        {label:text('Warm paper','వెచ్చని కాగితం'),color:'#e6ddd1',value:'#e6ddd1'},
+      ]:[
+        {label:text('Default','డిఫాల్ట్'),color:DEFAULT_APPEARANCE.gradient[backgroundIndex]!,value:DEFAULT_APPEARANCE.gradient[backgroundIndex]!},
+        ...[['Mist','#c8d5dc'],['Sage','#acbfb4'],['Rose','#ccb3bf'],['Lavender','#b8b1d0'],['Midnight','#344a44']].map(([label,color])=>({label:label!,color:color!,value:color!})),
+      ];
+      const selectedValue=colorSetting==='modificationColor'?appearance.modificationColor:colorSetting==='surface'?appearance.surface:currentColor;
+      content=<><div className="appearance-presets">{presets.map(preset=>swatch(preset.label,preset.color,preset.value,selectedValue===preset.value))}</div>
+        <ParserLinks pages={[`${basePage}Wheel` as AppearancePage]} onNavigate={onNavigate} language={language}/></>;
+    }
+  }else if(page==='appearanceFonts')content=<nav className="settings-index">{compatibleObservationFonts(OBSERVATION_FONTS).map(name=><button type="button" key={name} onClick={()=>onFont(name)}><span className="appearance-font-glyph" style={{fontFamily:`"${name}"`}} lang="te" aria-hidden="true">అ</span><span>{name}</span><ChevronRight className="settings-entry-chevron" aria-hidden="true"/></button>)}</nav>;
+  else if(page==='appearanceFont')content=font?<><p className="appearance-font-sample" style={{fontFamily:`"${font}"`}} lang="te">తెలుగు</p><label className="appearance-switch-row"><span>{font}</span><input type="checkbox" role="switch" checked={appearance.fonts.includes(font)} disabled={compatibleObservationFonts(appearance.fonts).length===1&&appearance.fonts.includes(font)} onChange={event=>updateAppearance({fonts:event.target.checked?[...appearance.fonts,font]:appearance.fonts.filter(name=>name!==font)})}/></label></>:<p>{text('Choose a font.','ఫాంట్‌ను ఎంచుకోండి.')}</p>;
+  else if(page==='appearanceSize')content=slider('fontScale',0,100,'');
+  else if(page==='appearanceTextPosition')content=slider('textOffset',-APPEARANCE_OFFSET_LIMIT,APPEARANCE_OFFSET_LIMIT,' px');
+  else if(page==='appearanceAudioOffset')content=slider('audioOffset',-APPEARANCE_OFFSET_LIMIT,APPEARANCE_OFFSET_LIMIT,' px');
+  else if(page==='appearanceDarkness')content=slider('controlDarkness',CONTROL_DARKNESS_LIMITS.min,CONTROL_DARKNESS_LIMITS.max,'%');
+  else if(page==='appearanceBarGap')content=slider('audioTimestampGap',CONTROL_SPACING_LIMITS.min,CONTROL_SPACING_LIMITS.max,' px');
+  else if(page==='appearanceMagnifierGap')content=slider('timestampMagnifierGap',CONTROL_SPACING_LIMITS.min,CONTROL_SPACING_LIMITS.max,' px',!appearance.showAudioTimestamp);
+  else if(page==='appearanceModificationLightness')content=slider('modificationLightness',MODIFICATION_LIGHTNESS_LIMITS.min,MODIFICATION_LIGHTNESS_LIMITS.max,'%');
+  else if(page==='appearanceFade')content=slider('autoFadeSeconds',AUTO_FADE_SECONDS_LIMITS.min,AUTO_FADE_SECONDS_LIMITS.max,' s');
+  else if(page==='appearanceHighlight')content=toggle('highlightMods');
+  else if(page==='appearanceTimestamp')content=toggle('showAudioTimestamp');
+  else if(page==='appearanceMagnifierHighlight')content=toggle('showMagnifierHighlight');
+  else if(page==='appearanceMagnifierPosition')content=<fieldset className="appearance-magnifier-position"><legend>{title}</legend><div className="appearance-position-options">{(['above','below'] as const).map(position=><label key={position}><input type="radio" name="magnifier-position" checked={appearance.magnifierPosition===position} onChange={()=>updateAppearance({magnifierPosition:position,textOffset:appearance.textOffsetOther,audioOffset:appearance.audioOffsetOther,textOffsetOther:appearance.textOffset,audioOffsetOther:appearance.audioOffset})}/><span>{position==='above'?text('Above','పైన'):text('Below','కింద')}</span></label>)}</div></fieldset>;
+  else if(page==='appearanceTrigger')content=<fieldset className="appearance-magnifier-position"><legend>{title}</legend><div className="appearance-position-options">{(['scroll','tap'] as const).map(trigger=><label key={trigger}><input type="radio" name="toggle-trigger" checked={appearance.toggleTrigger===trigger} onChange={()=>updateAppearance({toggleTrigger:trigger,scrollMode:trigger==='scroll'})}/><span>{trigger==='scroll'?text('Scroll mode','స్క్రోల్ మోడ్'):text('Tap mode','టాప్ మోడ్')}</span></label>)}</div></fieldset>;
+  else if(page==='appearanceRandom')content=<div className="appearance-control-page"><button type="button" className="secondary-action" onClick={()=>updateAppearance({...randomAppearanceColors(),foregroundDefaultVersion:2,surface:null})}><Shuffle size={18} aria-hidden="true"/> {title}</button>{reset(()=>updateAppearance({gradient:DEFAULT_APPEARANCE.gradient,foreground:DEFAULT_APPEARANCE.foreground,foregroundDefaultVersion:2,surface:null}))}</div>;
+  else content=<ParserLinks pages={appearanceGroups[page]??[]} onNavigate={onNavigate} language={language}/>;
+  return <div className="appearance-page appearance-page-organized appearance-paged">{content}</div>;
 }
