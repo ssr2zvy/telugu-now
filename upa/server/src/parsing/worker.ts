@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { db } from '../db/database';
 import { config } from '../config/config';
+import { logger } from '../services/logger';
 import { corpusStamp, ParsingCatalog } from './catalog';
 import { parsingDirectory, parsingAssets, system } from './state';
 
@@ -15,7 +16,21 @@ function processIdentity(pid: number): string | null {
   try { return fs.readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1]?.split(' ')[19] ?? null; } catch { return null; }
 }
 export function job(): ParseJob { return JSON.parse(system().job_json) as ParseJob; }
-function save(next: ParseJob): void { db.prepare('UPDATE parsing_system SET job_json=? WHERE id=1').run(JSON.stringify({ ...job(), ...next, updatedAt: Date.now() })); }
+function save(next: ParseJob): void {
+  const previous = job();
+  const saved = { ...previous, ...next, updatedAt: Date.now() };
+  db.prepare('UPDATE parsing_system SET job_json=? WHERE id=1').run(JSON.stringify(saved));
+  // A successful status GET does not report failures in the background worker.
+  if (saved.phase === 'failed' && (previous.phase !== 'failed' || previous.error !== saved.error)) {
+    logger.error('parsing_job_failed', {
+      jobId: saved.id,
+      previousPhase: previous.phase,
+      error: saved.error,
+      processed: saved.processed,
+      total: saved.total,
+    });
+  }
+}
 export function recoverWorker(): boolean {
   if (running) return true;
   if (!fs.existsSync(lockFile)) {

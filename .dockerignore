@@ -25,6 +25,8 @@
 !data-transform/scripts/
 !data-transform/scripts/build-grammar/
 !data-transform/scripts/build-grammar/**
+!data-transform/scripts/parse-core/
+!data-transform/scripts/parse-core/**
 # The existing typecheck includes test sources.
 !upa/tests/
 !upa/tests/**
@@ -32,6 +34,11 @@
 **/node_modules
 **/dist
 **/data
+# Parser dictionaries are versioned source assets, not runtime corpus data.
+!data-transform/scripts/parse-core/parser/data/
+!data-transform/scripts/parse-core/parser/data/lexicon.json
+!data-transform/scripts/parse-core/parser/data/modifier_definitions.json
+!data-transform/scripts/parse-core/parser/data/contrast_families.json
 # These are application source modules, not runtime corpus data.
 !upa/server/src/sources/dummy/data/
 !upa/server/src/sources/dummy/data/*.ts

@@ -33,6 +33,10 @@ RUN apt-get update \
 COPY upa/package.json ./
 COPY --from=production-dependencies /app/upa/node_modules ./node_modules
 COPY --from=build /app/upa/dist ./dist
+# Exercise dictionary loading at the same path used by the deployed worker.
+# Skip the expensive corpus-independent surface index during the image build.
+RUN PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=dist/server/parse-core/parser \
+    python3 -c "from core_parser.parser import CoreParser; CoreParser(build_index=False)"
 COPY ci-cd/container-scripts/entrypoint.sh /usr/local/bin/telugu-now-entrypoint
 
 RUN chmod 755 /usr/local/bin/telugu-now-entrypoint
