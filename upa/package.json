@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "start": "NODE_ENV=production node dist/server/index.js",
     "test": "tsx --test tests/*.test.ts",
+    "test:recording-controls": "node --import tsx --test tests/recording-audio.test.ts tests/material-ui.test.ts tests/audio-controls.test.ts tests/live-mode.test.ts",
     "test:live": "python3 tests/live-frequency.test.py && node --import tsx --test tests/live-mode.test.ts tests/audio-validation-service.test.ts tests/grammar-settings.test.ts",
     "fonts:sync": "node scripts/sync-fonts.mjs",
     "generate:telugu-alignments": "node scripts/generate-telugu-alignments.mjs",

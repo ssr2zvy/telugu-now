@@ -129,7 +129,10 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-question-mode='audio-given'] .observation-center:has(.audio-player-bar[data-has-audio='true']) { margin-bottom: 0; }
 .observation-screen[data-question-mode='audio-given'] .audio-player-bar { top: 35%; bottom: auto; transform: translate(-50%, -50%); }
 .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 50px); bottom: max(0px, env(safe-area-inset-bottom)); width: min(860px, calc(100vw - 2rem)); overflow: hidden; }
-.observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: calc(var(--audio-bottom) + var(--audio-row-height) + var(--audio-detail-height) + var(--record-gap)); }
+/* Keep the complete magnifier row above the unchanged record button. The
+   lower clamp leaves space for the iPhone home indicator at every audio offset. */
+.observation-screen[data-question-mode='text-given'] { --audio-min-bottom: calc(max(24px, calc(env(safe-area-inset-bottom) + 16px)) + var(--record-button-size) + var(--record-gap)); }
+.observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: calc(var(--audio-bottom) - var(--record-gap) - var(--record-button-size)); }
 .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .question-record-button { width: var(--record-button-size); height: var(--record-button-size); }
@@ -170,9 +173,10 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-keyboard-actions .question-space-key { display: grid; grid-template-columns: 1fr; flex-basis: 498px; }
 .question-enter-key svg, .question-keyboard-actions svg { width: 17px; height: 17px; justify-self: center; }
 .question-comparison { position: absolute; inset: 0; z-index: 4; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: 'user correct'; opacity: 0; }
-.question-comparison::after { content: ''; position: absolute; top: 8%; bottom: 8%; left: 50%; width: 1px; background: var(--audio-glass-gradient); pointer-events: none; }
 .question-comparison[data-ready='true'] { opacity: 1; }
-.question-comparison-side { display: grid; place-items: center; min-width: 0; min-height: 0; padding: clamp(1rem, 4vw, 4rem); overflow: hidden; }
+.question-comparison-side { position: relative; isolation: isolate; display: grid; place-items: center; min-width: 0; min-height: 0; padding: clamp(1rem, 4vw, 4rem); overflow: hidden; }
+/* Soft, borderless surfaces separate the two answers without moving content. */
+.question-comparison-side::before { content: ''; position: absolute; z-index: -1; inset: 8% clamp(12px, 2vw, 28px); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--foreground) 5%, transparent), transparent 72%); pointer-events: none; }
 .question-comparison-correct { grid-area: correct; }
 .question-comparison-user { grid-area: user; }
 .question-comparison-text { max-width: 100%; font-size: clamp(2rem, 7vmin, 6rem); line-height: 1.25; overflow-wrap: normal; word-break: normal; }
@@ -213,7 +217,6 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .question-keyboard-actions .question-control-key { flex-basis: 104px; font-size: .61rem; white-space: nowrap; }
   .question-keyboard-actions .question-space-key { flex-basis: 240px; }
   .question-comparison { grid-template: 1fr 1fr / 1fr; grid-template-areas: 'correct' 'user'; }
-  .question-comparison::after { top: 50%; right: 8%; bottom: auto; left: 8%; width: auto; height: 1px; }
   .question-comparison-side { padding: clamp(.75rem, 4vw, 1.5rem); }
   .question-comparison .audio-player-bar { width: min(416px, 100%); }
   .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 56px 0; }

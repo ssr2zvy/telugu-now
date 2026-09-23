@@ -532,6 +532,16 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   const inHistoricalForwardPath = profile.current_position !== null
     && tailPosition !== null
     && profile.current_position < tailPosition;
+  if(profile.current_position!==null) {
+    const unfinished=db.prepare(`SELECT h.observation_id,h.presentation_state_json FROM history_entries h
+      JOIN observation_acquisitions a ON a.observation_id=h.observation_id
+      WHERE h.profile_code=? AND h.history_position=? AND a.observation_kind='question'`).get(code,profile.current_position) as {observation_id:string;presentation_state_json:string}|undefined;
+    if(unfinished && questionPhase(unfinished.presentation_state_json)==='observation' &&
+      (selectionAttempt(unfinished.observation_id,code)??attempt(unfinished.observation_id,code))?.result===null) {
+      db.prepare('UPDATE history_entries SET presentation_state_json=? WHERE profile_code=? AND history_position=?')
+        .run(JSON.stringify({...JSON.parse(unfinished.presentation_state_json),questionPhase:'comparison'}),code,profile.current_position);
+    }
+  }
   const displayedObservation = currentObservation(code, profile.current_position);
 
   return {
@@ -605,10 +615,10 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
     const profile = profileRow(code);
     if (profile.current_position !== null) {
       const current = db.prepare(`
-        SELECT h.presentation_state_json, a.observation_kind
+        SELECT h.observation_id, h.presentation_state_json, a.observation_kind
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
-      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
       if (phase === 'comparison' || phase === 'observation') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
@@ -649,11 +659,12 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
 
     if (profile.current_position !== null) {
       const current = db.prepare(`
-        SELECT h.presentation_state_json, a.observation_kind
+        SELECT h.observation_id, h.presentation_state_json, a.observation_kind
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
-      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
+      if(phase==='comparison' && current && (selectionAttempt(current.observation_id,code)??attempt(current.observation_id,code))?.result===null)throw new NavigationUnavailableError('Confirm the comparison before advancing');
       if (phase === 'question' || phase === 'comparison') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
           .run(JSON.stringify({ questionPhase: phase === 'question' ? 'comparison' : 'observation' }), code, profile.current_position);
