@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db/database';
 import { coreEvent } from '../parsing/audit';
 import { initializeMode, coreProgress, graph, inventoryId, questionChoice, recordAttempt, attempt, applyFinishedBatch } from '../parsing/state';
-import { findWord, stopWordWorker, type WordRow } from '../parsing/live-worker';
+import { findWord, stopWordWorker, type SearchProgress, type WordRow } from '../parsing/live-worker';
 import { audioStorageIdentity } from './audio-validation-store';
 import { config } from '../config/config';
 import { logger } from './logger';
@@ -29,6 +29,18 @@ db.exec(`CREATE TABLE IF NOT EXISTS live_cycles(
   started_at INTEGER NOT NULL,ended_at INTEGER,checked INTEGER NOT NULL DEFAULT 0,outcome TEXT,word TEXT,
   pattern_json TEXT,from_target TEXT);
   CREATE INDEX IF NOT EXISTS live_searches_cycle ON live_searches(cycle_id,started_at);`);
+// NULL means these measurements predate tracking; never invent historic counts.
+for(const [name,type] of Object.entries({returned:'INTEGER',examined:'INTEGER',parsed:'INTEGER',matching:'INTEGER',reused:'INTEGER',stage:'TEXT',search_succeeded:'INTEGER',error:'TEXT'})) {
+  if(!(db.prepare('PRAGMA table_info(live_searches)').all() as Array<{name:string}>).some(column=>column.name===name))db.exec(`ALTER TABLE live_searches ADD COLUMN ${name} ${type}`);
+}
+db.exec(`CREATE TABLE IF NOT EXISTS live_chain_resets(profile_code TEXT PRIMARY KEY,requested_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS live_discarded_observations(observation_id TEXT PRIMARY KEY,profile_code TEXT NOT NULL,discarded_at INTEGER NOT NULL)`);
+export function isDiscarded(id:string,profile:string):boolean{return Boolean(db.prepare('SELECT 1 FROM live_discarded_observations WHERE observation_id=? AND profile_code=?').get(id,profile));}
+export const guider=new Map<string,{generating:boolean;cycleId:string|null}>();
+function recordSearchProgress(id:string,progress:SearchProgress) {
+  db.prepare('UPDATE live_searches SET checked=?,returned=?,examined=?,parsed=?,matching=?,reused=?,stage=?,search_succeeded=COALESCE(?,search_succeeded) WHERE id=? AND ended_at IS NULL')
+    .run(progress.checked,progress.returned,progress.examined,progress.parsed,progress.matching,progress.reused,progress.stage,progress.stage==='searching'?null:1,id);
+}
 db.prepare("UPDATE live_cycles SET ended_at=?,end_reason='process-restarted' WHERE ended_at IS NULL").run(Date.now());
 db.prepare("UPDATE live_searches SET ended_at=?,outcome='process-restarted' WHERE ended_at IS NULL").run(Date.now());
 interface Chain {id:string;core:number;visited:Set<string>;exhausted:Set<string>;current:string|null}
@@ -36,6 +48,7 @@ const chains=new Map<string,Chain>();
 const filling=new Set<string>();
 const retryAfter=new Map<string,number>();
 const retryRequested=new Set<string>();
+const discardedCycles=new Set<string>();
 export const liveSelection=new Map<string,{phase:string;target:string|null;checked:number;error:string|null}>();
 const shuffled=<T,>(items:T[]):T[]=>{for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j]!,items[i]!];}return items;};
 function closeChain(profile:string,reason:string){
@@ -82,11 +95,12 @@ async function fill(profile:string){
       let chain=chains.get(profile);
       if(chain&&chain.core!==progress.core){closeChain(profile,'core-advanced');chain=undefined;}
       const targets=Object.values(graph().nodes).filter(t=>t.core===progress.core&&(progress.streaks[t.id]??0)<3);
-      const pendingTargets=new Set((db.prepare("SELECT a.target_id FROM selection_attempts a JOIN core_batches b ON b.id=a.batch_id WHERE a.profile_code=? AND b.applied=0 AND a.result IS NULL AND a.mode='core' AND a.observation_id IN(SELECT observation_id FROM queue_items WHERE profile_code=? UNION SELECT observation_id FROM history_entries WHERE profile_code=?)").all(profile,profile,profile) as Array<{target_id:string}>).map(r=>r.target_id));
+      const pendingTargets=new Set((db.prepare("SELECT a.target_id FROM selection_attempts a JOIN core_batches b ON b.id=a.batch_id WHERE a.profile_code=? AND b.applied=0 AND a.result IS NULL AND a.mode='core' AND NOT EXISTS(SELECT 1 FROM live_discarded_observations d WHERE d.observation_id=a.observation_id) AND a.observation_id IN(SELECT observation_id FROM queue_items WHERE profile_code=? UNION SELECT observation_id FROM history_entries WHERE profile_code=?)").all(profile,profile,profile) as Array<{target_id:string}>).map(r=>r.target_id));
       if(targets.every(t=>pendingTargets.has(t.id))){
         liveSelection.set(profile,{phase:'awaiting-answers',target:null,checked:0,error:null});return;
       }
       chain??=newChain(profile,progress.core);
+      guider.set(profile,{generating:true,cycleId:chain.id});
       let eligible=targets.filter(t=>!chain!.visited.has(t.id)&&!chain!.exhausted.has(t.id));
       if(chain.current)eligible=eligible.filter(t=>graph().nodes[chain!.current!]!.neighbors.includes(t.id));
       const options=eligible.filter(t=>!pendingTargets.has(t.id));
@@ -101,16 +115,22 @@ async function fill(profile:string){
         retryAfter.set(profile,Date.now()+30000);return;
       }
       const target=shuffled(options)[0]!, searchId=randomUUID();
-      db.prepare('INSERT INTO live_searches(id,cycle_id,target_id,started_at,from_target) VALUES(?,?,?,?,?)').run(searchId,chain.id,target.id,Date.now(),chain.current);
+      db.prepare("INSERT INTO live_searches(id,cycle_id,target_id,started_at,from_target,returned,examined,parsed,matching,reused,stage) VALUES(?,?,?,?,?,0,0,0,0,0,'searching')").run(searchId,chain.id,target.id,Date.now(),chain.current);
       let found;
       do{
         liveSelection.set(profile,{phase:'searching',target:target.id,checked:found?.checked??0,error:null});
         const blocked:string[]=[];
-        found=await findWord({target:target.id,searchId,storageIdentity:audioStorageIdentity(config),blocked});
+        found=await findWord({target:target.id,searchId,storageIdentity:audioStorageIdentity(config),blocked},progress=>{
+          if(discardedCycles.has(chain.id))return;
+          recordSearchProgress(searchId,progress);
+          liveSelection.set(profile,{phase:progress.stage,target:target.id,checked:progress.checked,error:null});
+        });
+        if(discardedCycles.has(chain.id))return;
+        recordSearchProgress(searchId,{...found,stage:'selecting'});
         db.prepare('UPDATE live_searches SET checked=?,pattern_json=? WHERE id=?').run(found.checked,JSON.stringify(found.pattern),searchId);
         liveSelection.set(profile,{phase:'searching',target:target.id,checked:found.checked,error:null});
       }while(found.pending);
-      db.prepare('UPDATE live_searches SET ended_at=?,outcome=?,word=? WHERE id=?').run(Date.now(),found.row?found.source:'exhausted',found.row?.word??null,searchId);
+      db.prepare("UPDATE live_searches SET ended_at=?,outcome=?,word=?,stage='finished',search_succeeded=1 WHERE id=?").run(Date.now(),found.row?found.source:'exhausted',found.row?.word??null,searchId);
       const current=coreProgress(profile);
       if(current.core!==target.core||(current.streaks[target.id]??0)>=3)continue;
       if(found.row){reserve(profile,target.id,found.row,chain,found.source);
@@ -122,10 +142,10 @@ async function fill(profile:string){
     const message=error instanceof Error?error.message:String(error);
     const reason=retryRequested.has(profile)?'manual-retry':'worker-error';
     closeChain(profile,reason);
-    db.prepare("UPDATE live_searches SET ended_at=?,outcome=? WHERE ended_at IS NULL AND cycle_id IN(SELECT id FROM live_cycles WHERE profile_code=?)").run(Date.now(),reason,profile);
+    db.prepare("UPDATE live_searches SET ended_at=?,outcome=?,error=?,stage='failed',search_succeeded=COALESCE(search_succeeded,0) WHERE ended_at IS NULL AND cycle_id IN(SELECT id FROM live_cycles WHERE profile_code=?)").run(Date.now(),reason,message,profile);
     liveSelection.set(profile,{phase:'failed',target:null,checked:0,error:message});retryAfter.set(profile,Date.now()+30000);
     logger.error('live_selection_failed',{error:message});
-  }finally{filling.delete(profile);if(retryRequested.delete(profile)){retryAfter.delete(profile);queueMicrotask(()=>ensureLaunchQueue(profile));}}
+  }finally{guider.set(profile,{generating:false,cycleId:chains.get(profile)?.id??null});filling.delete(profile);if(retryRequested.delete(profile)){retryAfter.delete(profile);queueMicrotask(()=>ensureLaunchQueue(profile));}}
 }
 export function ensureLaunchQueue(profile:string):boolean{
   initializeMode(profile);
@@ -156,5 +176,30 @@ export function retryLiveSelection(profile:string):void {
   retryAfter.delete(profile);
   if(filling.has(profile)){retryRequested.add(profile);stopWordWorker();return;}
   closeChain(profile,'manual-retry');
+  ensureLaunchQueue(profile);
+}
+
+// Discard just the displayed chain. Prepared selections from another chain survive.
+export function discardCurrentChain(profile:string):void {
+  const row=db.prepare(`SELECT json_extract(a.selection_snapshot_json,'$.cycleId') AS id
+    FROM profiles p JOIN history_entries h ON h.profile_code=p.code AND h.history_position=p.current_position
+    JOIN observation_acquisitions a ON a.observation_id=h.observation_id WHERE p.code=?`).get(profile) as {id:string|null}|undefined;
+  const id=row?.id??chains.get(profile)?.id??null;
+  if(id){
+    discardedCycles.add(id);
+    db.transaction(()=>{
+      db.prepare("UPDATE live_cycles SET ended_at=?,end_reason='chain-discarded' WHERE id=? AND profile_code=?").run(Date.now(),id,profile);
+      db.prepare("UPDATE live_searches SET ended_at=?,outcome='chain-discarded',stage='cancelled' WHERE cycle_id=? AND ended_at IS NULL").run(Date.now(),id);
+      db.prepare(`INSERT OR IGNORE INTO live_discarded_observations SELECT a.observation_id,a.profile_code,? FROM observation_acquisitions a
+        JOIN selection_attempts s ON s.observation_id=a.observation_id WHERE a.profile_code=? AND json_extract(a.selection_snapshot_json,'$.cycleId')=? AND s.result IS NULL`).run(Date.now(),profile,id);
+      db.prepare(`DELETE FROM queue_items WHERE profile_code=? AND observation_id IN(SELECT observation_id FROM observation_acquisitions WHERE profile_code=? AND json_extract(selection_snapshot_json,'$.cycleId')=?)`).run(profile,profile,id);
+      coreEvent(profile,'cycle-discarded',{}, {cycleId:id,reason:'reset'});
+    })();
+    if(chains.get(profile)?.id===id){
+      chains.delete(profile);
+      if(filling.has(profile))retryRequested.add(profile);
+    }
+  }
+  retryAfter.delete(profile);
   ensureLaunchQueue(profile);
 }

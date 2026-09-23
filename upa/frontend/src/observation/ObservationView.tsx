@@ -11,7 +11,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
-import { AlignJustify, ArrowLeft, ArrowRight, Check, CircleHelp } from 'lucide-react';
+import { AlignJustify, ArrowLeft, ArrowRight, Check, CircleHelp, Settings } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -30,7 +30,6 @@ import { appearanceModificationColor, useAppearance } from '../appearance';
 import { LoadingSlit } from '../components/LoadingSlit';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
 import { type ScrollDirection } from './reader-scroll';
-import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from './ReadingContextMenu';
 import { reportClientTelemetry } from '../api';
 import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
@@ -41,24 +40,6 @@ import { visibleWordAtPoint } from './visible-glyph-hit-testing';
 import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
 import { ComparisonPage } from './ComparisonPage';
 
-const LONG_PRESS_MS = 500;
-const LONG_PRESS_MOVE_TOLERANCE = 10;
-
-async function copyToClipboard(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return;
-  } catch {
-    // Fall through to the legacy fallback below.
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }
-}
 function fontAvailability(fontFamily: string, text: string): boolean | null {
   try {
     return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));
@@ -109,7 +90,6 @@ export function ObservationView({
   const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
   const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
   const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string } | null>(null);
-  const [readingMenu, setReadingMenu] = useState<ReadingContextMenuState | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
     textures: Array<TeluguGradientTexture | null>;
@@ -118,20 +98,8 @@ export function ObservationView({
   const screenRef = useRef<HTMLElement>(null);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
-  const suppressNextClick = useRef(false);
-  const longPressTimer = useRef<number | null>(null);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const gesturePausedPlayback = useRef(false);
   const observationLoadStartedAt = useRef<number | null>(null);
-  const cancelLongPress = () => {
-    if (longPressTimer.current !== null) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    longPressOrigin.current = null;
-  };
-  const openReadingMenu = (x: number, y: number, word: string | null) => {
-    taps.cancel();
-    setControlsVisible(false);
-    setReadingMenu(readingContextMenuState(x, y, word));
-  };
   const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
   const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
   const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
@@ -199,7 +167,6 @@ export function ObservationView({
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
     setControlsVisible(textComparison || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
-    setReadingMenu(null);
     return () => taps.cancel();
   }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
   const showsObservationText = observationShowsText(observation);
@@ -491,7 +458,7 @@ export function ObservationView({
     evaluationNavigation.current=true;
     try {
       if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
-      if(direction==='next' && comparisonPhase && observation?.grammar &&
+      if(direction==='next' && comparisonPhase && observation?.grammar && !observation.grammar.discarded &&
         !(await evaluationRef.current?.commit()))return;
       if (textGivenFlow && entryReady) {
         phaseDirection.current = direction;
@@ -519,10 +486,9 @@ export function ObservationView({
       else setControlsVisible(false);
     }
   };
-  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord && !readingMenu),
+  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
     `${observation?.id}:${observation?.question?.phase}`, direction => {
       taps.cancel();
-      cancelLongPress();
       if (direction === 'up' || direction === 'down') {
         if (textGivenFlow) verticalSwipe(direction);
         else if (!audioGivenQuestionPhase && !comparisonPhase) {
@@ -533,7 +499,7 @@ export function ObservationView({
         }
       }
       else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
-    }, () => { taps.cancel(); cancelLongPress(); });
+    }, () => taps.cancel());
   useEffect(() => {
     if (textGivenFlow && entryReady) setPhaseMotion('enter');
   }, [textGivenFlow, entryReady, observation?.id, observation?.question?.phase]);
@@ -571,27 +537,6 @@ export function ObservationView({
             : ''
         }`
       }
-      onPointerDown={(event) => {
-        if (event.pointerType !== 'touch' || !event.isPrimary || event.button !== 0 || !observation || !entryReady) return;
-        if (event.target instanceof Element && event.target.closest('button:not(.nav-zone), [role="slider"], input, textarea, .audio-player-bar, .question-controls, .reading-context-menu, .word-profile')) return;
-        const { clientX, clientY, target } = event;
-        longPressOrigin.current = { x: clientX, y: clientY };
-        longPressTimer.current = window.setTimeout(() => {
-          longPressTimer.current = null;
-          longPressOrigin.current = null;
-          suppressNextClick.current = true;
-          window.getSelection()?.removeAllRanges();
-          openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target }, true));
-        }, LONG_PRESS_MS);
-      }}
-      onPointerMove={(event) => {
-        if (!longPressOrigin.current) return;
-        const dx = event.clientX - longPressOrigin.current.x;
-        const dy = event.clientY - longPressOrigin.current.y;
-        if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE) cancelLongPress();
-      }}
-      onPointerUp={cancelLongPress}
-      onPointerCancel={cancelLongPress}
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
           if (event.target.closest('.audio-player-bar')) {
@@ -613,23 +558,13 @@ export function ObservationView({
         }
       }}
       tabIndex={0}
-      aria-label={textGivenFlow ? 'Reader. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same.' : appearance.scrollMode
-        ? 'Reader. Tap to play or pause. Swipe to show or hide audio controls.'
-        : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
-      onContextMenu={(event) => {
-        if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
-        event.preventDefault();
-        if (observation && !entryReady) return;
-        cancelLongPress();
-        openReadingMenu(event.clientX, event.clientY, wordAtPoint(event, true));
-      }}
+      aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
+      onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
       onClick={(event) => {
         // Typing in the keyboard must never count toward the reader's own
         // single/double-click gestures (playback toggle, back/next navigation).
         if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
         if (observation && !entryReady) return;
-        if (suppressNextClick.current) { suppressNextClick.current = false; return; }
-        if (readingMenu) { setReadingMenu(null); return; }
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
@@ -642,8 +577,7 @@ export function ObservationView({
         // A single tap that will end up pausing playback must stop the audio
         // immediately, before the double-tap resolution delay, so the pause
         // lands exactly where the user tapped instead of bleeding later.
-        const willTogglePlay = textGivenFlow || appearance.scrollMode || region.single === 'playback';
-        const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
+        const eagerlyPaused = Boolean(playerRef.current?.isPlaying());
         if (eagerlyPaused) {
           gesturePausedPlayback.current = true;
           playerRef.current?.pause();
@@ -655,26 +589,11 @@ export function ObservationView({
           if (word && observation) {
             setControlsVisible(false);
             setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
-          } else if (textGivenFlow) {
-            // Navigation and disclosure use swipes in the text-given flow.
-          } else if (region.double === 'center' && activeQuestion?.mode === 'text-given' && appearance.toggleTrigger === 'tap') {
-            setQuestionControlsVisible(visible => {
-              if (visible) playerRef.current?.dismissPrecision();
-              return !visible;
-            });
-          } else if (region.double === 'center') playerRef.current?.toggleAssociatedControls();
-          else if (region.double === 'back' ? canBack : canNext) void move(region.double);
+          }
+
         }, () => {
           gesturePausedPlayback.current = false;
-          if (textGivenFlow || appearance.scrollMode) {
-            if (!eagerlyPaused) playerRef.current?.togglePlay();
-          } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
-          else if (!playerRef.current?.isPrecisionOpen()) setControlsVisible(visible => !visible);
-        }, () => {
-          if (gesturePausedPlayback.current) playerRef.current?.resume();
-          gesturePausedPlayback.current = false;
-          window.getSelection()?.removeAllRanges();
-          onOpenSettings(typography.fontFamily);
+          if (!eagerlyPaused) playerRef.current?.togglePlay();
         });
       }}
       onMouseDownCapture={(event) => {
@@ -856,7 +775,7 @@ export function ObservationView({
           }}
         />
       </div>
-      {observation?.grammar && comparisonPhase ? <GrammarEvaluation ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+      {observation?.grammar && comparisonPhase ? <GrammarEvaluation ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
       {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
@@ -865,14 +784,8 @@ export function ObservationView({
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onClose={() => setSelectedWord(null)} />
       ) : null}
-      {readingMenu ? (
-        <ReadingContextMenu
-          menu={readingMenu}
-          onCopy={copyToClipboard}
-          onOpenSettings={() => onOpenSettings(typography.fontFamily)}
-          onClose={() => setReadingMenu(null)}
-        />
-      ) : null}
+      <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
+
     </main>
   );
 }

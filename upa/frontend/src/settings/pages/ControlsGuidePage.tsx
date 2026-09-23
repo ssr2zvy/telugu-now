@@ -6,13 +6,13 @@ interface ControlsGuidePageProps {
 
 const guides = {
   en: [
-    ['Navigate', 'Tap or click the left and right reading regions to move back or forward. In scroll mode, swipe horizontally.'],
-    ['Read', 'Select text with a pointer, or press and hold a word on touch screens to open its reading actions.'],
+    ['Navigate', 'Swipe left to move forward and right to go back, including over revealed controls. Desktop arrow keys do the same.'],
+    ['Read', 'Double-tap a word to inspect it. Tap the background to play or pause.'],
     ['Audio', 'Tap the audio timeline to seek. Press and hold it to open the magnifier, then drag for precise movement.'],
-    ['Bookmarks & playback', 'Open the audio controls to add bookmarks, change speed, or choose a loop mode.'],
+    ['Bookmarks & playback', 'Swipe down to reveal the bar, then down again to open its controls. Swipe up to close each layer.'],
     ['Text-given questions', 'Use the microphone button to start and stop an answer recording. Recording begins at the current audio cursor.'],
     ['Audio-given questions', 'Listen to the prompt, then enter the response with the Telugu keyboard.'],
-    ['Settings', 'Use Back to return one level, the overview control to return to Settings, and the language control to switch the interface language.'],
+    ['Settings', 'Open Settings with the bottom-right icon. Back returns one level.'],
   ],
   te: [
     ['నావిగేషన్', 'వెనుకకు లేదా ముందుకు వెళ్లడానికి ఎడమ మరియు కుడి పఠన ప్రాంతాలను నొక్కండి. స్క్రోల్ మోడ్‌లో అడ్డంగా స్వైప్ చేయండి.'],

@@ -1,38 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ReaderTaps, READER_DOUBLE_TAP_MS, READER_TRIPLE_TAP_GRACE_MS, readerTapRegions } from '../frontend/src/observation/reader-taps';
+import { ReaderTaps, READER_DOUBLE_TAP_MS, readerTapRegions } from '../frontend/src/observation/reader-taps';
 
 test('double taps never run the single-tap action, including between taps', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const actions: string[] = [];
-  const openSettings = () => { actions.push('settings'); };
+  const inspectWord = () => { actions.push('inspect'); };
   const taps = new ReaderTaps(() => actions.push('audio'));
-  taps.tap('center', 100, 100, openSettings);
+  taps.tap('center', 100, 100, inspectWord);
   t.mock.timers.tick(READER_DOUBLE_TAP_MS - 1);
   assert.equal(actions.length, 0);
-  taps.tap('center', 106, 104, openSettings);
-  assert.deepEqual(actions, []);
-  t.mock.timers.tick(READER_TRIPLE_TAP_GRACE_MS - 1);
-  assert.deepEqual(actions, []);
-  t.mock.timers.tick(1);
-  assert.deepEqual(actions, ['settings']);
-  taps.tap('center', 100, 100, openSettings);
-  taps.tap('center', 100, 100, openSettings);
+  taps.tap('center', 106, 104, inspectWord);
+  assert.deepEqual(actions, ['inspect']);
+  taps.tap('center', 100, 100, inspectWord);
+  taps.tap('center', 100, 100, inspectWord);
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['settings', 'settings']);
+  assert.deepEqual(actions, ['inspect', 'inspect']);
 });
 
-test('a third nearby tap supersedes single and double actions anywhere in the reader', t => {
+test('a third tap starts another ordinary gesture; there is no settings shortcut', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const actions: string[] = [];
-  const taps = new ReaderTaps();
-  for (const region of ['back', 'center', 'next']) {
-    taps.tap(region, 100, 100, () => actions.push('double'), () => actions.push('single'), () => actions.push('settings'));
-    taps.tap(region, 103, 102, () => actions.push('double'), () => actions.push('single'), () => actions.push('settings'));
-    taps.tap(region, 101, 104, () => actions.push('double'), () => actions.push('single'), () => actions.push('settings'));
-  }
-  t.mock.timers.tick(READER_DOUBLE_TAP_MS * 2);
-  assert.deepEqual(actions, ['settings', 'settings', 'settings']);
+  const actions:string[]=[];
+  const taps=new ReaderTaps();
+  for(let i=0;i<3;i++)taps.tap('word',100,100,()=>actions.push('inspect'),()=>actions.push('playback'));
+  t.mock.timers.tick(READER_DOUBLE_TAP_MS);
+  assert.deepEqual(actions,['inspect','playback']);
 });
 
 test('single taps resolve once and cancelled observation gestures never fire later', t => {
@@ -76,15 +68,15 @@ test('a double crossing the bottom-third boundary never plays or toggles the bar
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const actions: string[] = [];
   const taps = new ReaderTaps();
-  taps.tap('center', 300, 395, () => actions.push('settings'), () => actions.push('playback'));
+  taps.tap('center', 300, 395, () => actions.push('inspect'), () => actions.push('playback'));
   t.mock.timers.tick(150);
   assert.equal(actions.length, 0);
-  taps.tap('center', 300, 410, () => actions.push('settings'), () => actions.push('controls'));
+  taps.tap('center', 300, 410, () => actions.push('inspect'), () => actions.push('controls'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  taps.tap('center', 300, 395, () => actions.push('settings'), () => actions.push('playback'));
-  taps.tap('center', 300, 410, () => actions.push('settings'), () => actions.push('controls'));
+  taps.tap('center', 300, 395, () => actions.push('inspect'), () => actions.push('playback'));
+  taps.tap('center', 300, 410, () => actions.push('inspect'), () => actions.push('controls'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  assert.deepEqual(actions, ['settings', 'settings']);
+  assert.deepEqual(actions, ['inspect', 'inspect']);
 });
 
 test('taps crossing horizontal or visible-word hitboxes do not form a double', t => {
@@ -92,9 +84,9 @@ test('taps crossing horizontal or visible-word hitboxes do not form a double', t
   const actions: string[] = [];
   const taps = new ReaderTaps(() => actions.push('single'));
   taps.tap('back', 298, 100, () => actions.push('back'));
-  taps.tap('center', 302, 100, () => actions.push('settings'));
+  taps.tap('center', 302, 100, () => actions.push('inspect'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
-  taps.tap('center', 302, 100, () => actions.push('settings'));
+  taps.tap('center', 302, 100, () => actions.push('inspect'));
   taps.tap('word:example', 303, 100, () => actions.push('image'));
   t.mock.timers.tick(READER_DOUBLE_TAP_MS);
   assert.deepEqual(actions, ['single', 'single', 'single', 'single']);

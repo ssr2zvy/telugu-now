@@ -1,3 +1,12 @@
+export interface SearchAttempt {
+  id:string; cycleId:string; targetId:string; core:number; startedAt:number; endedAt:number|null;
+  checked:number; returned:number|null; examined:number|null; parsed:number|null; matching:number|null; reused:number|null;
+  outcome:string|null; word:string|null; stage:string|null; searchSucceeded:boolean|null; error:string|null;
+}
+export interface ChainSearch {
+  id:string; core:number; endedAt:number|null; endReason:string|null;
+  searches:SearchAttempt[];
+}
 export interface TargetDiagnostic {
   id: string; core: number; kind: 'vocabulary' | 'chain'; label: string;
   example?: string;
@@ -23,7 +32,7 @@ export interface ParsingDiagnostics {
   version:1; generatedAt:number; auditStartedAt:number; currentCore:number;
   inventoryId:string|null; catalogError:string|null; progressError:string|null;
   levels:CoreDiagnostic[]; targets:TargetDiagnostic[];
-  cache:{total:number;checked:number;parsed:number;rejected:number}|null;
+  cache:{total:number;checked:number;parsed:number;rejected:number;validParses?:number}|null;
   selectionPolicy:'shortest-codepoints-v1';
   worker:{phase:string;error:string|null};
   queue:{depth:number;preparing:number;ready:number;pending:number;failed:number;errors:string[]};
@@ -35,5 +44,9 @@ export interface ParsingDiagnostics {
   upcoming?:Array<{observationId:string;targetId:string;cycleId:string|null;word:string|null;status:string;error:string|null}>;
   activeSearch?:{id:string;cycleId:string;targetId:string;startedAt:number;checked:number}|null;
   recentCycles?:Array<{id:string;core:number;startedAt:number;endedAt:number|null;endReason:string|null;words:string[]}>;
+  chainSearches?:ChainSearch[];
+  lastAttempt?:SearchAttempt|null;
+  guider?:{generating:boolean;cycleId:string|null};
+  allTime?:{successfulSearches:number;examined:number;legacyEvaluated:number;trackedSince:number|null};
   historyNotice:string;
 }

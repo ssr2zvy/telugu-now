@@ -36,7 +36,7 @@ function ComparisonText({ text, fontFamily, onReady }: {
       setPresentation({ key, textures });
       onReady();
     };
-    void prepare().catch(() => {});
+    void prepare().catch(() => { if (!cancelled) onReady(); });
     return () => { cancelled = true; };
   }, [key, text, fontFamily, appearance.foreground, gradientEndColor, onReady]);
 
@@ -115,9 +115,7 @@ export function ComparisonPage({ observation, fontFamily, playbackRate, onReady,
       const userSide = event.target instanceof Element && Boolean(event.target.closest('.question-comparison-user'));
       const player = userSide ? userPlayer : correctPlayer;
       taps.tap(`${region.double}:${userSide ? 'user' : 'correct'}`, event.clientX, event.clientY, () => {
-        if (region.double === 'back') onBack();
-        else if (region.double === 'next') onAdvance();
-        else if (!textComparison) player.current?.toggleAssociatedControls();
+        // Page navigation and audio disclosure use swipes.
       }, () => {
         if (!textComparison) (userSide ? toggleUserAudio : toggleCorrectAudio)();
       });

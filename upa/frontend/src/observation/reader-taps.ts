@@ -1,5 +1,4 @@
 export const READER_DOUBLE_TAP_MS = 400;
-export const READER_TRIPLE_TAP_GRACE_MS = 140;
 const DOUBLE_TAP_DISTANCE = 32;
 
 export function readerTapRegions(x: number, y: number, bounds: { left: number; top: number; width: number; height: number }) {
@@ -11,7 +10,7 @@ export function readerTapRegions(x: number, y: number, bounds: { left: number; t
 }
 
 export class ReaderTaps {
-  private pending: { region: string; x: number; y: number; count: 1 | 2; timer: ReturnType<typeof setTimeout> } | null = null;
+  private pending: { region: string; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(private readonly onSingle: () => void = () => {}) {}
@@ -21,25 +20,15 @@ export class ReaderTaps {
       && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE;
   }
 
-  tap(region: string, x: number, y: number, onDouble: () => void, onSingle = this.onSingle, onTriple: () => void = () => {}): void {
+  tap(region: string, x: number, y: number, onDouble: () => void, onSingle = this.onSingle): void {
     // A double belongs to one resolved target. Nearby taps on different glyphs
     // begin a new gesture instead of allowing the second target to win.
     if (this.pending && this.pending.region === region
       && Math.hypot(x - this.pending.x, y - this.pending.y) <= DOUBLE_TAP_DISTANCE) {
       clearTimeout(this.pending.timer);
       this.timers.delete(this.pending.timer);
-      if (this.pending.count === 2) {
-        this.pending = null;
-        onTriple();
-        return;
-      }
-      const timer = setTimeout(() => {
-        this.timers.delete(timer);
-        if (this.pending?.timer === timer) this.pending = null;
-        onDouble();
-      }, READER_TRIPLE_TAP_GRACE_MS);
-      this.timers.add(timer);
-      this.pending = { region, x, y, count: 2, timer };
+      this.pending = null;
+      onDouble();
       return;
     }
     const timer = setTimeout(() => {
@@ -48,7 +37,7 @@ export class ReaderTaps {
       onSingle();
     }, READER_DOUBLE_TAP_MS);
     this.timers.add(timer);
-    this.pending = { region, x, y, count: 1, timer };
+    this.pending = { region, x, y, timer };
   }
 
   cancel(): void {

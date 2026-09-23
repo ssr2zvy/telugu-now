@@ -25,6 +25,9 @@ test('search snapshot preserves queue order, restart history and profile isolati
     INSERT INTO queue_items VALUES('a','second',2),('a','first',1);
     INSERT INTO selection_attempts VALUES('second','t2'),('first','t1');`);
   for(const [id,word,n] of [['first','నేను',1],['second','ఇది',2]] as const) db.prepare('INSERT INTO observation_acquisitions VALUES(?,?,?,?)').run('a',id,JSON.stringify({cycleId:'new',word}),n);
+  for(const column of ['returned','examined','parsed','matching','reused','search_succeeded'])db.exec(`ALTER TABLE live_searches ADD COLUMN ${column} INTEGER`);
+  for(const column of ['word','stage','error'])db.exec(`ALTER TABLE live_searches ADD COLUMN ${column} TEXT`);
+  db.prepare("UPDATE live_searches SET returned=16,examined=10,parsed=2,matching=1,reused=2,stage='parsing',search_succeeded=1 WHERE id='s2'").run();
   const result=chainActivity(db,'a');
   assert.deepEqual(result.upcoming.map(row=>row.word),['నేను','ఇది']);
   assert.equal(result.activeSearch?.id,'s2');
@@ -32,5 +35,8 @@ test('search snapshot preserves queue order, restart history and profile isolati
   assert.deepEqual(result.recentCycles.map(c=>c.id),['new','old']);
   assert.deepEqual(result.recentCycles[0]?.words,['నేను','ఇది']);
   assert.equal(result.recentCycles[1]?.endReason,'process-restarted');
+  assert.equal(result.lastAttempt?.id,'s1');assert.equal(result.lastAttempt?.returned,null);
+  assert.equal(result.chainSearches[0]?.id,'new');assert.equal(result.chainSearches[0]?.searches[0]?.examined,10);
+  assert.deepEqual(result.allTime,{successfulSearches:0,examined:10,legacyEvaluated:4,trackedSince:3});
   db.close();
 });

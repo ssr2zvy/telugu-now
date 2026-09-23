@@ -5,6 +5,7 @@ No sentence/context parsing, occurrence copies, or used-observation exclusions.
 import argparse
 from collections import Counter, defaultdict
 import hashlib
+import inspect
 import json
 from pathlib import Path
 import random
@@ -73,14 +74,20 @@ class LiveParser:
         mcols = {r['name'] for r in self.db.execute('PRAGMA table_info(metadata)')}
         if 'parse_cache_version' not in mcols:
             self.db.execute('ALTER TABLE metadata ADD COLUMN parse_cache_version TEXT')
-        h = hashlib.sha256(b'frequency-live-strict-v1')
+        # Cache identity follows parser rules, not worker counters or scheduling.
+        h = hashlib.sha256(b'frequency-live-strict-v2')
+        h.update(inspect.getsource(resolved_targets).encode())
         for p in sorted(HERE.rglob('*')):
-            if p.is_file() and p.suffix in ('.py', '.json') and '__pycache__' not in p.parts:
+            if p.is_file() and p.suffix in ('.py', '.json') and '__pycache__' not in p.parts and p.name not in ('live.py','cache-compat.json'):
                 h.update(p.relative_to(HERE).as_posix().encode()); h.update(p.read_bytes())
         self.version = h.hexdigest()
         old = self.db.execute('SELECT parse_cache_version FROM metadata').fetchone()[0]
+        compat_path = HERE / 'cache-compat.json'
+        compatible = json.loads(compat_path.read_text()) if compat_path.exists() else {}
         if old != self.version:
-            self.db.execute('UPDATE frequencies SET parse_result=NULL WHERE parse_result IS NOT NULL')
+            # Only the exact prior asset fingerprint is eligible for migration.
+            if compatible.get(old) != self.version:
+                self.db.execute('UPDATE frequencies SET parse_result=NULL WHERE parse_result IS NOT NULL')
             self.db.execute('UPDATE metadata SET parse_cache_version=?', (self.version,))
         # Reuse an existing leading normalized_word index if present.
         indexed = False
@@ -158,14 +165,19 @@ class LiveParser:
                     observation_selection=dict(policy='core1-shortest-five-v1' if core==1 else 'all-matching-random-v1',
                         poolSize=len(pool) if core==1 else None,length=row['grapheme_count'],lengthMetric='corpus-grapheme-count'))
 
-    def find(self, request):
+    def find(self, request, progress=None):
         tid = request['target']
         pattern = self.patterns[tid]
-        state = self.searches.setdefault(request['searchId'], dict(length=0, cached=0, cursor='', checked=0))
+        state = self.searches.setdefault(request['searchId'], dict(length=0, cached=0, cursor='', checked=0, returned=0, examined=0, parsed=0, matching=0, reused=0, seen=set(), returned_words=set()))
         # Shortest word takes priority over cache novelty. At equal length, try
         # unchecked words first, then reuse a saved match. No extra disk index.
         # Cursor uses the row's rank BEFORE parsing; a newly cached unusable word
         # may be revisited once, but is never parsed twice.
+        def report(stage):
+            if progress:
+                progress(dict(stage=stage, checked=state['checked'], returned=state['returned'],
+                    examined=state['examined'], parsed=state['parsed'], matching=state['matching'], reused=state['reused']))
+        report('searching')
         rows = self.db.execute("""SELECT normalized_word,parse_result FROM frequencies
             WHERE (length(normalized_word),parse_result IS NOT NULL,normalized_word)>(?,?,?)
             AND length(normalized_word)<=? AND unicode_candidate(normalized_word,?)
@@ -173,21 +185,33 @@ class LiveParser:
                 SELECT 1 FROM json_each(parse_result,'$.targets') WHERE value=?))
             ORDER BY length(normalized_word),parse_result IS NOT NULL,normalized_word LIMIT 16""",
             (state['length'],state['cached'],state['cursor'],pattern['maxCodepoints'],tid,tid)).fetchall()
+        state['returned_words'].update(row[0] for row in rows)
+        state['returned'] = len(state['returned_words'])
+        report('parsing')
         found = None
         source = 'new-parse'
         for row in rows:
             word, saved = row
             state.update(length=len(word), cached=int(saved is not None), cursor=word)
+            if word in state['seen']:
+                continue
+            state['seen'].add(word)
+            state['examined'] += 1
             source = 'cached-parse' if saved is not None else 'new-parse'
             if saved is None:
                 state['checked'] += 1
                 result = resolved_targets(self.parser.analyze(word), self.graph)
                 self.parser._productive_cache.clear()
                 self.db.execute('UPDATE frequencies SET parse_result=? WHERE normalized_word=?', (compact(result),word))
+                state['parsed'] += result['status']=='parsed'
                 self.checked += 1; self.parsed += result['status']=='parsed'; self.counts.update(result['targets'])
             else:
                 result = json.loads(saved)
+                state['reused'] += 1
+            report('parsing')
             if tid in result['targets']:
+                state['matching'] += 1
+                report('selecting')
                 found = self.observation(word, request['storageIdentity'], request.get('blocked', []), self.graph['nodes'][tid]['core'])
                 if found:
                     found['matched_targets'] = result['targets']
@@ -195,6 +219,7 @@ class LiveParser:
         self.db.commit()
         pending = not found and len(rows)==16
         response = dict(row=found,pending=pending,source=source,checked=state['checked'],
+                        returned=state['returned'],examined=state['examined'],parsed=state['parsed'],matching=state['matching'],reused=state['reused'],
                         matchedWords=self.counts[tid],pattern=pattern,stats=self.stats_summary())
         if not pending:
             self.searches.pop(request['searchId'], None)
@@ -215,7 +240,7 @@ def main():
     for line in sys.stdin:
         request=json.loads(line)
         try:
-            result=worker.find(request) if request['action']=='find' else worker.stats()
+            result=worker.find(request, lambda progress: print(compact(dict(id=request['id'],progress=progress)),flush=True)) if request['action']=='find' else worker.stats()
             print(compact(dict(id=request['id'],result=result)),flush=True)
         except Exception as e:
             print(compact(dict(id=request['id'],error=str(e))),flush=True)

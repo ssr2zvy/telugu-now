@@ -4,7 +4,6 @@ import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
 import { CustomCursor } from '../../components/CustomCursor';
-import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
 import { teluguHighlightRuns } from '../telugu-highlighting';
 import { TeluguGradientText } from '../TeluguGradientText';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
@@ -257,7 +256,6 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
     textures: Array<TeluguGradientTexture | null>;
   } | null>(null);
   const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(analysis.word)].length;
-  const [copyMenu, setCopyMenu] = useState<ReadingContextMenuState | null>(null);
   const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(null);
   const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
   const [alignmentError, setAlignmentError] = useState(false);
@@ -329,12 +327,10 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
           letterTaps.cancel();
           wordPlayer.pause();
           setPlayWhenReady(false);
-          setCopyMenu(null);
           setSelectedGrapheme({ text: hit.text, start: hit.start, end: hit.end });
         }, toggleWordPlayback);
       }} onContextMenu={event => {
         event.preventDefault();
-        setCopyMenu(readingContextMenuState(event.clientX, event.clientY, analysis.word));
       }}>
         <h2 id="word-profile-title" lang="te" aria-label={analysis.word}
           style={{ '--word-graphemes': Math.max(1, graphemeCount), fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
@@ -347,11 +343,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
       </header>
       <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
       <WordImage key={analysis.root} root={analysis.root} />
-      {copyMenu ? <ReadingContextMenu
-        menu={copyMenu}
-        onCopy={copyWord}
-        onClose={() => setCopyMenu(null)}
-      /> : null}
+
       </>}
     </dialog>
   );

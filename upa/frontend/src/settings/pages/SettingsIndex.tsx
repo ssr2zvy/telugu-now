@@ -34,17 +34,7 @@ export function SettingsIndex({
   onNavigate,
   onResetQueue,
 }: SettingsIndexProps) {
-  const { appearance } = useAppearance();
   const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
-  const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    external: 'EPUB · HTML · App Archive',
-    observations: language === 'en' ? 'Parser · Questions' : 'పార్సర్ · ప్రశ్నలు',
-    display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
-    eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
-    controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',
-    about: language === 'en' ? 'Build and deployment information' : 'బిల్డ్ మరియు అమలు సమాచారం',
-    reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
-  } : {};
   return (
     <div className="settings-index-page">
       <nav
@@ -70,10 +60,7 @@ export function SettingsIndex({
               <Icon className="settings-entry-icon" aria-hidden="true" />
               <span className="settings-entry-text">
                 <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
-                {summaries[page] && <span className="settings-entry-meta">
-                  {page === 'display' && <span className="settings-palette-preview" aria-hidden="true" />}
-                  <span>{summaries[page]}</span>
-                </span>}
+
               </span>
               <ChevronRight className="settings-entry-chevron" aria-hidden="true" />
             </button>

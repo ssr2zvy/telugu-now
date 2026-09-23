@@ -1,13 +1,12 @@
 import { useEffect, useRef, type PointerEvent, type MouseEvent, type RefObject } from 'react';
 import { readerSwipe, type ReaderSwipe } from './reader-swipe';
 
-const ownPointer = 'button:not(.nav-zone), [role="slider"], input, textarea, select, a, [contenteditable="true"], .audio-player-bar, .question-controls, .word-profile, .reading-context-menu';
-const ownKeys = 'input, textarea, select, [contenteditable="true"], [role="slider"], .audio-player-bar, .word-profile, .reading-context-menu';
+const ownKeys = 'input, textarea, select, [contenteditable="true"], [role="slider"], .word-profile';
 export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: boolean, page: string,
   onSwipe: (direction: ReaderSwipe) => void, cancelTap: () => void) {
   const callbacks = useRef({ onSwipe, cancelTap });
   callbacks.current = { onSwipe, cancelTap };
-  const origin = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  const origin = useRef<{ id: number; x: number; y: number; moved: boolean; control: boolean } | null>(null);
   const suppressClick = useRef(false);
   useEffect(() => { origin.current = null; }, [page, enabled]);
   useEffect(() => {
@@ -32,17 +31,20 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
     onPointerDownCapture(event: PointerEvent<HTMLElement>) {
       suppressClick.current = false;
       if (!enabled || !event.isPrimary || event.button !== 0) { origin.current = null; return; }
-      if (event.target instanceof Element && event.target.closest(ownPointer)) return;
-      origin.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+      // Controls keep taps and short drags; a deliberate page swipe can start anywhere.
+      const control=event.target instanceof Element && Boolean(event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls'));
+      origin.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, control };
     },
     onPointerMoveCapture(event: PointerEvent<HTMLElement>) {
       const start = origin.current;
       if (!start || start.id !== event.pointerId) return;
-      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) {
+      const dx=event.clientX-start.x,dy=event.clientY-start.y;
+      if (start.control ? Boolean(readerSwipe(dx,dy)) : Math.hypot(dx,dy)>10) {
         start.moved = true;
         suppressClick.current = true;
         callbacks.current.cancelTap();
         event.preventDefault();
+        event.stopPropagation();
         if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
       }
     },
@@ -52,6 +54,7 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       if (!start || start.id !== event.pointerId) return;
       const direction = readerSwipe(event.clientX - start.x, event.clientY - start.y);
       if (direction) {
+        event.preventDefault();event.stopPropagation();
         suppressClick.current = true;
         callbacks.current.cancelTap();
         window.getSelection()?.removeAllRanges();
@@ -59,7 +62,8 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       }
     },
     onPointerCancelCapture() { origin.current = null; suppressClick.current = true; callbacks.current.cancelTap(); },
-    onLostPointerCapture(event: PointerEvent<HTMLElement>) { if (event.target === event.currentTarget) origin.current = null; },
+    // Capture can transfer from an audio control to the page mid-swipe.
+    // Only pointerup/cancel ends the gesture; lost capture is not cancellation.
     onClickCapture(event: MouseEvent<HTMLElement>) {
       if (suppressClick.current) { suppressClick.current = false; event.preventDefault(); event.stopPropagation(); }
     },

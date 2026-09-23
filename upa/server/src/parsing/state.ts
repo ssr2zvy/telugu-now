@@ -30,6 +30,7 @@ export function parserFingerprint(): string {
 export const textHash = (text: string) => createHash('sha256').update(text.normalize('NFC').trim().replace(/\s+/gu, ' ')).digest('hex');
 
 db.exec(`
+CREATE TABLE IF NOT EXISTS live_discarded_observations(observation_id TEXT PRIMARY KEY,profile_code TEXT NOT NULL,discarded_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS parsing_system(id INTEGER PRIMARY KEY CHECK(id=1),catalog_path TEXT,inventory_id TEXT,corpus_stamp TEXT,job_json TEXT NOT NULL DEFAULT '{}');
 INSERT OR IGNORE INTO parsing_system(id) VALUES(1);
 CREATE TABLE IF NOT EXISTS selection_modes(profile_code TEXT PRIMARY KEY REFERENCES profiles(code) ON DELETE CASCADE,mode TEXT NOT NULL DEFAULT 'weighted' CHECK(mode IN('weighted','core','random')));
@@ -132,6 +133,7 @@ export function evaluate(profile: string, id: string, result: boolean): void {
   db.transaction(() => {
     const a = attempt(id, profile);
     if (!a) throw new Error('Question missing');
+    if(db.prepare('SELECT 1 FROM live_discarded_observations WHERE observation_id=? AND profile_code=?').get(id,profile))throw new Error('This chain was discarded');
     if (a.result !== null) {
       if (a.result !== Number(result)) throw new Error('Evaluation is final');
       return;

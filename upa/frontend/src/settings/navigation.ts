@@ -4,6 +4,21 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
+  searchAttempt: Activity,
+  currentChain: ListOrdered,
+  nextChainSearch: Activity,
+  lastSearchAttempt: Activity,
+  currentReset: RotateCcw,
+  coreProgress: Activity,
+  objectCoverage: Activity,
+  coverageNotes: Activity,
+  searchAndParse: Activity,
+  currentSearches: Activity,
+  allTimeSearches: Activity,
+  cycleHistory: Activity,
+  parserEvents: Activity,
+  parserDetails: Activity,
+
   diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
   parserCurrent: ListOrdered, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
   display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
@@ -21,7 +36,12 @@ export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
   observations: ['parser', 'parsingMode', 'dataSources'],
   parser: ['parserCurrent', 'diagnostic'],
-  diagnostic: ['diagnosticsDownload'],
+  parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],
+  nextChainSearch: ['lastSearchAttempt'],
+  diagnostic: ['objectCoverage','searchAndParse','cycleHistory','parserEvents','parserDetails'],
+  objectCoverage: ['coverageNotes'],
+  searchAndParse: ['currentSearches','allTimeSearches'],
+  parserEvents: ['diagnosticsDownload'],
   display: ['playback', 'appearance', 'images'],
 };
 
@@ -30,6 +50,9 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+  const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};
+  if(parserLabels[page])return parserLabels[page]!;
+  if (page === 'searchAttempt') return 'Search and parse attempt';
   if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
   if (page === 'parser') return language === 'en' ? 'Parser' : 'పార్సర్';
   if (page === 'parserCurrent') return language === 'en' ? 'Current' : 'ప్రస్తుతం';

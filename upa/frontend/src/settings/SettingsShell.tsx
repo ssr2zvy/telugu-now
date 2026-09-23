@@ -149,14 +149,6 @@ export function SettingsShell({
       >
         {railCollapsed ? <PanelLeftOpen size={20} aria-hidden="true" /> : <PanelLeftClose size={20} aria-hidden="true" />}
       </button>
-      <button
-        className="settings-close"
-        type="button"
-        aria-label={t(language, 'close')}
-        onClick={onClose}
-      >
-        <X size={20} aria-hidden="true" />
-      </button>
       {overviewOpen && !overviewIsFullScreen ? (
         <button
           className="settings-rail-scrim"
@@ -201,6 +193,15 @@ export function SettingsShell({
         <div className="settings-heading">
           <h1 ref={heading} tabIndex={-1}>{title}</h1>
         </div>
+      <button
+        className="settings-close"
+        type="button"
+        aria-label={t(language, 'close')}
+        onClick={onClose}
+      >
+        <X size={20} aria-hidden="true" />
+      </button>
+
       </header>
       <div ref={content} className="settings-page-content">
         <div className="settings-page-transition" key={page}>{children}</div>

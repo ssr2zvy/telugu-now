@@ -168,6 +168,7 @@ export async function navigate(
   request: NavigationRequest,
 ): Promise<ProfileStateResponse> {
   return parseJson<ProfileStateResponse>(await fetch(`/api/profiles/${code}/${direction}`, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
