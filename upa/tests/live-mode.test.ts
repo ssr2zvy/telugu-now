@@ -1,0 +1,60 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+test('live worker, repeated observations, immediate mastery, cycles and export',{timeout:90000},async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'live-test-')),assets=path.join(dir,'assets');fs.mkdirSync(assets);
+ const original=path.resolve('../data-transform/scripts/parse-core');
+ fs.copyFileSync(path.join(original,'live.py'),path.join(assets,'live.py'));fs.symlinkSync(path.join(original,'parser'),path.join(assets,'parser'),'dir');
+ const g=JSON.parse(fs.readFileSync(path.join(original,'graph.json'),'utf8'));
+ const ids=['VOC:meaning_i','VOC:meaning_here','VOC:meaning_this','VOC:meaning_that','VOC:meaning_now'],words=['నేను','ఇక్కడ','ఇది','అది','ఇప్పుడు'];
+ g.nodes=Object.fromEntries(ids.map((id,i)=>[id,{...g.nodes[id],core:i<3?1:i===3?2:3,neighbors:i<3?ids.slice(0,3).filter(n=>n!==id):[]}]));g.edges=[];
+ fs.writeFileSync(path.join(assets,'graph.json'),JSON.stringify(g));
+ const corpus=path.join(dir,'corpus.sqlite'),availability=path.join(dir,'availability.sqlite'),frequency=path.join(dir,'frequency.sqlite');
+ const c=new Database(corpus);c.exec(`CREATE TABLE sources(source_id TEXT,display_name TEXT,provider TEXT,license TEXT,upstream_url TEXT,catalog_version INTEGER,accepted_rows INTEGER,rejected_rows INTEGER,complexity_metric TEXT,status TEXT);
+ CREATE TABLE source_rows(source_id TEXT,source_key TEXT,text TEXT,grapheme_count INTEGER,audio_sha256 TEXT,audio_object_key TEXT,audio_mime_type TEXT,duration_seconds REAL,PRIMARY KEY(source_id,source_key));`);
+ for(const source of ['fleurs-te','shrutilipi-te','indicvoices-te'])c.prepare("INSERT INTO sources VALUES(?,?,'test','test',NULL,1,5,0,'grapheme-count','ready')").run(source,source);
+ words.forEach((w,i)=>c.prepare("INSERT INTO source_rows VALUES('fleurs-te',?,?,1,'',?,'audio/wav',1)").run(String(i),w,`${i}.wav`));c.close();
+ const a=new Database(availability);a.exec(`CREATE TABLE metadata(generation TEXT,identity TEXT);CREATE TABLE source_complexity_members(source_id TEXT,source_key TEXT,grapheme_count INTEGER,class_index INTEGER);
+ CREATE TABLE source_counts(source_id TEXT,row_count INTEGER);CREATE TABLE complexity_counts(source_id TEXT,grapheme_count INTEGER,row_count INTEGER);
+ INSERT INTO source_counts VALUES('fleurs-te',5);INSERT INTO complexity_counts VALUES('fleurs-te',1,5);`);
+ words.forEach((_,i)=>a.prepare("INSERT INTO source_complexity_members VALUES('fleurs-te',?,1,?)").run(String(i),i));
+ const f=new Database(frequency);f.exec(`CREATE TABLE metadata(identity TEXT,total_occurrences INTEGER);INSERT INTO metadata VALUES('{}',5);
+ CREATE TABLE frequencies(normalized_word TEXT PRIMARY KEY,occurrence_count INTEGER) WITHOUT ROWID;
+ CREATE TABLE occurrences(occurrence_index INTEGER PRIMARY KEY,source_id TEXT,source_key TEXT,token_ordinal INTEGER,start_offset INTEGER,end_offset INTEGER,original_token TEXT,normalized_word TEXT);`);
+ words.forEach((w,i)=>{f.prepare('INSERT INTO frequencies VALUES(?,1)').run(w);f.prepare("INSERT INTO occurrences VALUES(?,'fleurs-te',?,0,0,?,?,?)").run(i,String(i),Array.from(w).length,w,w);});f.close();
+ Object.assign(process.env,{NODE_ENV:'test',DATA_DIRECTORY:dir,DATABASE_PATH:path.join(dir,'users.sqlite'),CORPUS_DATABASE_PATH:corpus,CORPUS_AVAILABILITY_PATH:availability,FREQUENCY_DATABASE_PATH:frequency,AUDIO_VALIDATION_PATH:path.join(dir,'audio-validation.sqlite'),CORPUS_BACKEND:'local',PROFILE_CODES:'001',PARSING_ASSETS_DIRECTORY:assets});
+ const {config}=await import('../server/src/config/config');const {availabilityIdentity}=await import('../server/src/services/corpus-availability');a.prepare('INSERT INTO metadata VALUES(?,?)').run('test',availabilityIdentity(config));a.close();
+ const {db}=await import('../server/src/db/database');db.prepare("INSERT INTO profiles(code,created_at,updated_at) VALUES('001',0,0)").run();
+ const queue=await import('../server/src/services/queue-service'),state=await import('../server/src/parsing/state'),worker=await import('../server/src/parsing/live-worker');
+ const {preparationService}=await import('../server/src/services/preparation-service');preparationService.kick=()=>{};
+ const settings=await import('../server/src/services/selection-settings-service');
+ const waitFor=async(fn:()=>boolean)=>{const end=Date.now()+45000;while(!fn()){const e=queue.liveSelection.get('001')?.error;if(e)throw new Error(e);if(Date.now()>end)throw new Error('Timeout '+JSON.stringify(queue.liveSelection.get('001')));await new Promise(r=>setTimeout(r,25));}};
+ try{
+  settings.updateProfileSelectionSettings('001',{audioGivenQuestionProbability:1});assert.throws(()=>settings.updateProfileSelectionSettings('001',{questionProbability:0}),/Only question type/);assert.throws(()=>state.switchMode('001','weighted'),/Only live parsing/);
+  queue.ensureLaunchQueue('001');await waitFor(()=>queue.getQueueCount('001')===3);assert.equal(worker.wordStats?.checked,3);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM observation_acquisitions WHERE observation_kind!='question' OR question_mode!='audio-given'").get() as {n:number}).n,0);
+  let pos=0,injectedFalse=false;
+  while(state.coreProgress('001').core<4){
+   queue.ensureLaunchQueue('001');await waitFor(()=>queue.getQueueCount('001')>0);
+   const row=db.prepare("SELECT q.observation_id,a.target_id FROM queue_items q JOIN selection_attempts a ON a.observation_id=q.observation_id WHERE q.profile_code='001' ORDER BY q.queue_position LIMIT 1").get() as {observation_id:string;target_id:string};
+   const before=state.coreProgress('001').streaks[row.target_id]??0;assert.ok(before<3);
+   db.prepare('DELETE FROM queue_items WHERE observation_id=?').run(row.observation_id);
+   db.prepare(`INSERT INTO history_entries(profile_code,history_position,observation_id,absolute_started_at,presentation_state_json) VALUES('001',?,?,0,'{"questionPhase":"observation"}')`).run(pos,row.observation_id);db.prepare("UPDATE profiles SET current_position=? WHERE code='001'").run(pos++);
+   const correct:boolean=injectedFalse||before===0;
+   if(!correct)injectedFalse=true;
+   state.evaluate('001',row.observation_id,correct);assert.equal(state.coreProgress('001').streaks[row.target_id],correct?before+1:0);
+   state.evaluate('001',row.observation_id,correct);assert.equal(state.coreProgress('001').streaks[row.target_id],correct?before+1:0);
+   assert.throws(()=>state.evaluate('001',row.observation_id,!correct),/final/);
+  }
+  queue.ensureLaunchQueue('001');await waitFor(()=>queue.liveSelection.get('001')?.phase==='completed');assert.equal(pos,17);assert.equal(worker.wordStats?.checked,5);
+  assert.equal((db.prepare('SELECT COUNT(*) AS n FROM core_used').get() as {n:number}).n,0);
+  const searches=db.prepare("SELECT cycle_id,target_id FROM live_searches WHERE outcome IN('new-parse','cached-parse')").all() as Array<{cycle_id:string;target_id:string}>;
+  assert.equal(new Set(searches.map(s=>s.cycle_id+':'+s.target_id)).size,searches.length,'no repeats within chain');
+  const diagnostics=await import('../server/src/parsing/diagnostics');const d=diagnostics.parsingDiagnostics('001');assert.equal(d.levels[0]?.mastered,3);assert.equal(d.cache?.checked,5);
+  let text='';for await(const chunk of diagnostics.diagnosticExport('001').chunks)text+=chunk;
+  const out=JSON.parse(text);assert.equal(out.cycles.length,d.cycles.total);assert.equal(out.searches.length,searches.length);assert.equal(out.observations.length,17);assert.equal(new Set(out.observations.map((o:any)=>o.source_key)).size,5);assert.ok(out.summary.targets.every((t:any)=>t.matchedWords>=1));
+ }finally{worker.stopWordWorker();await new Promise(r=>setTimeout(r,100));db.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

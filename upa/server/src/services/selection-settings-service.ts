@@ -127,7 +127,7 @@ export function getProfileSelectionSettings(profileCode: string): ProfileSelecti
     sourceWeights,
     complexityPercentileTarget: settings.complexity_percentile_target,
     complexityPercentileSpread: settings.complexity_percentile_spread,
-    questionProbability: settings.question_probability,
+    questionProbability: 1,
     seenQuestionProbability: settings.seen_question_probability,
     audioGivenQuestionProbability: settings.audio_given_question_probability,
     complexityReferenceVersion: COMPLEXITY_REFERENCE_VERSION,
@@ -138,48 +138,10 @@ export function updateProfileSelectionSettings(
   profileCode: string,
   request: UpdateSelectionSettingsRequest,
 ): ProfileSelectionSettings {
+  if(Object.keys(request).some(key=>key!=='audioGivenQuestionProbability'))throw new InvalidSelectionSettingsError('Only question type can be changed on this branch.');
+  const value=request.audioGivenQuestionProbability;
+  if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>1)throw new InvalidSelectionSettingsError('Question probability must be in [0,1].');
   ensureRows(profileCode);
-  const current = getProfileSelectionSettings(profileCode);
-  const normalized: ProfileSelectionSettings = {
-    ...current,
-    ...request,
-    questionProbability: request.questionProbability ?? current.questionProbability ?? 0.3,
-    seenQuestionProbability: request.seenQuestionProbability ?? current.seenQuestionProbability ?? 0.75,
-    audioGivenQuestionProbability: request.audioGivenQuestionProbability ?? current.audioGivenQuestionProbability ?? 0.6,
-  };
-  validateSelectionSettings(normalized);
-  const now = Date.now();
-
-  const updateSettings = db.prepare(`
-    UPDATE profile_selection_settings
-    SET complexity_percentile_target = ?,
-        complexity_percentile_spread = ?,
-      question_probability = ?,
-      seen_question_probability = ?,
-      audio_given_question_probability = ?,
-        updated_at = ?
-    WHERE profile_code = ?
-  `);
-  const upsertWeight = db.prepare(`
-    INSERT INTO profile_source_weights (profile_code, source_id, weight)
-    VALUES (?, ?, ?)
-    ON CONFLICT(profile_code, source_id) DO UPDATE SET weight = excluded.weight
-  `);
-
-  db.transaction(() => {
-    updateSettings.run(
-      normalized.complexityPercentileTarget,
-      normalized.complexityPercentileSpread,
-      normalized.questionProbability,
-      normalized.seenQuestionProbability,
-      normalized.audioGivenQuestionProbability,
-      now,
-      profileCode,
-    );
-    for (const sourceId of sourceRegistry.selectableSourceIds()) {
-      upsertWeight.run(profileCode, sourceId, normalized.sourceWeights[sourceId]);
-    }
-  })();
-
+  db.prepare('UPDATE profile_selection_settings SET question_probability=1,audio_given_question_probability=?,updated_at=? WHERE profile_code=?').run(value,Date.now(),profileCode);
   return getProfileSelectionSettings(profileCode);
 }

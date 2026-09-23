@@ -18,9 +18,9 @@ export const settingsPageIcons = {
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   index: ['parsingMode', 'observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
-  observations: ['complexity', 'sources', 'diagnostic', 'dataSources', 'blacklist', 'reset'],
+  observations: ['parsingMode', 'diagnostic', 'dataSources', 'blacklist', 'reset'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
-  diagnostic: ['parser', 'queue', 'questionInfo', 'trigger', 'source', 'complexityInfo', 'global'],
+  diagnostic: ['parser', 'queue', 'questionInfo'],
   display: ['playback', 'appearance', 'images'],
 };
 
@@ -29,7 +29,7 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
-  if (page === 'parsingMode') return language === 'en' ? 'Parsing & Selection Mode' : 'పద విశ్లేషణ మరియు ఎంపిక';
+  if (page === 'parsingMode') return language === 'en' ? 'Live Parsing & Question Type' : 'పద విశ్లేషణ మరియు ఎంపిక';
   if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';
   if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';
   if (page === 'grammarMigration') return 'Grammar Migration';

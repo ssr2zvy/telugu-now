@@ -77,19 +77,20 @@ if (corpusBackend !== 'local' && corpusBackend !== 'tigris') {
 }
 const databasePath = resolveDataPath(process.env.DATABASE_PATH, 'user/users.sqlite');
 const corpusDatabasePath = resolveDataPath(process.env.CORPUS_DATABASE_PATH, 'corpus/corpus.sqlite');
+const frequencyDatabasePath = resolveDataPath(process.env.FREQUENCY_DATABASE_PATH, 'corpus/frequency.sqlite');
 const corpusAvailabilityPath = resolveDataPath(process.env.CORPUS_AVAILABILITY_PATH, 'corpus/availability.sqlite');
 const audioValidationPath = resolveDataPath(
   process.env.AUDIO_VALIDATION_PATH ?? path.join(path.dirname(corpusAvailabilityPath), 'audio-validation.sqlite'),
   'corpus/audio-validation.sqlite',
 );
 const corpusObjectsPath = resolveDataPath(process.env.CORPUS_OBJECTS_PATH, 'corpus/objects');
-if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioValidationPath]).size !== 4) {
-  throw new Error('User, corpus, availability, and audio validation databases must be separate files.');
+if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioValidationPath, frequencyDatabasePath]).size !== 5) {
+  throw new Error('User, corpus, frequency, availability, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
-  'fleurs-te': parseUnitInterval(process.env.FLEURS_TE_WEIGHT, 1),
-  'shrutilipi-te': parseUnitInterval(process.env.SHRUTILIPI_TE_WEIGHT, 1),
-  'indicvoices-te': parseUnitInterval(process.env.INDICVOICES_TE_WEIGHT, 1),
+  'fleurs-te': 1,
+  'shrutilipi-te': 1,
+  'indicvoices-te': 1,
 };
 
 if (Math.max(...Object.values(defaultSourceWeights)) !== 1) {
@@ -101,6 +102,7 @@ export const config = {
   devPort: parseNonNegativeInt(process.env.API_DEV_PORT, 8787),
   dataDirectory,
   corpusBackend,
+  frequencyDatabasePath,
   databasePath: path.resolve(databasePath),
   corpusDatabasePath: path.resolve(corpusDatabasePath),
   corpusAvailabilityPath: path.resolve(corpusAvailabilityPath),

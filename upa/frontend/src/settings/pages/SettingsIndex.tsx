@@ -37,7 +37,7 @@ export function SettingsIndex({
   const { appearance } = useAppearance();
   const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
   const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    parsingMode: state.selectionMode==='core'?'Core progression':state.selectionMode==='random'?'Full random':'Normal weighted selection',
+    parsingMode: 'Live word parsing · always questions',
     observations: 'Complexity · Source weights · Diagnostics',
     external: 'EPUB · HTML · App Archive',
     diagnostic: state.currentObservation
