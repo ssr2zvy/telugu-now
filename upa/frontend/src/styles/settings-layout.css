@@ -15,7 +15,7 @@
 .settings-rail-scrim { display: none; }
 .settings-header {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) 44px 44px;
   align-items: center;
   gap: 12px;
   width: min(640px, 100%);
@@ -41,7 +41,7 @@
 @keyframes settings-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .settings-index { display: grid; width: calc(100% + 24px); margin-inline: -12px; }
 .settings-index button {
-  position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: center; gap: 18px;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 18px; align-items: center; gap: 18px;
   width: 100%; min-height: 76px; padding: 16px 12px; border: 0; border-radius: 6px;
   background: transparent; color: inherit; text-align: left; cursor: pointer;
 }
@@ -409,3 +409,10 @@
 .appearance-preset:focus-visible { outline: 1px solid var(--foreground); outline-offset: 2px; }
 .appearance-font-sample { margin: 0; text-align: center; font-size: 3rem; line-height: 1.8; }
 .appearance-font-glyph { font-size: 1.2rem; }
+
+/* Back and Close share the right edge; the title never changes columns. */
+.settings-header .settings-heading { grid-column: 1; grid-row: 1; }
+.settings-header .settings-header-side { grid-column: 2; grid-row: 1; }
+.settings-header .settings-close { grid-column: 3; grid-row: 1; }
+/* Font previews convey the font itself, rather than decorating categories. */
+.settings-index button:has(.appearance-font-glyph) { grid-template-columns: 24px minmax(0, 1fr) 18px; }

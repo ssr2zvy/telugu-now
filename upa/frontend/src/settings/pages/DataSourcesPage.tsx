@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Database } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { DataSourceInfo } from '../../../../shared/contracts';
 import { getDataSources } from '../../api';
 import { t } from '../language';
@@ -9,7 +9,7 @@ export function DataSourcesPage({language,onSelect}:{language:UiLanguage;onSelec
   useEffect(()=>{let active=true;void getDataSources().then(result=>{if(active)setSources(result.sources);}).catch(()=>{if(active)setFailed(true);});return()=>{active=false;};},[]);
   if(failed)return <p role="alert">{t(language,'unavailable')}</p>;
   if(!sources)return <p role="status">…</p>;
-  return <nav className="settings-index">{sources.map(source=><button type="button" key={source.sourceId} onClick={()=>onSelect(source)}><Database className="settings-entry-icon" aria-hidden="true"/><span>{source.displayName}</span><ChevronRight className="settings-entry-chevron" aria-hidden="true"/></button>)}</nav>;
+  return <nav className="settings-index">{sources.map(source=><button type="button" key={source.sourceId} onClick={()=>onSelect(source)}><span>{source.displayName}</span><ChevronRight className="settings-entry-chevron" aria-hidden="true"/></button>)}</nav>;
 }
 export function DataSourceDetailPage({language,source}:{language:UiLanguage;source:DataSourceInfo|null}) {
   if(!source)return <p>{t(language,'unavailable')}</p>;

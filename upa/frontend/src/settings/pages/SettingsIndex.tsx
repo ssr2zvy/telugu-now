@@ -5,7 +5,7 @@ import type {
   SettingsPage,
   UiLanguage,
 } from '../types';
-import { visibleSettingsEntries, settingsPageIcons, settingsPageLabel } from '../navigation';
+import { visibleSettingsEntries, settingsPageLabel } from '../navigation';
 import { ChevronRight } from 'lucide-react';
 import type { ProfileStateResponse } from '../../../../shared/contracts';
 import { useAppearance } from '../../appearance';
@@ -48,7 +48,6 @@ export function SettingsIndex({
       >
         {entries.map(
           (page) => {
-            const Icon = settingsPageIcons[page];
             return (
             <button
               key={page}
@@ -57,7 +56,6 @@ export function SettingsIndex({
                 onNavigate(page as Exclude<SettingsPage, 'index'>)
               }
             >
-              <Icon className="settings-entry-icon" aria-hidden="true" />
               <span className="settings-entry-text">
                 <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
 
