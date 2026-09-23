@@ -127,7 +127,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 50px); bottom: max(0px, env(safe-area-inset-bottom)); width: min(860px, calc(100vw - 2rem)); overflow: hidden; }
 /* The primary bar uses the same anchor in every text-given phase. The action
    is positioned separately, with collision avoidance for expanded controls. */
-.observation-screen[data-text-given-flow='true'] { --question-action-floor: max(24px, calc(env(safe-area-inset-bottom) + 16px)); }
+.observation-screen[data-text-given-flow='true'] { --question-action-floor: max(48px, calc(env(safe-area-inset-bottom) + 40px)); }
 .observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: var(--question-action-bottom, var(--question-action-floor)); }
 .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
@@ -281,3 +281,10 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-settings-idle='true'] .reader-settings svg { opacity: 0; }
 html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .appearance-root .observation-screen .reader-settings svg { transition: none; } }
+
+/* Both swipe axes are app gestures; pinch zoom remains native. */
+.observation-screen[data-swipe-navigation='true'] { touch-action: pinch-zoom; }
+.audio-player-bar[data-controls-visible='false'],
+.audio-player-bar[data-controls-visible='false'] * { pointer-events: none !important; }
+.audio-precision-panel[data-visible='false'],
+.audio-precision-panel[data-visible='false'] * { pointer-events: none !important; }

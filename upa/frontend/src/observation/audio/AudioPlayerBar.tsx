@@ -157,6 +157,9 @@ export function AudioPlayerBar({
     <div
       ref={playerRef}
       className="audio-player-bar"
+      data-controls-visible={controlsVisible}
+      inert={!controlsVisible}
+      aria-hidden={!controlsVisible}
       data-magnifier-position={appearance.magnifierPosition}
       data-speed-open={speedPopoverOpen}
       data-has-audio={Boolean(audio || recordingActive || reserveAudioSpace)}

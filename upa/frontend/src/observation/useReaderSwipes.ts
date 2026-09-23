@@ -11,7 +11,7 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
   onSwipe: (direction: ReaderSwipe) => void, cancelTap: () => void, feedback?: ReaderSwipeFeedback) {
   const callbacks = useRef({ onSwipe, cancelTap, feedback });
   callbacks.current = { onSwipe, cancelTap, feedback };
-  const origin = useRef<{ id: number; x: number; y: number; moved: boolean; control: boolean } | null>(null);
+  const origin = useRef<{ id: number; x: number; y: number; moved: boolean; control: boolean; audio: boolean; axis: 'audio' | 'page' | null } | null>(null);
   const suppressClick = useRef(false);
   useEffect(() => {
     origin.current = null;
@@ -51,20 +51,30 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       if (origin.current?.moved) callbacks.current.feedback?.onCancel();
       suppressClick.current = false;
       if (!enabled || !event.isPrimary || event.button !== 0) { origin.current = null; callbacks.current.feedback?.onCancel(); return; }
-      // Audio owns the entire gesture, even after the pointer leaves its bounds.
-      if (event.target instanceof Element && event.target.closest('.audio-player-bar, [role="slider"], .grammar-evaluation')) {
+      // Evaluation taps never become navigation gestures.
+      if (event.target instanceof Element && event.target.closest('.grammar-evaluation')) {
         origin.current = null;
         callbacks.current.cancelTap();
         return;
       }
       // Other controls retain taps; deliberate page swipes may start on them.
       const control=event.target instanceof Element && Boolean(event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls'));
-      origin.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, control };
+      const audio = event.target instanceof Element && Boolean(event.target.closest('[role="slider"]'));
+      origin.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, control, audio, axis: null };
     },
     onPointerMoveCapture(event: PointerEvent<HTMLElement>) {
       const start = origin.current;
       if (!start || start.id !== event.pointerId) return;
       const dx=event.clientX-start.x,dy=event.clientY-start.y;
+      if (start.audio) {
+        if (!start.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 10) {
+          if (Math.abs(dx) > Math.abs(dy) * 1.35) start.axis = 'audio';
+          else if (Math.abs(dy) > Math.abs(dx) * 1.35) start.axis = 'page';
+        }
+        if (start.axis !== 'page') return;
+        // A vertical gesture belongs to disclosure, not seeking.
+        event.preventDefault(); event.stopPropagation();
+      }
       if (start.control ? Boolean(readerSwipe(dx,dy)) : Math.hypot(dx,dy)>10) {
         start.moved = true;
         suppressClick.current = true;
@@ -73,13 +83,15 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
         event.stopPropagation();
         if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
       }
-      if (start.moved && callbacks.current.feedback) callbacks.current.feedback.onDrag(dx, dy, event.currentTarget.getBoundingClientRect().width);
+      if (start.moved && callbacks.current.feedback) callbacks.current.feedback.onDrag(start.audio ? 0 : dx, dy, event.currentTarget.getBoundingClientRect().width);
     },
     onPointerUpCapture(event: PointerEvent<HTMLElement>) {
       const start = origin.current;
       origin.current = null;
       if (!start || start.id !== event.pointerId) return;
+      if (start.audio && start.axis !== 'page') return;
       const direction = readerSwipe(event.clientX - start.x, event.clientY - start.y);
+      if (start.audio && direction !== 'up' && direction !== 'down') { callbacks.current.feedback?.onCancel(); return; }
       if (direction) {
         event.preventDefault();event.stopPropagation();
         suppressClick.current = true;

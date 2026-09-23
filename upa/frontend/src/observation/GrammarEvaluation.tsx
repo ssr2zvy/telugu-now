@@ -2,8 +2,8 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 
 export interface GrammarEvaluationHandle { commit:()=>Promise<boolean> }
 export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
-  profileCode:string;observationId:string;result:boolean|null;discarded?:boolean;initialDraft?:boolean;onDraftChange?:(value:boolean)=>void;
-}>(function GrammarEvaluation({profileCode,observationId,result,discarded=false,initialDraft=false,onDraftChange},ref){
+  profileCode:string;observationId:string;result:boolean|null;discarded?:boolean;showSwitch?:boolean;initialDraft?:boolean;onDraftChange?:(value:boolean)=>void;
+}>(function GrammarEvaluation({profileCode,observationId,result,discarded=false,showSwitch=true,initialDraft=false,onDraftChange},ref){
   const [draft,setDraft]=useState(initialDraft);
   const [saved,setSaved]=useState<boolean|null>(null);
   const [busy,setBusy]=useState(false);
@@ -25,7 +25,7 @@ export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
     finally{inFlight.current=false;setBusy(false);}
   }}),[value,draft,profileCode,observationId,discarded]);
   return <div className="grammar-evaluation" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onPointerDown={event=>{event.stopPropagation();if(discarded||busy||value!==null)event.preventDefault();}}>
-    <button type="button" role="switch" className="evaluation-switch" aria-label="Answer correct"
+    <button hidden={!showSwitch} type="button" role="switch" className="evaluation-switch" aria-label="Answer correct"
       aria-checked={value??draft} aria-busy={busy} data-value={String(value??draft)} disabled={discarded||busy||value!==null}
       onClick={()=>{setDraft(!draft);onDraftChange?.(!draft);}}>
       <span className="evaluation-switch-indicator" aria-hidden="true" />
