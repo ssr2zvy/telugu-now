@@ -1,63 +1,77 @@
-import { useEffect,useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { DiagnosticEvent } from '../../../../shared/parsing-diagnostics';
+import { useParsingDiagnostics } from '../useParsingDiagnostics';
+import { targetUnicode } from '../parser-display';
+import { ParserSection } from './ParserSection';
 import { ParsingStatus } from './ParsingStatus';
-import type { ParsingDiagnostics as Diagnostics, DiagnosticEvent } from '../../../../shared/parsing-diagnostics';
-export function ParsingDiagnostics({profileCode,onDownload}:{profileCode:string;onDownload?:()=>void}){
-  const base=`/api/profiles/${encodeURIComponent(profileCode)}/parsing/diagnostics`;
-  const [data,setData]=useState<Diagnostics|null>(null),[error,setError]=useState(''),[core,setCore]=useState(1);
-  const [events,setEvents]=useState<DiagnosticEvent[]>([]),[query,setQuery]=useState('');
-  useEffect(()=>{const abort=new AbortController();let running=false;
-    const load=async()=>{if(running)return;running=true;try{
-      const response=await fetch(base,{signal:abort.signal});if(!response.ok)throw new Error('Diagnostics unavailable');
-      const value=await response.json() as Diagnostics;
-      const history=await fetch(`${base}/events?core=${core}`,{signal:abort.signal});if(!history.ok)throw new Error('History unavailable');
-      const h=await history.json() as {events:DiagnosticEvent[]};
-      if(!abort.signal.aborted){setData(value);setEvents(h.events);setError('');}
-    }catch(e){if(!abort.signal.aborted)setError(String(e));}finally{running=false;}};
-    void load();const timer=setInterval(()=>void load(),3000);return()=>{abort.abort();clearInterval(timer);};
-  },[base,core]);
-  const rows=data?.targets.filter(t=>t.core===core&&`${t.label} ${t.id} ${t.forms.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a,b)=>(a.matchedWords??Infinity)-(b.matchedWords??Infinity)||a.id.localeCompare(b.id))??[];
-  return <section aria-label="Live parsing diagnostics">
-    <h2>Live parsing diagnostics</h2>
-    <button type="button" onClick={onDownload}>Download full diagnostics</button>
-    {error?<p role="alert">Could not update diagnostics. Retrying automatically every three seconds. {data?'The figures below are from the last successful update.':''} {error}</p>:null}
-    {data?<>
-      <h3>This observation’s connection chain</h3>
-      {data.currentChain ? <>
-        <p>Core {data.currentChain.core} · {data.currentChain.endReason?'Chain ended':'Chain open'} · {data.currentChain.steps.length} selections</p>
-        <ol>{data.currentChain.steps.map(s=><li key={s.observationId} aria-current={s.observationId===data.currentChain?.currentObservationId?'step':undefined}>
-          <strong>{s.label}</strong> — <span lang="te">{s.word??'Word not saved'}</span> · {s.observationId===data.currentChain?.currentObservationId?'current observation':s.answered?'answered':s.displayed?'shown':'queued'}
-        </li>)}</ol>
-      </> : <p>No connection chain was saved for the current observation.</p>}
-      <ParsingStatus data={data}/>
-      {data.progressError?<p role="alert">{data.progressError}</p>:null}
-      <p>{data.historyNotice}</p>
-      {data.cache?<p>{data.cache.checked.toLocaleString()} / {data.cache.total.toLocaleString()} distinct words checked · {data.cache.parsed.toLocaleString()} resolved · {data.cache.rejected.toLocaleString()} could not parse</p>:<p>Word counts will appear after the parser opens the frequency database.</p>}
-      <p>These cache totals cover words checked across all selections. They do not classify the other words in your current sentence.</p>
-      <p>Three consecutive True answers complete an object. False resets its streak. Each answer updates progress immediately; completed objects stay excluded.</p>
-      {!data.progressError?data.levels.map(l=><div key={l.core}>
-        <h3>Core {l.core}: {l.mastered}/{l.total} complete · {l.status}</h3>
-        <progress max={l.total} value={l.mastered} aria-label={`Core ${l.core} completion`}/>
-        <p>{l.withExamples??'—'} objects with cached matches · {l.withoutExamples??'—'} with none yet</p>
-      </div>):null}
-      <h3>Objects not yet represented and underrepresented</h3>
-      <p>Core {core}: {data.cache?`${rows.filter(t=>t.matchedWords===0).length} objects have no cached word match`:'Word match counts are loading'} · {rows.filter(t=>t.displayed===0).length} have not been shown yet{query?' (filtered list)':''}.</p>
-      <p>All objects are listed by distinct cached matching words, fewest first. Search counts distinguish unsearched objects from exhausted searches. These counts do not estimate unseen corpus coverage.</p>
-      <label>Core <select value={core} onChange={e=>setCore(Number(e.target.value))}>{[1,2,3].map(n=><option key={n} value={n}>Core {n}</option>)}</select></label>
-      <label>Find an object <input value={query} onChange={e=>setQuery(e.target.value)}/></label>
-      <div style={{overflowX:'auto',maxHeight:'65vh'}}><table className="diagnostic-table">
-        <thead><tr><th>Object</th><th>Matching words</th><th>Searches</th><th>New words checked</th><th>Exhausted searches</th><th>Shown</th><th>True streak</th></tr></thead>
-        <tbody>{rows.map(t=><tr key={t.id}><th>{t.label}<details><summary>Search definition</summary><code>{t.id}</code><p>{t.forms.join(' / ')||t.chain.join(' → ')}</p><p>Maximum {t.pattern?.maxCodepoints??'—'} Unicode code points</p><p style={{overflowWrap:'anywhere'}}>{t.pattern?.needles.join(' / ')||'No single-word retrieval forms'}</p></details></th>
-          <td>{t.matchedWords??'—'}{t.matchedWords===0?' · no match yet':''}</td><td>{t.searches}</td><td>{t.checked}</td><td>{t.exhausted}</td><td>{t.displayed}{t.displayed===0?' · not shown':''}</td><td>{t.streak}/3{t.mastered?' · done':''}</td></tr>)}</tbody>
-      </table></div>
-      <h3>Connection cycles</h3>
-      <p>{data.cycles.total} cycles · {data.cycles.active} active · {data.cycles.steps} selected steps</p>
-      <ul>{data.cycles.reasons.map(r=><li key={r.reason}>{r.reason}: {r.count}</li>)}</ul>
-      <details><summary>Latest 50 events for Core {core}</summary>
-        <p>The download contains all recorded cycles and searches, including those from previous app sessions.</p>
-        <ol>{events.map(e=><li key={e.seq}><details><summary>{new Date(e.occurred_at).toLocaleString()} · {e.type}{e.target_id?` · ${e.target_id}`:''}</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(e.details,null,2)}</pre></details></li>)}</ol>
-      </details>
-      <small>Updated {new Date(data.generatedAt).toLocaleTimeString()}</small>
-    </>:!error?<p role="status">Loading diagnostics…</p>:null}
-  </section>;
+
+function RecentEvents({profileCode,core}:{profileCode:string;core:number}) {
+  const [events,setEvents] = useState<DiagnosticEvent[]>([]);
+  const [error,setError] = useState('');
+  useEffect(() => {
+    const abort = new AbortController();
+    setEvents([]); setError('');
+    void fetch(`/api/profiles/${encodeURIComponent(profileCode)}/parsing/diagnostics/events?core=${core}`,{signal:abort.signal})
+      .then(async response => {if(!response.ok) throw new Error(); return response.json() as Promise<{events:DiagnosticEvent[]}>;})
+      .then(result => {if(!abort.signal.aborted)setEvents(result.events);})
+      .catch(() => {if(!abort.signal.aborted)setError('Could not load events. Reopen to retry.');});
+    return () => abort.abort();
+  },[profileCode,core]);
+  return <>{error ? <p role="alert">{error}</p> : null}<p className="parser-muted">Latest 50 events. The download includes all recorded history.</p>
+    {events.map(event => <ParserSection key={event.seq} title={event.type.replaceAll('_',' ')} summary={new Date(event.occurred_at).toLocaleString()}>
+      <pre>{JSON.stringify(event,null,2)}</pre>
+    </ParserSection>)}{!events.length && !error ? <p className="parser-muted">No events loaded yet.</p> : null}</>;
+}
+
+export function ParsingDiagnostics({profileCode,onDownload}:{profileCode:string;onDownload?:()=>void}) {
+  const {data,error} = useParsingDiagnostics(profileCode);
+  const [core,setCore] = useState(1), [query,setQuery] = useState('');
+  const [filter,setFilter] = useState('all'), [page,setPage] = useState(0), [eventsOpen,setEventsOpen] = useState(false);
+  const targets = data?.targets.filter(target => target.core === core) ?? [];
+  const rows = targets.filter(target => `${target.label} ${target.id} ${targetUnicode(target).join(' ')}`.toLowerCase().includes(query.toLowerCase())
+    && (filter === 'all' || (filter === 'unmatched' ? target.matchedWords === 0 : target.displayed === 0)))
+    .sort((a,b) => (a.matchedWords ?? Infinity) - (b.matchedWords ?? Infinity) || a.id.localeCompare(b.id));
+  const pages = Math.max(1,Math.ceil(rows.length / 30));
+  const visiblePage = Math.min(page,pages - 1);
+  return <div className="parser-settings">
+    {error ? <p role="alert">{error}{data ? ' Showing the last update.' : ''}</p> : null}
+    {!data ? <p role="status">Loading diagnostics…</p> : <>
+      <section className="parser-block" aria-label="Coverage">
+        <div className="parser-line"><h2>Coverage</h2><span>Fewest matches first</span></div>
+        <div className="parser-filters">
+          <label>Core<select value={core} onChange={event => {setCore(Number(event.target.value));setPage(0);}}>{[1,2,3].map(value => <option key={value} value={value}>Core {value}</option>)}</select></label>
+          <label>Show<select value={filter} onChange={event => {setFilter(event.target.value);setPage(0);}}><option value="all">All objects</option><option value="unmatched">No matches</option><option value="unshown">Not shown</option></select></label>
+          <label className="parser-search">Find<input type="search" value={query} onChange={event => {setQuery(event.target.value);setPage(0);}} placeholder="Word or object"/></label>
+        </div>
+        <p className="parser-muted">{data.cache ? `${targets.filter(target => target.matchedWords === 0).length} without matches` : 'Match counts unavailable'} · {targets.filter(target => target.displayed === 0).length} not shown</p>
+        <div className="parser-targets">{rows.slice(visiblePage * 30,(visiblePage + 1) * 30).map(target => {
+          const forms = targetUnicode(target);
+          return <ParserSection key={target.id} title={forms.join(' · ') || 'Unicode unavailable'} summary={`${target.matchedWords ?? '—'} matches · ${target.displayed} shown · ${target.streak}/3${target.mastered ? ' · Complete' : ''}`}>
+            <dl className="parser-metrics"><dt>Searches</dt><dd>{target.searches}</dd><dt>Words checked</dt><dd>{target.checked}</dd><dt>Exhausted</dt><dd>{target.exhausted}</dd><dt>Selected / answered</dt><dd>{target.selected} / {target.answered}</dd><dt>Maximum length</dt><dd>{target.pattern?.maxCodepoints ?? '—'} code points</dd></dl>
+            <p lang="te">{target.pattern?.needles.join(' · ')}</p>
+            <p className="parser-muted">{target.label}</p><code>{target.id}</code>
+            {target.chain.length ? <p className="parser-muted">{target.chain.join(' → ')}</p> : null}
+          </ParserSection>;
+        })}</div>
+        {!rows.length ? <p className="parser-muted">No objects match these filters.</p> : null}
+        {pages > 1 ? <div className="parser-pagination"><button type="button" className="secondary-action" disabled={visiblePage === 0} onClick={() => setPage(visiblePage - 1)}>Previous</button><span>{visiblePage + 1} / {pages}</span><button type="button" className="secondary-action" disabled={visiblePage + 1 >= pages} onClick={() => setPage(visiblePage + 1)}>Next</button></div> : null}
+      </section>
+      <ParserSection title="Coverage notes" summary="Counts reflect checked words">
+        <p>Matches count distinct cached words across profiles. Zero matches can mean an object has not been searched yet; it does not prove the corpus has none.</p>
+        <p>Shown counts and searches belong to this profile. Other words in a selected sentence are not marked as failed parses.</p>
+        <p>{data.historyNotice}</p>
+      </ParserSection>
+      <ParserSection title="Preparation" summary={`${data.queue.ready} ready · ${data.queue.pending + data.queue.preparing} preparing`}><ParsingStatus data={data}/></ParserSection>
+      <ParserSection title="Word cache" summary={data.cache ? `${data.cache.checked.toLocaleString()} checked` : 'Not available'}>
+        {data.cache ? <dl className="parser-metrics"><dt>Total words</dt><dd>{data.cache.total.toLocaleString()}</dd><dt>Checked</dt><dd>{data.cache.checked.toLocaleString()}</dd><dt>Parsed</dt><dd>{data.cache.parsed.toLocaleString()}</dd><dt>Could not parse</dt><dd>{data.cache.rejected.toLocaleString()}</dd></dl> : <p>Counts appear when the frequency database is open.</p>}
+      </ParserSection>
+      <ParserSection title="Connection cycles" summary={`${data.cycles.total} cycles · ${data.cycles.steps} selections`}>
+        <dl className="parser-metrics"><dt>Active</dt><dd>{data.cycles.active}</dd>{data.cycles.reasons.map(reason => <div className="parser-metric-pair" key={reason.reason}><dt>{reason.reason.replaceAll('_',' ').replaceAll('-',' ')}</dt><dd>{reason.count}</dd></div>)}</dl>
+      </ParserSection>
+      <details className="parser-section" onToggle={event => setEventsOpen(event.currentTarget.open)}><summary>Events · Core {core}</summary><div className="parser-section-body">{eventsOpen ? <RecentEvents profileCode={profileCode} core={core}/> : null}</div></details>
+      <ParserSection title="Technical details"><dl className="parser-metrics"><dt>Inventory</dt><dd>{data.inventoryId ?? '—'}</dd><dt>Selection</dt><dd>{data.selectionPolicy}</dd><dt>History started</dt><dd>{new Date(data.auditStartedAt).toLocaleString()}</dd></dl>{data.catalogError ? <p role="alert">{data.catalogError}</p> : null}{data.progressError ? <p role="alert">{data.progressError}</p> : null}</ParserSection>
+      {onDownload ? <button type="button" className="secondary-action" onClick={onDownload}>Download</button> : null}
+      <p className="parser-muted">Updated {new Date(data.generatedAt).toLocaleTimeString()}</p>
+    </>}
+  </div>;
 }

@@ -38,7 +38,7 @@ export function SettingsIndex({
   const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
   const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
     external: 'EPUB · HTML · App Archive',
-    diagnostic: 'Current chain and word · Coverage · Full history download',
+    observations: language === 'en' ? 'Parser · Questions' : 'పార్సర్ · ప్రశ్నలు',
     display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
     eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
     controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',

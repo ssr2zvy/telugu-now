@@ -4,8 +4,8 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
-  diagnosticsDownload: Download, parsingMode: Workflow, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
-  index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
+  diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
+  parserCurrent: Activity, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
   display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
   dataSources: Database, trigger: Workflow, source: Database,
   complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
@@ -17,9 +17,11 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
-  index: ['diagnostic', 'external', 'display', 'eons', 'controlsGuide', 'about'],
+  index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
-  diagnostic: ['parsingMode', 'diagnosticsDownload', 'queue', 'dataSources', 'blacklist', 'reset'],
+  observations: ['parser', 'parsingMode'],
+  parser: ['parserCurrent', 'diagnostic'],
+  diagnostic: ['diagnosticsDownload', 'queue', 'dataSources', 'blacklist', 'reset'],
   display: ['playback', 'appearance', 'images'],
 };
 
@@ -28,9 +30,12 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
-  if (page === 'diagnostic' || page === 'observations' || page === 'parser') return language === 'en' ? 'Observations & diagnostics' : 'పరిశీలనలు మరియు విశ్లేషణ';
-  if (page === 'diagnosticsDownload') return language === 'en' ? 'Download full diagnostics' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';
-  if (page === 'parsingMode') return language === 'en' ? 'Question type' : 'ప్రశ్న రకం';
+  if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
+  if (page === 'parser') return language === 'en' ? 'Parser' : 'పార్సర్';
+  if (page === 'parserCurrent') return language === 'en' ? 'Current' : 'ప్రస్తుతం';
+  if (page === 'diagnostic') return language === 'en' ? 'Diagnostics' : 'విశ్లేషణ';
+  if (page === 'diagnosticsDownload') return language === 'en' ? 'Download' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';
+  if (page === 'parsingMode') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';
   if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';
   if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';
   if (page === 'grammarMigration') return 'Grammar Migration';
