@@ -6,7 +6,7 @@ import type { ParsingDiagnostics, TargetDiagnostic, DiagnosticEvent } from '../.
 
 import { inventoryId } from './state';
 import { wordStats, workerError, workerPhase } from './live-worker';
-import { liveSelection } from '../services/queue-service';
+import { liveSelection, getQueueCounts } from '../services/queue-service';
 export const percent=(done:number,total:number):number|null=>total?100*done/total:null;
 export function parsingDiagnostics(profile:string,store:Database.Database=db):ParsingDiagnostics {
   const saved=store.prepare('SELECT core,inventory_id FROM core_progress WHERE profile_code=?').get(profile) as {core:number;inventory_id:string}|undefined;
@@ -31,9 +31,24 @@ export function parsingDiagnostics(profile:string,store:Database.Database=db):Pa
   const summary=store.prepare(`SELECT COUNT(*) AS total,SUM(ended_at IS NULL) AS active,
     COALESCE(SUM(steps),0) AS steps FROM live_cycles WHERE profile_code=?`).get(profile) as {total:number;active:number|null;steps:number};
   const reasons=store.prepare('SELECT end_reason AS reason,COUNT(*) AS count FROM live_cycles WHERE profile_code=? AND ended_at IS NOT NULL GROUP BY end_reason').all(profile) as Array<{reason:string;count:number}>;
+  const current=store.prepare(`SELECT h.observation_id AS observationId,json_extract(q.selection_snapshot_json,'$.cycleId') AS cycleId
+    FROM profiles p JOIN history_entries h ON h.profile_code=p.code AND h.history_position=p.current_position
+    JOIN observation_acquisitions q ON q.observation_id=h.observation_id WHERE p.code=?`).get(profile) as {observationId:string;cycleId:string|null}|undefined;
+  const cycle=current?.cycleId?store.prepare('SELECT id,core,end_reason AS endReason FROM live_cycles WHERE id=? AND profile_code=?').get(current.cycleId,profile) as {id:string;core:number;endReason:string|null}|undefined:undefined;
+  const currentChain=cycle&&current?{...cycle,currentObservationId:current.observationId,
+    steps:(store.prepare(`SELECT a.observation_id AS observationId,a.target_id AS targetId,
+      json_extract(q.selection_snapshot_json,'$.word') AS word,a.displayed_at AS displayed,a.answered_at AS answered
+      FROM selection_attempts a JOIN observation_acquisitions q ON q.observation_id=a.observation_id
+      WHERE a.profile_code=? AND json_extract(q.selection_snapshot_json,'$.cycleId')=? ORDER BY q.acquisition_number`)
+      .all(profile,cycle.id) as Array<{observationId:string;targetId:string;word:string|null;displayed:number|null;answered:number|null}>)
+      .map(s=>({...s,label:graph().nodes[s.targetId]?.label??s.targetId,displayed:s.displayed!==null,answered:s.answered!==null}))}:null;
   return {version:1,generatedAt:Date.now(),auditStartedAt:(store.prepare('SELECT started_at FROM core_diagnostic_install WHERE id=1').get() as {started_at:number}).started_at,
-    currentCore:core,inventoryId:inventory,catalogError:workerError,progressError,targets,
+    currentChain,currentCore:core,inventoryId:inventory,catalogError:workerError,progressError,targets,
     cache:wordStats?{total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected}:null,
+    selectionPolicy:'shortest-codepoints-v1',worker:{phase:workerPhase,error:workerError},
+    queue:{...getQueueCounts(profile,store),errors:(store.prepare(`SELECT DISTINCT o.preparation_error AS error
+      FROM queue_items q JOIN observations o ON o.id=q.observation_id
+      WHERE q.profile_code=? AND o.preparation_error IS NOT NULL`).all(profile) as Array<{error:string}>).map(r=>r.error)},
     activity:liveSelection.get(profile)??{phase:workerPhase,target:null,checked:0,error:workerError},
     cycles:{...summary,active:summary.active??0,reasons},
     historyNotice:'Matches count distinct cached words across profiles, not all corpus matches. Zero can mean not searched yet. Searches and connection cycles are recorded for this profile from this version onward. Previously shown observations remain eligible.',
@@ -64,20 +79,30 @@ export function diagnosticExport(profile:string) {
     ['progress','SELECT * FROM core_progress WHERE profile_code=?'],
     ['streaks','SELECT * FROM core_streaks WHERE profile_code=? ORDER BY inventory_id,core,target_id'],
     ['batches','SELECT * FROM core_batches WHERE profile_code=? ORDER BY rowid'],
-    ['observations',`SELECT a.*,o.source_id,o.source_key,o.text,o.status,o.selected_at,o.prepared_at,o.preparation_error,
-      q.selection_snapshot_json,q.question_mode FROM selection_attempts a JOIN observations o ON o.id=a.observation_id
-      JOIN observation_acquisitions q ON q.observation_id=a.observation_id WHERE a.profile_code=? AND a.mode='core' ORDER BY o.selected_at,o.id`],
+    ['observations',`SELECT o.*,a.target_id,a.core,a.mode,a.result,a.displayed_at,a.answered_at,
+      q.selection_snapshot_json,q.question_mode FROM observation_acquisitions q JOIN observations o ON o.id=q.observation_id
+      LEFT JOIN selection_attempts a ON a.observation_id=o.id WHERE q.profile_code=? ORDER BY q.acquisition_number`],
+    ['selections','SELECT * FROM selection_attempts WHERE profile_code=? ORDER BY rowid'],
+    ['acquisitions','SELECT * FROM observation_acquisitions WHERE profile_code=? ORDER BY acquisition_number'],
+    ['history','SELECT * FROM history_entries WHERE profile_code=? ORDER BY history_position'],
+    ['responses',`SELECT profile_code,observation_id,response_text,response_audio_mime_type,updated_at,
+      length(response_audio) AS response_audio_bytes FROM question_responses WHERE profile_code=? ORDER BY updated_at,observation_id`],
     ['cycles','SELECT * FROM live_cycles WHERE profile_code=? ORDER BY started_at,id'],
     ['searches','SELECT s.* FROM live_searches s JOIN live_cycles c ON c.id=s.cycle_id WHERE c.profile_code=? ORDER BY s.rowid'],
     ['activeQueue','SELECT * FROM queue_items WHERE profile_code=? ORDER BY queue_position'],
 
     ['events','SELECT * FROM core_diagnostic_events WHERE profile_code=? ORDER BY seq'],
   ];
+  if(reader.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='grammar_attempts'").get()) {
+    sections.push(['legacyGrammarSelections','SELECT a.* FROM grammar_attempts a JOIN grammar_batches b ON b.id=a.batch_id WHERE b.profile_code=? ORDER BY a.rowid']);
+    sections.push(['legacyGrammarBatches','SELECT * FROM grammar_batches WHERE profile_code=? ORDER BY rowid']);
+    sections.push(['legacyGrammarProgress','SELECT * FROM grammar_progress WHERE profile_code=?']);
+  }
   let closed=false;
   const close=()=>{if(!closed){closed=true;try{reader.exec('ROLLBACK');}finally{reader.close();}}};
   async function* chunks():AsyncGenerator<string> {
     try {
-      yield '{"format":"telugu-live-frequency-diagnostics","version":1,"eventHighWater":'+highWater+',"summary":'+JSON.stringify(diagnostics);
+      yield '{"format":"telugu-live-frequency-diagnostics","version":2,"eventHighWater":'+highWater+',"summary":'+JSON.stringify(diagnostics);
       yield ',"inventory":'+JSON.stringify(graph());
       for(const [name,sql] of sections) {
         yield ','+JSON.stringify(name)+':[';let first=true;

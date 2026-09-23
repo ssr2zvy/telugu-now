@@ -1,3 +1,4 @@
+import { DiagnosticsDownloadPage } from './pages/DiagnosticsDownloadPage';
 import { ParsingPage } from './pages/ParsingPage';
 import { NormalWeightingPage } from './pages/NormalWeightingPage';
 import { CategoryPage } from './pages/CategoryPage';
@@ -61,7 +62,7 @@ export function SettingsView({
 
   if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;
   if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
-  if (settingsGroups[page] || page === 'reset') {
+  if ((settingsGroups[page] && page !== 'diagnostic') || page === 'reset') {
     return (
       <SettingsShell
         {...shellProps}
@@ -181,10 +182,11 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'parser') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} selected={state.currentObservation?.grammar?.target ?? null} language={language}/></SettingsShell>;
+  if (page === 'diagnosticsDownload') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DiagnosticsDownloadPage profileCode={state.profileCode}/></SettingsShell>;
+  if (page === 'parser' || page === 'diagnostic' || page === 'observations') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')}/></SettingsShell>;
   if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;
   if (['trigger','source','complexityInfo','global','questionInfo','complexity','sources'].includes(page)) {
-    return <SettingsShell {...shellProps} title="Live parsing diagnostics" onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} selected={state.currentObservation?.grammar?.target??null} language={language}/></SettingsShell>;
+    return <SettingsShell {...shellProps} title="Live parsing diagnostics" onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')}/></SettingsShell>;
   }
   return null;
 }

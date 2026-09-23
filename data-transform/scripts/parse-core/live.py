@@ -51,6 +51,7 @@ class LiveParser:
         self.db.execute('PRAGMA cache_size=-8192')
         self.source = sqlite3.connect(Path(corpus).resolve().as_uri() + '?mode=ro', uri=True)
         self.source.row_factory = sqlite3.Row
+        self.source.execute('ATTACH DATABASE ? AS frequency', (Path(frequency).resolve().as_uri()+'?mode=ro',))
         self.source.execute('ATTACH DATABASE ? AS availability', (Path(availability).resolve().as_uri()+'?mode=ro',))
         self.validation_path = validation
         self.validation = None
@@ -126,62 +127,73 @@ class LiveParser:
                     rejected=self.checked-self.parsed, tokens=self.tokens, matches=dict(self.counts),
                     parserVersion=self.version, patterns=self.patterns)
 
-    def observation(self, word, storage_identity, blocked):
-        # Uniform over DISTINCT observations, not token occurrences. Repeated words
-        # within one sentence do not give that sentence extra probability.
+    def observation(self, word, storage_identity, blocked, core=1):
+        # Unique observations, not token occurrences. Core 1 samples uniformly
+        # from at most five shortest eligible observations. Later cores use all.
         if self.validation is None and self.validation_path and Path(self.validation_path).exists():
             self.validation = sqlite3.connect(Path(self.validation_path).resolve().as_uri()+'?mode=ro', uri=True)
-        occurrences = self.db.execute("""SELECT source_id, source_key, MIN(occurrence_index) AS occurrence_index
-            FROM occurrences WHERE normalized_word=? GROUP BY source_id,source_key""", (word,)).fetchall()
-        random.shuffle(occurrences)
-        for occurrence in occurrences:
-            row = self.source.execute("""SELECT c.* FROM source_rows c
-                WHERE source_id=? AND source_key=? AND audio_object_key<>''
-                AND EXISTS(SELECT 1 FROM availability.source_complexity_members e
-                    WHERE e.source_id=c.source_id AND e.source_key=c.source_key)""",
-                (occurrence['source_id'], occurrence['source_key'])).fetchone()
-            if row is None or row['text'] in blocked:
-                continue
+        ordering = 'c.grapheme_count,c.source_id,c.source_key' if core == 1 else 'random()'
+        rows = self.source.execute("""SELECT c.*,o.occurrence_index FROM source_rows c JOIN (
+            SELECT source_id,source_key,MIN(occurrence_index) AS occurrence_index
+            FROM frequency.occurrences WHERE normalized_word=? GROUP BY source_id,source_key
+            ) o ON o.source_id=c.source_id AND o.source_key=c.source_key
+            WHERE c.audio_object_key<>'' AND c.text NOT IN (SELECT value FROM json_each(?))
+            AND EXISTS(SELECT 1 FROM availability.source_complexity_members e
+                WHERE e.source_id=c.source_id AND e.source_key=c.source_key)
+            ORDER BY """+ordering, (word,compact(blocked)))
+        pool = []
+        for row in rows:
             if self.validation and self.validation.execute("SELECT 1 FROM audio_validation WHERE storage_identity=? AND object_key=? AND status='invalid'", (storage_identity,row['audio_object_key'])).fetchone():
                 continue
-            token = self.db.execute('SELECT * FROM occurrences WHERE occurrence_index=?', (occurrence['occurrence_index'],)).fetchone()
-            return dict(source_id=row['source_id'],source_key=row['source_key'],text=row['text'],
-                        audio_key=row['audio_object_key'],word=word,occurrence=dict(token))
-        return None
+            pool.append(row)
+            if len(pool) == (5 if core == 1 else 1):
+                break
+        rows.close()
+        if not pool:
+            return None
+        row = random.choice(pool)
+        token = self.db.execute('SELECT * FROM occurrences WHERE occurrence_index=?', (row['occurrence_index'],)).fetchone()
+        return dict(source_id=row['source_id'],source_key=row['source_key'],text=row['text'],
+                    audio_key=row['audio_object_key'],word=word,occurrence=dict(token),
+                    observation_selection=dict(policy='core1-shortest-five-v1' if core==1 else 'all-matching-random-v1',
+                        poolSize=len(pool) if core==1 else None,length=row['grapheme_count'],lengthMetric='corpus-grapheme-count'))
 
     def find(self, request):
         tid = request['target']
         pattern = self.patterns[tid]
-        state = self.searches.setdefault(request['searchId'], dict(cursor='', checked=0, candidates=0))
-        rows = self.db.execute("""SELECT normalized_word FROM frequencies
-            WHERE normalized_word>? AND parse_result IS NULL AND length(normalized_word)<=?
-            AND unicode_candidate(normalized_word,?) ORDER BY normalized_word LIMIT 16""",
-            (state['cursor'],pattern['maxCodepoints'],tid)).fetchall()
+        state = self.searches.setdefault(request['searchId'], dict(length=0, cached=0, cursor='', checked=0))
+        # Shortest word takes priority over cache novelty. At equal length, try
+        # unchecked words first, then reuse a saved match. No extra disk index.
+        # Cursor uses the row's rank BEFORE parsing; a newly cached unusable word
+        # may be revisited once, but is never parsed twice.
+        rows = self.db.execute("""SELECT normalized_word,parse_result FROM frequencies
+            WHERE (length(normalized_word),parse_result IS NOT NULL,normalized_word)>(?,?,?)
+            AND length(normalized_word)<=? AND unicode_candidate(normalized_word,?)
+            AND (parse_result IS NULL OR EXISTS(
+                SELECT 1 FROM json_each(parse_result,'$.targets') WHERE value=?))
+            ORDER BY length(normalized_word),parse_result IS NOT NULL,normalized_word LIMIT 16""",
+            (state['length'],state['cached'],state['cursor'],pattern['maxCodepoints'],tid,tid)).fetchall()
         found = None
+        source = 'new-parse'
         for row in rows:
-            word = row[0]; state['cursor'] = word; state['checked'] += 1; state['candidates'] += 1
-            result = resolved_targets(self.parser.analyze(word), self.graph)
-            self.parser._productive_cache.clear()
-            self.db.execute('UPDATE frequencies SET parse_result=? WHERE normalized_word=?', (compact(result),word))
-            self.checked += 1; self.parsed += result['status']=='parsed'; self.counts.update(result['targets'])
+            word, saved = row
+            state.update(length=len(word), cached=int(saved is not None), cursor=word)
+            source = 'cached-parse' if saved is not None else 'new-parse'
+            if saved is None:
+                state['checked'] += 1
+                result = resolved_targets(self.parser.analyze(word), self.graph)
+                self.parser._productive_cache.clear()
+                self.db.execute('UPDATE frequencies SET parse_result=? WHERE normalized_word=?', (compact(result),word))
+                self.checked += 1; self.parsed += result['status']=='parsed'; self.counts.update(result['targets'])
+            else:
+                result = json.loads(saved)
             if tid in result['targets']:
-                found = self.observation(word, request['storageIdentity'], request.get('blocked', []))
+                found = self.observation(word, request['storageIdentity'], request.get('blocked', []), self.graph['nodes'][tid]['core'])
                 if found:
+                    found['matched_targets'] = result['targets']
                     break
         self.db.commit()
-        source = 'new-parse'
         pending = not found and len(rows)==16
-        if not found and not pending:
-            source = 'cached-parse'
-            words = [r[0] for r in self.db.execute("""SELECT normalized_word FROM frequencies
-                WHERE parse_result IS NOT NULL AND length(normalized_word)<=? AND unicode_candidate(normalized_word,?)
-                AND EXISTS(SELECT 1 FROM json_each(parse_result,'$.targets') WHERE value=?)""",
-                (pattern['maxCodepoints'],tid,tid))]
-            random.shuffle(words)
-            for word in words:
-                found = self.observation(word, request['storageIdentity'], request.get('blocked', []))
-                if found:
-                    break
         response = dict(row=found,pending=pending,source=source,checked=state['checked'],
                         matchedWords=self.counts[tid],pattern=pattern,stats=self.stats_summary())
         if not pending:

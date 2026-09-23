@@ -23,7 +23,12 @@ export interface ParsingDiagnostics {
   inventoryId:string|null; catalogError:string|null; progressError:string|null;
   levels:CoreDiagnostic[]; targets:TargetDiagnostic[];
   cache:{total:number;checked:number;parsed:number;rejected:number}|null;
+  selectionPolicy:'shortest-codepoints-v1';
+  worker:{phase:string;error:string|null};
+  queue:{depth:number;preparing:number;ready:number;pending:number;failed:number;errors:string[]};
   activity:{phase:string;target:string|null;checked:number;error:string|null};
   cycles:{total:number;active:number;steps:number;reasons:Array<{reason:string;count:number}>};
+  currentChain:{id:string;core:number;endReason:string|null;currentObservationId:string;
+    steps:Array<{observationId:string;targetId:string;label:string;word:string|null;displayed:boolean;answered:boolean}>}|null;
   historyNotice:string;
 }

@@ -14,9 +14,9 @@ export function chooseObservationPlan(random=Math.random, probabilities={questio
   return {kind:'question',requestedPool:null,questionMode:mode,keyboard:mode==='audio-given'?'windows-inscript':null};
 }
 export function getQueueCount(profile:string):number{return (db.prepare('SELECT COUNT(*) AS n FROM queue_items WHERE profile_code=?').get(profile) as {n:number}).n;}
-export function getQueueCounts(profile:string){
-  const rows=db.prepare('SELECT o.status,o.preparation_error,o.preparation_retry_at FROM queue_items q JOIN observations o ON o.id=q.observation_id WHERE q.profile_code=?').all(profile) as Array<{status:string;preparation_error:string|null;preparation_retry_at:number|null}>;
-  return {depth:rows.length,pending:rows.filter(r=>r.status==='pending').length,ready:rows.filter(r=>r.status==='ready').length,
+export function getQueueCounts(profile:string,store=db){
+  const rows=store.prepare('SELECT o.status,o.preparation_error,o.preparation_retry_at FROM queue_items q JOIN observations o ON o.id=q.observation_id WHERE q.profile_code=?').all(profile) as Array<{status:string;preparation_error:string|null;preparation_retry_at:number|null}>;
+  return {depth:rows.length,preparing:rows.filter(r=>r.status==='preparing').length,pending:rows.filter(r=>r.status==='pending').length,ready:rows.filter(r=>r.status==='ready').length,
     failed:rows.filter(r=>r.preparation_error&&r.preparation_retry_at===null).length};
 }
 
@@ -54,11 +54,13 @@ function reserve(profile:string,targetId:string,row:WordRow,chain:Chain,source:s
     category:target.core-1,categoryLevel:target.core,kind:target.kind,label:target.label,chain:target.chain??null,
     chainAlternatives:target.chain_alternatives??null,sourceId:row.source_id,sourceKey:row.source_key,
     word:row.word,occurrence:row.occurrence,cycleId:chain.id,transition:chain.current?'neighbor':'seed',
-    fromTargetId:chain.current,parseSource:source,questionType:question};
+    fromTargetId:chain.current,parseSource:source,questionType:question,
+    observationSelection:row.observation_selection,wordSelection:'shortest-codepoints-v1',wordLength:Array.from(row.word).length,
+    matchedTargets:row.matched_targets.map(id=>({id,label:graph().nodes[id]?.label??id}))};
   db.transaction(()=>{
     db.prepare('INSERT INTO core_batches(id,profile_code,inventory_id,core,size,snapshot_json,end_reason) VALUES(?,?,?,?,1,?,?)')
       .run(batch,profile,inventoryId(),target.core,'{}','single-answer');
-    db.prepare("INSERT INTO observations(id,source_id,source_key,status,selected_at,group_id,group_kind,group_size,group_position) VALUES(?,?,?,'pending',?,?,'launch-fill',1,1)").run(id,row.source_id,row.source_key,now,batch);
+    db.prepare("INSERT INTO observations(id,source_id,source_key,text,status,selected_at,group_id,group_kind,group_size,group_position) VALUES(?,?,?,?,'pending',?,?,'launch-fill',1,1)").run(id,row.source_id,row.source_key,row.text,now,batch);
     const number=(db.prepare('SELECT COALESCE(MAX(acquisition_number),0)+1 AS n FROM observation_acquisitions WHERE profile_code=?').get(profile) as {n:number}).n;
     const position=(db.prepare('SELECT COALESCE(MAX(queue_position),-1)+1 AS n FROM queue_items WHERE profile_code=?').get(profile) as {n:number}).n;
     db.prepare(`INSERT INTO observation_acquisitions(observation_id,profile_code,acquisition_number,trigger_kind,trigger_observation_id,trigger_history_position,triggered_at,waiting_ahead_at_trigger,preparation_in_flight_at_trigger,selection_snapshot_json,observation_kind,question_requested_pool,question_mode,question_keyboard)

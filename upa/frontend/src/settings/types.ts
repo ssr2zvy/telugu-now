@@ -7,6 +7,7 @@ export type SettingsPage =
   | 'category'
   | 'external'
   | 'parser'
+  | 'diagnosticsDownload'
   | 'epubExport'
   | 'htmlExport'
   | 'archiveExport'
