@@ -53,6 +53,25 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(json.loads(value)['targets'],['A','B'])
         self.assertEqual(self.worker.checked,1)
         self.assertEqual([r['name'] for r in self.worker.db.execute('PRAGMA table_info(frequencies)')],['normalized_word','occurrence_count','parse_result'])
+    def test_attempt_metrics_separate_returned_evaluated_cached_and_targets(self):
+        progress=[]
+        r=self.worker.find({'target':'A','searchId':'counts','storageIdentity':'test'},progress.append)
+        self.assertEqual(r['returned'],2)
+        self.assertEqual(r['examined'],1)
+        self.assertEqual(r['checked'],1)
+        self.assertEqual(r['parsed'],1)
+        self.assertEqual(r['matching'],1)
+        self.assertEqual(r['reused'],0)
+        self.assertEqual(sum(r['stats']['matches'].values()),2)
+        self.assertEqual([p['stage'] for p in progress],['searching','parsing','parsing','selecting'])
+        self.find(search='second')
+        cached=self.find(search='cached')
+        self.assertEqual(cached['examined'],1)
+        self.assertEqual(cached['checked'],0)
+        self.assertEqual(cached['parsed'],0)
+        self.assertEqual(cached['reused'],1)
+        self.assertEqual(cached['matching'],1)
+
     def test_unchecked_before_cached_then_reuse(self):
         first=self.find()['row']['word'];second=self.find(search='2')['row']['word'];self.assertNotEqual(first,second)
         third=self.find(search='3');self.assertEqual(third['source'],'cached-parse');self.assertEqual(self.worker.parser.calls,[first,second])
@@ -133,6 +152,19 @@ class LiveTests(unittest.TestCase):
         while r['pending']:r=self.find()
         self.assertEqual(r['row']['word'],'అది');self.assertEqual(len(self.worker.parser.calls),21)
         self.assertEqual(len(set(self.worker.parser.calls)),21)
+    def test_exact_compatible_cache_is_preserved_but_worker_edits_do_not_change_identity(self):
+        self.find()
+        version=self.worker.version
+        (self.root/'cache-compat.json').write_text(json.dumps({'previous-assets':version}))
+        (self.root/'live.py').write_text('# Counters and worker plumbing only')
+        self.worker.db.execute("UPDATE metadata SET parse_cache_version='previous-assets'")
+        self.worker.db.commit()
+        w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite')
+        self.assertEqual(w.checked,1)
+        self.assertEqual(w.version,version)
+        self.assertEqual(sum(w.counts.values()),2)
+        w.db.close();w.source.close()
+
     def test_parser_version_change_invalidates_cache(self):
         self.find();self.worker.db.execute("UPDATE metadata SET parse_cache_version='old'");self.worker.db.commit()
         w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite')

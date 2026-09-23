@@ -6,10 +6,11 @@ import { graph } from './state';
 import type { ParsingDiagnostics, TargetDiagnostic, DiagnosticEvent } from '../../../shared/parsing-diagnostics';
 
 import { inventoryId } from './state';
-import { wordStats, workerError, workerPhase } from './live-worker';
-import { liveSelection, getQueueCounts } from '../services/queue-service';
+import { savedWordStats, workerError, workerPhase } from './live-worker';
+import { liveSelection, getQueueCounts, guider } from '../services/queue-service';
 export const percent=(done:number,total:number):number|null=>total?100*done/total:null;
 export function parsingDiagnostics(profile:string,store:Database.Database=db):ParsingDiagnostics {
+  const wordStats=savedWordStats();
   const saved=store.prepare('SELECT core,inventory_id FROM core_progress WHERE profile_code=?').get(profile) as {core:number;inventory_id:string}|undefined;
   const inventory=inventoryId(),core=saved?.core??1;
   const progressError=saved&&saved.inventory_id!==inventory?'Target inventory changed; progress migration required':null;
@@ -43,11 +44,11 @@ export function parsingDiagnostics(profile:string,store:Database.Database=db):Pa
       WHERE a.profile_code=? AND json_extract(q.selection_snapshot_json,'$.cycleId')=? ORDER BY q.acquisition_number`)
       .all(profile,cycle.id) as Array<{observationId:string;targetId:string;word:string|null;displayed:number|null;answered:number|null}>)
       .map(s=>({...s,label:graph().nodes[s.targetId]?.label??s.targetId,displayed:s.displayed!==null,answered:s.answered!==null}))}:null;
-  const {upcoming,activeSearch,searchTotals,recentCycles}=chainActivity(store,profile);
+  const activity=chainActivity(store,profile);
   return {version:1,generatedAt:Date.now(),auditStartedAt:(store.prepare('SELECT started_at FROM core_diagnostic_install WHERE id=1').get() as {started_at:number}).started_at,
-    upcoming,activeSearch:activeSearch??null,searchTotals,recentCycles,
+    ...activity,guider:guider.get(profile)??{generating:false,cycleId:null},
     currentChain,currentCore:core,inventoryId:inventory,catalogError:workerError,progressError,targets,
-    cache:wordStats?{total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected}:null,
+    cache:wordStats?{total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected,validParses:Object.values(wordStats.matches).reduce((sum,n)=>sum+n,0)}:null,
     selectionPolicy:'shortest-codepoints-v1',worker:{phase:workerPhase,error:workerError},
     queue:{...getQueueCounts(profile,store),errors:(store.prepare(`SELECT DISTINCT o.preparation_error AS error
       FROM queue_items q JOIN observations o ON o.id=q.observation_id
@@ -91,6 +92,7 @@ export function diagnosticExport(profile:string) {
     ['responses',`SELECT profile_code,observation_id,response_text,response_audio_mime_type,updated_at,
       length(response_audio) AS response_audio_bytes FROM question_responses WHERE profile_code=? ORDER BY updated_at,observation_id`],
     ['cycles','SELECT * FROM live_cycles WHERE profile_code=? ORDER BY started_at,id'],
+    ['discarded','SELECT * FROM live_discarded_observations WHERE profile_code=? ORDER BY discarded_at,observation_id'],
     ['searches','SELECT s.* FROM live_searches s JOIN live_cycles c ON c.id=s.cycle_id WHERE c.profile_code=? ORDER BY s.rowid'],
     ['activeQueue','SELECT * FROM queue_items WHERE profile_code=? ORDER BY queue_position'],
 

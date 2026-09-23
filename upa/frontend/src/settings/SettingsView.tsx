@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import type { SearchAttempt } from '../../../shared/parsing-diagnostics';
+import { ParserDetailPage } from './pages/ParserDetailPage';
 import { ParserCurrentPage } from './pages/ParserCurrentPage';
 import { DiagnosticsDownloadPage } from './pages/DiagnosticsDownloadPage';
 import { ParsingPage } from './pages/ParsingPage';
@@ -35,6 +38,7 @@ export function SettingsView({
   fontFamily,
   onClose,
 }: SettingsViewProps) {
+  const [selectedAttempt,setSelectedAttempt]=useState<SearchAttempt|null>(null);
   const {
     page,
     language,
@@ -59,11 +63,12 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
+  if(["searchAttempt", "currentChain", "nextChainSearch", "lastSearchAttempt", "currentReset", "coreProgress", "objectCoverage", "coverageNotes", "searchAndParse", "currentSearches", "allTimeSearches", "cycleHistory", "parserEvents", "parserDetails"].includes(page) && page!=='searchAndParse') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserDetailPage key={`${state.profileCode}:${page}`} page={page} selectedAttempt={selectedAttempt} onAttempt={attempt=>{setSelectedAttempt(attempt);controller.enterPage('searchAttempt');}} profileCode={state.profileCode} observation={state.currentObservation} onNavigate={controller.enterPage} onState={controller.acceptState}/></SettingsShell>;
   if(page==='parsingMode')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParsingPage key={state.profileCode} profileCode={state.profileCode} onState={controller.acceptState}/></SettingsShell>;
 
   if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;
   if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
-  if ((settingsGroups[page] && page !== 'diagnostic') || page === 'reset') {
+  if ((settingsGroups[page] && page !== 'parserCurrent') || page === 'reset') {
     return (
       <SettingsShell
         {...shellProps}
@@ -169,7 +174,7 @@ export function SettingsView({
       </SettingsShell>
     );
   }
-  if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation} onState={controller.acceptState}/></SettingsShell>;
+  if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation} onState={controller.acceptState} onNavigate={controller.enterPage}/></SettingsShell>;
   if (page === 'diagnosticsDownload') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DiagnosticsDownloadPage profileCode={state.profileCode}/></SettingsShell>;
   if (page === 'diagnostic') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')} onNavigate={controller.enterPage}/></SettingsShell>;
   if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;

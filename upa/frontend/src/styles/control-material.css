@@ -11,7 +11,7 @@
   background: transparent;
 }
 .appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start, .settings-index button, .settings-rail-link, .settings-rail-disclosure) svg,
-.appearance-root :is(.question-phase-indicator, .navigation-feedback) svg {
+.appearance-root :is(.question-phase-indicator, .navigation-feedback, .reader-settings) svg {
   stroke: var(--control-icon-paint, currentColor);
   opacity: var(--material-rest-opacity);
   filter: drop-shadow(0 .5px .4px var(--material-edge)) brightness(var(--control-brightness, .85));

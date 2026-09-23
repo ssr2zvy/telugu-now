@@ -276,3 +276,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 
 .observation-screen[data-swipe-navigation='true'],
 .observation-screen[data-swipe-navigation='true'] :is(.nav-zone,.nav-region) { touch-action: pinch-zoom; }
+
+.reader-settings { position: absolute; z-index: 40; bottom: max(16px, env(safe-area-inset-bottom)); right: max(16px, calc(env(safe-area-inset-right) - 4px)); width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--corner-control-color); cursor: pointer; }
+.reader-settings svg { width: 18px; height: 18px; stroke-width: 1.7; stroke: var(--control-icon-paint, currentColor); }
+.reader-settings:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }

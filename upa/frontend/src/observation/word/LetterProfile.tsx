@@ -5,7 +5,6 @@ import { getAlignedLetterAudio } from '../../api';
 import { appearanceModificationColor, useAppearance } from '../../appearance';
 import { LoadingSlit } from '../../components/LoadingSlit';
 import type { ObservationFontFamily } from '../../presentation';
-import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
 import { TeluguGradientText } from '../TeluguGradientText';
 import { teluguHighlightRuns } from '../telugu-highlighting';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
@@ -39,7 +38,6 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   const [error, setError] = useState('');
   const [audioLoading, setAudioLoading] = useState(true);
   const player = useRef<AudioPlayerBarHandle>(null);
-  const [menu, setMenu] = useState<ReadingContextMenuState | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -78,7 +76,6 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   const openMenu = (event: MouseEvent<HTMLElement>) => {
     if (!selection) return;
     event.preventDefault();
-    setMenu(readingContextMenuState(event.clientX, event.clientY, selection.word));
   };
 
   return (
@@ -106,7 +103,6 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => setError(message ?? '')} />
       </div> : null}
-      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onClose={() => setMenu(null)} /> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );

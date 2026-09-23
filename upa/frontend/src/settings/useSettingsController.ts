@@ -64,6 +64,7 @@ export function useSettingsController({
   onQueueReset,
 }: UseSettingsControllerOptions): SettingsController {
   const [page, setPage] = useState<SettingsPage>('index');
+  const pageHistory=useRef<SettingsPage[]>([]);
   const { language, updateLanguage } = useAppearance();
   const [queueResetting, setQueueResetting] = useState(false);
   const [queueResetError, setQueueResetError] = useState(false);
@@ -91,6 +92,7 @@ export function useSettingsController({
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
+    pageHistory.current=[];
     setPage('index');
   };
   const enterPage = (
@@ -103,13 +105,14 @@ export function useSettingsController({
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
+    if(nextPage!==page)pageHistory.current.push(page);
     setPage(nextPage);
   };
   const backToIndex = () => {
     setExportError(false);
     setQueueResetError(false);
     setPlaybackError(false);
-    setPage(parentSettingsPage(page));
+    setPage(pageHistory.current.pop()??parentSettingsPage(page));
   };
   const toggleLanguage = () => {
     updateLanguage(language === 'te' ? 'en' : 'te');

@@ -1,3 +1,4 @@
+import { discardCurrentChain, isDiscarded } from './queue-service';
 import { selectionMode, attempt as selectionAttempt, markDisplayed } from '../parsing/state';
 import { attempt, system } from '../grammar/service';
 import { db } from '../db/database';
@@ -373,7 +374,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
         durationSeconds: 0,
       } : null,
     } : null,
-    grammar: (selectionAttempt(row.id,code)??attempt(row.id,code)) ? {target:JSON.parse(row.selection_snapshot_json),result:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===null?null:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===1} : null,
+    grammar: (selectionAttempt(row.id,code)??attempt(row.id,code)) ? {discarded:isDiscarded(row.id,code),target:JSON.parse(row.selection_snapshot_json),result:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===null?null:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===1} : null,
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
@@ -525,6 +526,11 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   preparationService.kick();
   setTailVisibility(code, visible, now);
 
+  // A reset can wait across a reload/redeploy until the next chain's audio is ready.
+  if(db.prepare('SELECT 1 FROM live_chain_resets WHERE profile_code=?').get(code) && nextQueueItem(code)?.status==='ready'){
+    db.prepare('DELETE FROM live_chain_resets WHERE profile_code=?').run(code);
+    return navigateNext(code,visible);
+  }
   const profile = profileRow(code);
   const length = historyLength(code);
   const tailPosition = historyTailPosition(code);
@@ -536,7 +542,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     const unfinished=db.prepare(`SELECT h.observation_id,h.presentation_state_json FROM history_entries h
       JOIN observation_acquisitions a ON a.observation_id=h.observation_id
       WHERE h.profile_code=? AND h.history_position=? AND a.observation_kind='question'`).get(code,profile.current_position) as {observation_id:string;presentation_state_json:string}|undefined;
-    if(unfinished && questionPhase(unfinished.presentation_state_json)==='observation' &&
+    if(unfinished && !isDiscarded(unfinished.observation_id,code) && questionPhase(unfinished.presentation_state_json)==='observation' &&
       (selectionAttempt(unfinished.observation_id,code)??attempt(unfinished.observation_id,code))?.result===null) {
       db.prepare('UPDATE history_entries SET presentation_state_json=? WHERE profile_code=? AND history_position=?')
         .run(JSON.stringify({...JSON.parse(unfinished.presentation_state_json),questionPhase:'comparison'}),code,profile.current_position);
@@ -558,9 +564,9 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     previousPresentation: previousPresentation(code, profile.current_position),
     canBack: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'question')
       || adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
-    canNext: (displayedObservation?.grammar && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) ? false : Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
+    canNext: (displayedObservation?.grammar && !displayedObservation.grammar.discarded && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) ? false : Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
       || inHistoricalForwardPath || nextQueue?.status === 'ready',
-    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? (['searching','loading-parser'].includes(liveSelection.get(code)?.phase??'') ? 'pending' : null)),
+    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? (['searching','parsing','selecting','loading-parser'].includes(liveSelection.get(code)?.phase??'') ? 'pending' : null)),
     queue: queueSummary(code),
     timing: timingSummary(code, now),
     selectionSettings: getProfileSelectionSettings(code),
@@ -588,8 +594,13 @@ export function resetQueue(code: string, visible: boolean): ProfileStateResponse
   assertValidProfileCode(code);
   ensureProfileRow(code);
   if (selectionMode(code)==='core') {
-    db.prepare(`UPDATE observations SET preparation_attempts=0,preparation_retry_at=NULL,preparation_error=NULL WHERE status='pending' AND preparation_error IS NOT NULL AND id IN(SELECT observation_id FROM queue_items WHERE profile_code=?)`).run(code);
-    retryLiveSelection(code);preparationService.kick();return getProfileState(code,visible);
+    db.transaction(()=>{
+      discardCurrentChain(code);
+      finalizeTail(code,Date.now());
+      db.prepare('UPDATE profiles SET current_position=NULL WHERE code=?').run(code);
+      db.prepare('INSERT INTO live_chain_resets VALUES(?,?) ON CONFLICT(profile_code) DO UPDATE SET requested_at=excluded.requested_at').run(code,Date.now());
+    })();
+    preparationService.kick();return getProfileState(code,visible);
   }
   clearQueue(code);
   ensureLaunchQueue(code);
@@ -664,7 +675,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
         WHERE h.profile_code = ? AND h.history_position = ?
       `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
-      if(phase==='comparison' && current && (selectionAttempt(current.observation_id,code)??attempt(current.observation_id,code))?.result===null)throw new NavigationUnavailableError('Confirm the comparison before advancing');
+      if(phase==='comparison' && current && !isDiscarded(current.observation_id,code) && (selectionAttempt(current.observation_id,code)??attempt(current.observation_id,code))?.result===null)throw new NavigationUnavailableError('Confirm the comparison before advancing');
       if (phase === 'question' || phase === 'comparison') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
           .run(JSON.stringify({ questionPhase: phase === 'question' ? 'comparison' : 'observation' }), code, profile.current_position);
@@ -674,7 +685,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
 
     if(profile.current_position!==null){
       const currentId=(db.prepare('SELECT observation_id FROM history_entries WHERE profile_code=? AND history_position=?').get(code,profile.current_position) as {observation_id:string}|undefined)?.observation_id;
-      if(currentId && (selectionAttempt(currentId,code)??attempt(currentId,code))?.result===null)throw new NavigationUnavailableError('Self-evaluate this question first');
+      if(currentId && !isDiscarded(currentId,code) && (selectionAttempt(currentId,code)??attempt(currentId,code))?.result===null)throw new NavigationUnavailableError('Self-evaluate this question first');
     }
     if(selectionMode(code)==='core')ensureLaunchQueue(code);
 

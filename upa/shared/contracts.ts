@@ -232,7 +232,7 @@ export interface GraphemeWord {
 }
 
 export interface DisplayObservation {
-  grammar?: {target: Record<string,unknown>; result: boolean|null}|null;
+  grammar?: {discarded?:boolean;target: Record<string,unknown>; result: boolean|null}|null;
   id: string;
   sourceId: string;
   sourceKey: string;

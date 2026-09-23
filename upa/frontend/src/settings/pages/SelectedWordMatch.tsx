@@ -51,6 +51,6 @@ export function SelectedWordMatch({observation}: {observation: DisplayObservatio
     <p className="parser-sentence" lang="te">{evidence.parts ? <>{evidence.parts[0]}<mark>{evidence.parts[1]}</mark>{evidence.parts[2]}</> : observation.text}</p>
     {!evidence.parts && evidence.word ? <p>Exact word position unavailable.</p> : null}
     <p className="parser-muted">{selected.policy === 'frequency-word-cache-v1' ? 'Only the selected word was checked for this selection.' : 'Evidence from the saved selection.'}</p>
-    <details className="parser-section"><summary>Saved record</summary><div className="parser-section-body"><pre>{JSON.stringify({observationId:observation.id,sourceId:observation.sourceId,sourceKey:observation.sourceKey,selection:selected},null,2)}</pre></div></details>
+    <section className="parser-block"><h2>Saved record</h2><pre>{JSON.stringify({observationId:observation.id,sourceId:observation.sourceId,sourceKey:observation.sourceKey,selection:selected},null,2)}</pre></section>
   </div>;
 }
