@@ -1,6 +1,6 @@
 export const GRADIENT_TILE_SIZE = 1000;
 export const GRADIENT_PERIOD = GRADIENT_TILE_SIZE * 2;
-export const GRADIENT_STEP = 20;
+export const GRADIENT_STEP = 180;
 export const GRADIENT_SETTLE_MS = 650;
 export const GRADIENT_LAYER_SPEEDS = [1, .83, 1.17] as const;
 

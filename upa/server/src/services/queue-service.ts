@@ -203,3 +203,19 @@ export function discardCurrentChain(profile:string):void {
   retryAfter.delete(profile);
   ensureLaunchQueue(profile);
 }
+
+// Retire every pending chain before restarting mastery. In-flight worker replies
+// are ignored by the same cancellation checks used for a chain reset.
+export function discardPendingChains(profile: string): void {
+  const active = chains.get(profile);
+  if (active) discardedCycles.add(active.id);
+  const cycles = db.prepare('SELECT id FROM live_cycles WHERE profile_code=? AND ended_at IS NULL').all(profile) as Array<{id:string}>;
+  for (const cycle of cycles) discardedCycles.add(cycle.id);
+  const now = Date.now();
+  db.prepare("UPDATE live_searches SET ended_at=?, outcome='progress-reset', stage='cancelled' WHERE ended_at IS NULL AND cycle_id IN (SELECT id FROM live_cycles WHERE profile_code=?)").run(now,profile);
+  db.prepare("UPDATE live_cycles SET ended_at=?, end_reason='progress-reset' WHERE profile_code=? AND ended_at IS NULL").run(now,profile);
+  db.prepare('INSERT OR IGNORE INTO live_discarded_observations SELECT observation_id,profile_code,? FROM selection_attempts WHERE profile_code=? AND result IS NULL').run(now,profile);
+  db.prepare('DELETE FROM queue_items WHERE profile_code=?').run(profile);
+  chains.delete(profile); retryAfter.delete(profile);
+  if (filling.has(profile)) retryRequested.add(profile);
+}

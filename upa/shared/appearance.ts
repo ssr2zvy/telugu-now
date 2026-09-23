@@ -26,6 +26,7 @@ export interface AppearanceSettings {
   audioOffsetOther: number;
   audioTimestampGap: number;
   timestampMagnifierGap: number;
+  magnifierBarGap: number;
   controlDarkness: number;
   showAudioTimestamp: boolean;
   showMagnifierHighlight: boolean;
@@ -53,6 +54,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   audioOffsetOther: 0,
   audioTimestampGap: 1,
   timestampMagnifierGap: 1,
+  magnifierBarGap: 4,
   controlDarkness: 15,
   showAudioTimestamp: false,
   showMagnifierHighlight: true,
@@ -96,6 +98,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
     audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
     timestampMagnifierGap: parseControlGap(candidate.timestampMagnifierGap, legacyGap),
+    magnifierBarGap: parseControlGap(candidate.magnifierBarGap, 4),
     controlDarkness: typeof candidate.controlDarkness === 'number' && Number.isFinite(candidate.controlDarkness)
       ? Math.round(Math.max(CONTROL_DARKNESS_LIMITS.min, Math.min(CONTROL_DARKNESS_LIMITS.max, candidate.controlDarkness)))
       : DEFAULT_APPEARANCE.controlDarkness,

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 import { useGradientTravel } from './GradientBackdrop';
 import { AppearanceProvider } from './appearance';
 import { ObservationView } from './observation/ObservationView';
@@ -21,9 +21,6 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
 }) {
   const gradientTravel = useGradientTravel();
   const [diagnosticFont, setDiagnosticFont] = useState<string | null>(null);
-  useLayoutEffect(() => {
-    gradientTravel.synchronize(session.state?.currentPosition ?? null);
-  }, [gradientTravel, session.state?.currentPosition]);
   const settings = useSettingsController({
     profileCode: session.profileCode,
     state: session.state,

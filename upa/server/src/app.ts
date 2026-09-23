@@ -132,7 +132,9 @@ app.post('/api/profiles/:code/next', async (c) => {
 
 app.post('/api/profiles/:code/queue/reset', async (c) => {
   const body = await c.req.json<NavigationRequest>();
-  return c.json(resetQueue(c.req.param('code'), Boolean(body.visible)));
+  const scope = (body as NavigationRequest & {scope?:unknown}).scope ?? 'chain';
+  if (scope !== 'chain' && scope !== 'core' && scope !== 'all') return c.json({error:'Invalid reset scope'},400);
+  return c.json(resetQueue(c.req.param('code'), Boolean(body.visible), scope));
 });
 
 app.put('/api/profiles/:code/settings', async (c) => {
@@ -212,6 +214,7 @@ if (process.env.NODE_ENV === 'production') {
     await next();
     if (c.res.ok) c.header('Cache-Control', 'public, max-age=31536000, immutable');
   });
+  app.use('/version.json', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
   app.use('/*', serveStatic({ root: './dist/client' }));
   app.get('*', serveStatic({ path: './dist/client/index.html' }));
 }

@@ -24,7 +24,7 @@ export function ParserDetailPage({page,profileCode,onNavigate,onState,observatio
   },[page,profileCode,core]);
   if(!data)return <p role="status">{error||'Loading…'}</p>;
   let content;
-  if(page==='currentReset')content=<ResetChain profileCode={profileCode} onState={onState}/>;
+  if(['resetChain','resetCore','resetAllCores'].includes(page))content=<ResetChain scope={page==='resetCore'?'core':page==='resetAllCores'?'all':'chain'} profileCode={profileCode} onState={onState}/>;
   else if(page==='nextChainSearch'||page==='currentSearches')content=<CurrentSearch data={data} onNavigate={onNavigate} onAttempt={onAttempt}/>;
   else if(page==='searchAttempt')content=<SearchAttemptDetails attempt={data.chainSearches?.flatMap(chain=>chain.searches).find(attempt=>attempt.id===selectedAttempt?.id)??(data.lastAttempt?.id===selectedAttempt?.id?data.lastAttempt:selectedAttempt)}/>;
   else if(page==='lastSearchAttempt')content=<SearchAttemptDetails attempt={data.lastAttempt}/>;

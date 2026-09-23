@@ -124,7 +124,10 @@ export async function saveProfilePreferences(code: string, patch: UpdateProfileP
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(String(response.status));
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as {error?:unknown} | null;
+    throw new Error(typeof body?.error === 'string' ? body.error : `Request failed (${response.status})`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -187,7 +190,7 @@ export async function setVisibility(code: string, request: VisibilityRequest): P
 
 export async function resetQueue(
   code: string,
-  request: NavigationRequest,
+  request: NavigationRequest & { scope?: 'chain' | 'core' | 'all' },
 ): Promise<ProfileStateResponse> {
   return parseJson<ProfileStateResponse>(await fetch(`/api/profiles/${code}/queue/reset`, {
     method: 'POST',

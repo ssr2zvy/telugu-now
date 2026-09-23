@@ -10,6 +10,8 @@ export function useQuestionActionPlacement(screen: RefObject<HTMLElement | null>
       const action = root.querySelector<HTMLElement>('.question-record-controls, .grammar-evaluation');
       const bar = root.querySelector<HTMLElement>('.observation-center > .audio-player-bar');
       if (!action || !bar) return;
+      // Ignore animated transforms; placement only uses stable layout geometry.
+      if (root.dataset.phaseMotion !== 'idle') return;
       // Resolve safe-area CSS into pixels without duplicating its device logic.
       root.style.removeProperty('--question-action-bottom');
       const floor = parseFloat(getComputedStyle(action).bottom);
@@ -26,7 +28,7 @@ export function useQuestionActionPlacement(screen: RefObject<HTMLElement | null>
     const resize = new ResizeObserver(schedule);
     resize.observe(root);
     const changes = new MutationObserver(schedule);
-    changes.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-visible', 'data-magnifier-position', 'data-question-phase'] });
+    changes.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-visible', 'data-magnifier-position', 'data-question-phase', 'data-phase-motion', 'data-controls-visible'] });
     window.addEventListener('resize', schedule);
     window.visualViewport?.addEventListener('resize', schedule);
     // Settings can change offsets without changing the reader's dimensions.
