@@ -1,11 +1,10 @@
+import { useObservationTravel } from './useObservationTravel';
 import { useGradientTravel } from '../GradientBackdrop';
 import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
 import { useReaderSettingsFade } from './useReaderSettingsFade';
 import { readerNeedsLoadingDots } from './reader-loading';
 import { useQuestionActionPlacement } from './useQuestionActionPlacement';
 import { useReaderSwipes } from './useReaderSwipes';
-import { useNavigationFeedback } from './useNavigationFeedback';
-import { NAVIGATION_FEEDBACK_MS } from './navigation-feedback';
 import { copyOriginalReaderText } from './reader-hyphenation';
 import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
 import {
@@ -16,7 +15,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
-import { AlignJustify, ArrowLeft, ArrowRight, Check, CircleHelp, Settings } from 'lucide-react';
+import { ArrowRight, Settings } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -40,7 +39,7 @@ import { QuestionControls, type QuestionControlsHandle } from './QuestionControl
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguWordText } from './TeluguGradientText';
 import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
-import { observationShowsPhaseIndicator, observationShowsText } from './observation-content';
+import { observationShowsText } from './observation-content';
 import { visibleWordAtPoint } from './visible-glyph-hit-testing';
 import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
 import { ComparisonPage } from './ComparisonPage';
@@ -377,6 +376,8 @@ export function ObservationView({
       window.cancelAnimationFrame(secondFrame);
     };
   }, [entryPrepared, presentationKey]);
+  const [navigationError, setNavigationError] = useState('');
+  const pageTransition = useObservationTravel(screenRef, state?.currentPosition ?? null, Boolean(observation && (textGivenFlow ? textReady : entryPrepared)));
   const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
   useEffect(() => {
     if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
@@ -387,11 +388,9 @@ export function ObservationView({
     });
     observationLoadStartedAt.current = null;
   }, [entryReady, observation?.id]);
-  const navigationFeedback = useNavigationFeedback(state?.profileCode ?? null, navigationEvent, !busy && entryReady);
-  const activeNavigation = navigationFeedback.event;
   const showEntryLoadingIndicator = readerNeedsLoadingDots({
     entryReady,
-    textVisible: Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+    textVisible: pageTransition.hasOutgoing || Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
     audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
     comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
     errorVisible: Boolean(audioError || state?.grammarError),
@@ -462,24 +461,22 @@ export function ObservationView({
       if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
       if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
         !(await evaluationRef.current?.commit()))return;
-      if (textGivenFlow && entryReady) {
-        phaseDirection.current = direction;
-        playerRef.current?.pause();
-        setPhaseMotion('exit');
-        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          await new Promise(resolve => window.setTimeout(resolve, 160));
-        }
-      }
+      setNavigationError('');
+      phaseDirection.current = direction;
+      if (swipeChangesObservation(observation?.question?.phase, direction)) pageTransition.prepare(direction);
       moved=await onMove(direction);
-      if (!moved) setPhaseMotion('idle');
+      if (!moved) { pageTransition.cancel(); setNavigationError('Could not move. Try again.'); }
       if(moved && !textGivenFlow)setControlsVisible(false);
+    } catch (error) {
+      pageTransition.cancel();
+      setNavigationError(error instanceof Error ? error.message : 'Could not move. Try again.');
     } finally {
       if (!moved) gradientTravel.cancelPreview();
-      evaluationNavigation.current=false;setPhaseMotion('idle');
+      evaluationNavigation.current=false;
     }
   };
   const verticalSwipe = (direction: 'up' | 'down') => {
-    if (!entryReady) return;
+    if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
     const visible = controlsVisible;
     if (direction === 'down') {
       if (!visible) {
@@ -509,9 +506,12 @@ export function ObservationView({
       },
       onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
     });
+  const enteredPhase = useRef<string | null>(null);
   useEffect(() => {
-    if (textGivenFlow && entryReady) setPhaseMotion('enter');
-  }, [textGivenFlow, entryReady, observation?.id, observation?.question?.phase]);
+    if (!entryReady || enteredPhase.current === presentationKey) return;
+    enteredPhase.current = presentationKey;
+    if (textGivenFlow) setPhaseMotion('enter');
+  }, [textGivenFlow, entryReady, presentationKey]);
   const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) return null;
@@ -532,6 +532,7 @@ export function ObservationView({
       data-swipe-navigation="true"
       data-text-given-flow={textGivenFlow}
       data-phase-motion={phaseMotion}
+      onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
       data-entry-ready={entryReady}
       data-settings-idle={settingsIdle}
       data-phase-direction={phaseDirection.current}
@@ -616,22 +617,6 @@ export function ObservationView({
         event.preventDefault();
       }}
     >
-      {activeNavigation ? (
-        <div
-          key={navigationFeedback.generation}
-          className="navigation-feedback"
-          data-loading={!navigationFeedback.ready}
-          style={{ animationDuration: `${NAVIGATION_FEEDBACK_MS}ms` }}
-          onAnimationEnd={event => {
-            if (event.target === event.currentTarget && event.animationName === 'navigation-feedback') navigationFeedback.finish();
-          }}
-          role="status"
-          aria-label={activeNavigation.direction === 'next' ? 'Next' : 'Back'}
-          data-sequence={activeNavigation.sequence}
-        >
-          {activeNavigation.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
-        </div>
-      ) : null}
       <div className="nav-region">
         <button
           className="nav-zone nav-zone-left"
@@ -655,20 +640,6 @@ export function ObservationView({
         className="observation-center"
         data-entry-loading={Boolean(observation && !entryReady)}
       >
-        {!activeNavigation && observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
-          <div
-            className="question-phase-indicator"
-            role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? 'Observation' : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? 'Observation' : 'Question'}
-          >
-            {observation.question?.phase === 'comparison'
-              ? <Check aria-hidden="true" />
-              : !observation.question || observation.question.phase === 'observation'
-                ? <AlignJustify aria-hidden="true" />
-                : <CircleHelp aria-hidden="true" />}
-          </div>
-        ) : null}
         {observation && comparisonPhase && !textComparison ? (
           <ComparisonPage
             observation={observation}
@@ -785,6 +756,7 @@ export function ObservationView({
       </div>
       {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase)} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
       {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
+      {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
         <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}

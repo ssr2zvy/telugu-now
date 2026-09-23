@@ -1,5 +1,6 @@
 // Appearance routes are shared by the header, menu, back navigation and controls.
 export const appearanceLabels = {
+  appearanceMagnifierBarGap: ["Bar to magnifier", "బార్ నుండి మాగ్నిఫైయర్"],
   "appearanceBackground": [
     "Background",
     "నేపథ్యం"
@@ -89,11 +90,11 @@ export const appearanceLabels = {
     "అంతరం"
   ],
   "appearanceBarGap": [
-    "Audio bar gap",
+    "Bar to detail area",
     "ఆడియో బార్ అంతరం"
   ],
   "appearanceMagnifierGap": [
-    "Magnifier gap",
+    "Timestamp spacing",
     "మాగ్నిఫైయర్ అంతరం"
   ],
   "appearanceBehavior": [
@@ -190,7 +191,7 @@ export const appearanceGroups:Partial<Record<AppearancePage,AppearancePage[]>> =
     "appearanceMagnifierPosition"
   ],
   "appearanceSpacing": [
-    "appearanceBarGap",
+    "appearanceMagnifierBarGap",
     "appearanceMagnifierGap"
   ],
   "appearanceBehavior": [

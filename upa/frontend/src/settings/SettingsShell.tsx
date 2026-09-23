@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import { settingsGroups, settingsPageIcons, settingsPageLabel, visibleSettingsEntries } from './navigation';
+import { settingsGroups, settingsPageLabel, visibleSettingsEntries } from './navigation';
 import {
   LanguageIcon,
 } from '../components/icons';
@@ -96,7 +96,6 @@ export function SettingsShell({
   }, []);
 
   const navigationButton = (destination: SettingsPage, nested = false) => {
-    const Icon = settingsPageIcons[destination];
     const label = settingsPageLabel(destination, language);
     return (
       <button
@@ -112,7 +111,7 @@ export function SettingsShell({
           setRailCollapsed(true);
         }}
       >
-        {!nested && <Icon aria-hidden="true" />}
+
         <span>{label}</span>
       </button>
     );
@@ -173,6 +172,9 @@ export function SettingsShell({
         </nav>
       </aside>
       <header className="settings-header">
+        <div className="settings-heading">
+          <h1 ref={heading} tabIndex={-1}>{title}</h1>
+        </div>
         <div className="settings-header-side">
           {onBack ? (
             <button
@@ -189,9 +191,6 @@ export function SettingsShell({
               <ChevronLeft size={20} aria-hidden="true" />
             </button>
           ) : null}
-        </div>
-        <div className="settings-heading">
-          <h1 ref={heading} tabIndex={-1}>{title}</h1>
         </div>
       <button
         className="settings-close"

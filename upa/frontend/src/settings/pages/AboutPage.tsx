@@ -15,7 +15,7 @@ export function AboutPage({ language }: AboutPageProps) {
 
   useEffect(() => {
     let active = true;
-    void fetch('/version.json')
+    void fetch('/version.json', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Version unavailable'))))
       .then((value: VersionMetadata) => {
         if (active) setMetadata(value);

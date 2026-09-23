@@ -1,4 +1,4 @@
-.observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 48px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: var(--audio-placement-bottom); --audio-min-bottom: var(--audio-placement-bottom); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
+.observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 48px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: var(--audio-placement-bottom); --audio-min-bottom: max(12px, env(safe-area-inset-bottom)); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
 .observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }
 .observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-base-bottom) + 60px); }
 .observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
@@ -38,7 +38,7 @@
 .audio-loading-indicator { animation: none; font-size: 1.4rem; letter-spacing: .12em; }
 @keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }
-.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height) var(--audio-detail-height); align-items: center; gap: var(--audio-timestamp-gap, 1px) 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
+.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height) var(--audio-detail-height); align-items: center; gap: 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
 .audio-player-bar[data-has-audio="false"] { display: none; }
 .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
 @media (hover: none) and (pointer: coarse) {
@@ -272,7 +272,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .observation-screen[data-swipe-navigation='true'],
 .observation-screen[data-swipe-navigation='true'] :is(.nav-zone,.nav-region) { touch-action: pinch-zoom; }
 
-.reader-settings { position: absolute; z-index: 40; bottom: max(16px, env(safe-area-inset-bottom)); right: max(16px, calc(env(safe-area-inset-right) - 4px)); width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--corner-control-color); cursor: pointer; }
+.reader-settings { position: absolute; z-index: 40; top: max(12px, calc(env(safe-area-inset-top) - 4px)); right: max(16px, calc(env(safe-area-inset-right) - 4px)); width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--corner-control-color); cursor: pointer; }
 .reader-settings svg { width: 18px; height: 18px; stroke-width: 1.7; stroke: var(--control-icon-paint, currentColor); }
 .reader-settings:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
 
@@ -288,3 +288,13 @@ html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacit
 .audio-player-bar[data-controls-visible='false'] * { pointer-events: none !important; }
 .audio-precision-panel[data-visible='false'],
 .audio-precision-panel[data-visible='false'] * { pointer-events: none !important; }
+
+/* The row is a 48px hit target; its visible line is centered inside it. */
+.audio-precision-panel { margin-top: calc(var(--magnifier-bar-gap, 4px) - 24px); }
+.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { margin-top: 0; margin-bottom: calc(var(--magnifier-bar-gap, 4px) - 24px); }
+.observation-screen { overflow: hidden; }
+
+.audio-magnifier-track { order: 1; }
+.audio-magnifier-time { order: 2; }
+.audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 2; }
+.audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { order: 1; }

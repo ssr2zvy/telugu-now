@@ -14,13 +14,18 @@ COPY upa/ ./
 COPY data-transform/scripts/build-grammar/ /app/data-transform/scripts/build-grammar/
 COPY data-transform/scripts/parse-core/ /app/data-transform/scripts/parse-core/
 COPY ci-cd/make-artifacts.sh /app/ci-cd/make-artifacts.sh
-RUN bash /app/ci-cd/make-artifacts.sh
+ARG BUILD_REVISION=local
+ARG BUILD_ID
+ARG BUILD_TIMESTAMP
+RUN BUILD_REVISION="$BUILD_REVISION" BUILD_ID="$BUILD_ID" BUILD_TIMESTAMP="$BUILD_TIMESTAMP" bash /app/ci-cd/make-artifacts.sh
 
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
-LABEL org.opencontainers.image.version="0.0.1-initial"
+ARG BUILD_REVISION=local
+ARG BUILD_ID
+LABEL org.opencontainers.image.revision="$BUILD_REVISION" org.opencontainers.image.version="$BUILD_ID"
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIRECTORY=/data

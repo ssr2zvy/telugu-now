@@ -390,6 +390,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     '--corner-control-color': appearanceAudioColor(appearance),
     '--audio-offset': `${appearance.audioOffset}px`,
     '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,
+    '--magnifier-bar-gap': `${appearance.magnifierBarGap}px`,
     '--timestamp-magnifier-gap': `${appearance.timestampMagnifierGap}px`,
     '--audio-placement-bottom': 'max(16px, calc(env(safe-area-inset-bottom) + 16px))',
   } as CSSProperties;

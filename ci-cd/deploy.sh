@@ -67,7 +67,11 @@ flyctl status --config fly.toml --json >/dev/null ||
 
 if [[ "$action" == "deploy" ]]; then
   printf '%s\n' 'Deploying this checkout. Production deployments should use the merged main revision.'
-  exec flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m
+  build_revision="$(git rev-parse HEAD)"
+  build_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  build_id="${GITHUB_RUN_ID:-$(date -u +%Y%m%d%H%M%S)}.${GITHUB_RUN_ATTEMPT:-1}"
+  exec flyctl deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m \
+    --build-arg "BUILD_REVISION=$build_revision" --build-arg "BUILD_ID=$build_id" --build-arg "BUILD_TIMESTAMP=$build_timestamp"
 fi
 
 machines="$(flyctl machine list --config fly.toml --json)" ||

@@ -11,7 +11,7 @@ export const settingsPageIcons = {
   currentChain: ListOrdered,
   nextChainSearch: Activity,
   lastSearchAttempt: Activity,
-  currentReset: RotateCcw,
+  currentReset: RotateCcw, resetChain: RotateCcw, resetCore: RotateCcw, resetAllCores: RotateCcw,
   coreProgress: Activity,
   objectCoverage: Activity,
   coverageNotes: Activity,
@@ -42,6 +42,7 @@ export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   observations: ['parser', 'parsingMode', 'dataSources'],
   parser: ['parserCurrent', 'diagnostic'],
   parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],
+  currentReset: ['resetChain','resetCore','resetAllCores'],
   nextChainSearch: ['lastSearchAttempt'],
   diagnostic: ['objectCoverage','searchAndParse','cycleHistory','parserEvents','parserDetails'],
   objectCoverage: ['coverageNotes'],
@@ -55,6 +56,9 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+  if(page==='resetChain')return 'Reset chain';
+  if(page==='resetCore')return 'Reset current core';
+  if(page==='resetAllCores')return 'Reset all cores';
   if(isAppearancePage(page))return appearancePageLabel(page,language);
   if(page==='dataSourceDetail')return language==='en'?'Data source':'డేటా మూలం';
   const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};

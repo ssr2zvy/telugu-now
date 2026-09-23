@@ -1,4 +1,6 @@
-import { discardCurrentChain, isDiscarded } from './queue-service';
+import { resetCoreProgress } from './reset-core-progress';
+import { coreEvent } from '../parsing/audit';
+import { discardPendingChains, discardCurrentChain, isDiscarded } from './queue-service';
 import { selectionMode, attempt as selectionAttempt, markDisplayed } from '../parsing/state';
 import { attempt, system } from '../grammar/service';
 import { db } from '../db/database';
@@ -590,12 +592,17 @@ export function setProfileVisibility(code: string, visible: boolean): void {
 
 // Discards every queued (not-yet-displayed) observation and refills the queue from
 // scratch. The currently displayed observation, if any, is untouched.
-export function resetQueue(code: string, visible: boolean): ProfileStateResponse {
+export function resetQueue(code: string, visible: boolean, scope: 'chain' | 'core' | 'all' = 'chain'): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
   if (selectionMode(code)==='core') {
     db.transaction(()=>{
-      discardCurrentChain(code);
+      if (scope === 'chain') discardCurrentChain(code);
+      else {
+        discardPendingChains(code);
+        const core = resetCoreProgress(db, code, scope);
+        coreEvent(code, 'progress-reset', {core}, {scope});
+      }
       finalizeTail(code,Date.now());
       db.prepare('UPDATE profiles SET current_position=NULL WHERE code=?').run(code);
       db.prepare('INSERT INTO live_chain_resets VALUES(?,?) ON CONFLICT(profile_code) DO UPDATE SET requested_at=excluded.requested_at').run(code,Date.now());

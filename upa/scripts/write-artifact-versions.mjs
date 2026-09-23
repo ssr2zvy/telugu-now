@@ -13,11 +13,15 @@ const files = requested.map(artifact => {
   return paths;
 });
 
-const deployedAt = new Date().toISOString();
+const deployedAt = process.env.BUILD_TIMESTAMP || new Date().toISOString();
+const packageMetadata = JSON.parse(await readFile(new URL('package.json', appRoot), 'utf8'));
+const revision = process.env.BUILD_REVISION || process.env.GITHUB_SHA || 'local';
+const buildId = process.env.BUILD_ID || deployedAt.replace(/[^0-9]/g, '');
+const version = `${packageMetadata.version}+${revision.slice(0, 8)}.${buildId}`;
 for (const [source, destination] of files) {
   const sourceUrl = new URL(source, appRoot);
   const destinationUrl = new URL(destination, appRoot);
   const metadata = JSON.parse(await readFile(sourceUrl, 'utf8'));
   await mkdir(new URL('./', destinationUrl), { recursive: true });
-  await writeFile(destinationUrl, `${JSON.stringify({ ...metadata, deployedAt }, null, 2)}\n`);
+  await writeFile(destinationUrl, `${JSON.stringify({ ...metadata, version, revision, buildId, deployedAt }, null, 2)}\n`);
 }
