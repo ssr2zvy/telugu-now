@@ -7,7 +7,7 @@
   background: var(--audio-control-color);
   box-shadow: none;
   filter: none;
-  opacity: .28;
+  opacity: .14;
   pointer-events: none;
 }
 .audio-scrubber-thumb, .audio-speed-thumb {

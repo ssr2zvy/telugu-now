@@ -260,7 +260,7 @@ test('surface colors remain independent while corner colors adapt to palette and
   assert.equal(appearanceSurface(parseAppearance({ foreground: '#ffffff' })), '#191b1d');
   const custom = parseAppearance({ surface: '#e8eeee', gradient: ['#ff0000', '#00ff00', '#0000ff'] });
   assert.equal(appearanceSurface(custom), '#e8eeee');
-  assert.equal(appearanceSurface(parseAppearance({ ...custom, ...randomAppearanceColors(() => 0), surface: null })), '#f8f9fa');
+  assert.equal(appearanceSurface(parseAppearance({ ...custom, ...randomAppearanceColors(() => 0), surface: null })), '#191b1d');
   const relativeLuminance = (color: string) => [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
     .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
     .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);

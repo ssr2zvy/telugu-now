@@ -3,7 +3,7 @@ import { getProfilePreferences, saveProfilePreferences, transferBrowserData } fr
 import { CustomCursor } from './components/CustomCursor';
 import type { UpdateProfilePreferences } from '../../shared/appearance';
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from '../../shared/appearance';
-export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, MODIFICATION_LIGHTNESS_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
+export { DEFAULT_APPEARANCE, parseAppearance, APPEARANCE_OFFSET_LIMIT, CONTROL_SPACING_LIMITS, CONTROL_DARKNESS_LIMITS, MODIFICATION_LIGHTNESS_LIMITS, GRADIENT_BARRIER_LIMITS, AUTO_FADE_SECONDS_LIMITS, type AppearanceSettings } from '../../shared/appearance';
 
 export function appearanceSurface(appearance: Pick<AppearanceSettings, 'surface' | 'foreground'>): string {
   if (appearance.surface) return appearance.surface;
@@ -87,14 +87,30 @@ export function appearanceModificationTextShiftColor(appearance: Pick<Appearance
 }
 
 export function randomAppearanceColors(random = Math.random): Pick<AppearanceSettings, 'gradient' | 'foreground'> {
-  const palettes: Array<Pick<AppearanceSettings, 'gradient' | 'foreground'>> = [
-    { gradient: ['#e4f0eb', '#a8c5b8', '#e1b9c4'], foreground: '#30483e' },
-    { gradient: ['#f4ddd2', '#e0b6bf', '#afc9d0'], foreground: '#362b36' },
-    { gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'], foreground: '#34463e' },
-    { gradient: ['#344a44', '#56515e', '#354452'], foreground: '#d4cedf' },
-    { gradient: ['#eef0ce', '#bfd9cc', '#d4c4dc'], foreground: '#3d4934' },
-  ];
-  return palettes[Math.min(palettes.length - 1, Math.max(0, Math.floor(random() * palettes.length)))]!;
+  // Generate a continuous family of related hues, never a preset lookup.
+  const draw = () => Math.min(1 - Number.EPSILON, Math.max(0, random()));
+  const hue = draw();
+  const spread = (20 + draw() * 90) / 360;
+  const dark = draw() < 0.3;
+  const saturation = 0.18 + draw() * 0.22;
+  const hex = (h: number, s: number, l: number) => `#${hslToRgb((h + 1) % 1, s, l).map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+  const gradient = [-1, 0, 1].map(direction => hex(
+    hue + direction * spread + (draw() - 0.5) * 0.035,
+    saturation + draw() * 0.08,
+    dark ? 0.14 + draw() * 0.12 : 0.80 + draw() * 0.12,
+  )) as [string, string, string];
+  const inkHue = hue + (draw() - 0.5) * 0.18;
+  const inkSaturation = 0.26 + draw() * 0.14;
+  const initialLightness = dark ? 0.74 + draw() * 0.04 : 0.24 + draw() * 0.04;
+  let foreground = hex(inkHue, inkSaturation, initialLightness);
+  // Keep tinted ink away from black/white while checking every gradient stop.
+  for (let step = 0; step <= 10; step += 1) {
+    foreground = hex(inkHue, inkSaturation, dark
+      ? Math.min(0.84, initialLightness + step * 0.01)
+      : Math.max(0.21, initialLightness - step * 0.01));
+    if (gradient.every(color => contrastRatio(luminance(colorChannels(color)), luminance(colorChannels(foreground))) >= 4.5)) break;
+  }
+  return { gradient, foreground };
 }
 
 export function appearanceAudioColor(appearance: Pick<AppearanceSettings, 'gradient'>): string {

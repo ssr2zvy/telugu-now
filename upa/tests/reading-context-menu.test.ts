@@ -113,10 +113,11 @@ test('errors enter over the bottom-right corner and fade within fifteen seconds'
   }
 });
 
-test('modification controls have dedicated labeled pages without an Automatic option', () => {
+test('modification controls have dedicated barrier and color pages without an Automatic option', () => {
   const labels = readFileSync(new URL('../frontend/src/settings/appearance-navigation.ts', import.meta.url), 'utf8');
   const source = readFileSync(new URL('../frontend/src/settings/pages/OrganizedAppearancePage.tsx', import.meta.url), 'utf8');
-  assert.match(labels, /Modification lightness/);
+  assert.match(labels, /Gradient barrier/);
+  assert.doesNotMatch(labels, /Modification lightness/);
   assert.match(labels, /Gradient end color/);
   assert.match(labels, /Highlight mods/);
   assert.doesNotMatch(source, /Automatic/);

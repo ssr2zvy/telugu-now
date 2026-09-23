@@ -249,7 +249,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
   const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(analysis.word) : null;
   const gradientEndColor = appearanceModificationColor(appearance);
   const gradientKey = highlightRuns?.some(run => run.highlighted)
-    ? [analysis.word, fontFamily, appearance.foreground, gradientEndColor].join('\0')
+    ? [analysis.word, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
     : null;
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
@@ -273,7 +273,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
     if (!gradientKey || !highlightRuns) return;
     let cancelled = false;
     void Promise.all(highlightRuns.map(run => run.highlighted
-      ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor)
+      ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier)
       : Promise.resolve(null))).then(textures => {
         if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
       }).catch(() => {

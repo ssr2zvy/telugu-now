@@ -1,3 +1,4 @@
+import { gradientBarrierAmount, gradientTextureKey } from './gradient-barrier';
 import { OBSERVATION_FONTS, type ObservationFontFamily } from '../presentation';
 import fontModelManifest from '../generated/telugu-font-model-manifest.json' with { type: 'json' };
 
@@ -62,9 +63,9 @@ const textureStatus = new Map<string, CacheEntryStatus>();
 const simpleAlignmentStatus = new Map<string, number>();
 
 export function hasTeluguGradientTexture(
-  text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string,
+  text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string, barrier = 50,
 ): boolean {
-  return textureCache.has(`${fontFamily}\0${text}\0${foreground}\0${endColor}`);
+  return textureCache.has(gradientTextureKey(text, fontFamily, foreground, endColor, barrier));
 }
 
 export interface TeluguGradientCacheSnapshot {
@@ -566,7 +567,7 @@ function adjustedBase(target: ImageData, base: AlphaMask, alignment?: Alignment)
   return { image, modifier };
 }
 
-function gradientDepth(modifier: Uint8Array, base: ImageData): Float32Array {
+function gradientDepth(modifier: Uint8Array, base: ImageData, barrier: number): Float32Array {
   const distance = new Float32Array(modifier.length); distance.fill(1e6);
   for (let pixel = 0; pixel < distance.length; pixel += 1) if (base.data[pixel * 4 + 3]! >= 20) distance[pixel] = 0;
   const diagonal = Math.SQRT2;
@@ -586,8 +587,8 @@ function gradientDepth(modifier: Uint8Array, base: ImageData): Float32Array {
     let minimum = Infinity; let maximum = 0;
     for (const pixel of group) { minimum = Math.min(minimum, distance[pixel]!); maximum = Math.max(maximum, distance[pixel]!); }
     const span = Math.max(10 * RENDER_SCALE, maximum - minimum);
-    // Half the previous rate so the color transition reaches full depth over roughly twice the distance.
-    for (const pixel of group) result[pixel] = Math.pow(Math.min(1, ((distance[pixel]! - minimum) / span) * .925), .42);
+    // The default barrier preserves the existing distance curve; other settings change its sharpness.
+    for (const pixel of group) result[pixel] = gradientBarrierAmount((distance[pixel]! - minimum) / span, barrier);
   }
   return result;
 }
@@ -653,9 +654,9 @@ export async function generateTeluguFontModelArtifact(fontFamily: ObservationFon
 }
 
 export function renderTeluguGradientTexture(
-  text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string,
+  text: string, fontFamily: ObservationFontFamily, foreground: string, endColor: string, barrier = 50,
 ): Promise<TeluguGradientTexture> {
-  const key = `${fontFamily}\0${text}\0${foreground}\0${endColor}`;
+  const key = gradientTextureKey(text, fontFamily, foreground, endColor, barrier);
   let pending = textureCache.get(key);
   if (!pending) {
     const status: CacheEntryStatus = { state: 'pending', startedAt: Date.now(), completedAt: null };
@@ -671,7 +672,7 @@ export function renderTeluguGradientTexture(
         simpleAlignmentStatus.set(fontFamily, model.simpleAlignments.size);
       }
       const classified = adjustedBase(target, base, alignment);
-      const depth = gradientDepth(classified.modifier, classified.image);
+      const depth = gradientDepth(classified.modifier, classified.image, barrier);
       const start = channels(foreground); const end = channels(endColor);
       const painted = new ImageData(target.width, target.height);
       for (let pixel = 0; pixel < classified.modifier.length; pixel += 1) {
