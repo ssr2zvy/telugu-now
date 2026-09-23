@@ -4,7 +4,7 @@ type ObservationContent = Pick<DisplayObservation, 'text' | 'audio' | 'kind' | '
 
 export function observationShowsText(observation: ObservationContent | null): boolean {
   if (!observation?.text.trim()) return false;
-  if (observation.kind === 'question' && observation.question?.phase === 'comparison') return false;
+  if (observation.kind === 'question' && observation.question?.phase === 'comparison') return observation.question.mode === 'text-given';
   const activeQuestion = observation.kind === 'question' && observation.question?.phase === 'question'
     ? observation.question
     : null;

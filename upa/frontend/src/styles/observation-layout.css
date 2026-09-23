@@ -228,3 +228,48 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 /* A newly entered text prompt must not fade out the previous page's audio UI. */
 .observation-screen[data-question-mode="text-given"][data-audio-motion="idle"]:not(.controls-visible) .observation-center > .audio-player-bar,
 .observation-screen[data-question-mode="text-given"][data-audio-motion="idle"] .question-record-controls[data-visible="false"] { visibility: hidden; animation: none; transition: none; }
+
+/* Text-given question -> comparison: one fixed text surface, one audio bar. */
+.observation-screen[data-text-given-flow='true'],
+.observation-screen[data-text-given-flow='true'] .nav-zone,
+.observation-screen[data-text-given-flow='true'] .nav-region { touch-action: pinch-zoom; }
+.observation-screen[data-text-given-flow='true'] .observation-center[data-entry-loading='true'] > .observation-text { visibility: visible; }
+.observation-screen[data-text-given-flow='true'][data-question-mode='text-given'] .question-record-controls { gap: 0; }
+.observation-screen[data-text-given-flow='true'] .question-record-controls .recording-readiness,
+.observation-screen[data-text-given-flow='true'] .question-record-controls .question-response-error { position: absolute; top: calc(100% + 8px); }
+.observation-screen[data-text-given-flow='true'][data-question-phase='comparison'] .grammar-evaluation {
+  bottom: calc(var(--audio-bottom) - var(--record-gap) - var(--record-button-size));
+  width: auto; height: var(--record-button-size);
+  display: grid; place-items: center;
+}
+.observation-screen[data-text-given-flow='true'] .evaluation-switch {
+  width: 76px; height: 48px; padding: 0; background: transparent; border-radius: 24px;
+}
+.observation-screen[data-text-given-flow='true'] .evaluation-switch::before {
+  content: ''; position: absolute; inset: 8px 4px; border-radius: 18px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.observation-screen[data-text-given-flow='true'] .evaluation-switch-indicator {
+  z-index: 1; inset: 12px auto auto 8px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--control-material-gradient); opacity: .5;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+.observation-screen[data-text-given-flow='true'] .evaluation-switch[data-value='true'] .evaluation-switch-indicator { transform: translateX(36px); opacity: 1; }
+.observation-screen[data-text-given-flow='true'] .grammar-evaluation p[role='alert'] { position: absolute; bottom: 100%; width: min(80vw, 320px); }
+/* Only controls move. The text does not participate in the phase animation. */
+.observation-screen[data-text-given-flow='true'] { --phase-shift: 64px; }
+.observation-screen[data-text-given-flow='true'][data-phase-direction='back'] { --phase-shift: -64px; }
+.observation-screen[data-text-given-flow='true'][data-phase-motion='exit'].controls-visible .observation-center > .audio-player-bar,
+.observation-screen[data-text-given-flow='true'][data-phase-motion='exit'] .question-record-controls[data-visible='true'],
+.observation-screen[data-text-given-flow='true'][data-phase-motion='exit'] .grammar-evaluation { animation: question-controls-leave 160ms ease-in both; pointer-events: none; }
+.observation-screen[data-text-given-flow='true'][data-phase-motion='enter'].controls-visible .observation-center > .audio-player-bar,
+.observation-screen[data-text-given-flow='true'][data-phase-motion='enter'] .question-record-controls[data-visible='true'],
+.observation-screen[data-text-given-flow='true'][data-phase-motion='enter'] .grammar-evaluation { animation: question-controls-arrive 220ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes question-controls-leave { from { opacity: 1; translate: 0; } to { opacity: 0; translate: calc(-1 * var(--phase-shift)) 0; } }
+@keyframes question-controls-arrive { from { opacity: 0; translate: var(--phase-shift) 0; } to { opacity: 1; translate: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .observation-screen[data-text-given-flow='true'] :is(.audio-player-bar, .question-record-controls, .grammar-evaluation, .evaluation-switch-indicator) { animation: none !important; transition: none !important; }
+}
+
+.observation-screen[data-text-given-flow='true'][data-entry-ready='false'] .grammar-evaluation { visibility: hidden; }
