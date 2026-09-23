@@ -53,7 +53,6 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
   const [requestingMicrophone, setRequestingMicrophone] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
-  const chunks = useRef<Blob[]>([]);
   const recordCursor = useRef(0);
   const recordingFrame = useRef<number | null>(null);
   const recordingSession = useRef(0);
@@ -160,26 +159,26 @@ export function QuestionControls({ profileCode, observationId, mode, keyboard: _
       const mediaRecorder = preferred ? new MediaRecorder(mediaStream, { mimeType: preferred }) : new MediaRecorder(mediaStream);
       stream.current = mediaStream;
       recorder.current = mediaRecorder;
-      chunks.current = [];
+      const recordedChunks:Blob[]=[];
       let recordingStartedAt = 0;
       const updateRecordingFeedback = (now: number) => {
         const elapsed = (now - recordingStartedAt) / 1000;
         onRecordingChange({ start: recordCursor.current, end: recordCursor.current + elapsed, span: recordingSpan });
         recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
       };
-      mediaRecorder.ondataavailable = event => { if (event.data.size) chunks.current.push(event.data); };
+      mediaRecorder.ondataavailable = event => { if (event.data.size) recordedChunks.push(event.data); };
       mediaRecorder.onstop = () => {
         if (recordingFrame.current !== null) cancelAnimationFrame(recordingFrame.current);
         recordingFrame.current = null;
         onRecordingChange(null);
-        const raw = new Blob(chunks.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        const raw = new Blob(recordedChunks, { type: mediaRecorder.mimeType || recordedChunks[0]?.type || preferred || 'audio/mp4' });
         mediaStream.getTracks().forEach(track => track.stop());
         stream.current = null;
         recorder.current = null;
         setRecording(false);
         void updateQuestionAudio(profileCode, observationId, raw).then(() => {
           const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
-          onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: raw.type, durationSeconds: 0 });
+          onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: 'audio/wav', durationSeconds: 0 });
         }).catch(() => {
           setError('Recording could not be saved.');
           reportClientTelemetry({

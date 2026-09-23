@@ -1,3 +1,4 @@
+import { normalizeQuestionRecording } from './recording-audio';
 import { attempt as grammarAttempt } from '../grammar/service';
 import { attempt as selectionAttempt } from '../parsing/state';
 import type Database from 'better-sqlite3';
@@ -46,13 +47,19 @@ export function updateQuestionText(db: Database.Database, profileCode: string, o
   }
 }
 
-export function updateQuestionAudio(db: Database.Database, profileCode: string, observationId: string, bytes: Uint8Array, mimeType: string): void {
+export async function updateQuestionAudio(db: Database.Database, profileCode: string, observationId: string, bytes: Uint8Array, mimeType: string): Promise<void> {
   assertQuestion(db, profileCode, observationId);
   assertEvaluationOpen(profileCode, observationId);
   if (!mimeType.startsWith('audio/') || bytes.byteLength === 0 || bytes.byteLength > 16 * 1024 * 1024) {
     logger.warn('question_response_rejected', { observationId, responseKind: 'audio', failureCategory: 'invalid-audio' });
     throw new InvalidQuestionResponseError('Question response audio is invalid.');
   }
+  let normalized:Buffer;
+  try { normalized=await normalizeQuestionRecording(bytes,mimeType); }
+  catch(error) { throw new InvalidQuestionResponseError(error instanceof Error?error.message:'Recording could not be processed.'); }
+  // Conversion is asynchronous; reject writes if the answer was finalized meanwhile.
+  assertQuestion(db,profileCode,observationId);
+  assertEvaluationOpen(profileCode,observationId);
   try {
     db.prepare(`
       INSERT INTO question_responses (profile_code, observation_id, response_audio, response_audio_mime_type, updated_at)
@@ -61,7 +68,7 @@ export function updateQuestionAudio(db: Database.Database, profileCode: string, 
         response_audio = excluded.response_audio,
         response_audio_mime_type = excluded.response_audio_mime_type,
         updated_at = excluded.updated_at
-    `).run(profileCode, observationId, Buffer.from(bytes), mimeType, Date.now());
+    `).run(profileCode, observationId, normalized, 'audio/wav', Date.now());
     logger.info('question_response_saved', { observationId, responseKind: 'audio', bytes: bytes.byteLength });
   } catch (error) {
     logger.error('question_response_persistence_failed', {

@@ -1,3 +1,4 @@
+import { normalizeQuestionRecording } from './services/recording-audio';
 import { parsingRoutes } from './parsing/routes';
 import { grammarRoutes } from './grammar/routes';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -160,16 +161,19 @@ app.put('/api/profiles/:code/questions/:observationId/audio', async (c) => {
   const code = c.req.param('code');
   assertValidProfileCode(code);
   const mimeType = c.req.header('content-type') ?? '';
-  updateQuestionAudio(db, code, c.req.param('observationId'), new Uint8Array(await c.req.arrayBuffer()), mimeType);
+  await updateQuestionAudio(db, code, c.req.param('observationId'), new Uint8Array(await c.req.arrayBuffer()), mimeType);
   return c.body(null, 204);
 });
 
-app.get('/api/profiles/:code/questions/:observationId/audio', (c) => {
+app.get('/api/profiles/:code/questions/:observationId/audio', async (c) => {
   const code = c.req.param('code');
   assertValidProfileCode(code);
   const audio = getQuestionAudio(db, code, c.req.param('observationId'));
   if (!audio) return c.body(null, 404);
-  return c.body(new Uint8Array(audio.bytes), 200, { 'Content-Type': audio.mimeType, 'Content-Length': String(audio.bytes.byteLength) });
+  // Older saved native-format recordings also receive compatible playback.
+  const bytes=audio.mimeType==='audio/wav'?audio.bytes:await normalizeQuestionRecording(audio.bytes,audio.mimeType);
+  c.header('Cache-Control','no-store');
+  return c.body(new Uint8Array(bytes), 200, { 'Content-Type':'audio/wav', 'Content-Length':String(bytes.byteLength) });
 });
 
 app.post('/api/profiles/:code/export', async (c) => {

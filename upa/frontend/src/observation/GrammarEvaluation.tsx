@@ -1,49 +1,35 @@
-import { useId, useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 
-export function GrammarEvaluation({ profileCode, observationId, result, target }: {
-  profileCode: string; observationId: string; result: boolean | null; target: Record<string, unknown>;
-}) {
-  const labelId = useId();
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<boolean | null>(null);
-  const [pending, setPending] = useState<boolean | null>(null);
-  const [error, setError] = useState('');
-  const inFlight = useRef(false);
-  const committed = useRef(false);
-  const value = result ?? saved;
-  const selected = value ?? pending;
-  const submit = async (correct: boolean) => {
-    if (inFlight.current || committed.current || value !== null) return;
-    inFlight.current = true;
-    setBusy(true);
-    setPending(correct);
-    setError('');
-    try {
-      const response = await fetch(`/api/profiles/${encodeURIComponent(profileCode)}/grammar-evaluations/${encodeURIComponent(observationId)}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ result: correct }),
+export interface GrammarEvaluationHandle { commit:()=>Promise<boolean> }
+export const GrammarEvaluation=forwardRef<GrammarEvaluationHandle,{
+  profileCode:string;observationId:string;result:boolean|null;
+}>(function GrammarEvaluation({profileCode,observationId,result},ref){
+  const [draft,setDraft]=useState(false);
+  const [saved,setSaved]=useState<boolean|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const inFlight=useRef(false);
+  const committed=useRef(false);
+  const value=result??saved;
+  useImperativeHandle(ref,()=>({commit:async()=>{
+    if(value!==null||committed.current)return true;
+    if(inFlight.current)return false;
+    inFlight.current=true;setBusy(true);setError('');
+    try{
+      const response=await fetch(`/api/profiles/${encodeURIComponent(profileCode)}/grammar-evaluations/${encodeURIComponent(observationId)}`,{
+        method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({result:draft}),
       });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error || 'Could not save evaluation');
-      }
-      committed.current = true;
-      setSaved(correct);
-    } catch (caught) {
-      setPending(null);
-      setError(caught instanceof Error ? caught.message : 'Could not save evaluation');
-    } finally { inFlight.current = false; setBusy(false); }
-  };
-  const word = String((target.occurrence as { word?: string } | undefined)?.word ?? '');
-  return <div className="grammar-evaluation" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
-    <p id={labelId}>Was your answer correct? <span lang="te">{word}</span></p>
-    <fieldset className="evaluation-switch" disabled={busy || value !== null} aria-labelledby={labelId} aria-busy={busy} data-value={selected === null ? 'unanswered' : String(selected)}>
+      if(!response.ok){const body=await response.json().catch(()=>({})) as {error?:string};throw new Error(body.error??'Could not save evaluation');}
+      committed.current=true;setSaved(draft);return true;
+    }catch(caught){setError(caught instanceof Error?caught.message:'Could not save evaluation');return false;}
+    finally{inFlight.current=false;setBusy(false);}
+  }}),[value,draft,profileCode,observationId]);
+  return <div className="grammar-evaluation" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()}>
+    <button type="button" role="switch" className="evaluation-switch" aria-label="Answer correct"
+      aria-checked={value??draft} aria-busy={busy} data-value={String(value??draft)} disabled={busy||value!==null}
+      onClick={()=>setDraft(current=>!current)}>
       <span className="evaluation-switch-indicator" aria-hidden="true" />
-      {[false, true].map(choice => <label key={String(choice)}>
-        <input type="radio" name={`evaluation-${labelId}`} value={String(choice)} checked={selected === choice} onChange={() => void submit(choice)} />
-        <span>{choice ? 'True' : 'False'}</span>
-      </label>)}
-    </fieldset>
-    <p className="evaluation-status" role="status">{busy ? 'Saving…' : value !== null ? `${value ? 'True' : 'False'} saved. Continue when ready.` : 'Choose True or False.'}</p>
-    {error ? <p role="alert">{error}</p> : null}
+    </button>
+    {error?<p role="alert">{error}</p>:null}
   </div>;
-}
+});

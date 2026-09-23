@@ -350,19 +350,19 @@ test('Iteration 1 invariants remain intact', { concurrency: false }, async (suit
     assert.equal(profileService.navigateNext('001', false).currentObservation?.id, nextId);
   });
 
-  await suite.test('question text and audio responses persist and reload with the question', () => {
+  await suite.test('question text and audio responses persist and reload with the question', async () => {
     resetDatabase();
     const [questionId] = seedQueue(['ready']);
     db.prepare(`UPDATE observation_acquisitions SET observation_kind = 'question', question_mode = 'text-given' WHERE observation_id = ?`).run(questionId);
     profileService.navigateNext('001', false);
 
     questionResponseService.updateQuestionText(db, '001', questionId!, { text: 'నా సమాధానం' });
-    questionResponseService.updateQuestionAudio(db, '001', questionId!, new Uint8Array([1, 2, 3]), 'audio/webm');
+    await questionResponseService.updateQuestionAudio(db, '001', questionId!, wavFixture(), 'audio/wav');
     const reloaded = profileService.getProfileState('001', false).currentObservation?.question;
     assert.equal(reloaded?.responseText, 'నా సమాధానం');
     assert.equal(reloaded?.responseAudio?.url, `/api/profiles/001/questions/${questionId}/audio`);
-    assert.equal(reloaded?.responseAudio?.mimeType, 'audio/webm');
-    assert.deepEqual([...questionResponseService.getQuestionAudio(db, '001', questionId!)!.bytes], [1, 2, 3]);
+    assert.equal(reloaded?.responseAudio?.mimeType, 'audio/wav');
+    assert.equal(questionResponseService.getQuestionAudio(db, '001', questionId!)!.bytes.toString('ascii',0,4),'RIFF');
   });
 
   await suite.test('history navigation preserves absolute and visible timing semantics', () => {

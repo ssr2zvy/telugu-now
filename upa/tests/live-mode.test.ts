@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {wavFixture} from './helpers/audio-fixture';
 import Database from 'better-sqlite3';
 test('live worker, repeated observations, immediate mastery, cycles and export',{timeout:90000},async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'live-test-')),assets=path.join(dir,'assets');fs.mkdirSync(assets);
@@ -42,12 +43,18 @@ test('live worker, repeated observations, immediate mastery, cycles and export',
    const row=db.prepare("SELECT q.observation_id,a.target_id FROM queue_items q JOIN selection_attempts a ON a.observation_id=q.observation_id WHERE q.profile_code='001' ORDER BY q.queue_position LIMIT 1").get() as {observation_id:string;target_id:string};
    const before=state.coreProgress('001').streaks[row.target_id]??0;assert.ok(before<3);
    db.prepare('DELETE FROM queue_items WHERE observation_id=?').run(row.observation_id);
-   db.prepare(`INSERT INTO history_entries(profile_code,history_position,observation_id,absolute_started_at,presentation_state_json) VALUES('001',?,?,0,'{"questionPhase":"observation"}')`).run(pos,row.observation_id);db.prepare("UPDATE profiles SET current_position=? WHERE code='001'").run(pos++);
+   db.prepare(`INSERT INTO history_entries(profile_code,history_position,observation_id,absolute_started_at,presentation_state_json) VALUES('001',?,?,0,'{"questionPhase":"comparison"}')`).run(pos,row.observation_id);db.prepare("UPDATE profiles SET current_position=? WHERE code='001'").run(pos++);
+   if(pos===1){
+    const response=await import('../server/src/services/question-response-service');
+    await response.updateQuestionAudio(db,'001',row.observation_id,wavFixture(),'audio/wav');
+    const saved=response.getQuestionAudio(db,'001',row.observation_id)!;assert.equal(saved.mimeType,'audio/wav');assert.equal(saved.bytes.toString('ascii',0,4),'RIFF');
+   }
    const correct:boolean=injectedFalse||before===0;
    if(!correct)injectedFalse=true;
    state.evaluate('001',row.observation_id,correct);assert.equal(state.coreProgress('001').streaks[row.target_id],correct?before+1:0);
    state.evaluate('001',row.observation_id,correct);assert.equal(state.coreProgress('001').streaks[row.target_id],correct?before+1:0);
    assert.throws(()=>state.evaluate('001',row.observation_id,!correct),/final/);
+   if(pos===1){const response=await import('../server/src/services/question-response-service');await assert.rejects(response.updateQuestionAudio(db,'001',row.observation_id,wavFixture(),'audio/wav'),/final/);}
   }
   queue.ensureLaunchQueue('001');await waitFor(()=>queue.liveSelection.get('001')?.phase==='completed');assert.equal(pos,17);assert.equal(worker.wordStats?.checked,5);
   assert.equal((db.prepare('SELECT COUNT(*) AS n FROM core_used').get() as {n:number}).n,0);

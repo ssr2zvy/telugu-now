@@ -1,7 +1,7 @@
 import { useNavigationFeedback } from './useNavigationFeedback';
 import { NAVIGATION_FEEDBACK_MS } from './navigation-feedback';
 import { copyOriginalReaderText } from './reader-hyphenation';
-import { GrammarEvaluation } from './GrammarEvaluation';
+import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
 import {
   useCallback,
   useEffect,
@@ -99,6 +99,8 @@ export function ObservationView({
   const seamlessAudioKey = useRef<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [questionControlsVisible, setQuestionControlsVisible] = useState(false);
+  const evaluationRef=useRef<GrammarEvaluationHandle>(null);
+  const evaluationNavigation=useRef(false);
   const [comparisonReady, setComparisonReady] = useState(false);
   const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
   const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
@@ -493,11 +495,14 @@ export function ObservationView({
   const move = async (
     direction: 'back' | 'next',
   ) => {
-    const moved =
-      await onMove(direction);
-    if (moved) {
-      setControlsVisible(false);
-    }
+    if(evaluationNavigation.current)return;
+    evaluationNavigation.current=true;
+    try {
+      if(direction==='next' && comparisonPhase && observation?.grammar &&
+        !(await evaluationRef.current?.commit()))return;
+      const moved=await onMove(direction);
+      if(moved)setControlsVisible(false);
+    } finally {evaluationNavigation.current=false;}
   };
   const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
@@ -687,8 +692,8 @@ export function ObservationView({
           <div
             className="question-phase-indicator"
             role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? (observation.grammar ? 'Self-evaluation' : 'Observation') : 'Question'}
+            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? 'Observation' : 'Question'}
+            title={observation.question?.phase === 'comparison' ? 'Comparison' : (!observation.question || observation.question.phase === 'observation') ? 'Observation' : 'Question'}
           >
             {observation.question?.phase === 'comparison'
               ? <Check aria-hidden="true" />
@@ -809,7 +814,7 @@ export function ObservationView({
           }}
         />
       </div>
-      {observation?.grammar && observation.question?.phase==='observation' ? <GrammarEvaluation key={observation.id} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} target={observation.grammar.target}/> : null}
+      {observation?.grammar && comparisonPhase ? <GrammarEvaluation ref={evaluationRef} key={observation.id} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result}/> : null}
       {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (

@@ -137,7 +137,7 @@ export function evaluate(profile: string, id: string, result: boolean): void {
       return;
     }
     const visible = db.prepare(`SELECT h.presentation_state_json FROM profiles p JOIN history_entries h ON h.profile_code=p.code AND h.history_position=p.current_position WHERE p.code=? AND h.observation_id=?`).get(profile, id) as { presentation_state_json: string } | undefined;
-    if (!visible || JSON.parse(visible.presentation_state_json).questionPhase !== 'observation') throw new Error('Open the evaluation page first');
+    if (!visible || !['comparison','observation'].includes(JSON.parse(visible.presentation_state_json).questionPhase)) throw new Error('Open the comparison page first');
     markDisplayed(profile, id);
     db.prepare('UPDATE selection_attempts SET result=?,answered_at=? WHERE observation_id=?').run(Number(result), Date.now(), id);
     if (a.mode === 'core') coreEvent(profile, 'answer-recorded', { core:a.core,batchId:a.batch_id,observationId:id,targetId:a.target_id,slot:a.slot }, { result,applied:false }, `answer:${id}`);

@@ -14,17 +14,14 @@ test('login uses buttons, preserves three code slots, and contains no editable O
   assert.match(markup, /aria-label="Paste profile code"/);
   assert.match(markup, /aria-label="Backspace"/);
 });
-test('evaluation has two explicit answers, initially unanswered, and locks saved false correctly', () => {
-  const props = { profileCode: '001', observationId: 'one', result: null, target: { occurrence: { word: 'చేశాను' } } };
-  const fresh = renderToStaticMarkup(createElement(GrammarEvaluation, props));
-  assert.match(fresh, /data-value="unanswered"/);
-  assert.equal((fresh.match(/type="radio"/g) ?? []).length, 2);
-  assert.doesNotMatch(fresh, /checked=""|disabled=""/);
-  for (const result of [false, true]) {
-    const saved = renderToStaticMarkup(createElement(GrammarEvaluation, { ...props, result }));
-    assert.match(saved, /<fieldset[^>]*disabled=""/);
-    assert.equal((saved.match(/checked=""/g) ?? []).length, 1);
-    assert.ok(saved.includes(`data-value="${result}"`));
+test('comparison evaluation is one unlabeled switch, defaults off, and locks saved answers',()=>{
+  const props={profileCode:'001',observationId:'one',result:null};
+  const fresh=renderToStaticMarkup(createElement(GrammarEvaluation,props));
+  assert.equal((fresh.match(/role="switch"/g)??[]).length,1);
+  assert.match(fresh,/aria-checked="false"/);assert.doesNotMatch(fresh,/disabled=""|type="radio"|<p|<label|True|False|Choose|Was your answer/);
+  for(const result of [false,true]) {
+    const saved=renderToStaticMarkup(createElement(GrammarEvaluation,{...props,result}));
+    assert.match(saved,/<button[^>]*disabled=""/);assert.ok(saved.includes(`aria-checked="${result}"`));
   }
 });
 test('ordinary observations receive an indicator too, while empty entries do not', () => {

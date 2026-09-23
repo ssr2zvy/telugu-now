@@ -208,7 +208,7 @@ test('record control overrides the shared transport glyph size', () => {
   assert.match(css, /\.question-record-button \{ width: var\(--record-button-size\); height: var\(--record-button-size\); \}/);
   assert.match(css, /\.question-record-button \.control-icon \{ width: 25px; height: 25px; \}/);
   assert.match(css, /\.audio-scrubber-window \{[^}]*z-index: 3;/);
-  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) \+ var\(--audio-row-height\) \+ var\(--audio-detail-height\) \+ var\(--record-gap\)\); \}/);
+  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) - var\(--record-gap\) - var\(--record-button-size\)\); \}/);
   assert.match(css, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.observation-screen \{ --record-gap: clamp\(16px, 3dvh, 36px\); \}/);
   assert.match(css, /--audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 56px; --record-gap:/);
   assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) and \(orientation: portrait\) \{\s*\.observation-screen \{ --record-gap: clamp\(19px, 3\.5dvh, 42px\); \}/);
@@ -271,7 +271,7 @@ test('recording replaces the response from zero and waits for explicit playback'
   assert.match(controlsSource, /NotAllowedError[\s\S]*Microphone permission was denied/);
   assert.match(controlsSource, /requestAnimationFrame\(updateRecordingFeedback\)/);
   assert.doesNotMatch(controlsSource, /AnalyserNode|createAnalyser|recordingPeaks/);
-  assert.match(controlsSource, /updateQuestionAudio\(profileCode, observationId, raw\)[\s\S]*onAudioSaved\(\{ url:[\s\S]*mimeType: raw\.type/);
+  assert.match(controlsSource, /updateQuestionAudio\(profileCode, observationId, raw\)[\s\S]*onAudioSaved\(\{ url:[\s\S]*mimeType: 'audio\/wav'/);
   assert.doesNotMatch(controlsSource, /overwriteRecordingAtCursor|responseAudio/);
   assert.match(observationSource, /prepareAudioReplacement\(0\);[\s\S]*seamlessAudioKey\.current = observation \? `\$\{observation\.id\}\\0\$\{audio\.url\}` : null;[\s\S]*setResponseAudio\(audio\)/);
   assert.match(observationSource, /audioReadinessKey !== seamlessAudioKey\.current/);
