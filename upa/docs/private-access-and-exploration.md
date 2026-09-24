@@ -1,5 +1,7 @@
 # Private access and upward exploration
 
+> Access setup has been superseded by `volume-access-rollout.md`. Follow its two-stage deployment instructions. The older secret-helper instructions below describe the original implementation, not the new setup flow.
+
 This patch is based on `grammar` commit `e12fa583edf1a47ce6e4345452a2533544564ab9`. It preserves the previously applied comparison-navigation fixes. It does not deploy anything or contain an access phrase.
 
 ## Apply

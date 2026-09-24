@@ -1,3 +1,5 @@
+import {accessCredentials, validCredentials} from './credentials';
+import {setupPage, generateSetupPhrase, validSetupPhrase, createSetupCredentials} from './setup';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { MiddlewareHandler } from 'hono';
@@ -52,6 +54,7 @@ export function accessGate(database: Database.Database, options: {
   verify?: typeof verifyAccessPassphrase;
 } = {}): MiddlewareHandler {
   database.exec('CREATE TABLE IF NOT EXISTS access_attempt_limits (bucket TEXT PRIMARY KEY, count INTEGER NOT NULL)');
+  const credentials = accessCredentials(database);
   const now = options.now ?? Date.now;
   const secure = options.secure ?? process.env.NODE_ENV === 'production';
   const cookie = secure ? '__Host-telugu-access' : 'telugu-access';
@@ -72,12 +75,11 @@ export function accessGate(database: Database.Database, options: {
     c.header('X-Frame-Options','DENY');
     if (c.req.path === '/api/health' && c.req.method === 'GET') return c.json({ok:true});
     if (c.req.path === '/service-worker.js' && c.req.method === 'GET') return c.body(retireOfflineCache,200,{'Content-Type':'application/javascript'});
-    const hash = (options.hash ?? (()=>process.env.ACCESS_PASSPHRASE_HASH ?? ''))();
-    const secret = (options.secret ?? (()=>process.env.ACCESS_SESSION_SECRET ?? ''))();
-    if (!parseAccessHash(hash) || !/^[a-f0-9]{64,}$/.test(secret)) {
-      return c.req.path.startsWith('/api/') ? c.json({error:'access-unconfigured'},503) : c.html(gatePage('ప్రవేశం ఇంకా సిద్ధంగా లేదు.'),503);
-    }
-    const authenticated = validAccessSession(getCookie(c,cookie),hash,secret,now());
+    const injected = options.hash || options.secret ? {hash: options.hash?.() ?? '', secret: options.secret?.() ?? ''} : null;
+    const state = injected ? (validCredentials(injected) ? {status: 'ready' as const, credentials: injected} : {status: 'invalid' as const}) : credentials.resolve();
+    const hash = state.status === 'ready' ? state.credentials.hash : '';
+    const secret = state.status === 'ready' ? state.credentials.secret : '';
+    const authenticated = state.status === 'ready' && validAccessSession(getCookie(c,cookie),hash,secret,now());
     if (!['GET','HEAD','OPTIONS'].includes(c.req.method)) {
       const origin = c.req.header('origin');
       // Native same-origin forms and fetches provide Origin. Allow originless
@@ -88,6 +90,33 @@ export function accessGate(database: Database.Database, options: {
         if (!origin || origin !== publicOrigin || !secure) return c.json({error:'invalid-origin'},403);
       }
       if (c.req.header('sec-fetch-site') === 'cross-site') return c.json({error:'invalid-origin'},403);
+    }
+    // TEMPORARY SETUP: removed entirely by the second deployment patch.
+    const setupRequest = c.req.path === '/access/setup' || c.req.path === '/access/generate';
+    if (setupRequest && state.status !== 'missing') return c.json({error:'setup-closed'},409);
+    if (state.status === 'missing') {
+      if (c.req.method === 'GET' && ['/', '/access', '/access/setup'].includes(c.req.path)) return c.html(setupPage());
+      if (setupRequest && c.req.method === 'POST') {
+        return limitedBody(c, async () => {
+          if (verifying || !takeAttempt()) {c.header('Retry-After','60'); c.res=c.html(setupPage('కొంతసేపటి తర్వాత ప్రయత్నించండి.'),429);return;}
+          if (c.req.path === '/access/generate') {c.res=c.json({phrase:generateSetupPhrase()});return;}
+          verifying = true;
+          try {
+            const body = await c.req.parseBody().catch(()=>({} as Record<string,unknown>));
+            if (!validSetupPhrase(body.password)) {c.res=c.html(setupPage('కనీసం నాలుగు పదాలు. గరిష్ఠం 1024 బైట్లు.'),400);return;}
+            const saved = await createSetupCredentials(body.password);
+            // The unique singleton row arbitrates concurrent processes, too.
+            if (!credentials.initialize(saved)) {c.res=c.html(gatePage('ప్రవేశం ఇప్పటికే సిద్ధమైంది.'),409);return;}
+            setCookie(c,cookie,issueAccessSession(saved.hash,saved.secret,now()),{httpOnly:true,secure,sameSite:'Strict',path:'/',maxAge:AGE});
+            c.res=c.redirect('/',303);
+          } catch {c.res=c.html(setupPage('మళ్లీ ప్రయత్నించండి.'),503);}
+          finally {verifying=false;}
+        });
+      }
+    }
+    // END TEMPORARY SETUP
+    if (state.status !== 'ready') {
+      return c.req.path.startsWith('/api/') ? c.json({error:'access-unconfigured'},503) : c.html(gatePage('ప్రవేశం ఇంకా సిద్ధంగా లేదు.'),503);
     }
     if (c.req.path === '/access' && c.req.method === 'POST') {
       return limitedBody(c, async () => {
