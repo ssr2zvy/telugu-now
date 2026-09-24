@@ -232,7 +232,10 @@ export async function updateQuestionAudio(code: string, observationId: string, a
   const response = await fetch(`/api/profiles/${encodeURIComponent(code)}/questions/${encodeURIComponent(observationId)}/audio`, {
     method: 'PUT', headers: { 'content-type': audio.type || 'audio/webm' }, body: audio,
   });
-  if (!response.ok) throw new Error(String(response.status));
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as {error?:unknown} | null;
+    throw new Error(typeof body?.error === 'string' ? body.error : `Recording upload failed (${response.status}).`);
+  }
 }
 
 export async function generateExport(

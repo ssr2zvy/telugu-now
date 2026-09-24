@@ -45,7 +45,7 @@ test('appearance groups contain page links and defer controls to leaf pages', ()
     assert.match(html, /<nav/);
     assert.doesNotMatch(html, /<input|<details|<summary/, page);
   }
-  assert.match(renderPage('appearanceHighlight'), /role="switch"/);
+  assert.match(renderPage('appearanceHighlightEnabled'), /role="switch"/);
   assert.match(renderPage('appearanceSize'), /type="range"/);
   assert.match(renderPage('appearanceFont'), /Mandali/);
   assert.match(renderPage('appearanceFont'), /role="switch"/);
@@ -60,7 +60,7 @@ test('each color page offers presets and opens a separate color wheel page', () 
     const wheel = appearanceGroups[page]![0]!;
     assert.match(renderPage(wheel), /type="color"/);
   }
-  assert.match(renderPage('appearanceModificationColor'), /aria-pressed="true"[^]*?Icon color/);
+  assert.match(renderPage('appearanceModificationColor'), /aria-pressed="true"[^]*?Near/);
 });
 
 test('the new default migrates the previous neutral default without overriding custom colors', () => {

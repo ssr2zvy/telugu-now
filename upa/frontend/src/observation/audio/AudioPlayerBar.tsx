@@ -260,9 +260,6 @@ export function AudioPlayerBar({
         onPointerSeekMove={player.updatePointerSeek}
         onPointerSeekEnd={player.endPointerSeek}
       />
-      {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
-        {player.playbackStatus}
-      </div> : null}
       {bookmarkError || (!onPlaybackErrorChange && player.playbackError) ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
       </div> : null}

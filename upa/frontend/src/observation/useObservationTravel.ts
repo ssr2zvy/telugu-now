@@ -25,8 +25,8 @@ export function useObservationTravel(screen: RefObject<HTMLElement | null>, posi
     const distance = screen.current?.clientWidth ?? window.innerWidth;
     previous.node.style.visibility = 'visible';
     const timing = { duration: GRADIENT_SETTLE_MS, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' as const };
-    const leaving = previous.node.animate([{ translate: '0 0' }, { translate: `${-previous.direction * distance}px 0` }], timing);
-    const entering = incoming?.animate([{ translate: `${previous.direction * distance}px 0` }, { translate: '0 0' }], timing);
+    const leaving = previous.node.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${-previous.direction * distance}px)` }], timing);
+    const entering = incoming?.animate([{ transform: `translateX(${previous.direction * distance}px)` }, { transform: 'translateX(0)' }], timing);
     animations.current = entering ? [leaving, entering] : [leaving];
     void Promise.all(animations.current.map(animation => animation.finished)).then(() => {
       if (pending.current === previous) cleanup();
@@ -43,7 +43,7 @@ export function useObservationTravel(screen: RefObject<HTMLElement | null>, posi
       const copy = original.cloneNode(true) as HTMLElement;
       copy.dataset.outgoingObservation = 'true';
       copy.setAttribute('aria-hidden', 'true'); copy.inert = true;
-      Object.assign(copy.style, { position: 'fixed', left: `${bounds.left}px`, top: `${bounds.top}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, maxWidth: 'none', margin: '0', opacity: '1', pointerEvents: 'none', visibility: 'hidden', zIndex: '4' });
+      Object.assign(copy.style, { position: 'fixed', translate: 'none', transform: 'none', left: `${bounds.left}px`, top: `${bounds.top}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, maxWidth: 'none', margin: '0', opacity: '1', pointerEvents: 'none', visibility: 'hidden', zIndex: '4' });
       // Preserve inherited typography when moving the copy out of its text container.
       const computed = getComputedStyle(original);
       copy.style.font = computed.font; copy.style.lineHeight = computed.lineHeight; copy.style.textAlign = computed.textAlign;

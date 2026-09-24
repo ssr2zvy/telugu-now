@@ -57,6 +57,9 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
   const savePending = useRef<Promise<boolean> | null>(null);
   const finishSave = useRef<((saved: boolean) => void) | null>(null);
   const saveFailed = useRef(false);
+  const failedRecording = useRef<Blob | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const recordCursor = useRef(0);
@@ -142,10 +145,35 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
     if (savePending.current) return savePending.current;
     return !saveFailed.current;
   }}));
+  const persistRecording = async (raw: Blob): Promise<boolean> => {
+    try {
+      if (!raw.size) throw new Error('No audio was captured. Record again.');
+      await updateQuestionAudio(profileCode, observationId, raw);
+      failedRecording.current = null; saveFailed.current = false;
+      if (mounted.current) {
+        setError(null);
+        onAudioSaved({ url: `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio?v=${Date.now()}`, mimeType: 'audio/wav', durationSeconds: 0 });
+      }
+      return true;
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Recording could not be saved.';
+      const retryable = raw.size > 0 && !/decoded|Unsupported|empty|two minutes|Evaluation is final|not found/i.test(message);
+      failedRecording.current = retryable ? raw : null; saveFailed.current = true;
+      if (mounted.current) setError(`${message}${retryable ? ' Tap record to retry saving.' : ''}`);
+      reportClientTelemetry({event:'recording_failed',observationId,stage:'upload',failureCategory:'upload-rejected'});
+      return false;
+    }
+  };
   const startRecording = async () => {
     if (recording) { stopRecording(); return; }
     if (requestingMicrophone || savePending.current) return;
     setError(null);
+    if (failedRecording.current) {
+      const retry = persistRecording(failedRecording.current);
+      savePending.current = retry;
+      try { await retry; } finally { savePending.current = null; }
+      return;
+    }
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError(recordingErrorMessage(null));
       reportClientTelemetry({
@@ -196,20 +224,20 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
         stream.current = null;
         recorder.current = null;
         setRecording(false);
-        void updateQuestionAudio(profileCode, observationId, raw).then(() => {
-          const responseUrl = `/api/profiles/${encodeURIComponent(profileCode)}/questions/${encodeURIComponent(observationId)}/audio`;
-          onAudioSaved({ url: `${responseUrl}?v=${Date.now()}`, mimeType: 'audio/wav', durationSeconds: 0 });
-          completeSave(true);
-        }).catch(() => {
+        void persistRecording(raw).then(completeSave);
+      };
+      mediaRecorder.onerror = () => {
+        if (mounted.current) { setRequestingMicrophone(false); setError('Audio capture failed. Record again.'); }
+        if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        else {
+          mediaStream.getTracks().forEach(track => track.stop());
+          if (recordingFrame.current !== null) cancelAnimationFrame(recordingFrame.current);
+          recordingFrame.current = null;
+          stream.current = null; recorder.current = null;
+          onRecordingChange(null);
+          if (mounted.current) setRecording(false);
           completeSave(false);
-          setError('Recording could not be saved.');
-          reportClientTelemetry({
-            event: 'recording_failed',
-            observationId,
-            stage: 'upload',
-            failureCategory: 'upload-rejected',
-          });
-        });
+        }
       };
       mediaRecorder.onstart = () => {
         if (session !== recordingSession.current) return;
@@ -219,7 +247,7 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
         onRecordingChange({ start: recordCursor.current, end: recordCursor.current, span: recordingSpan });
         recordingFrame.current = requestAnimationFrame(updateRecordingFeedback);
       };
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
     } catch (caught) {
       finishSave.current?.(false);
       finishSave.current = null;
@@ -251,7 +279,6 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
       </defs>
     </svg>
     <button type="button" className="audio-transport-button question-record-button" aria-label={requestingMicrophone ? 'Requesting microphone access' : recording ? 'Stop recording' : 'Record'} aria-pressed={recording} disabled={!visible || requestingMicrophone} onClick={(event) => { event.stopPropagation(); void startRecording(); }}>{recording ? <CircleDot className="control-icon" aria-hidden="true" /> : <Mic className="control-icon" aria-hidden="true" />}</button>
-    <span className="recording-readiness" role="status">{requestingMicrophone ? 'Preparing microphone…' : recording ? 'Recording' : ''}</span>
     {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 

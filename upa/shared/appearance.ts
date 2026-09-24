@@ -20,6 +20,7 @@ export interface AppearanceSettings {
   fontScale: number;
   textOffset: number;
   audioOffset: number;
+  questionActionOffset: number;
   // Vertical offsets remembered for the magnifier position not currently
   // active, restored automatically when switching back to it.
   textOffsetOther: number;
@@ -35,6 +36,7 @@ export interface AppearanceSettings {
   modificationLightness: number;
   gradientBarrier: number;
   modificationColor: string | null;
+  modificationPreset: 'near' | 'soft' | 'balanced' | 'defined';
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   toggleTrigger: 'scroll' | 'tap';
@@ -50,6 +52,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   fontScale: 50,
   textOffset: 0,
   audioOffset: 0,
+  questionActionOffset: 0,
   textOffsetOther: 0,
   audioOffsetOther: 0,
   audioTimestampGap: 1,
@@ -62,6 +65,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   modificationLightness: 24,
   gradientBarrier: 50,
   modificationColor: null,
+  modificationPreset: 'near',
   magnifierPosition: 'below',
   scrollMode: true,
   toggleTrigger: 'scroll',
@@ -94,6 +98,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
+    questionActionOffset: Math.max(0, parseOffset(candidate.questionActionOffset)),
     textOffsetOther: parseOffset(candidate.textOffsetOther),
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
     audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
@@ -114,6 +119,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     gradientBarrier: typeof candidate.gradientBarrier === 'number' && Number.isFinite(candidate.gradientBarrier)
       ? Math.round(Math.max(GRADIENT_BARRIER_LIMITS.min, Math.min(GRADIENT_BARRIER_LIMITS.max, candidate.gradientBarrier)))
       : DEFAULT_APPEARANCE.gradientBarrier,
+    modificationPreset: ['near','soft','balanced','defined'].includes(candidate.modificationPreset ?? '') ? candidate.modificationPreset! : 'near',
     modificationColor: isColor(candidate.modificationColor) ? candidate.modificationColor : null,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,

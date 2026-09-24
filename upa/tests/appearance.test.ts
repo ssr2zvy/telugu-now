@@ -1,3 +1,4 @@
+import { highlightPresets } from '../frontend/src/highlight-presets';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appearanceAudioColor, appearanceAudioGlass, appearanceAudioHoverColor, appearanceCornerColor, appearanceModificationColor, appearanceModificationTextShiftColor, appearanceSurface, CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
@@ -99,10 +100,10 @@ test('control darkness and timestamp visibility validate old and new preferences
   }
 });
 
-test('modification color defaults to the shared audio icon color', () => {
+test('modification color defaults to the nearest font-relative preset', () => {
   const color = appearanceModificationColor(DEFAULT_APPEARANCE);
   assert.match(color, /^#[0-9a-f]{6}$/);
-  assert.equal(color, appearanceAudioColor(DEFAULT_APPEARANCE));
+  assert.equal(color, highlightPresets(DEFAULT_APPEARANCE)[0]!.color);
   assert.equal(
     appearanceModificationColor({ ...DEFAULT_APPEARANCE, modificationColor: '#28a5d9' }),
     '#28a5d9',
@@ -340,4 +341,12 @@ test('persisted font pools discard duplicates and unknown fonts in canonical ord
   const parsed = parseAppearance({ fonts: [...fonts, fonts[0], 'unknown', fonts[0]] });
   assert.deepEqual(parsed.fonts, [...OBSERVATION_FONTS]);
   assert.equal(new Set(parsed.fonts).size, parsed.fonts.length);
+});
+
+test('record and switch position persists and stays within upward offset bounds', () => {
+  assert.equal(parseAppearance({questionActionOffset: 84}).questionActionOffset, 84);
+  assert.equal(parseAppearance({questionActionOffset: -40}).questionActionOffset, 0);
+  assert.equal(parseAppearance({questionActionOffset: 900}).questionActionOffset, 200);
+  assert.equal(parseAppearance({questionActionOffset: NaN}).questionActionOffset, 0);
+  assert.equal(parseAppearance({}).questionActionOffset, 0);
 });

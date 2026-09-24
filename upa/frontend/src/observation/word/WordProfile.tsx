@@ -1,5 +1,5 @@
 import { GradientBackdrop } from '../../GradientBackdrop';
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
 import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
@@ -15,6 +15,7 @@ import { LetterProfile } from './LetterProfile';
 import { getAlignedWordAudio } from '../../api';
 import { useAudioPlayer } from '../audio/useAudioPlayer';
 import type { AlignedWordAudio } from '../../../../shared/contracts';
+import { useWordImageNavigation } from './useWordImageNavigation';
 import { LoadingSlit } from '../../components/LoadingSlit';
 
 async function copyWord(text: string): Promise<void> {
@@ -39,17 +40,16 @@ async function copyImage(blob: Blob): Promise<void> {
 
 type ImagePane = 'action' | 'image' | 'gallery' | 'info';
 
-function WordImage({ root }: { root: string }) {
+function WordImage({ root, sentence }: { root: string; sentence: string }) {
   const { appearance, profileCode } = useAppearance();
   const [images, setImages] = useState<WordImageMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [pane, setPane] = useState<ImagePane>('action');
   const [boundary, setBoundary] = useState<'before' | 'after'>('after');
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const [imageTaps] = useState(() => new ReaderTaps());
+  const section = useRef<HTMLElement>(null);
   const [feedback, setFeedback] = useState('');
-  useEffect(() => () => imageTaps.cancel(), [imageTaps]);
-  useEffect(() => { imageTaps.cancel(); setFeedback(''); }, [pane, currentIndex, imageTaps]);
+  useEffect(() => { setFeedback(''); }, [pane, currentIndex]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'searching' | 'error'>('loading');
   const [error, setError] = useState('');
   const active = useRef(true);
@@ -95,7 +95,7 @@ function WordImage({ root }: { root: string }) {
     setError('');
     const existingIds = new Set(images.map(image => image.id));
     try {
-      await generateWordImage(root, profileCode, false, images.length > 0);
+      await generateWordImage(root, profileCode, false, images.length > 0, sentence);
       const saved = await wordImageGallery(root);
       if (active.current) {
         imagesRef.current = saved;
@@ -149,7 +149,7 @@ function WordImage({ root }: { root: string }) {
   };
   const navigate = (direction: -1 | 1) => {
     setMenu(null);
-    if (busy && direction > 0) return;
+    if (busy) return;
     if (pane !== 'image' && pane !== 'action') return;
     const next = navigateWordImages(pane === 'action' ? { pane: 'action' } : { pane: 'image', index: currentIndex }, images.length, direction);
     if (next.pane === 'action') {
@@ -160,12 +160,6 @@ function WordImage({ root }: { root: string }) {
       setPane('image');
     }
   };
-  const navigateFromTap = (event: MouseEvent<HTMLElement>) => {
-    if (event.target instanceof Element && event.target.closest('button, a, [role=menu], [role=dialog]')) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const direction = event.clientX < bounds.left + bounds.width / 2 ? -1 : 1;
-    imageTaps.tap(`image:${direction}`, event.clientX, event.clientY, () => navigate(direction));
-  };
   const copyCurrent = async () => {
     if (!current) return;
     setMenu(null);
@@ -174,23 +168,24 @@ function WordImage({ root }: { root: string }) {
     catch (reason) { setError(wordImageError(reason)); }
   };
   const busy = status === 'loading' || status === 'generating' || status === 'searching';
+  const imageNavigation = useWordImageNavigation(section, !busy && !menu && (pane === 'image' || pane === 'action'), navigate);
   return (
-    <section className="word-image-section" aria-label="Concept images" aria-busy={busy}
+    <section ref={section} {...imageNavigation} data-pane={pane} className="word-image-section" aria-label="Concept images" aria-busy={busy}
       style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}
-      onClick={event => { event.stopPropagation(); navigateFromTap(event); }}
+      onClick={event => event.stopPropagation()}
       onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); }}>
       <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
         <defs><linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
           {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
         </linearGradient></defs>
       </svg>
-      {pane === 'image' && current ? <div className="word-image-preview" onContextMenu={event => {
+      {!busy && pane === 'image' && current ? <div className="word-image-preview" onContextMenu={event => {
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY });
       }}>
-        <img src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
+        <img draggable={false} src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
       </div> : null}
-      {pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
+      {!busy && pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
         <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
           aria-label={images.length ? 'Generate another image' : 'Generate image'}
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>
@@ -203,14 +198,14 @@ function WordImage({ root }: { root: string }) {
         </button>
       </div>
       : null}
-      {pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">
+      {!busy && pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">
         {images.map((image, index) => <button key={image.id} ref={index === currentIndex ? currentThumbnail : undefined}
           type="button" aria-label={`Open image ${index + 1}`} aria-current={index === currentIndex}
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCurrentIndex(index); setPane('image'); }}>
           <img src={wordImageUrl(root, image.id)} alt="" />
         </button>)}
       </div> : null}
-      {pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
+      {!busy && pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
         <dl>{current.title ? <div><dt>Title</dt><dd>{current.title}</dd></div> : null}
           <div><dt>Retrieval</dt><dd>{current.method === 'generation' ? 'Generated' : 'Search'}</dd></div>
           <div><dt>Vendor</dt><dd>{current.vendor}</dd></div>
@@ -222,7 +217,7 @@ function WordImage({ root }: { root: string }) {
       {busy ? <div className="word-image-loading">
         <LoadingSlit label={status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : 'Searching for licensed images'} />
       </div> : null}
-      {menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
+      {!busy && menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
         style={{ left: menu.x, top: menu.y }} onPointerDown={event => event.stopPropagation()}>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Copy" aria-label="Copy image" onClick={() => void copyCurrent()}><Copy size={18} /></button>
         <button className="reading-context-menu-action" role="menuitem" type="button" title="Gallery" aria-label="Open gallery" onClick={() => { setMenu(null); setPane('gallery'); }}><Images size={18} /></button>
@@ -235,8 +230,9 @@ function WordImage({ root }: { root: string }) {
   );
 }
 
-export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
+export function WordProfile({ word, sentence, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
   word: string;
+  sentence: string;
   observationId: string;
   wordStart: number;
   wordEnd: number;
@@ -343,7 +339,7 @@ export function WordProfile({ word, observationId, wordStart, wordEnd, fontFamil
         {wordPlayer.playbackError ? <p className="word-profile-error" role="alert">{wordPlayer.playbackError}</p> : null}
       </header>
       <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
-      <WordImage key={analysis.root} root={analysis.root} />
+      <WordImage key={analysis.root} root={analysis.root} sentence={sentence} />
 
       </>}
     </dialog>
