@@ -1,3 +1,4 @@
+import {oneTimeRecovery} from './recovery';
 import {accessCredentials, validCredentials} from './credentials';
 import {setupPage, generateSetupPhrase, validSetupPhrase, createSetupCredentials} from './setup';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
@@ -44,7 +45,7 @@ self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=
 function gatePage(error = ''): string {
   // Only fixed Telugu strings enter this document. No secret or user input is echoed.
   return `<!doctype html><html lang="te"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ప్రవేశం</title>
-<style>html{color:#383747;background:linear-gradient(135deg,#e3e4ef,#d8e6e4);font-family:system-ui,sans-serif}body{margin:0;min-height:100dvh;display:grid;place-items:center}form{width:min(78vw,26rem);display:grid;gap:1.5rem}input{box-sizing:border-box;width:100%;font:inherit;font-size:1.3rem;padding:1rem .3rem;border:0;border-bottom:1px solid #737485;background:transparent;color:inherit;border-radius:0}button{justify-self:end;width:48px;height:48px;background:none;border:0;color:inherit;cursor:pointer}button svg{width:24px;height:24px}p{font-size:.9rem;margin:0}.account{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}</style>
+<style>html{color:#383747;background:linear-gradient(135deg,#e3e4ef,#d8e6e4);font-family:system-ui,sans-serif}body{margin:0;min-height:100dvh;display:grid;place-items:center}form{width:min(78vw,26rem);display:grid;gap:1.5rem}input{box-sizing:border-box;width:100%;font:inherit;font-size:1.3rem;padding:1rem .3rem;border:0;border-bottom:1px solid #737485;background:transparent;color:inherit;border-radius:0;appearance:none;-webkit-appearance:none;outline:none;box-shadow:none;-webkit-tap-highlight-color:transparent}input:focus{outline:none;box-shadow:none;border-bottom-color:#383747}input:-webkit-autofill{-webkit-background-clip:text;-webkit-text-fill-color:#383747;caret-color:#383747}button{justify-self:end;width:48px;height:48px;background:none;border:0;color:inherit;cursor:pointer}button svg{width:24px;height:24px}p{font-size:.9rem;margin:0}.account{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}</style>
 <form method="post" action="/access" autocomplete="on"><input class="account" type="text" name="username" value="యజమాని" autocomplete="username" aria-label="వినియోగదారు" readonly tabindex="-1"><input type="password" name="password" autocomplete="current-password" aria-label="ప్రవేశ వాక్యం" placeholder="ప్రవేశ వాక్యం" required maxlength="512" autocapitalize="none" spellcheck="false"><button type="submit" aria-label="ప్రవేశించు"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16m-7-7 7 7-7 7"/></svg></button>${error ? `<p role="alert">${error}</p>` : ''}</form>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});</script></html>`;
 }
@@ -55,6 +56,7 @@ export function accessGate(database: Database.Database, options: {
 } = {}): MiddlewareHandler {
   database.exec('CREATE TABLE IF NOT EXISTS access_attempt_limits (bucket TEXT PRIMARY KEY, count INTEGER NOT NULL)');
   const credentials = accessCredentials(database);
+  const recovery = oneTimeRecovery(database);
   const now = options.now ?? Date.now;
   const secure = options.secure ?? process.env.NODE_ENV === 'production';
   const cookie = secure ? '__Host-telugu-access' : 'telugu-access';
@@ -76,7 +78,7 @@ export function accessGate(database: Database.Database, options: {
     if (c.req.path === '/api/health' && c.req.method === 'GET') return c.json({ok:true});
     if (c.req.path === '/service-worker.js' && c.req.method === 'GET') return c.body(retireOfflineCache,200,{'Content-Type':'application/javascript'});
     const injected = options.hash || options.secret ? {hash: options.hash?.() ?? '', secret: options.secret?.() ?? ''} : null;
-    const state = injected ? (validCredentials(injected) ? {status: 'ready' as const, credentials: injected} : {status: 'invalid' as const}) : credentials.resolve();
+    const state = injected ? (validCredentials(injected) ? {status: 'ready' as const, credentials: injected} : {status: 'invalid' as const}) : recovery.pending() ? {status: 'missing' as const} : credentials.resolve();
     const hash = state.status === 'ready' ? state.credentials.hash : '';
     const secret = state.status === 'ready' ? state.credentials.secret : '';
     const authenticated = state.status === 'ready' && validAccessSession(getCookie(c,cookie),hash,secret,now());
@@ -95,7 +97,7 @@ export function accessGate(database: Database.Database, options: {
     const setupRequest = c.req.path === '/access/setup' || c.req.path === '/access/generate';
     if (setupRequest && state.status !== 'missing') return c.json({error:'setup-closed'},409);
     if (state.status === 'missing') {
-      if (c.req.method === 'GET' && ['/', '/access', '/access/setup'].includes(c.req.path)) return c.html(setupPage());
+      if (c.req.method === 'GET' && (['/', '/access', '/access/setup'].includes(c.req.path) || (!c.req.path.startsWith('/api/') && Boolean(c.req.header('accept')?.includes('text/html'))))) return c.html(setupPage());
       if (setupRequest && c.req.method === 'POST') {
         return limitedBody(c, async () => {
           if (verifying || !takeAttempt()) {c.header('Retry-After','60'); c.res=c.html(setupPage('కొంతసేపటి తర్వాత ప్రయత్నించండి.'),429);return;}
@@ -105,8 +107,8 @@ export function accessGate(database: Database.Database, options: {
             const body = await c.req.parseBody().catch(()=>({} as Record<string,unknown>));
             if (!validSetupPhrase(body.password)) {c.res=c.html(setupPage('కనీసం నాలుగు పదాలు. గరిష్ఠం 1024 బైట్లు.'),400);return;}
             const saved = await createSetupCredentials(body.password);
-            // The unique singleton row arbitrates concurrent processes, too.
-            if (!credentials.initialize(saved)) {c.res=c.html(gatePage('ప్రవేశం ఇప్పటికే సిద్ధమైంది.'),409);return;}
+            // Replaces the forgotten password once; the durable claim and update are atomic.
+            if (!recovery.replace(saved)) {c.res=c.html(gatePage('ప్రవేశం ఇప్పటికే సిద్ధమైంది.'),409);return;}
             setCookie(c,cookie,issueAccessSession(saved.hash,saved.secret,now()),{httpOnly:true,secure,sameSite:'Strict',path:'/',maxAge:AGE});
             c.res=c.redirect('/',303);
           } catch {c.res=c.html(setupPage('మళ్లీ ప్రయత్నించండి.'),503);}
