@@ -51,14 +51,8 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       if (origin.current?.moved) callbacks.current.feedback?.onCancel();
       suppressClick.current = false;
       if (!enabled || !event.isPrimary || event.button !== 0) { origin.current = null; callbacks.current.feedback?.onCancel(); return; }
-      // Evaluation taps never become navigation gestures.
-      if (event.target instanceof Element && event.target.closest('.grammar-evaluation')) {
-        origin.current = null;
-        callbacks.current.cancelTap();
-        return;
-      }
-      // Other controls retain taps; deliberate page swipes may start on them.
-      const control=event.target instanceof Element && Boolean(event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls'));
+      // Controls retain taps, while deliberate drags navigate without activating them.
+      const control=event.target instanceof Element && Boolean(event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls, .grammar-evaluation'));
       const audio = event.target instanceof Element && Boolean(event.target.closest('[role="slider"]'));
       origin.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, control, audio, axis: null };
     },
