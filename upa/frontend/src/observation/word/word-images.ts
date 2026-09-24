@@ -52,8 +52,6 @@ async function imageError(response: Response): Promise<Error> {
 }
 
 export async function existingWordImage(root: string): Promise<Blob | null> {
-  const inFlight = pending.get(root.normalize('NFC').trim());
-  if (inFlight) return inFlight;
   const response = await fetch(wordImageUrl(root));
   if (response.status === 404) return null;
   if (!response.ok) throw await imageError(response);
@@ -79,15 +77,16 @@ export async function wordImageSettings(profileCode: string): Promise<ImageSetti
   return response.json() as Promise<ImageSettings>;
 }
 
-export function generateWordImage(root: string, profileCode: string, regenerate = false, append = false): Promise<Blob> {
+export function generateWordImage(root: string, profileCode: string, regenerate = false, append = false, sentence = ''): Promise<Blob> {
   const key = root.normalize('NFC').trim();
-  const inFlight = pending.get(key);
+  const requestKey = JSON.stringify([key, profileCode, regenerate, append, sentence]);
+  const inFlight = pending.get(requestKey);
   if (inFlight) return inFlight;
-  const task = fetch(`${wordImageUrl(key)}&profile=${encodeURIComponent(profileCode)}${regenerate ? '&regenerate=1' : append ? '&append=1' : ''}`, { method: 'POST' }).then(async response => {
+  const task = fetch(`${wordImageUrl(key)}&profile=${encodeURIComponent(profileCode)}${regenerate ? '&regenerate=1' : append ? '&append=1' : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentence }) }).then(async response => {
     if (!response.ok) throw await imageError(response);
     return response.blob();
-  }).finally(() => { pending.delete(key); });
-  pending.set(key, task);
+  }).finally(() => { pending.delete(requestKey); });
+  pending.set(requestKey, task);
   return task;
 }
 

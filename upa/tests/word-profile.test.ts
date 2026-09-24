@@ -592,3 +592,33 @@ test('failed regeneration preserves the old image and retries publication withou
     assert.deepEqual(store.get('tree')?.image, replacement);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
+test('sentence image prompts validate context and do not coalesce distinct sentences', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sentence-images-'));
+  const prompts: string[] = [];
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory, readKey: () => 'fixture',
+      generate: async prompt => {
+        prompts.push(prompt);
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return Buffer.from([255, 216, 255, 217]);
+      },
+    }));
+    const put = await app.request('/api/word-images/settings?profile=001', {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: 'Draw <core word> in <sentence>'}),
+    });
+    assert.equal(put.status, 200);
+    const url = '/api/word-images?root=test&profile=001&append=1';
+    assert.equal((await app.request(url, {method: 'POST'})).status, 400);
+    const send = (sentence: unknown) => app.request(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sentence})});
+    assert.equal((await send(123)).status, 400);
+    assert.equal((await send('x'.repeat(4001))).status, 400);
+    const results = await Promise.all([send('first sentence'), send('second sentence'), send('first sentence')]);
+    assert.deepEqual(results.map(result => result.status), [200,200,200]);
+    assert.deepEqual(prompts.sort(), ['Draw test in first sentence','Draw test in second sentence']);
+  } finally {
+    database.close(); fs.rmSync(directory, {recursive: true, force: true});
+  }
+});

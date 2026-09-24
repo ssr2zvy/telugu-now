@@ -1,3 +1,6 @@
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 const MAX_INPUT = 16 * 1024 * 1024;
@@ -14,10 +17,14 @@ export async function normalizeQuestionRecording(input: Uint8Array, mimeType: st
   if (!format || !input.byteLength || input.byteLength > MAX_INPUT) throw new Error('Unsupported or empty recording.');
   if (active >= 2) throw new Error('Recording processing is busy. Try saving again.');
   active++;
+  let directory: string | undefined;
   try {
+    directory = await mkdtemp(join(tmpdir(), 'telugu-recording-'));
+    const inputPath = join(directory, 'input.recording');
+    await writeFile(inputPath, input, { mode: 0o600 });
     const pcm = await new Promise<Buffer>((resolve,reject)=>{
       const child=spawn('ffmpeg',['-nostdin','-hide_banner','-loglevel','error','-xerror',
-        '-protocol_whitelist','pipe','-threads','1','-f',format,'-i','pipe:0',
+        '-protocol_whitelist','file,pipe','-threads','1','-f',format,'-i',inputPath,
         '-map','0:a:0','-vn','-sn','-dn','-map_metadata','-1','-filter_threads','1','-threads','1',
         '-ac','1','-ar',String(RATE),'-t','121','-c:a','pcm_s16le','-f','s16le','pipe:1'],{shell:false});
       const chunks:Buffer[]=[];let size=0,settled=false;
@@ -35,7 +42,7 @@ export async function normalizeQuestionRecording(input: Uint8Array, mimeType: st
       child.stderr.resume();
       child.stdin.on('error',()=>{/* Decoder exit below reports malformed input. */});
       child.on('close',code=>finish(code!==0||size===0||size%2!==0?new Error('Recording could not be decoded. Please record again.'):undefined));
-      child.stdin.end(input);
+      child.stdin.end();
     });
     const wav=Buffer.alloc(44+pcm.length);
     wav.write('RIFF',0);wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);
@@ -43,5 +50,8 @@ export async function normalizeQuestionRecording(input: Uint8Array, mimeType: st
     wav.writeUInt32LE(RATE,24);wav.writeUInt32LE(RATE*2,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);
     wav.write('data',36);wav.writeUInt32LE(pcm.length,40);pcm.copy(wav,44);
     return wav;
-  } finally {active--;}
+  } finally {
+    active--;
+    if (directory) await rm(directory, {recursive:true,force:true});
+  }
 }

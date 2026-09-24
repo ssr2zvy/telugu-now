@@ -1,3 +1,4 @@
+import { highlightPresets } from './highlight-presets';
 import { GradientBackdrop, GradientTravelProvider } from './GradientBackdrop';
 import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getProfilePreferences, saveProfilePreferences, transferBrowserData } from './api';
@@ -62,10 +63,9 @@ export function appearanceCornerColor(appearance: Pick<AppearanceSettings, 'grad
   return contrastingPaletteColor(appearance, appearanceAudioColor(appearance));
 }
 
-// The default gradient end color matches the shared audio icon color, so
-// letter highlights read as an extension of the playback/bookmark controls.
-export function appearanceModificationColor(appearance: Pick<AppearanceSettings, 'gradient' | 'modificationColor'>): string {
-  return appearance.modificationColor ?? appearanceAudioColor(appearance);
+// Highlight endpoints stay close to the text and follow the current palette.
+export function appearanceModificationColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground' | 'modificationColor'> & Partial<Pick<AppearanceSettings, 'modificationPreset'>>): string {
+  return appearance.modificationColor ?? highlightPresets(appearance).find(preset => preset.id === (appearance.modificationPreset ?? 'near'))!.color;
 }
 
 export function appearanceFocusedLetterColor(appearance: Pick<AppearanceSettings, 'gradient' | 'foreground' | 'modificationColor'>): string {
@@ -388,6 +388,7 @@ export function AppearanceProvider({ children, profileCode = null }: { children:
     '--foreground': appearance.foreground,
     '--modification-color': appearanceModificationColor(appearance),
     '--corner-control-color': appearanceAudioColor(appearance),
+    '--question-action-offset': `${appearance.questionActionOffset}px`,
     '--audio-offset': `${appearance.audioOffset}px`,
     '--audio-timestamp-gap': `${appearance.audioTimestampGap}px`,
     '--magnifier-bar-gap': `${appearance.magnifierBarGap}px`,

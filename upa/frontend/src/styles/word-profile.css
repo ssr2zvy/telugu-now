@@ -41,7 +41,7 @@
 .word-image-info a { color: inherit; text-underline-offset: 3px; }
 .word-image-info button { justify-self: start; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .word-image-context-menu { z-index: 8; }
-.word-image-loading { position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; pointer-events: none; background: color-mix(in srgb, var(--wash) 82%, transparent); }
+.word-image-loading { position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; pointer-events: none; background: transparent; }
 .word-profile-error { border-inline-start: 3px solid currentColor; padding-inline-start: 12px; font-size: .8rem; line-height: 1.7; overflow-wrap: anywhere; }
 .word-profile[data-letter-page='true'] { display: block; }
 .word-profile[data-letter-page='true'] .word-profile-gradient { clip-path: none; }
@@ -72,3 +72,5 @@
 .image-generation-settings textarea { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: inherit; font: inherit; font-size: .9rem; line-height: 1.7; padding: 12px; }
 .image-prompt-requirement { font-size: .75rem; margin: 0; overflow-wrap: anywhere; }
 .image-generation-settings [role='status'] { font-size: .8rem; min-height: 24px; }
+
+.word-image-section:is([data-pane="image"], [data-pane="action"]) { touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; }

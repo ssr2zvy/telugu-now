@@ -74,9 +74,9 @@ test('saved preferences migrate independently and texture caches distinguish bar
   assert.equal(key(100),key(200));
 });
 
-test('letter modifications expose the barrier as its own slider page', () => {
+test('highlight mods expose the barrier as its own slider page', () => {
   const props = {language:'en' as const,font:null,onNavigate(){},onFont(){}};
-  const menu = renderToStaticMarkup(createElement(OrganizedAppearancePage,{...props,page:'appearanceModifications'}));
+  const menu = renderToStaticMarkup(createElement(OrganizedAppearancePage,{...props,page:'appearanceHighlight'}));
   assert.match(menu,/Gradient barrier/);
   assert.doesNotMatch(menu,/Modification lightness|type="range"/);
   const control = renderToStaticMarkup(createElement(OrganizedAppearancePage,{...props,page:'appearanceGradientBarrier'}));

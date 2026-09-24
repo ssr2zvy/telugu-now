@@ -1,3 +1,4 @@
+import { highlightPresets, type HighlightPreset } from '../../highlight-presets';
 import type { CSSProperties } from 'react';
 import { ChevronRight, RotateCcw, Shuffle } from 'lucide-react';
 import {
@@ -19,7 +20,7 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
   const text=(en:string,te:string)=>language==='en'?en:te;
   const title=appearancePageLabel(page,language);
   const reset=(apply:()=>void)=><button type="button" className="appearance-icon-action" aria-label={text('Reset','పునరుద్ధరించు')} onClick={apply}><RotateCcw aria-hidden="true"/></button>;
-  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'magnifierBarGap'|'gradientBarrier'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
+  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'questionActionOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'magnifierBarGap'|'gradientBarrier'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
     <section className="appearance-control-page"><div className="appearance-section-heading"><label htmlFor={`appearance-${key}`}>{title}</label>{reset(()=>updateAppearance({[key]:DEFAULT_APPEARANCE[key]}))}</div>
       <div className="appearance-scale"><input id={`appearance-${key}`} type="range" min={min} max={max} step={1} disabled={disabled} value={appearance[key]}
         style={{'--range-progress':`${(appearance[key]-min)/(max-min)*100}%`} as CSSProperties}
@@ -37,18 +38,17 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
     else if(colorSetting==='modificationColor')updateAppearance({modificationColor:color});
     else if(colorSetting==='surface')updateAppearance({surface:color});
   };
-  const swatch=(label:string,color:string,value:string|null,selected:boolean)=><button type="button" key={label} className="appearance-preset" aria-pressed={selected} onClick={()=>setColor(value)}>
+  const swatch=(label:string,color:string,value:string|null,selected:boolean,preset?:HighlightPreset)=><button type="button" key={label} className="appearance-preset" aria-pressed={selected} onClick={()=>preset?updateAppearance({modificationColor:null,modificationPreset:preset}):setColor(value)}>
     <span className="appearance-preset-swatch" style={{backgroundColor:color}} aria-hidden="true"/><span>{label}</span>
   </button>;
   let content;
   if(colorPage){
     if(page.endsWith('Wheel'))content=<label className="appearance-color-row"><span>{text('Color','రంగు')}</span><output>{currentColor.toUpperCase()}</output><input type="color" aria-label={text('Color wheel','రంగు చక్రం')} value={currentColor} onChange={event=>setColor(event.target.value)}/></label>;
     else {
-      const presets:Array<{label:string;color:string;value:string|null}>=colorSetting==='modificationColor'?[
-        {label:text('Icon color','చిహ్న రంగు'),color:appearanceAudioColor(appearance),value:null},
-        {label:text('Icon hover color','చిహ్న హోవర్ రంగు'),color:appearanceAudioHoverColor(appearance),value:appearanceAudioHoverColor(appearance)},
-        {label:text('Text shift color','అక్షర మార్పు రంగు'),color:appearanceModificationTextShiftColor(appearance),value:appearanceModificationTextShiftColor(appearance)},
-      ]:colorSetting==='foreground'?[
+      const presets:Array<{label:string;color:string;value:string|null;preset?:HighlightPreset}>=colorSetting==='modificationColor'?highlightPresets(appearance).map(preset=>({
+        label:({near:text('Near','దగ్గర'),soft:text('Soft','మృదువు'),balanced:text('Balanced','సమతుల్యం'),defined:text('Defined','స్పష్టం')})[preset.id],
+        color:preset.color,value:null,preset:preset.id,
+      })):colorSetting==='foreground'?[
         {label:text('Violet','ఊదా'),color:DEFAULT_APPEARANCE.foreground,value:DEFAULT_APPEARANCE.foreground},
         {label:text('Pine','ఆకుపచ్చ'),color:'#30483e',value:'#30483e'},
         {label:text('Plum','ప్లమ్'),color:'#513751',value:'#513751'},
@@ -64,13 +64,14 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
         ...[['Mist','#c8d5dc'],['Sage','#acbfb4'],['Rose','#ccb3bf'],['Lavender','#b8b1d0'],['Midnight','#344a44']].map(([label,color])=>({label:label!,color:color!,value:color!})),
       ];
       const selectedValue=colorSetting==='modificationColor'?appearance.modificationColor:colorSetting==='surface'?appearance.surface:currentColor;
-      content=<><div className="appearance-presets">{presets.map(preset=>swatch(preset.label,preset.color,preset.value,selectedValue===preset.value))}</div>
+      content=<><div className="appearance-presets">{presets.map(preset=>swatch(preset.label,preset.color,preset.value,preset.preset ? appearance.modificationColor===null && (appearance.modificationPreset??'near')===preset.preset : selectedValue===preset.value,preset.preset))}</div>
         <ParserLinks pages={[`${basePage}Wheel` as AppearancePage]} onNavigate={onNavigate} language={language}/></>;
     }
   }else if(page==='appearanceFonts')content=<nav className="settings-index">{compatibleObservationFonts(OBSERVATION_FONTS).map(name=><button type="button" key={name} onClick={()=>onFont(name)}><span className="appearance-font-glyph" style={{fontFamily:`"${name}"`}} lang="te" aria-hidden="true">అ</span><span>{name}</span><ChevronRight className="settings-entry-chevron" aria-hidden="true"/></button>)}</nav>;
   else if(page==='appearanceFont')content=font?<><p className="appearance-font-sample" style={{fontFamily:`"${font}"`}} lang="te">తెలుగు</p><label className="appearance-switch-row"><span>{font}</span><input type="checkbox" role="switch" checked={appearance.fonts.includes(font)} disabled={compatibleObservationFonts(appearance.fonts).length===1&&appearance.fonts.includes(font)} onChange={event=>updateAppearance({fonts:event.target.checked?[...appearance.fonts,font]:appearance.fonts.filter(name=>name!==font)})}/></label></>:<p>{text('Choose a font.','ఫాంట్‌ను ఎంచుకోండి.')}</p>;
   else if(page==='appearanceSize')content=slider('fontScale',0,100,'');
   else if(page==='appearanceTextPosition')content=slider('textOffset',-APPEARANCE_OFFSET_LIMIT,APPEARANCE_OFFSET_LIMIT,' px');
+  else if(page==='appearanceQuestionActionPosition')content=slider('questionActionOffset',0,APPEARANCE_OFFSET_LIMIT,' px');
   else if(page==='appearanceAudioOffset')content=slider('audioOffset',-APPEARANCE_OFFSET_LIMIT,APPEARANCE_OFFSET_LIMIT,' px');
   else if(page==='appearanceDarkness')content=slider('controlDarkness',CONTROL_DARKNESS_LIMITS.min,CONTROL_DARKNESS_LIMITS.max,'%');
   else if(page==='appearanceMagnifierBarGap')content=slider('magnifierBarGap',0,48,' px');
@@ -78,7 +79,7 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
   else if(page==='appearanceMagnifierGap')content=slider('timestampMagnifierGap',CONTROL_SPACING_LIMITS.min,CONTROL_SPACING_LIMITS.max,' px',!appearance.showAudioTimestamp);
   else if(page==='appearanceGradientBarrier')content=slider('gradientBarrier',GRADIENT_BARRIER_LIMITS.min,GRADIENT_BARRIER_LIMITS.max,'%');
   else if(page==='appearanceFade')content=slider('autoFadeSeconds',AUTO_FADE_SECONDS_LIMITS.min,AUTO_FADE_SECONDS_LIMITS.max,' s');
-  else if(page==='appearanceHighlight')content=toggle('highlightMods');
+  else if(page==='appearanceHighlightEnabled')content=toggle('highlightMods');
   else if(page==='appearanceTimestamp')content=toggle('showAudioTimestamp');
   else if(page==='appearanceMagnifierHighlight')content=toggle('showMagnifierHighlight');
   else if(page==='appearanceMagnifierPosition')content=<fieldset className="appearance-magnifier-position"><legend>{title}</legend><div className="appearance-position-options">{(['above','below'] as const).map(position=><label key={position}><input type="radio" name="magnifier-position" checked={appearance.magnifierPosition===position} onChange={()=>updateAppearance({magnifierPosition:position,textOffset:appearance.textOffsetOther,audioOffset:appearance.audioOffsetOther,textOffsetOther:appearance.textOffset,audioOffsetOther:appearance.audioOffset})}/><span>{position==='above'?text('Above','పైన'):text('Below','కింద')}</span></label>)}</div></fieldset>;

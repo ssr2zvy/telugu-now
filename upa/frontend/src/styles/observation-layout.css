@@ -1,6 +1,6 @@
-.observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 48px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: var(--audio-placement-bottom); --audio-min-bottom: max(12px, env(safe-area-inset-bottom)); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
+.observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 64px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: calc(var(--audio-placement-bottom) + var(--audio-detail-height)); --audio-min-bottom: max(12px, env(safe-area-inset-bottom)); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
 .observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }
-.observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-base-bottom) + 60px); }
+.observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-placement-bottom) + 60px); }
 .observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
 .telugu-gradient-text { position: relative; display: inline-block; vertical-align: baseline; line-height: inherit; overflow: visible; color: var(--foreground); }
 .telugu-word { display: inline-block; white-space: nowrap; }
@@ -38,7 +38,7 @@
 .audio-loading-indicator { animation: none; font-size: 1.4rem; letter-spacing: .12em; }
 @keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }
-.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height) var(--audio-detail-height); align-items: center; gap: 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
+.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height); align-items: center; gap: 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
 .audio-player-bar[data-has-audio="false"] { display: none; }
 .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
 @media (hover: none) and (pointer: coarse) {
@@ -55,7 +55,7 @@
 @media (prefers-reduced-motion: reduce) {
   .observation-screen[data-scroll-mode="true"] :is(.audio-player-bar, .question-record-controls) { animation: none; transition: none; }
 }
-.audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-detail-height) var(--audio-row-height); }
+.audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-row-height); }
 .audio-transport-button { display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; touch-action: manipulation; }
 .audio-transport-button .control-icon { width: 17px; height: 17px; }
 .audio-bookmark-button .control-icon { width: 19px; height: 19px; }
@@ -81,7 +81,7 @@
 .audio-playback-controls-slot { right: 0; }
 .audio-playback-controls-slot > .audio-speed-popover-controls { position: absolute; top: 50%; left: 8px; width: max-content; transform: translateY(-50%); }
 .audio-playback-controls-slot > .audio-speed-button { transform: none; }
-.audio-player-bar[data-magnifier-position="above"] .audio-scrubber-row { grid-row: 2; }
+.audio-player-bar[data-magnifier-position="above"] .audio-scrubber-row { grid-row: 1; }
 .audio-scrubber { position: relative; flex: 0 0 68%; display: flex; align-items: center; width: 68%; height: 48px; min-width: 0; touch-action: none; cursor: pointer; }
 .audio-player-bar audio { outline: none; }
 /* A ring around the whole bar reads oddly; highlight just the thumb instead,
@@ -132,7 +132,7 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
 .question-record-button { width: var(--record-button-size); height: var(--record-button-size); }
-.question-record-button .control-icon { width: 25px; height: 25px; }
+.question-record-button .control-icon { width: 34px; height: 34px; }
 @media (hover: hover) and (pointer: fine) {
   .observation-screen { --record-gap: clamp(16px, 3dvh, 36px); }
 }
@@ -178,8 +178,8 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 .question-comparison-text { max-width: 100%; font-size: clamp(2rem, 7vmin, 6rem); line-height: 1.25; overflow-wrap: normal; word-break: normal; }
 .question-comparison-audio { display: grid; place-items: center; width: 100%; height: 100%; cursor: pointer; }
 .question-comparison .audio-player-bar { position: relative; left: auto; bottom: auto; justify-self: center; align-self: center; width: min(416px, 100%); opacity: 1; pointer-events: auto; transform: none; }
-.question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 48px 0; }
-.question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 0 48px; }
+.question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+.question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
 .question-comparison-empty { color: var(--muted); font-size: .85rem; }
 .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
 @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
@@ -188,9 +188,9 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
 }
 @media (max-width: 600px) and (hover: none) and (pointer: coarse) {
   .observation-center { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .observation-screen { --audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 56px; --record-gap: clamp(32px, 5dvh, 48px); }
-  .audio-player-bar { grid-template-rows: 56px 112px; width: min(520px, calc(100vw - 24px)); }
-  .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: 112px 56px; }
+  .observation-screen { --audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 72px; --record-gap: clamp(32px, 5dvh, 48px); }
+  .audio-player-bar { grid-template-rows: var(--audio-row-height); width: min(520px, calc(100vw - 24px)); }
+  .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-row-height); }
   .audio-precision-panel { --audio-detail-track-height: 44px; --audio-detail-track-width: 64%; }
   .audio-transport-button, .audio-bookmark-controls-slot, .audio-playback-controls-slot { width: 56px; height: 56px; }
   .audio-transport-button .control-icon, .audio-glass-icon { width: 22px; height: 22px; }
@@ -215,8 +215,8 @@ html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubb
   .question-comparison { grid-template: 1fr 1fr / 1fr; grid-template-areas: 'correct' 'user'; }
   .question-comparison-side { padding: clamp(.75rem, 4vw, 1.5rem); }
   .question-comparison .audio-player-bar { width: min(416px, 100%); }
-  .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 56px 0; }
-  .question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: 0 56px; }
+  .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+  .question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
 }
 @media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
 @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }
@@ -289,12 +289,20 @@ html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacit
 .audio-precision-panel[data-visible='false'],
 .audio-precision-panel[data-visible='false'] * { pointer-events: none !important; }
 
-/* The row is a 48px hit target; its visible line is centered inside it. */
-.audio-precision-panel { margin-top: calc(var(--magnifier-bar-gap, 4px) - 24px); }
-.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { margin-top: 0; margin-bottom: calc(var(--magnifier-bar-gap, 4px) - 24px); }
+/* The bar is the position anchor. The magnifier is out of layout flow,
+   offset from the visible timeline's center, independent of reserved rows. */
+.audio-precision-panel { position: absolute; grid-area: auto; left: 0; right: 0; top: calc(50% + var(--magnifier-bar-gap, 4px)); bottom: auto; margin: 0; }
+.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-area: auto; top: auto; bottom: calc(50% + var(--magnifier-bar-gap, 4px)); margin: 0; }
 .observation-screen { overflow: hidden; }
 
 .audio-magnifier-track { order: 1; }
 .audio-magnifier-time { order: 2; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 2; }
 .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { order: 1; }
+
+/* Stable, user-controlled action anchor: animation never changes layout. */
+.observation-screen[data-text-given-flow='true'] { --question-action-bottom: clamp(var(--question-action-floor), calc(var(--question-action-floor) + var(--question-action-offset, 0px)), calc(100dvh - var(--record-button-size) - 24px)); }
+.audio-player-bar[data-controls-visible='true'] .audio-bookmark-controls-slot[data-visible='true'],
+.audio-player-bar[data-controls-visible='true'] .audio-playback-controls-slot[data-visible='true'] { animation: audio-icons-arrive 180ms ease-out both; }
+@keyframes audio-icons-arrive { from { opacity: 0; translate: 0 -10px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .audio-player-bar .audio-bookmark-controls-slot, .audio-player-bar .audio-playback-controls-slot { animation: none !important; } }

@@ -1,6 +1,8 @@
 // Appearance routes are shared by the header, menu, back navigation and controls.
 export const appearanceLabels = {
-  appearanceMagnifierBarGap: ["Bar to magnifier", "బార్ నుండి మాగ్నిఫైయర్"],
+  appearanceQuestionActionPosition: ["Record / switch position", "రికార్డ్ / స్విచ్ స్థానం"],
+  appearanceHighlightEnabled: ["Enabled", "ప్రారంభించు"],
+  appearanceMagnifierBarGap: ["Magnifier gap", "బార్ నుండి మాగ్నిఫైయర్"],
   "appearanceBackground": [
     "Background",
     "నేపథ్యం"
@@ -78,7 +80,7 @@ export const appearanceLabels = {
     "స్థానం"
   ],
   "appearanceAudioOffset": [
-    "Audio bar offset",
+    "Audio bar position",
     "ఆడియో బార్ స్థానం"
   ],
   "appearanceMagnifierPosition": [
@@ -174,8 +176,9 @@ export const appearanceGroups:Partial<Record<AppearancePage,AppearancePage[]>> =
     "appearanceTextPosition",
     "appearanceFonts"
   ],
-  "appearanceModifications": [
-    "appearanceHighlight",
+  "appearanceModifications": ["appearanceHighlight"],
+  "appearanceHighlight": [
+    "appearanceHighlightEnabled",
     "appearanceModificationColor",
     "appearanceGradientBarrier"
   ],
@@ -187,6 +190,7 @@ export const appearanceGroups:Partial<Record<AppearancePage,AppearancePage[]>> =
     "appearanceFade"
   ],
   "appearanceAudioPosition": [
+    "appearanceQuestionActionPosition",
     "appearanceAudioOffset",
     "appearanceMagnifierPosition"
   ],

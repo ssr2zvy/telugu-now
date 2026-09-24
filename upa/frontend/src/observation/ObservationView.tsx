@@ -3,7 +3,6 @@ import { useGradientTravel } from '../GradientBackdrop';
 import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
 import { useReaderSettingsFade } from './useReaderSettingsFade';
 import { readerNeedsLoadingDots } from './reader-loading';
-import { useQuestionActionPlacement } from './useQuestionActionPlacement';
 import { useReaderSwipes } from './useReaderSwipes';
 import { copyOriginalReaderText } from './reader-hyphenation';
 import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
@@ -109,7 +108,6 @@ export function ObservationView({
   const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
   const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
   const textComparison = textGivenFlow && comparisonQuestionPhase;
-  useQuestionActionPlacement(screenRef, Boolean(textGivenFlow && (questionPhase || comparisonQuestionPhase)));
   const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
   useEffect(() => {
     const screen = screenRef.current;
@@ -156,14 +154,14 @@ export function ObservationView({
     setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
       ? current : { key, loading, progress });
   }, []);
-  const audioControlsVisible = controlsVisible;
+  const audioControlsVisible = controlsVisible || Boolean(recordingRange);
   // Reset page-owned presentation before paint, including any old exit animation.
   useLayoutEffect(() => {
     taps.cancel();
     seamlessAudioKey.current = null;
     setAudioError(null);
     setAudioMotion('idle');
-    setPhaseMotion('idle');
+    setPhaseMotion(textGivenFlow ? 'enter' : 'idle');
     playerRef.current?.dismissPrecision();
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
@@ -476,13 +474,15 @@ export function ObservationView({
     }
   };
   const verticalSwipe = (direction: 'up' | 'down') => {
-    if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+    if (!entryReady || recordingRange || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
     const visible = controlsVisible;
     if (direction === 'down') {
       if (!visible) {
+        setAudioMotion('enter');
         setControlsVisible(true);
       } else playerRef.current?.openAssociatedControls();
     } else if (!playerRef.current?.dismissPrecision()) {
+      setAudioMotion('exit');
       setControlsVisible(false);
     }
   };
@@ -506,12 +506,6 @@ export function ObservationView({
       },
       onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
     });
-  const enteredPhase = useRef<string | null>(null);
-  useEffect(() => {
-    if (!entryReady || enteredPhase.current === presentationKey) return;
-    enteredPhase.current = presentationKey;
-    if (textGivenFlow) setPhaseMotion('enter');
-  }, [textGivenFlow, entryReady, presentationKey]);
   const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) return null;
@@ -716,6 +710,7 @@ export function ObservationView({
             }}
           /> : null}
           {observation && activeQuestion ? <QuestionControls
+            key={`${state?.profileCode}:${observation.id}`}
             ref={questionControlsRef}
             profileCode={state?.profileCode ?? ''}
             observationId={observation.id}
@@ -732,7 +727,7 @@ export function ObservationView({
               setResponseAudio(audio);
               setControlsVisible(true);
             }}
-            onRecordingChange={setRecordingRange}
+            onRecordingChange={range => { setRecordingRange(range); if (range) setControlsVisible(true); }}
             onSubmit={() => { if (canNext) void move('next'); }}
           /> : null}
       </section>
@@ -759,7 +754,7 @@ export function ObservationView({
       {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text}
           observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onClose={() => setSelectedWord(null)} />

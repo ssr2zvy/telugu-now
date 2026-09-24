@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt, validImagePrompt } from '../../../shared/image-settings';
@@ -142,11 +142,22 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     const settings = preferences.get(code);
     if (regenerate && !settings.allowImageRegeneration) return context.json({ error: 'Image regeneration is disabled for this profile.' }, 403);
     if (regenerate && !cached) return context.json({ error: 'image-not-found' }, 404);
-    let task = pending.get(root);
+    const body: unknown = context.req.header('content-type')?.includes('application/json')
+      ? await context.req.json().catch(() => null) : {};
+    if (!body || typeof body !== 'object' || Array.isArray(body)
+      || ('sentence' in body && (typeof body.sentence !== 'string' || body.sentence.length > 4000))) {
+      return context.json({ error: 'Sentence must be text of at most 4000 characters.' }, 400);
+    }
+    const sentence = 'sentence' in body ? body.sentence as string : '';
+    let prompt: string;
+    try { prompt = renderImagePrompt(settings.imagePrompt, root, sentence); }
+    catch (error) { return context.json({ error: error instanceof Error ? error.message : 'Invalid image prompt.' }, 400); }
+    const operation = regenerate ? 'replace' : append ? 'append' : 'create';
+    // Coalesce identical requests only, including sentence context.
+    const requestKey = createHash('sha256').update(JSON.stringify([code, root, operation, prompt])).digest('hex');
+    let task = pending.get(requestKey);
     if (!task) {
-      const prompt = renderImagePrompt(settings.imagePrompt, root);
-      const unsavedKey = `${regenerate ? 'replace' : append ? 'append' : 'create'}:${root}`;
-      const operation = regenerate ? 'replace' : append ? 'append' : 'create';
+      const unsavedKey = requestKey;
       task = (async () => {
         const startedAt = Date.now();
         let record = unsaved.get(unsavedKey);
@@ -171,8 +182,8 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
         } catch {
           throw new Error('Image generated, but saving failed. Retry to save the same image.');
         }
-      })().finally(() => pending.delete(root));
-      pending.set(root, task);
+      })().finally(() => pending.delete(requestKey));
+      pending.set(requestKey, task);
     } else {
       imageLog({ event: 'generation-duplicate-request', word: root, failureCategory: 'duplicate-concurrent-request' });
     }
