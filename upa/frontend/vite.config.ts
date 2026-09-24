@@ -16,6 +16,7 @@ export default defineConfig({
     allowedHosts: codespaceHost ? [codespaceHost] : [],
     fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/env', '**/dev-secrets.env'] },
     proxy: {
+      '/access': {target:'http://127.0.0.1:8787',changeOrigin:false},
       '/api': {
         target: 'http://127.0.0.1:8787',
         changeOrigin: false,

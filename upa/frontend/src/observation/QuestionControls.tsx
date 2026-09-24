@@ -6,7 +6,7 @@ import { reportClientTelemetry, updateQuestionAudio, updateQuestionText } from '
 import { GoogleTeluguKeyboard } from './GoogleTeluguKeyboard';
 import type { RecordingTimeline } from './audio/AudioScrubber';
 
-export interface QuestionControlsHandle { prepareToLeave: () => Promise<boolean> }
+export interface QuestionControlsHandle { prepareToLeave: () => Promise<boolean>; canExplore: () => boolean }
 
 interface QuestionControlsProps {
   ref?: Ref<QuestionControlsHandle>;
@@ -139,7 +139,7 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
     onRecordingChange(null);
     setRecording(false);
   };
-  useImperativeHandle(ref, () => ({ prepareToLeave: async () => {
+  useImperativeHandle(ref, () => ({ canExplore: () => !recording && !requestingMicrophone && !savePending.current, prepareToLeave: async () => {
     if (requestingMicrophone) return false;
     if (recorder.current?.state === 'recording') stopRecording();
     if (savePending.current) return savePending.current;

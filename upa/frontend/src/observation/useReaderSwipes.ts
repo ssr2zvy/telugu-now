@@ -1,3 +1,4 @@
+import {ReaderWheel} from './reader-wheel';
 import { useEffect, useRef, type PointerEvent, type MouseEvent, type RefObject } from 'react';
 import { readerSwipe, type ReaderSwipe } from './reader-swipe';
 
@@ -46,6 +47,19 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
       window.removeEventListener('blur', abandon);
     };
   }, [enabled, screen]);
+  useEffect(() => {
+    const element=screen.current;
+    if(!enabled || !element)return;
+    const gesture=new ReaderWheel();
+    const wheel=(event:WheelEvent)=>{
+      if(event.ctrlKey || event.target instanceof Element && event.target.closest('input,textarea,select,[role="slider"],.word-profile'))return;
+      event.preventDefault();
+      const direction=gesture.move(event.deltaX,event.deltaY,event.deltaMode,element.clientHeight,performance.now());
+      if(direction){callbacks.current.cancelTap();callbacks.current.onSwipe(direction);}
+    };
+    element.addEventListener('wheel',wheel,{passive:false});
+    return ()=>element.removeEventListener('wheel',wheel);
+  },[enabled,page,screen]);
   return {
     onPointerDownCapture(event: PointerEvent<HTMLElement>) {
       if (origin.current?.moved) callbacks.current.feedback?.onCancel();
