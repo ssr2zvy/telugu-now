@@ -11,7 +11,6 @@
 .word-profile-gradient { position: fixed; z-index: 0; clip-path: inset(0 50% 0 0); }
 .word-profile-header { position: relative; z-index: 1; container-type: inline-size; display: grid; min-width: 0; padding: clamp(72px, 8vw, 128px); place-items: center; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .word-profile-header h2 { max-width: 100%; min-width: 0; font-family: 'Noto Sans Telugu', sans-serif; font-size: clamp(.75rem, calc(80cqi / var(--word-graphemes)), 9rem); line-height: 1.2; font-weight: 400; margin: 0; white-space: nowrap; text-align: center; }
-.word-profile-ending { color: color-mix(in srgb, var(--foreground) 58%, var(--surface)); }
 .word-profile-back { position: fixed; z-index: 2; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .word-image-section { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow: hidden; background: var(--wash); }
 .word-profile-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; border: 0; border-radius: 6px; padding: 8px; color: inherit; background: transparent; cursor: pointer; font-size: .8rem; }

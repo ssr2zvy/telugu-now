@@ -14,9 +14,9 @@ import {renderTeluguGradientTexture,type TeluguGradientTexture} from './telugu-g
 import type {ExplorationStep} from './exploration-steps';
 
 export interface ExplorationFocus {word:string;start:number;end:number;grapheme?:{text:string;start:number;end:number}}
-export function ExplorationSurface({observation,step,profileCode,fontFamily,playbackRate,autoplay,active,onFocus}: {
+export function ExplorationSurface({observation,step,profileCode,fontFamily,playbackRate,active,onFocus}: {
   observation:DisplayObservation;step:ExplorationStep;profileCode:string;fontFamily:ObservationFontFamily;
-  playbackRate:number;autoplay:boolean;active:boolean;onFocus:(focus:ExplorationFocus)=>void;
+  playbackRate:number;active:boolean;onFocus:(focus:ExplorationFocus)=>void;
 }) {
   const {appearance}=useAppearance();
   const [audio,setAudio]=useState<ObservationAudio|null>(null);
@@ -25,7 +25,7 @@ export function ExplorationSurface({observation,step,profileCode,fontFamily,play
   const cache=useRef(new Map<string,ObservationAudio>());
   const stepKey=`${observation.id}:${step.kind}:${step.start}:${step.end}`;
   const [loadedKey,setLoadedKey]=useState('');
-  const player=useAudioPlayer(loadedKey===stepKey?audio:null,null,null,playbackRate,stepKey,autoplay,active);
+  const player=useAudioPlayer(loadedKey===stepKey?audio:null,null,null,playbackRate,stepKey,false,active);
   const typography=useObservationTypography({...observation,id:stepKey,text:step.text},fontFamily,true);
   const runs=appearance.highlightMods?teluguHighlightRuns(step.text):null;
   const endColor=appearanceModificationColor(appearance);

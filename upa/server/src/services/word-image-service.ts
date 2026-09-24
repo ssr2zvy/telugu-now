@@ -97,7 +97,7 @@ export function wordImageRoutes(database: Database.Database, dependencies: {
     if (!validProfile(code)) return context.json({ error: 'invalid-profile-code' }, 404);
     const body: unknown = await context.req.json().catch(() => null);
     const prompt = body && typeof body === 'object' && 'prompt' in body ? body.prompt : null;
-    if (!validImagePrompt(prompt)) return context.json({ error: 'Prompt must contain <core word> and be at most 2000 characters.' }, 400);
+    if (!validImagePrompt(prompt)) return context.json({ error: 'Prompt must contain <word> and be at most 2000 characters.' }, 400);
     const allowRegeneration = body && typeof body === 'object' && 'allowRegeneration' in body ? body.allowRegeneration : undefined;
     if (allowRegeneration !== undefined && typeof allowRegeneration !== 'boolean') return context.json({ error: 'Invalid regeneration setting.' }, 400);
     const settings = preferences.update(code, { imagePrompt: prompt, ...(allowRegeneration === undefined ? {} : { allowImageRegeneration: allowRegeneration }) });
