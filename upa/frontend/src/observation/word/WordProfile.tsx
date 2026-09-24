@@ -230,9 +230,11 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
   );
 }
 
-export function WordProfile({ word, sentence, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
+export function WordProfile({ word, sentence, initialGrapheme, suppressAudioControls = false, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
   word: string;
   sentence: string;
+  initialGrapheme?: {text:string;start:number;end:number} | undefined;
+  suppressAudioControls?: boolean;
   observationId: string;
   wordStart: number;
   wordEnd: number;
@@ -253,7 +255,7 @@ export function WordProfile({ word, sentence, observationId, wordStart, wordEnd,
     textures: Array<TeluguGradientTexture | null>;
   } | null>(null);
   const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(analysis.word)].length;
-  const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(null);
+  const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(initialGrapheme ?? null);
   const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
   const [alignmentError, setAlignmentError] = useState(false);
   const [alignmentAttempt, setAlignmentAttempt] = useState(0);
@@ -311,7 +313,7 @@ export function WordProfile({ word, sentence, observationId, wordStart, wordEnd,
       <CustomCursor />
       <audio ref={wordPlayer.audioRef} preload="auto" hidden />
       <GradientBackdrop className="gradient-field word-profile-gradient" />
-      {selectedGrapheme && profileCode ? <LetterProfile letter={selectedGrapheme.text}
+      {selectedGrapheme && profileCode ? <LetterProfile suppressAudioControls={suppressAudioControls} letter={selectedGrapheme.text}
         observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}

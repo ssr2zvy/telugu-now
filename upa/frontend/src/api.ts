@@ -125,6 +125,7 @@ export async function saveProfilePreferences(code: string, patch: UpdateProfileP
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
+  if(response.status===401 && typeof window!=='undefined') window.location.replace('/access');
   if (!response.ok) {
     const body = await response.json().catch(() => null) as {error?:unknown} | null;
     throw new Error(typeof body?.error === 'string' ? body.error : `Request failed (${response.status})`);

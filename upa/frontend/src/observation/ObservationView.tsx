@@ -1,3 +1,5 @@
+import { ExplorationSurface } from './ExplorationSurface';
+import { explorationSteps, explorationIndex } from './exploration-steps';
 import { useObservationTravel } from './useObservationTravel';
 import { useGradientTravel } from '../GradientBackdrop';
 import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
@@ -8,6 +10,7 @@ import { copyOriginalReaderText } from './reader-hyphenation';
 import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
 import {
   useCallback,
+  useMemo,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -92,7 +95,7 @@ export function ObservationView({
   const [comparisonReady, setComparisonReady] = useState(false);
   const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
   const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
-  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string } | null>(null);
+  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
     textures: Array<TeluguGradientTexture | null>;
@@ -144,6 +147,9 @@ export function ObservationView({
   const fontAssignments = useObservationFontQueue(state, appearance.fonts);
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
     ?? 'Noto Sans Telugu';
+  const steps = useMemo(() => explorationSteps(observation?.text ?? ''), [observation?.text]);
+  const [exploration, setExploration] = useState<number | null>(null);
+  const exploring = exploration !== null && Boolean(steps[exploration]);
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
   const comparisonPhase = comparisonQuestionPhase;
   const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
@@ -154,10 +160,11 @@ export function ObservationView({
     setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
       ? current : { key, loading, progress });
   }, []);
-  const audioControlsVisible = controlsVisible || Boolean(recordingRange);
+  const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));
   // Reset page-owned presentation before paint, including any old exit animation.
   useLayoutEffect(() => {
     taps.cancel();
+    setExploration(null);
     seamlessAudioKey.current = null;
     setAudioError(null);
     setAudioMotion('idle');
@@ -474,17 +481,24 @@ export function ObservationView({
     }
   };
   const verticalSwipe = (direction: 'up' | 'down') => {
-    if (!entryReady || recordingRange || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
-    const visible = controlsVisible;
-    if (direction === 'down') {
-      if (!visible) {
-        setAudioMotion('enter');
-        setControlsVisible(true);
-      } else playerRef.current?.openAssociatedControls();
-    } else if (!playerRef.current?.dismissPrecision()) {
-      setAudioMotion('exit');
-      setControlsVisible(false);
+    if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
+    if (exploring) {
+      const next = explorationIndex(exploration, direction, steps.length);
+      setExploration(next);
+      if (next === null) { if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+      return;
     }
+    if (direction === 'up') {
+      if (controlsVisible) {
+        if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
+      } else if (showsObservationText && observation && steps.length) {
+        playerRef.current?.pause(); taps.cancel(); setExploration(0);
+      }
+      return;
+    }
+    if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+    if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
+    else playerRef.current?.openAssociatedControls();
   };
   const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
     `${observation?.id}:${observation?.question?.phase}`, direction => {
@@ -524,6 +538,7 @@ export function ObservationView({
       ref={screenRef}
       {...swipeHandlers}
       data-swipe-navigation="true"
+      data-exploring={exploring}
       data-text-given-flow={textGivenFlow}
       data-phase-motion={phaseMotion}
       onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
@@ -629,6 +644,10 @@ export function ObservationView({
           }}
         />
       </div>
+      {exploring && observation ? <ExplorationSurface observation={observation} step={steps[exploration!]!}
+        profileCode={state?.profileCode ?? ''} fontFamily={typography.fontFamily} active={!selectedWord}
+        playbackRate={state?.audioSettings.playbackRate ?? 1} autoplay={state?.audioSettings.autoplay ?? false}
+        onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
       <section
         ref={typography.containerRef}
         className="observation-center"
@@ -697,7 +716,7 @@ export function ObservationView({
             autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
             persistentDisclosure={Boolean(textGivenFlow)}
             controlsVisible={audioControlsVisible}
-            playbackEnabled={entryReady && !selectedWord}
+            playbackEnabled={entryReady && !selectedWord && !exploring}
             readinessKey={audioReadinessKey}
             onLoadingChange={handleAudioLoadingChange}
             onPlaybackErrorChange={setAudioError}
@@ -716,7 +735,7 @@ export function ObservationView({
             observationId={observation.id}
             mode={activeQuestion.mode}
             keyboard={activeQuestion.keyboard}
-            visible
+            visible={!exploring}
             initialText={activeQuestion.responseText}
             fontFamily={typography.fontFamily}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}
@@ -749,12 +768,12 @@ export function ObservationView({
           }}
         />
       </div>
-      {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase)} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+      {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase) && !exploring} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
       {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
       {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text}
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text} initialGrapheme={selectedWord.grapheme} suppressAudioControls={exploring}
           observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onClose={() => setSelectedWord(null)} />

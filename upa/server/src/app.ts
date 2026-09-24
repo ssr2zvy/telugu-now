@@ -1,3 +1,4 @@
+import { accessGate } from './access/gate';
 import { normalizeQuestionRecording } from './services/recording-audio';
 import { parsingRoutes } from './parsing/routes';
 import { grammarRoutes } from './grammar/routes';
@@ -48,6 +49,7 @@ import { errorCategory, logger, withRequestContext } from './services/logger';
 import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
 export const app = new Hono();
+app.use('*', accessGate(db));
 
 function requestPath(path: string): string {
   return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');

@@ -11,6 +11,7 @@ import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telu
 import { AudioPlayerBar, type AudioPlayerBarHandle } from '../audio/AudioPlayerBar';
 
 interface LetterProfileProps {
+  suppressAudioControls?: boolean;
   letter: string;
   observationId: string;
   word: string;
@@ -32,7 +33,7 @@ interface LetterRun {
 
 export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
   profileCode, fontFamily, playbackRate,
-  onCopy, onBack }: LetterProfileProps) {
+  onCopy, onBack, suppressAudioControls = false }: LetterProfileProps) {
   const { appearance } = useAppearance();
   const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
@@ -79,7 +80,7 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   };
 
   return (
-    <section className="letter-profile-page controls-visible" aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
+    <section className={`letter-profile-page ${suppressAudioControls ? 'exploration-focus' : 'controls-visible'}`} aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
       <button type="button" className="word-profile-back" aria-label="Back to word" onClick={onBack}>
         <ArrowLeft size={20} aria-hidden="true" />
       </button>
@@ -98,7 +99,7 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
           </span>)}
         </h2>
         <AudioPlayerBar ref={player} audio={selection.audio} sourceId={selection.sourceId} sourceKey={selection.sourceKey}
-          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible playbackEnabled
+          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible={!suppressAudioControls} playbackEnabled
           readinessKey={`${selection.sourceId}:${selection.sourceKey}`}
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => setError(message ?? '')} />

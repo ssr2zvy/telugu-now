@@ -306,3 +306,13 @@ html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacit
 .audio-player-bar[data-controls-visible='true'] .audio-playback-controls-slot[data-visible='true'] { animation: audio-icons-arrive 180ms ease-out both; }
 @keyframes audio-icons-arrive { from { opacity: 0; translate: 0 -10px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .audio-player-bar .audio-bookmark-controls-slot, .audio-player-bar .audio-playback-controls-slot { animation: none !important; } }
+
+/* Exploration keeps the original layout measured but removes all its hit targets. */
+.observation-screen[data-exploring='true'] > .observation-center { visibility: hidden; pointer-events: none; }
+.observation-screen[data-exploring='true'] > .observation-center *,
+.observation-screen[data-exploring='true'] > .grammar-evaluation { visibility: hidden !important; pointer-events: none !important; }
+.exploration-surface { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 5rem max(1rem, 8vw); min-height: 0; touch-action: pinch-zoom; }
+.exploration-surface .observation-text { max-width: 100%; }
+.exploration-focus .audio-player-bar { display: none; }
+/* Isolated units stay centered; the original reader retains its audio anchor. */
+.exploration-surface .observation-text { translate: none !important; }

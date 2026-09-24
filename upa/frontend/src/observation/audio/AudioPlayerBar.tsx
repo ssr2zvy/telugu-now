@@ -37,6 +37,7 @@ export interface AudioPlayerBarHandle {
   currentTime: () => number;
   duration: () => number;
   beginRecording: () => number;
+  rewind: () => void;
   prepareAudioReplacement: (cursorSeconds: number) => void;
   isPrecisionOpen: () => boolean;
   openAssociatedControls: () => void;
@@ -101,6 +102,7 @@ export function AudioPlayerBar({
     resume: () => { if (!player.playing) player.togglePlay(); },
     currentTime: () => toSpeechTime(player.currentTime),
     duration: () => player.duration,
+    rewind: () => player.seek(0),
     beginRecording: () => {
       precisionBeforeRecording.current = precisionMode;
       dispatchPrecision('close');

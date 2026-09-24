@@ -66,6 +66,7 @@ export function SettingsIndex({
           },
         )}
       </nav>
+      {currentPage === 'index' ? <form action="/access/logout" method="post" className="settings-index"><button type="submit"><span className="settings-entry-label">{language==='en'?'Sign out':'నిష్క్రమించు'}</span></button></form> : null}
       {currentPage === 'reset' && <div className="settings-reset-queue">
         <p className="settings-reset-queue-description">
           {state.grammarActive
