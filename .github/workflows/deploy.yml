@@ -46,4 +46,4 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           DEPLOY_ACTION: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
-        run: run: bash ci-cd/deploy.sh deploy
+        run: bash ci-cd/deploy.sh deploy
