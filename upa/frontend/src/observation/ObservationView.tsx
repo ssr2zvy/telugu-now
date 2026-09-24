@@ -646,7 +646,7 @@ export function ObservationView({
       </div>
       {exploring && observation ? <ExplorationSurface observation={observation} step={steps[exploration!]!}
         profileCode={state?.profileCode ?? ''} fontFamily={typography.fontFamily} active={!selectedWord}
-        playbackRate={state?.audioSettings.playbackRate ?? 1} autoplay={state?.audioSettings.autoplay ?? false}
+        playbackRate={state?.audioSettings.playbackRate ?? 1}
         onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
       <section
         ref={typography.containerRef}

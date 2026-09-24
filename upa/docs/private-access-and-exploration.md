@@ -66,7 +66,7 @@ A one-word observation returns directly from its final grapheme to the original 
 
 Down during exploration retraces these steps. Going backward past the first step returns to the original observation. Up/down touch gestures, mouse/trackpad scrolling and arrow keys use the same progression; wheel momentum is coalesced so one gesture does not race through several steps. Horizontal observation navigation retains the existing rules.
 
-Exploration hides the audio bar, recording icon and comparison switch. Settings remain available. Copy and double-tap focus still work; a focused letter or word retains its original transcript offsets. Existing alignment endpoints and audio playback are reused for letter, word and cumulative phrase clips. Autoplay follows the current user preference; a single click can play/pause. Audio loading does not block moving between text steps, and stale responses are ignored. Alignment quality remains that of the existing service.
+Exploration hides the audio bar, recording icon and comparison switch. Settings remain available. Copy and double-tap focus still work; a focused letter or word retains its original transcript offsets. Existing alignment endpoints and audio playback are reused for letter, word and cumulative phrase clips. Exploration never autoplays; a single click can play/pause the current snippet. Audio loading does not block moving between text steps, and stale responses are ignored. Alignment quality remains that of the existing service.
 
 Exploration is temporary presentation state. It does not mark an answer, change the chain, advance core progress or alter the existing user profile. Leaving the observation resets exploration.
 

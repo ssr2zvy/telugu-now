@@ -1,7 +1,6 @@
 import { GradientBackdrop } from '../../GradientBackdrop';
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
-import { analyzeWord, wordDisplayParts } from './word-analysis';
 import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
 import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
 import { CustomCursor } from '../../components/CustomCursor';
@@ -40,7 +39,7 @@ async function copyImage(blob: Blob): Promise<void> {
 
 type ImagePane = 'action' | 'image' | 'gallery' | 'info';
 
-function WordImage({ root, sentence }: { root: string; sentence: string }) {
+function WordImage({ word, sentence }: { word: string; sentence: string }) {
   const { appearance, profileCode } = useAppearance();
   const [images, setImages] = useState<WordImageMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -67,7 +66,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
     let cancelled = false;
     setStatus('loading');
     setError('');
-    void wordImageGallery(root).then(saved => {
+    void wordImageGallery(word).then(saved => {
       if (cancelled) return;
       imagesRef.current = saved;
       setImages(saved);
@@ -78,7 +77,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
       if (!cancelled) { setError(wordImageError(reason)); setStatus('error'); }
     });
     return () => { cancelled = true; };
-  }, [root]);
+  }, [word]);
   useEffect(() => {
     if (pane === 'gallery') currentThumbnail.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [pane, currentIndex]);
@@ -95,8 +94,8 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
     setError('');
     const existingIds = new Set(images.map(image => image.id));
     try {
-      await generateWordImage(root, profileCode, false, images.length > 0, sentence);
-      const saved = await wordImageGallery(root);
+      await generateWordImage(word, profileCode, false, images.length > 0, sentence);
+      const saved = await wordImageGallery(word);
       if (active.current) {
         imagesRef.current = saved;
         setImages(saved);
@@ -119,7 +118,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
     let firstId: string | null = null;
     let batchId: string | null = null;
     try {
-      const { added, inspected, pagesSearched } = await searchWordImages(root, profileCode, image => {
+      const { added, inspected, pagesSearched } = await searchWordImages(word, profileCode, image => {
         if (!active.current) return;
         if (!firstId) {
           firstId = image.id;
@@ -132,7 +131,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
         setPane('image');
       });
       if (!active.current) return;
-      const saved = await wordImageGallery(root);
+      const saved = await wordImageGallery(word);
       imagesRef.current = saved;
       setImages(saved);
       if (firstId) {
@@ -164,7 +163,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
     if (!current) return;
     setMenu(null);
     setError('');
-    try { await copyImage(await wordImageBlob(root, current.id)); if (active.current) setFeedback('Image copied.'); }
+    try { await copyImage(await wordImageBlob(word, current.id)); if (active.current) setFeedback('Image copied.'); }
     catch (reason) { setError(wordImageError(reason)); }
   };
   const busy = status === 'loading' || status === 'generating' || status === 'searching';
@@ -183,7 +182,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY });
       }}>
-        <img draggable={false} src={wordImageUrl(root, current.id)} alt={`Drawing of the concept of ${root}`} />
+        <img draggable={false} src={wordImageUrl(word, current.id)} alt={`Drawing of the concept of ${word}`} />
       </div> : null}
       {!busy && pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
         <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
@@ -202,7 +201,7 @@ function WordImage({ root, sentence }: { root: string; sentence: string }) {
         {images.map((image, index) => <button key={image.id} ref={index === currentIndex ? currentThumbnail : undefined}
           type="button" aria-label={`Open image ${index + 1}`} aria-current={index === currentIndex}
           onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCurrentIndex(index); setPane('image'); }}>
-          <img src={wordImageUrl(root, image.id)} alt="" />
+          <img src={wordImageUrl(word, image.id)} alt="" />
         </button>)}
       </div> : null}
       {!busy && pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
@@ -243,18 +242,16 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
   onClose: () => void;
 }) {
   const { appearance, profileCode } = useAppearance();
-  const analysis = analyzeWord(word);
-  const parts = wordDisplayParts(analysis);
-  const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(analysis.word) : null;
+  const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(word) : null;
   const gradientEndColor = appearanceModificationColor(appearance);
   const gradientKey = highlightRuns?.some(run => run.highlighted)
-    ? [analysis.word, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
+    ? [word, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
     : null;
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
     textures: Array<TeluguGradientTexture | null>;
   } | null>(null);
-  const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(analysis.word)].length;
+  const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(word)].length;
   const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(initialGrapheme ?? null);
   const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
   const [alignmentError, setAlignmentError] = useState(false);
@@ -314,13 +311,13 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
       <audio ref={wordPlayer.audioRef} preload="auto" hidden />
       <GradientBackdrop className="gradient-field word-profile-gradient" />
       {selectedGrapheme && profileCode ? <LetterProfile suppressAudioControls={suppressAudioControls} letter={selectedGrapheme.text}
-        observationId={observationId} word={analysis.word} wordStart={wordStart} wordEnd={wordEnd}
+        observationId={observationId} word={word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
         onCopy={copyWord}
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
-        const hit = visibleGraphemeAtPoint(event.currentTarget, analysis.word, event.clientX, event.clientY);
+        const hit = visibleGraphemeAtPoint(event.currentTarget, word, event.clientX, event.clientY);
         letterTaps.tap(hit ? `grapheme:${hit.start}` : 'word', event.clientX, event.clientY, () => {
           if (!hit) return;
           letterTaps.cancel();
@@ -331,17 +328,17 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
       }} onContextMenu={event => {
         event.preventDefault();
       }}>
-        <h2 id="word-profile-title" lang="te" aria-label={analysis.word}
+        <h2 id="word-profile-title" lang="te" aria-label={word}
           style={{ '--word-graphemes': Math.max(1, graphemeCount), fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
           {highlightRuns ? highlightRuns.map((run, index) => run.highlighted
             ? <TeluguGradientText key={index} text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
-            : run.text) : <><span>{parts.core}</span><span className="word-profile-ending">{parts.ending}</span></>}
+            : run.text) : word}
         </h2>
         {alignmentError ? <p className="word-profile-error" role="alert">Aligned word audio unavailable.</p> : null}
         {wordPlayer.playbackError ? <p className="word-profile-error" role="alert">{wordPlayer.playbackError}</p> : null}
       </header>
       <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
-      <WordImage key={analysis.root} root={analysis.root} sentence={sentence} />
+      <WordImage key={word} word={word} sentence={sentence} />
 
       </>}
     </dialog>
