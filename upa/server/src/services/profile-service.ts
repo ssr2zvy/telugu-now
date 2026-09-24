@@ -540,16 +540,6 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   const inHistoricalForwardPath = profile.current_position !== null
     && tailPosition !== null
     && profile.current_position < tailPosition;
-  if(profile.current_position!==null) {
-    const unfinished=db.prepare(`SELECT h.observation_id,h.presentation_state_json FROM history_entries h
-      JOIN observation_acquisitions a ON a.observation_id=h.observation_id
-      WHERE h.profile_code=? AND h.history_position=? AND a.observation_kind='question'`).get(code,profile.current_position) as {observation_id:string;presentation_state_json:string}|undefined;
-    if(unfinished && !isDiscarded(unfinished.observation_id,code) && questionPhase(unfinished.presentation_state_json)==='observation' &&
-      (selectionAttempt(unfinished.observation_id,code)??attempt(unfinished.observation_id,code))?.result===null) {
-      db.prepare('UPDATE history_entries SET presentation_state_json=? WHERE profile_code=? AND history_position=?')
-        .run(JSON.stringify({...JSON.parse(unfinished.presentation_state_json),questionPhase:'comparison'}),code,profile.current_position);
-    }
-  }
   const displayedObservation = currentObservation(code, profile.current_position);
 
   return {
@@ -566,7 +556,7 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     previousPresentation: previousPresentation(code, profile.current_position),
     canBack: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'question')
       || adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
-    canNext: (displayedObservation?.grammar && !displayedObservation.grammar.discarded && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) ? false : Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
+    canNext: Boolean(displayedObservation?.grammar && !displayedObservation.grammar.discarded && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) || Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
       || inHistoricalForwardPath || nextQueue?.status === 'ready',
     nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? (['searching','parsing','selecting','loading-parser'].includes(liveSelection.get(code)?.phase??'') ? 'pending' : null)),
     queue: queueSummary(code),

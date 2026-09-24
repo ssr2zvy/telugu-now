@@ -1,3 +1,4 @@
+import { withRequestDeadline } from './request-deadline';
 import type {
   AlignedLetterAudio,
   AlignedWordAudio,
@@ -156,9 +157,9 @@ export async function loadProfile(request: LoadProfileRequest): Promise<ProfileS
 }
 
 export async function getProfileState(code: string, visible: boolean): Promise<ProfileStateResponse> {
-  return parseJson<ProfileStateResponse>(
-    await fetch(`/api/profiles/${code}/state?visible=${visible ? '1' : '0'}`),
-  );
+  return withRequestDeadline(async signal => parseJson<ProfileStateResponse>(
+    await fetch(`/api/profiles/${code}/state?visible=${visible ? '1' : '0'}`, {signal}),
+  ), 15000, 'Refreshing the page state timed out.');
 }
 
 export async function getQueueView(code: string, signal?: AbortSignal): Promise<QueueViewResponse> {
@@ -170,12 +171,12 @@ export async function navigate(
   direction: 'back' | 'next',
   request: NavigationRequest,
 ): Promise<ProfileStateResponse> {
-  return parseJson<ProfileStateResponse>(await fetch(`/api/profiles/${code}/${direction}`, {
-    signal: AbortSignal.timeout(15000),
+  return withRequestDeadline(async signal => parseJson<ProfileStateResponse>(await fetch(`/api/profiles/${code}/${direction}`, {
+    signal,
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
-  }));
+  })), 15000, 'Navigation timed out. You can swipe again.');
 }
 
 export async function setVisibility(code: string, request: VisibilityRequest): Promise<void> {
@@ -229,13 +230,15 @@ export async function updateQuestionText(code: string, observationId: string, re
 }
 
 export async function updateQuestionAudio(code: string, observationId: string, audio: Blob): Promise<void> {
-  const response = await fetch(`/api/profiles/${encodeURIComponent(code)}/questions/${encodeURIComponent(observationId)}/audio`, {
-    method: 'PUT', headers: { 'content-type': audio.type || 'audio/webm' }, body: audio,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as {error?:unknown} | null;
-    throw new Error(typeof body?.error === 'string' ? body.error : `Recording upload failed (${response.status}).`);
-  }
+  return withRequestDeadline(async signal => {
+    const response = await fetch(`/api/profiles/${encodeURIComponent(code)}/questions/${encodeURIComponent(observationId)}/audio`, {
+      signal, method: 'PUT', headers: { 'content-type': audio.type || 'audio/webm' }, body: audio,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as {error?:unknown} | null;
+      throw new Error(typeof body?.error === 'string' ? body.error : `Recording upload failed (${response.status}).`);
+    }
+  }, 45000, 'Recording save timed out.');
 }
 
 export async function generateExport(

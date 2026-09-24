@@ -69,8 +69,19 @@ class CoreParser:
   const comparison=profiles.navigateNext('001',false);
   assert.equal(comparison.currentObservation?.question?.phase,'comparison');assert.equal(comparison.canBack,true);assert.equal(comparison.canNext,true);
   assert.equal(profiles.navigateBack('001',false).currentObservation?.question?.phase,'question');
-  profiles.navigateNext('001',false);state.evaluate('001',next.id,false);
+  profiles.navigateNext('001',false);
+  const observation = profiles.navigateNext('001',false);
+  assert.equal(observation.currentObservation?.question?.phase,'observation','comparison advances without prematurely submitting the answer');
+  assert.equal(observation.currentObservation?.grammar?.result,null);
+  assert.equal(observation.canNext,true,'allow the client to finalize its draft when leaving the observation');
+  for(let poll=0;poll<3;poll++) assert.equal(profiles.getProfileState('001',false).currentObservation?.question?.phase,'observation','polling must not rewind an unanswered observation');
+  assert.throws(()=>profiles.navigateNext('001',false),/Self-evaluate/,'server still prevents leaving without a saved evaluation');
+  assert.equal(profiles.navigateBack('001',false).currentObservation?.question?.phase,'comparison');
   assert.equal(profiles.navigateNext('001',false).currentObservation?.question?.phase,'observation');
+  state.evaluate('001',next.id,false);
+  assert.equal(profiles.getProfileState('001',false).currentObservation?.grammar?.result,false,'off is a valid final answer');
+  assert.equal(profiles.navigateBack('001',false).currentObservation?.question?.phase,'comparison');
+  assert.equal(profiles.navigateNext('001',false).currentObservation?.question?.phase,'observation','already answered questions remain navigable');
   const {parsingDiagnostics}=await import('../server/src/parsing/diagnostics');
   const diagnostics=parsingDiagnostics('001');assert.ok(diagnostics.allTime);assert.ok(diagnostics.lastAttempt);assert.ok(diagnostics.cache?.validParses);
   // A reset with nothing ready stays pending, then automatically opens the first ready selection.
