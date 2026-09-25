@@ -1,3 +1,4 @@
+import {oneTimeRecovery} from '../server/src/access/recovery';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
@@ -58,7 +59,8 @@ test('generation is rate limited; malformed stored credentials never reopen setu
   const db=new Database(':memory:');try {
     const app=appFor(db);const generate=()=>app.request('https://app.test/access/generate',{method:'POST',headers:{Origin:'https://app.test'}});
     for(let i=0;i<5;i++)assert.equal((await generate()).status,200);assert.equal((await generate()).status,429);
-    db.prepare("INSERT INTO access_credentials VALUES (1,'bad','bad',0)").run();
+    oneTimeRecovery(db).replace({hash:'scrypt-v1$'+'11'.repeat(16)+'$'+'22'.repeat(64),secret:'33'.repeat(32)});
+    db.prepare("UPDATE access_credentials SET hash='bad' WHERE id=1").run();
     assert.equal((await generate()).status,409);assert.equal((await app.request('https://app.test/')).status,503);
   }finally{db.close();}
 });
