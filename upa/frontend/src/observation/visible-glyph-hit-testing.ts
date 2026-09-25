@@ -35,7 +35,7 @@ export function textRange(root: Element, start: number, end: number): Range | nu
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (node.parentElement?.closest('[data-reader-display-only]')) continue;
     const nextOffset = offset + (node.textContent?.length ?? 0);
-    if (!hasStart && start <= nextOffset) {
+    if (!hasStart && start < nextOffset) {
       range.setStart(node, Math.max(0, start - offset));
       hasStart = true;
     }
@@ -157,6 +157,7 @@ export function hitTestVisibleGlyph(options: VisibleGlyphHitOptions): VisibleGly
     const range = textRange(root, glyph.start, glyph.end);
     if (!range) continue;
     const owner = range.startContainer.parentElement ?? root;
+    if (owner.closest('[data-reader-concealed]') || getComputedStyle(owner).visibility === 'hidden') continue;
     for (const sourceRect of range.getClientRects()) {
       const rect = new DOMRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
       const fontSize = Number.parseFloat(getComputedStyle(owner).fontSize) || 16;

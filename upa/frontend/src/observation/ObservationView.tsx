@@ -1,4 +1,4 @@
-import { ExplorationSurface } from './ExplorationSurface';
+import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
 import { explorationSteps, explorationIndex } from './exploration-steps';
 import { useObservationTravel } from './useObservationTravel';
 import { useGradientTravel } from '../GradientBackdrop';
@@ -148,6 +148,7 @@ export function ObservationView({
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
     ?? 'Noto Sans Telugu';
   const steps = useMemo(() => explorationSteps(observation?.text ?? ''), [observation?.text]);
+  const explorationRef = useRef<ExplorationHandle | null>(null);
   const [exploration, setExploration] = useState<number | null>(null);
   const exploring = exploration !== null && Boolean(steps[exploration]);
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
@@ -581,6 +582,7 @@ export function ObservationView({
       aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
       onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
       onClick={(event) => {
+        if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
         // Typing in the keyboard must never count toward the reader's own
         // single/double-click gestures (playback toggle, back/next navigation).
         if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
@@ -645,7 +647,7 @@ export function ObservationView({
         />
       </div>
       {exploring && observation ? <ExplorationSurface observation={observation} step={steps[exploration!]!}
-        profileCode={state?.profileCode ?? ''} fontFamily={typography.fontFamily} active={!selectedWord}
+        profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
         playbackRate={state?.audioSettings.playbackRate ?? 1}
         onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
       <section
@@ -671,6 +673,7 @@ export function ObservationView({
           >
             <TeluguWordText
               text={observation.text}
+              visibleRange={exploring ? steps[exploration!] : undefined}
               runs={highlightRuns}
               textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
             />

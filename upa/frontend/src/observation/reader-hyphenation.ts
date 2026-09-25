@@ -22,7 +22,7 @@ export function copyOriginalReaderText(event: ClipboardEvent<HTMLElement>): void
   const range = selection.getRangeAt(0);
   if (!event.currentTarget.contains(range.commonAncestorContainer)) return;
   const fragment = range.cloneContents();
-  fragment.querySelectorAll('[data-reader-display-only]').forEach(node => node.remove());
+  fragment.querySelectorAll('[data-reader-display-only], [data-reader-concealed]').forEach(node => node.remove());
   event.clipboardData.setData('text/plain', fragment.textContent ?? '');
   event.preventDefault();
 }
