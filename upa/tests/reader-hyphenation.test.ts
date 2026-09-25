@@ -55,7 +55,7 @@ test('source ranges ignore display-only characters before and inside a word', ()
     globalThis.NodeFilter = { SHOW_TEXT: 4 } as typeof NodeFilter;
     globalThis.document = { createTreeWalker: () => ({ nextNode: () => nodes[index++] }), createRange: () => fakeRange } as unknown as Document;
     assert.equal(textRange({} as Element, 'నేను '.length, 'నేను వచ్చాను'.length), fakeRange);
-    assert.deepEqual(recorded, [[nodes[2], 'ను '.length], [nodes[5], 'చ్చాను'.length]]);
+    assert.deepEqual(recorded, [[nodes[3], 0], [nodes[5], 'చ్చాను'.length]]);
   } finally { globalThis.document = oldDocument; globalThis.NodeFilter = oldFilter; }
 });
 

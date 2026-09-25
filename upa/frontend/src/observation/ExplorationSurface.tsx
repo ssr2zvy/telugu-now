@@ -1,24 +1,17 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useRef,useState,useImperativeHandle, type Ref, type RefObject} from 'react';
 import type {DisplayObservation,ObservationAudio} from '../../../shared/contracts';
-import type {ObservationFontFamily} from '../presentation';
 import {getAlignedLetterAudio,getAlignedWordAudio} from '../api';
 import {useAudioPlayer} from './audio/useAudioPlayer';
-import {useObservationTypography} from './useObservationTypography';
 import {ReaderTaps} from './reader-taps';
 import {visibleWordAtPoint,visibleGraphemeAtPoint} from './visible-glyph-hit-testing';
-import {copyOriginalReaderText} from './reader-hyphenation';
-import {TeluguWordText} from './TeluguGradientText';
-import {teluguHighlightRuns} from './telugu-highlighting';
-import {appearanceModificationColor,useAppearance} from '../appearance';
-import {renderTeluguGradientTexture,type TeluguGradientTexture} from './telugu-gradient-renderer';
 import type {ExplorationStep} from './exploration-steps';
 
 export interface ExplorationFocus {word:string;start:number;end:number;grapheme?:{text:string;start:number;end:number}}
-export function ExplorationSurface({observation,step,profileCode,fontFamily,playbackRate,active,onFocus}: {
-  observation:DisplayObservation;step:ExplorationStep;profileCode:string;fontFamily:ObservationFontFamily;
+export interface ExplorationHandle { tap(clientX: number, clientY: number): void }
+export function ExplorationSurface({observation,step,profileCode,textRef,ref,playbackRate,active,onFocus}: {
+  observation:DisplayObservation;step:ExplorationStep;profileCode:string; textRef:RefObject<HTMLDivElement|null>; ref:Ref<ExplorationHandle>;
   playbackRate:number;active:boolean;onFocus:(focus:ExplorationFocus)=>void;
 }) {
-  const {appearance}=useAppearance();
   const [audio,setAudio]=useState<ObservationAudio|null>(null);
   const [error,setError]=useState('');
   const [taps]=useState(()=>new ReaderTaps());
@@ -26,17 +19,6 @@ export function ExplorationSurface({observation,step,profileCode,fontFamily,play
   const stepKey=`${observation.id}:${step.kind}:${step.start}:${step.end}`;
   const [loadedKey,setLoadedKey]=useState('');
   const player=useAudioPlayer(loadedKey===stepKey?audio:null,null,null,playbackRate,stepKey,false,active);
-  const typography=useObservationTypography({...observation,id:stepKey,text:step.text},fontFamily,true);
-  const runs=appearance.highlightMods?teluguHighlightRuns(step.text):null;
-  const endColor=appearanceModificationColor(appearance);
-  const gradientKey=JSON.stringify([stepKey,fontFamily,appearance.foreground,endColor,appearance.gradientBarrier,appearance.highlightMods]);
-  const [textures,setTextures]=useState<{key:string;values:Array<TeluguGradientTexture|null>}|null>(null);
-  useEffect(()=>{
-    let active=true;
-    void Promise.all((runs??[]).map(run=>run.highlighted?renderTeluguGradientTexture(run.text,fontFamily,appearance.foreground,endColor,appearance.gradientBarrier):null))
-      .then(values=>{if(active)setTextures({key:gradientKey,values});}).catch(()=>{});
-    return ()=>{active=false;};
-  },[gradientKey]);
   useEffect(()=>{
     const controller=new AbortController();
     taps.cancel();setError('');setAudio(null);setLoadedKey('');
@@ -58,21 +40,23 @@ export function ExplorationSurface({observation,step,profileCode,fontFamily,play
     }).catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'Audio unavailable.');});
     return ()=>{controller.abort();taps.cancel();};
   },[stepKey,profileCode]);
-  return <section ref={typography.containerRef} className="exploration-surface" onClick={event=>{
-    event.stopPropagation();
-    const element=typography.textRef.current;
-    const hit=element?(step.kind==='letter'?visibleGraphemeAtPoint(element,step.text,event.clientX,event.clientY):visibleWordAtPoint(element,step.text,event.clientX,event.clientY)):null;
-    taps.tap(hit?`focus:${hit.start}`:'audio',event.clientX,event.clientY,()=>{
+  useImperativeHandle(ref, () => ({tap(clientX, clientY) {
+    if (!active) return;
+    const element=textRef.current;
+    const candidate=element?(step.kind==='letter'?visibleGraphemeAtPoint(element,observation.text,clientX,clientY):visibleWordAtPoint(element,observation.text,clientX,clientY)):null;
+    const hit=candidate && candidate.start>=step.start && candidate.end<=step.end ? candidate : null;
+    const region=hit?`focus:${hit.start}`:'audio';
+    if (!window.getSelection()?.isCollapsed && !taps.matches(region,clientX,clientY)) {taps.cancel();return;}
+    taps.tap(region,clientX,clientY,()=>{
       if(!hit)return;
       player.pause();
+      window.getSelection()?.removeAllRanges();
       onFocus(step.kind==='letter'?{word:step.word,start:step.wordStart,end:step.wordEnd,grapheme:{text:step.text,start:step.graphemeStart!,end:step.graphemeEnd!}}
-        :{word:hit.text,start:step.start+hit.start,end:step.start+hit.end});
+        :{word:hit.text,start:hit.start,end:hit.end});
     },()=>player.togglePlay());
-  }} onDoubleClick={event=>{event.preventDefault();event.stopPropagation();}}>
+  }}));
+  return <>
     <audio ref={player.audioRef} hidden preload="auto" />
-    <div ref={typography.textRef} className="observation-text" lang="te" onCopy={copyOriginalReaderText} style={{...typography.style,opacity:typography.ready?1:0}}>
-      <TeluguWordText text={step.text} runs={runs} textures={textures?.key===gradientKey?textures.values:null}/>
-    </div>
     {error||player.playbackError?<p className="audio-reader-error" role="alert">{error||player.playbackError}</p>:null}
-  </section>;
+  </>;
 }
