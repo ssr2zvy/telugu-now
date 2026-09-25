@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import { Hono } from 'hono';
 import { wordImageRoutes } from '../server/src/services/word-image-service';
 import { migrateLegacyWordImages, migrateLegacyWordImageSearchState, wordImageStore } from '../server/src/services/word-image-store';
-import { analyzeWord, wordAtOffset, wordDisplayParts } from '../frontend/src/observation/word/word-analysis';
+import { wordAtOffset } from '../frontend/src/observation/word/word-selection';
 import { DEFAULT_IMAGE_PROMPT, IMAGE_MODEL, renderImagePrompt } from '../shared/image-settings';
 
 function profileDatabase() {
@@ -63,31 +63,6 @@ test('legacy search state transfers from the user database to global word files'
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('word profile restores known Telugu noun stems and case suffixes', () => {
-  for (const [word, root, suffix] of [
-    ['చెట్లలో', 'చెట్టు', 'లో'],
-    ['పుస్తకాలలో', 'పుస్తకం', 'లో'],
-    ['ఇంటికి', 'ఇల్లు', 'కి'],
-    ['పిల్లలతో', 'పిల్ల', 'తో'],
-    ['అమ్మకు', 'అమ్మ', 'కు'],
-  ]) {
-    const result = analyzeWord(word!);
-    assert.equal(result.root, root);
-    assert.equal(result.suffixes.at(-1)?.text, suffix);
-    assert.equal(result.confidence, 'known');
-  }
-});
-
-test('word profile preserves protected and unknown words and marks guesses', () => {
-  for (const word of ['అవును', 'నేను', 'పాలు', 'తెలుగు', 'చెట్టు', 'వెళ్తున్నాడు', 'hello']) {
-    assert.equal(analyzeWord(word).root, word);
-    assert.deepEqual(analyzeWord(word).suffixes, []);
-  }
-  assert.equal(analyzeWord('నగరంలో').confidence, 'tentative');
-  assert.equal(analyzeWord('నగరంలో').root, 'నగరం');
-  assert.equal(analyzeWord('బట్టలు').root, 'బట్ట');
-});
-
 test('word lookup respects word boundaries and builds the exact concept prompt', () => {
   const text = 'అవును, చెట్లలో పూలు.';
   assert.equal(wordAtOffset(text, 1), 'అవును');
@@ -95,16 +70,6 @@ test('word lookup respects word boundaries and builds the exact concept prompt',
   assert.equal(wordAtOffset(text, text.indexOf(',')), null);
   assert.equal(wordAtOffset(text, text.length), null);
   assert.equal(renderImagePrompt(DEFAULT_IMAGE_PROMPT, 'అవును'), 'Drawing of the concept of అవును. The word itself should not be in the image.');
-});
-
-test('highlighted parts preserve the original word and whole Telugu graphemes', () => {
-  assert.deepEqual(wordDisplayParts(analyzeWord('అవును')), { core: 'అవును', ending: '' });
-  assert.deepEqual(wordDisplayParts(analyzeWord('అమ్మకు')), { core: 'అమ్మ', ending: 'కు' });
-  assert.deepEqual(wordDisplayParts(analyzeWord('చెట్లలో')), { core: 'చె', ending: 'ట్లలో' });
-  for (const word of ['చెట్లలో', 'పుస్తకాలలో', 'ఇంటికి', 'అవును']) {
-    const parts = wordDisplayParts(analyzeWord(word));
-    assert.equal(parts.core + parts.ending, word);
-  }
 });
 
 test('word image generation coalesces requests and reuses files independently of SQLite', async () => {
@@ -591,4 +556,34 @@ test('failed regeneration preserves the old image and retries publication withou
     assert.equal(calls, 2);
     assert.deepEqual(store.get('tree')?.image, replacement);
   } finally { database.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+test('sentence image prompts validate context and do not coalesce distinct sentences', async () => {
+  const database = profileDatabase();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sentence-images-'));
+  const prompts: string[] = [];
+  try {
+    const app = new Hono().route('/api/word-images', wordImageRoutes(database, {
+      imageDirectory: directory, readKey: () => 'fixture',
+      generate: async prompt => {
+        prompts.push(prompt);
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return Buffer.from([255, 216, 255, 217]);
+      },
+    }));
+    const put = await app.request('/api/word-images/settings?profile=001', {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: 'Draw <word> in <sentence>'}),
+    });
+    assert.equal(put.status, 200);
+    const url = `/api/word-images?root=${encodeURIComponent('చెట్లలో')}&profile=001&append=1`;
+    assert.equal((await app.request(url, {method: 'POST'})).status, 400);
+    const send = (sentence: unknown) => app.request(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sentence})});
+    assert.equal((await send(123)).status, 400);
+    assert.equal((await send('x'.repeat(4001))).status, 400);
+    const results = await Promise.all([send('first sentence'), send('second sentence'), send('first sentence')]);
+    assert.deepEqual(results.map(result => result.status), [200,200,200]);
+    assert.deepEqual(prompts.sort(), ['Draw చెట్లలో in first sentence','Draw చెట్లలో in second sentence']);
+  } finally {
+    database.close(); fs.rmSync(directory, {recursive: true, force: true});
+  }
 });

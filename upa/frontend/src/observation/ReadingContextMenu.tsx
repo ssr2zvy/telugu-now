@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Ban, Copy } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { SettingsIcon } from '../components/icons';
 
 export type ReadingContextMenuState =
@@ -12,15 +12,38 @@ export function readingContextMenuState(x: number, y: number, word: string | nul
 
 interface ReadingContextMenuProps {
   menu: ReadingContextMenuState;
-  onCopy: (text: string) => void;
-  onBlacklistTranscript?: () => void;
+  onCopy: (text: string) => void | Promise<void>;
   onOpenSettings?: () => void;
   onClose: () => void;
 }
 
 // Word menus contain word actions only; the rest of the reader opens Settings only.
-export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpenSettings, onClose }: ReadingContextMenuProps) {
-  const [status, setStatus] = useState<'copied' | 'blacklisted' | null>(null);
+export function ReadingContextMenu({ menu, onCopy, onOpenSettings, onClose }: ReadingContextMenuProps) {
+  const [status, setStatus] = useState<'copied' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const running = useRef(false);
+  const alive = useRef(true);
+  const closeTimer = useRef<number | null>(null);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };
+  }, []);
+  const perform = async (action: () => void | Promise<void>, next: 'copied') => {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await action();
+      if (!alive.current) return;
+      setStatus(next);
+      closeTimer.current = window.setTimeout(onClose, 700);
+    } catch (caught) {
+      if (alive.current) setError(caught instanceof Error ? caught.message : 'Action failed. Try again.');
+      running.current = false;
+    } finally { if (alive.current) setBusy(false); }
+  };
   const root = useRef<HTMLDivElement>(null);
   const placement = menu.y < 60 ? 'below' : 'above';
   useEffect(() => {
@@ -44,6 +67,8 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
       className="reading-context-menu"
       role="menu"
       data-placement={placement}
+      data-feedback={status ?? undefined}
+      aria-busy={busy}
       style={{ left: `clamp(28px, ${menu.x}px, calc(100vw - 28px))`, top: menu.y }}
       onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
     >
@@ -53,27 +78,11 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
           role="menuitem"
           className="reading-context-menu-action"
           aria-label="కాపీ చేయి"
-          onClick={() => {
-            onCopy(menu.text);
-            setStatus('copied');
-            window.setTimeout(onClose, 400);
-          }}
+          disabled={busy || status !== null}
+          onClick={() => void perform(() => onCopy(menu.text), 'copied')}
         >
           <Copy size={18} aria-hidden="true" />
         </button>
-        {onBlacklistTranscript ? <button
-          type="button"
-          role="menuitem"
-          className="reading-context-menu-action"
-          aria-label="ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు"
-          onClick={() => {
-            onBlacklistTranscript();
-            setStatus('blacklisted');
-            window.setTimeout(onClose, 400);
-          }}
-        >
-          <Ban size={18} aria-hidden="true" />
-        </button> : null}
       </> : <button
           type="button"
           role="menuitem"
@@ -87,7 +96,7 @@ export function ReadingContextMenu({ menu, onCopy, onBlacklistTranscript, onOpen
           <SettingsIcon />
         </button>}
       <span className="reading-context-menu-status" role="status" aria-live="polite">
-        {status === 'copied' ? 'కాపీ అయ్యింది' : status === 'blacklisted' ? 'బ్లాక్‌లిస్ట్ చేయబడింది' : ''}
+        {error || (busy ? '…' : status === 'copied' ? 'కాపీ అయ్యింది' : '')}
       </span>
     </div>
   );

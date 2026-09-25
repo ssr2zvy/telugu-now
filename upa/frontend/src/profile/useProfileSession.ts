@@ -175,7 +175,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
       );
       setState(next);
       return true;
-    } catch {
+    } catch (error) {
       // Polling refreshes readiness/state.
       if (direction === 'next' && (state?.nextStatus === 'pending' || state?.nextStatus === 'preparing')) {
         reportClientTelemetry({
@@ -185,7 +185,7 @@ export function useProfileSession(settingsOpen: boolean): ProfileSession {
           durationMs: performance.now() - startedAt,
         });
       }
-      return false;
+      throw error;
     } finally {
       navigationInFlightRef.current = false;
       setBusy(false);

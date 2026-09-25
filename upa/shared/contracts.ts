@@ -58,9 +58,9 @@ export interface ProfileSelectionSettings {
 }
 
 export interface UpdateSelectionSettingsRequest {
-  sourceWeights: Record<string, number>;
-  complexityPercentileTarget: number;
-  complexityPercentileSpread: number;
+  sourceWeights?: Record<string, number>;
+  complexityPercentileTarget?: number;
+  complexityPercentileSpread?: number;
   questionProbability?: number;
   seenQuestionProbability?: number;
   audioGivenQuestionProbability?: number;
@@ -140,6 +140,28 @@ export interface DataSourcesResponse {
   sources: DataSourceInfo[];
 }
 
+export interface GrammarParserInfo {
+  version?: string;
+  adapterVersion?: string;
+  targetSchemaVersion?: string;
+  dictionaryId?: string;
+  maxDepth?: number | null;
+  maxStates?: number | null;
+  nesting?: string;
+  eligibilityPolicy?: string;
+}
+
+export interface GrammarParserDiagnostics {
+  active: boolean;
+  available: boolean;
+  parser: GrammarParserInfo | null;
+  policy: string | null;
+  rulesSha256: string | null;
+  inventoryId: string | null;
+  stats: Record<string, number>;
+  exclusions: Record<string, number>;
+}
+
 export interface ObservationDiagnostic {
   acquisitionNumber: number;
   triggerKind: AcquisitionTriggerKind;
@@ -210,6 +232,7 @@ export interface GraphemeWord {
 }
 
 export interface DisplayObservation {
+  grammar?: {discarded?:boolean;target: Record<string,unknown>; result: boolean|null}|null;
   id: string;
   sourceId: string;
   sourceKey: string;
@@ -285,6 +308,10 @@ export interface UpcomingPresentationHint {
 }
 
 export interface ProfileStateResponse {
+  grammarError?: string|null;
+  grammarActive?: boolean;
+  selectionMode?: 'weighted' | 'core' | 'random';
+  grammarMigrationAvailable?: boolean;
   profileCode: string;
   currentPosition: number | null;
   historyLength: number;
@@ -322,7 +349,8 @@ export interface ExportRequest {
 }
 
 export interface ExportEntryDiagnostic {
-  selection: SelectionSnapshot;
+  selection: SelectionSnapshot | null;
+  grammar?: Record<string,unknown>;
   cacheHit: boolean;
   requestStartedAt: number | null;
   requestCompletedAt: number | null;
@@ -345,4 +373,14 @@ export interface ExportResponse {
 
 export interface ApiErrorResponse {
   error: string;
+}
+
+export interface GrammarCategoryDiagnostics {
+  available: boolean;
+  position: number;
+  completed: boolean;
+  stateSource: 'batch' | 'progress' | 'initial';
+  categories: Array<{ level: number; probability: number; initialProbability: number; reversal: number; targetCount: number }>;
+  coreBases: Array<{ id: string; forms: string[]; examples: string[]; streak: number }>;
+  singleModifiers: Array<{ id: string; forms: string[]; examples: string[]; streak: number }>;
 }

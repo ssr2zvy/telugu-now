@@ -26,15 +26,16 @@ interface TextSegment {
 
 let hitCanvas: HTMLCanvasElement | null = null;
 
-function textRange(root: Element, start: number, end: number): Range | null {
+export function textRange(root: Element, start: number, end: number): Range | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   let offset = 0;
   let hasStart = false;
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement?.closest('[data-reader-display-only]')) continue;
     const nextOffset = offset + (node.textContent?.length ?? 0);
-    if (!hasStart && start <= nextOffset) {
+    if (!hasStart && start < nextOffset) {
       range.setStart(node, Math.max(0, start - offset));
       hasStart = true;
     }
@@ -147,15 +148,21 @@ export function hitTestVisibleGlyph(options: VisibleGlyphHitOptions): VisibleGly
   } = options;
   const candidates: Array<VisibleGlyphHit & { distance: number }> = [];
 
-  for (const segment of segments(text, granularity)) {
-    const range = textRange(root, segment.start, segment.end);
+  const words = granularity === 'word' ? segments(text, 'word') : [];
+  for (const glyph of segments(text, 'grapheme')) {
+    const segment = granularity === 'word'
+      ? words.find(word => word.start <= glyph.start && word.end >= glyph.end)
+      : glyph;
+    if (!segment) continue;
+    const range = textRange(root, glyph.start, glyph.end);
     if (!range) continue;
     const owner = range.startContainer.parentElement ?? root;
+    if (owner.closest('[data-reader-concealed]') || getComputedStyle(owner).visibility === 'hidden') continue;
     for (const sourceRect of range.getClientRects()) {
       const rect = new DOMRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
       const fontSize = Number.parseFloat(getComputedStyle(owner).fontSize) || 16;
       if (!expandedContains(rect, clientX, clientY, Math.max(hitSlopPx, fontSize * .2))) continue;
-      const distance = visibleInkDistance(segment.text, owner, rect, clientX, clientY, hitSlopPx, verticalHitSlopPx, alphaThreshold);
+      const distance = visibleInkDistance(glyph.text, owner, rect, clientX, clientY, hitSlopPx, verticalHitSlopPx, alphaThreshold);
       if (distance !== null) candidates.push({ ...segment, rect, distance });
     }
   }

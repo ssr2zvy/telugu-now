@@ -1,3 +1,4 @@
+import { grammarActive, getCatalog, progress } from '../grammar/service';
 import { config } from '../config/config';
 import type { ExportResponse } from '../../../shared/contracts';
 import { ensureProfileRow, parseObservationAudio } from './profile-service';
@@ -18,10 +19,12 @@ export async function generateExport(profileCode: string, count: number): Promis
   // Immutable snapshot: every selection in this export uses these exact values even if
   // profile settings are changed before this async operation finishes.
   const settings = getProfileSelectionSettings(profileCode);
+  // Exports preserve the original weighted selection and never consume Core progress.
+  const grammarState: ReturnType<typeof progress> | null = null;
   const entries: ExportResponse['entries'] = [];
 
   for (let index = 0; index < count; index += 1) {
-    const selected = selectionEngine.select(settings);
+    const selected = grammarState?getCatalog().choose(profileCode,grammarState):selectionEngine.select(settings);
     const resolved = await sourceRecordService.resolve(profileCode, selected.sourceId, selected.sourceKey);
     entries.push({
       position: index + 1,
@@ -30,7 +33,8 @@ export async function generateExport(profileCode: string, count: number): Promis
       text: resolved.text,
       audio: parseObservationAudio(JSON.stringify(resolved.media)),
       diagnostic: {
-        selection: selected.snapshot,
+        ...(grammarState?{grammar:selected.snapshot as Record<string,unknown>}:{}),
+        selection: grammarState?null:selected.snapshot as import('../../../shared/contracts').SelectionSnapshot,
         cacheHit: resolved.cacheHit,
         requestStartedAt: resolved.requestStartedAt,
         requestCompletedAt: resolved.requestCompletedAt,

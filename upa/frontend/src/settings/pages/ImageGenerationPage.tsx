@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
-import { CORE_WORD_PLACEHOLDER, IMAGE_MODEL, validImagePrompt, type ImageSettings } from '../../../../shared/image-settings';
+import { WORD_PLACEHOLDER, SENTENCE_PLACEHOLDER, IMAGE_MODEL, validImagePrompt, type ImageSettings } from '../../../../shared/image-settings';
 import type { UiLanguage } from '../types';
 import { useAppearance } from '../../appearance';
 
@@ -52,7 +52,7 @@ export function ImageGenerationPage({ language }: { language: UiLanguage }) {
       <textarea id="image-generation-prompt" value={prompt} maxLength={2000} rows={7} disabled={!settings || saving}
         aria-describedby="image-prompt-placeholder" aria-invalid={Boolean(settings && !validImagePrompt(prompt))}
         onChange={event => { setPrompt(event.target.value); setSaved(false); setError(''); }} />
-      <p id="image-prompt-placeholder" className="image-prompt-requirement">{english ? 'Required placeholder' : 'అవసరమైన గుర్తు'}: <code>{CORE_WORD_PLACEHOLDER}</code></p>
+      <p id="image-prompt-placeholder" className="image-prompt-requirement">{english ? 'Required placeholder' : 'అవసరమైన గుర్తు'}: <code>{WORD_PLACEHOLDER}</code>. {english ? 'Optional current sentence' : 'ఐచ్ఛిక ప్రస్తుత వాక్యం'}: <code>{SENTENCE_PLACEHOLDER}</code></p>
       <label className="appearance-surface-auto">
         <span>{english ? 'Enable regeneration' : 'చిత్రాన్ని మళ్లీ సృష్టించడానికి అనుమతించు'}</span>
         <input type="checkbox" role="switch" checked={allowRegeneration} disabled={!settings || saving}

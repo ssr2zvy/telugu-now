@@ -3,7 +3,6 @@ export { OBSERVATION_FONTS, type ObservationFontFamily } from '../../shared/appe
 export const IOS_OBSERVATION_FONTS = [
   'Noto Sans Telugu',
   'Noto Serif Telugu',
-  'NTR',
 ] as const satisfies readonly ObservationFontFamily[];
 
 interface DeviceNavigator {

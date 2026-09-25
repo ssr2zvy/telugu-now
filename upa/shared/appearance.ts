@@ -15,22 +15,28 @@ export type ObservationFontFamily = (typeof OBSERVATION_FONTS)[number];
 export interface AppearanceSettings {
   gradient: [string, string, string];
   foreground: string;
+  foregroundDefaultVersion: 2;
   surface: string | null;
   fontScale: number;
   textOffset: number;
   audioOffset: number;
+  questionActionOffset: number;
   // Vertical offsets remembered for the magnifier position not currently
   // active, restored automatically when switching back to it.
   textOffsetOther: number;
   audioOffsetOther: number;
   audioTimestampGap: number;
   timestampMagnifierGap: number;
+  magnifierBarGap: number;
   controlDarkness: number;
   showAudioTimestamp: boolean;
   showMagnifierHighlight: boolean;
   highlightMods: boolean;
+  // Legacy text-shift preset amount; retained so saved colors keep their meaning.
   modificationLightness: number;
+  gradientBarrier: number;
   modificationColor: string | null;
+  modificationPreset: 'near' | 'soft' | 'balanced' | 'defined';
   magnifierPosition: 'above' | 'below';
   scrollMode: boolean;
   toggleTrigger: 'scroll' | 'tap';
@@ -40,21 +46,26 @@ export interface AppearanceSettings {
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   gradient: ['#b6b6b6', '#969696', '#787878'],
-  foreground: '#171717',
+  foreground: '#34304a',
+  foregroundDefaultVersion: 2,
   surface: null,
   fontScale: 50,
   textOffset: 0,
   audioOffset: 0,
+  questionActionOffset: 0,
   textOffsetOther: 0,
   audioOffsetOther: 0,
   audioTimestampGap: 1,
   timestampMagnifierGap: 1,
+  magnifierBarGap: 4,
   controlDarkness: 15,
   showAudioTimestamp: false,
   showMagnifierHighlight: true,
   highlightMods: true,
   modificationLightness: 24,
+  gradientBarrier: 50,
   modificationColor: null,
+  modificationPreset: 'near',
   magnifierPosition: 'below',
   scrollMode: true,
   toggleTrigger: 'scroll',
@@ -64,6 +75,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 export const APPEARANCE_OFFSET_LIMIT = 200;
 export const CONTROL_SPACING_LIMITS = { min: 0, max: 48 } as const;
 export const CONTROL_DARKNESS_LIMITS = { min: 0, max: 60 } as const;
+export const GRADIENT_BARRIER_LIMITS = { min: 0, max: 100 } as const;
 export const MODIFICATION_LIGHTNESS_LIMITS = { min: 0, max: 40 } as const;
 export const AUTO_FADE_SECONDS_LIMITS = { min: 1, max: 60 } as const;
 const isColor = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
@@ -79,16 +91,19 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   return {
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
-    foreground: isColor(candidate.foreground) ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
+    foreground: isColor(candidate.foreground) && (candidate.foregroundDefaultVersion === 2 || candidate.foreground.toLowerCase() !== '#171717') ? candidate.foreground : DEFAULT_APPEARANCE.foreground,
+    foregroundDefaultVersion: 2,
     surface: isColor(candidate.surface) ? candidate.surface : null,
     fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
+    questionActionOffset: Math.max(0, parseOffset(candidate.questionActionOffset)),
     textOffsetOther: parseOffset(candidate.textOffsetOther),
     audioOffsetOther: parseOffset(candidate.audioOffsetOther),
     audioTimestampGap: parseControlGap(candidate.audioTimestampGap, legacyGap),
     timestampMagnifierGap: parseControlGap(candidate.timestampMagnifierGap, legacyGap),
+    magnifierBarGap: parseControlGap(candidate.magnifierBarGap, 4),
     controlDarkness: typeof candidate.controlDarkness === 'number' && Number.isFinite(candidate.controlDarkness)
       ? Math.round(Math.max(CONTROL_DARKNESS_LIMITS.min, Math.min(CONTROL_DARKNESS_LIMITS.max, candidate.controlDarkness)))
       : DEFAULT_APPEARANCE.controlDarkness,
@@ -101,6 +116,10 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     modificationLightness: typeof candidate.modificationLightness === 'number' && Number.isFinite(candidate.modificationLightness)
       ? Math.round(Math.max(MODIFICATION_LIGHTNESS_LIMITS.min, Math.min(MODIFICATION_LIGHTNESS_LIMITS.max, candidate.modificationLightness)))
       : DEFAULT_APPEARANCE.modificationLightness,
+    gradientBarrier: typeof candidate.gradientBarrier === 'number' && Number.isFinite(candidate.gradientBarrier)
+      ? Math.round(Math.max(GRADIENT_BARRIER_LIMITS.min, Math.min(GRADIENT_BARRIER_LIMITS.max, candidate.gradientBarrier)))
+      : DEFAULT_APPEARANCE.gradientBarrier,
+    modificationPreset: ['near','soft','balanced','defined'].includes(candidate.modificationPreset ?? '') ? candidate.modificationPreset! : 'near',
     modificationColor: isColor(candidate.modificationColor) ? candidate.modificationColor : null,
     magnifierPosition: candidate.magnifierPosition === 'above' || candidate.magnifierPosition === 'below'
       ? candidate.magnifierPosition : DEFAULT_APPEARANCE.magnifierPosition,

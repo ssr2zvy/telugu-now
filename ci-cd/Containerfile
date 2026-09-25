@@ -11,14 +11,21 @@ RUN npm ci --include=dev --no-audit --no-fund
 
 FROM dependencies AS build
 COPY upa/ ./
+COPY data-transform/scripts/build-grammar/ /app/data-transform/scripts/build-grammar/
+COPY data-transform/scripts/parse-core/ /app/data-transform/scripts/parse-core/
 COPY ci-cd/make-artifacts.sh /app/ci-cd/make-artifacts.sh
-RUN bash /app/ci-cd/make-artifacts.sh
+ARG BUILD_REVISION=local
+ARG BUILD_ID
+ARG BUILD_TIMESTAMP
+RUN BUILD_REVISION="$BUILD_REVISION" BUILD_ID="$BUILD_ID" BUILD_TIMESTAMP="$BUILD_TIMESTAMP" bash /app/ci-cd/make-artifacts.sh
 
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
-LABEL org.opencontainers.image.version="0.0.1-initial"
+ARG BUILD_REVISION=local
+ARG BUILD_ID
+LABEL org.opencontainers.image.revision="$BUILD_REVISION" org.opencontainers.image.version="$BUILD_ID"
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIRECTORY=/data
@@ -31,6 +38,10 @@ RUN apt-get update \
 COPY upa/package.json ./
 COPY --from=production-dependencies /app/upa/node_modules ./node_modules
 COPY --from=build /app/upa/dist ./dist
+# Exercise dictionary loading at the same path used by the deployed worker.
+# Skip the expensive corpus-independent surface index during the image build.
+RUN PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=dist/server/parse-core/parser \
+    python3 -c "from core_parser.parser import CoreParser; CoreParser(build_index=False)"
 COPY ci-cd/container-scripts/entrypoint.sh /usr/local/bin/telugu-now-entrypoint
 
 RUN chmod 755 /usr/local/bin/telugu-now-entrypoint

@@ -4,7 +4,7 @@
     "Nirmala UI",
     "Gautami",
     sans-serif;
-  color: #171717;
+  color: #34304a;
   background: #969696;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -103,7 +103,7 @@ button, [role="button"] {
 }
 .gradient-field { position: absolute; inset: 0; overflow: hidden; z-index: -1; background: var(--gradient-middle); }
 .loading-slit { display: grid; grid-template-rows: 10px 18px; place-items: center; gap: 5px; width: 72px; min-height: 33px; color: color-mix(in srgb, var(--gradient-middle) 72%, var(--foreground)); }
-.loading-slit-window { position: relative; display: block; width: 64px; height: 10px; overflow: hidden; }
+.loading-slit-window { position: relative; display: block; width: 64px; height: 10px; overflow: hidden; -webkit-mask-image: linear-gradient(to right, transparent, #000 20%, #000 80%, transparent); mask-image: linear-gradient(to right, transparent, #000 20%, #000 80%, transparent); }
 .loading-slit output { color: color-mix(in srgb, currentColor 76%, var(--foreground)); font: 500 .68rem/18px ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 .loading-slit-window i { position: absolute; z-index: 2; top: 2px; left: -6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0; animation: loading-slit-dot 2.7s linear infinite; }
 .loading-slit-window i:nth-child(1) { animation-delay: -720ms; }
@@ -118,10 +118,9 @@ button, [role="button"] {
 .appearance-root :where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label):not(.audio-player-bar *):not(.question-keyboard *):not(:where(button, input, select, textarea, a, summary, [role="button"], [role="slider"], .field-value, .appearance-scale, .appearance-position-options label) *) {
   filter: brightness(var(--control-brightness, .85));
 }
-.gradient-field > div { position: absolute; left: calc(50% - 100vmax); top: calc(50% - 100vmax); width: 200vmax; height: 200vmax; transition: transform 650ms cubic-bezier(.25,.1,.25,1); }
-.gradient-field > div:nth-child(1) { background: linear-gradient(135deg, var(--gradient-start) 20%, var(--gradient-middle) 50%, var(--gradient-end) 80%); transform: rotate(var(--gradient-turn-a, 0deg)); }
-.gradient-field > div:nth-child(2) { background: linear-gradient(65deg, transparent 20%, var(--gradient-start) 65%, transparent); opacity: .38; transform: translateX(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-b, 0deg)); }
-.gradient-field > div:nth-child(3) { background: linear-gradient(165deg, transparent 30%, var(--gradient-end) 85%); opacity: .45; transform: translateY(var(--gradient-shift, 0%)) rotate(var(--gradient-turn-a, 0deg)); }
+/* SVG patterns retain the existing angled gradient layers, but repeat them
+   through mirrored edges. The viewport stays covered at any history position. */
+svg.gradient-field { width: 100%; height: 100%; pointer-events: none; }
 :focus, :focus-visible { outline: none; }
 .appearance-root :is(.reading-context-menu-action, .observation-start, .audio-transport-button, .audio-playback-option, .word-profile-back, .word-profile-action, .settings-index button, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .primary-action, .secondary-action, .appearance-icon-action, .settings-rail-disclosure, .settings-rail-link):not(:disabled)[data-touch-pressed] {
   background: var(--wash);
@@ -133,7 +132,6 @@ html[data-input-modality="keyboard"] .appearance-root :is(button, a[href], summa
   outline: 2px solid var(--foreground);
   outline-offset: -3px;
 }
-@media (prefers-reduced-motion: reduce) { .gradient-field > div:nth-child(n) { transition: none; transform: none; animation: none; will-change: auto; } }
 .control-icon {
   width: 1.35rem;
   height: 1.35rem;

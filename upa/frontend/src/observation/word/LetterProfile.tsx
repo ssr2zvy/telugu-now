@@ -5,13 +5,13 @@ import { getAlignedLetterAudio } from '../../api';
 import { appearanceModificationColor, useAppearance } from '../../appearance';
 import { LoadingSlit } from '../../components/LoadingSlit';
 import type { ObservationFontFamily } from '../../presentation';
-import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from '../ReadingContextMenu';
 import { TeluguGradientText } from '../TeluguGradientText';
 import { teluguHighlightRuns } from '../telugu-highlighting';
 import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
 import { AudioPlayerBar, type AudioPlayerBarHandle } from '../audio/AudioPlayerBar';
 
 interface LetterProfileProps {
+  suppressAudioControls?: boolean;
   letter: string;
   observationId: string;
   word: string;
@@ -22,8 +22,7 @@ interface LetterProfileProps {
   profileCode: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onCopy: (word: string) => void;
-  onBlacklistTranscript: () => void;
+  onCopy: (word: string) => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -34,13 +33,12 @@ interface LetterRun {
 
 export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
   profileCode, fontFamily, playbackRate,
-  onCopy, onBlacklistTranscript, onBack }: LetterProfileProps) {
+  onCopy, onBack, suppressAudioControls = false }: LetterProfileProps) {
   const { appearance } = useAppearance();
   const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
   const [audioLoading, setAudioLoading] = useState(true);
   const player = useRef<AudioPlayerBarHandle>(null);
-  const [menu, setMenu] = useState<ReadingContextMenuState | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -59,14 +57,14 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
     : [], [selection?.text, letter, appearance.highlightMods]);
   const modificationColor = appearanceModificationColor(appearance);
   const gradientKey = selection
-    ? [selection.text, fontFamily, appearance.foreground, modificationColor, appearance.highlightMods].join('\0')
+    ? [selection.text, fontFamily, appearance.foreground, modificationColor, appearance.gradientBarrier, appearance.highlightMods].join('\0')
     : null;
   useEffect(() => {
     if (!gradientKey) return;
     let cancelled = false;
     void Promise.all(runs.map(run => run.highlighted
       ? renderTeluguGradientTexture(run.text, fontFamily,
-          appearance.foreground, modificationColor)
+          appearance.foreground, modificationColor, appearance.gradientBarrier)
       : Promise.resolve(null))).then(textures => {
         if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
       }).catch(() => {
@@ -79,15 +77,14 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   const openMenu = (event: MouseEvent<HTMLElement>) => {
     if (!selection) return;
     event.preventDefault();
-    setMenu(readingContextMenuState(event.clientX, event.clientY, selection.word));
   };
 
   return (
-    <section className="letter-profile-page controls-visible" aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
+    <section className={`letter-profile-page ${suppressAudioControls ? 'exploration-focus' : 'controls-visible'}`} aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
       <button type="button" className="word-profile-back" aria-label="Back to word" onClick={onBack}>
         <ArrowLeft size={20} aria-hidden="true" />
       </button>
-      {!ready && !error ? <LoadingSlit label="Finding a word for this letter" /> : null}
+      {!ready && !error ? <LoadingSlit key={letter} delayMs={250} label="Finding a word for this letter" /> : null}
       {selection ? <div className="letter-profile-center" data-ready={ready} onClick={event => {
         if ((event.target as HTMLElement).closest('.audio-player-bar')) return;
         player.current?.togglePlay();
@@ -102,12 +99,11 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
           </span>)}
         </h2>
         <AudioPlayerBar ref={player} audio={selection.audio} sourceId={selection.sourceId} sourceKey={selection.sourceKey}
-          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible playbackEnabled
+          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible={!suppressAudioControls} playbackEnabled
           readinessKey={`${selection.sourceId}:${selection.sourceKey}`}
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => setError(message ?? '')} />
       </div> : null}
-      {menu ? <ReadingContextMenu menu={menu} onCopy={onCopy} onBlacklistTranscript={onBlacklistTranscript} onClose={() => setMenu(null)} /> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
     </section>
   );

@@ -1,4 +1,7 @@
-import { serve } from '@hono/node-server';
+import { accessGate } from './access/gate';
+import { normalizeQuestionRecording } from './services/recording-audio';
+import { parsingRoutes } from './parsing/routes';
+import { grammarRoutes } from './grammar/routes';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
@@ -11,7 +14,6 @@ import { wordImageRoutes } from './services/word-image-service';
 import { migrateLegacyWordImages } from './services/word-image-store';
 import { profilePreferencesRoutes } from './services/profile-preferences-service';
 import { profileEonsRoutes } from './services/eon-service';
-import { profileBlacklistRoutes } from './services/blacklist-service';
 import { graphemeWordRoutes } from './services/grapheme-word-service';
 import { audioAlignmentRoutes } from './services/audio-alignment-service';
 import { getQuestionAudio, InvalidQuestionResponseError, updateQuestionAudio, updateQuestionText } from './services/question-response-service';
@@ -46,7 +48,8 @@ import type {
 import { errorCategory, logger, withRequestContext } from './services/logger';
 import { parseClientTelemetry, recordClientTelemetry } from './services/client-telemetry-service';
 
-const app = new Hono();
+export const app = new Hono();
+app.use('*', accessGate(db));
 
 function requestPath(path: string): string {
   return path.replace(/\/api\/profiles\/[^/]+/u, '/api/profiles/:code');
@@ -94,9 +97,10 @@ app.get('/api/data-sources', (c) =>
 app.on(['GET', 'HEAD'], '/api/audio/*', serveAudio());
 app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
+app.route('/api/profiles', parsingRoutes());
+app.route('/api/profiles', grammarRoutes());
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', profileEonsRoutes(db, code => config.profileCodes.has(code)));
-app.route('/api/profiles', profileBlacklistRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', graphemeWordRoutes(db));
 app.route('/api/profiles', audioAlignmentRoutes(db));
 
@@ -130,7 +134,9 @@ app.post('/api/profiles/:code/next', async (c) => {
 
 app.post('/api/profiles/:code/queue/reset', async (c) => {
   const body = await c.req.json<NavigationRequest>();
-  return c.json(resetQueue(c.req.param('code'), Boolean(body.visible)));
+  const scope = (body as NavigationRequest & {scope?:unknown}).scope ?? 'chain';
+  if (scope !== 'chain' && scope !== 'core' && scope !== 'all') return c.json({error:'Invalid reset scope'},400);
+  return c.json(resetQueue(c.req.param('code'), Boolean(body.visible), scope));
 });
 
 app.put('/api/profiles/:code/settings', async (c) => {
@@ -157,16 +163,19 @@ app.put('/api/profiles/:code/questions/:observationId/audio', async (c) => {
   const code = c.req.param('code');
   assertValidProfileCode(code);
   const mimeType = c.req.header('content-type') ?? '';
-  updateQuestionAudio(db, code, c.req.param('observationId'), new Uint8Array(await c.req.arrayBuffer()), mimeType);
+  await updateQuestionAudio(db, code, c.req.param('observationId'), new Uint8Array(await c.req.arrayBuffer()), mimeType);
   return c.body(null, 204);
 });
 
-app.get('/api/profiles/:code/questions/:observationId/audio', (c) => {
+app.get('/api/profiles/:code/questions/:observationId/audio', async (c) => {
   const code = c.req.param('code');
   assertValidProfileCode(code);
   const audio = getQuestionAudio(db, code, c.req.param('observationId'));
   if (!audio) return c.body(null, 404);
-  return c.body(new Uint8Array(audio.bytes), 200, { 'Content-Type': audio.mimeType, 'Content-Length': String(audio.bytes.byteLength) });
+  // Older saved native-format recordings also receive compatible playback.
+  const bytes=audio.mimeType==='audio/wav'?audio.bytes:await normalizeQuestionRecording(audio.bytes,audio.mimeType);
+  c.header('Cache-Control','no-store');
+  return c.body(new Uint8Array(bytes), 200, { 'Content-Type':'audio/wav', 'Content-Length':String(bytes.byteLength) });
 });
 
 app.post('/api/profiles/:code/export', async (c) => {
@@ -207,13 +216,9 @@ if (process.env.NODE_ENV === 'production') {
     await next();
     if (c.res.ok) c.header('Cache-Control', 'public, max-age=31536000, immutable');
   });
+  app.use('/version.json', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
   app.use('/*', serveStatic({ root: './dist/client' }));
   app.get('*', serveStatic({ path: './dist/client/index.html' }));
 }
 
 preparationService.kick();
-
-const port = process.env.NODE_ENV === 'production' ? config.port : config.devPort;
-serve({ fetch: app.fetch, port }, (info) => {
-  logger.info('server_started', { port: info.port });
-});

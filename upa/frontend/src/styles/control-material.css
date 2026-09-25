@@ -1,0 +1,58 @@
+/* Case study 1: the mark itself carries color, depth and feedback.
+   No geometry or pointer targets are changed by this material layer. */
+.appearance-root {
+  --material-duration: 180ms;
+  --material-rest-opacity: .72;
+  --material-active-opacity: .9;
+  --material-edge: var(--control-material-edge, transparent);
+}
+.control-material-definitions { position: absolute; pointer-events: none; overflow: hidden; }
+.appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start) {
+  background: transparent;
+}
+.appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start, .settings-index button, .settings-rail-link, .settings-rail-disclosure) svg,
+.appearance-root :is(.question-phase-indicator, .navigation-feedback, .reader-settings) svg {
+  stroke: var(--control-icon-paint, currentColor);
+  opacity: var(--material-rest-opacity);
+  filter: drop-shadow(0 .5px .4px var(--material-edge)) brightness(var(--control-brightness, .85));
+  transition: opacity var(--material-duration) ease, filter var(--material-duration) ease;
+}
+.appearance-root .audio-transport-button .control-icon-fill,
+.appearance-root .settings-icon-fill-shape,
+.appearance-root .audio-speed-button .settings-icon-fill-shape {
+  fill: var(--control-icon-paint, currentColor); stroke: none;
+}
+.appearance-root :is(.audio-transport-button, .audio-playback-option)[aria-pressed='true'] { background: transparent; }
+.appearance-root :is(.audio-transport-button, .audio-playback-option)[aria-pressed='true'] svg { opacity: var(--material-active-opacity); }
+/* The masked playback icons use exactly the same paint as the SVG icons. */
+@supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
+  .appearance-root .audio-glass-icon {
+    background: var(--control-material-gradient);
+    opacity: var(--material-rest-opacity);
+    filter: drop-shadow(0 .5px .4px var(--material-edge)) brightness(var(--control-brightness, .85));
+    transition: opacity var(--material-duration) ease, filter var(--material-duration) ease;
+  }
+  .appearance-root .audio-glass-icon > svg { opacity: 0; }
+  .appearance-root .audio-playback-option[aria-pressed='true'] .audio-glass-icon { opacity: var(--material-active-opacity); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start):not(:disabled):hover { background: transparent; }
+  .appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start, .settings-index button, .settings-rail-link, .settings-rail-disclosure):not(:disabled):hover > svg,
+  .appearance-root .audio-playback-option:not(:disabled):hover .audio-glass-icon {
+    opacity: 1;
+    filter: drop-shadow(0 .5px .4px var(--material-edge)) brightness(var(--control-brightness, .85)) saturate(1.16) contrast(1.08);
+  }
+}
+.appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start):not(:disabled):is(:active, [data-touch-pressed]) { background: transparent; }
+.appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .settings-back, .settings-close, .settings-rail-toggle, .language-toggle, .appearance-icon-action, .word-profile-back, .word-image-glass-action, .observation-start):not(:disabled):is(:active, [data-touch-pressed]) > svg,
+.appearance-root .audio-playback-option:not(:disabled):is(:active, [data-touch-pressed]) .audio-glass-icon {
+  opacity: 1;
+  filter: drop-shadow(0 .25px .3px var(--material-edge)) brightness(var(--control-brightness, .85)) saturate(1.2) contrast(1.14);
+}
+html[data-input-modality='keyboard'] .appearance-root button:focus-visible > svg,
+html[data-input-modality='keyboard'] .appearance-root button:focus-visible .audio-glass-icon { opacity: 1; }
+/* Keep the existing keyboard focus ring; it is a navigation aid, not decoration. */
+.appearance-root :is(.audio-transport-button, .audio-playback-option, .reading-context-menu-action, .word-image-glass-action):disabled { opacity: .45; }
+@media (prefers-reduced-motion: reduce) {
+  .appearance-root { --material-duration: 0ms; }
+}

@@ -1,11 +1,23 @@
+import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
+import { explorationSteps, explorationIndex } from './exploration-steps';
+import { useObservationTravel } from './useObservationTravel';
+import { useGradientTravel } from '../GradientBackdrop';
+import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
+import { useReaderSettingsFade } from './useReaderSettingsFade';
+import { readerNeedsLoadingDots } from './reader-loading';
+import { useReaderSwipes } from './useReaderSwipes';
+import { copyOriginalReaderText } from './reader-hyphenation';
+import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
 import {
   useCallback,
+  useMemo,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
 } from 'react';
-import { AlignJustify, ArrowLeft, ArrowRight, Check, CircleHelp } from 'lucide-react';
+import { ArrowRight, Settings } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -23,37 +35,17 @@ import { WordProfile } from './word/WordProfile';
 import { appearanceModificationColor, useAppearance } from '../appearance';
 import { LoadingSlit } from '../components/LoadingSlit';
 import { ReaderTaps, readerTapRegions } from './reader-taps';
-import { scrollControlsVisible, type ScrollDirection } from './reader-scroll';
-import { useReaderScroll } from './useReaderScroll';
-import { ReadingContextMenu, readingContextMenuState, type ReadingContextMenuState } from './ReadingContextMenu';
-import { addBlacklistEntry, reportClientTelemetry } from '../api';
-import { QuestionControls } from './QuestionControls';
+import { type ScrollDirection } from './reader-scroll';
+import { reportClientTelemetry } from '../api';
+import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
 import { teluguHighlightRuns } from './telugu-highlighting';
 import { TeluguWordText } from './TeluguGradientText';
 import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
-import { observationShowsPhaseIndicator, observationShowsText } from './observation-content';
+import { observationShowsText } from './observation-content';
 import { visibleWordAtPoint } from './visible-glyph-hit-testing';
 import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
 import { ComparisonPage } from './ComparisonPage';
 
-const LONG_PRESS_MS = 500;
-const LONG_PRESS_MOVE_TOLERANCE = 10;
-
-async function copyToClipboard(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return;
-  } catch {
-    // Fall through to the legacy fallback below.
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
-}
 function fontAvailability(fontFamily: string, text: string): boolean | null {
   try {
     return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));
@@ -83,6 +75,7 @@ export function ObservationView({
   onOpenSettings,
 }: ObservationViewProps) {
   const { appearance } = useAppearance();
+  const gradientTravel = useGradientTravel();
   const [
     controlsVisible,
     setControlsVisible,
@@ -93,56 +86,35 @@ export function ObservationView({
   const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);
   const seamlessAudioKey = useRef<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [questionControlsVisible, setQuestionControlsVisible] = useState(false);
+  const questionControlsRef = useRef<QuestionControlsHandle>(null);
+  const evaluationRef=useRef<GrammarEvaluationHandle>(null);
+  const evaluationNavigation=useRef(false);
+  const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');
+  const phaseDirection = useRef<'back' | 'next'>('next');
+  const evaluationDrafts = useRef(new Map<string, boolean>());
   const [comparisonReady, setComparisonReady] = useState(false);
   const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
   const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
-  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string } | null>(null);
-  const [readingMenu, setReadingMenu] = useState<ReadingContextMenuState | null>(null);
+  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);
   const [gradientPresentation, setGradientPresentation] = useState<{
     key: string;
     textures: Array<TeluguGradientTexture | null>;
   } | null>(null);
   const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);
   const screenRef = useRef<HTMLElement>(null);
+  const settingsIdle = useReaderSettingsFade(screenRef);
   const playerRef = useRef<AudioPlayerBarHandle>(null);
   const [taps] = useState(() => new ReaderTaps());
-  const suppressNextClick = useRef(false);
-  const longPressTimer = useRef<number | null>(null);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const gesturePausedPlayback = useRef(false);
   const observationLoadStartedAt = useRef<number | null>(null);
-  const cancelLongPress = () => {
-    if (longPressTimer.current !== null) { window.clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    longPressOrigin.current = null;
-  };
-  const openReadingMenu = (x: number, y: number, word: string | null) => {
-    taps.cancel();
-    setControlsVisible(false);
-    setReadingMenu(readingContextMenuState(x, y, word));
-  };
   const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
   const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
+  const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
+  const textComparison = textGivenFlow && comparisonQuestionPhase;
   const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
-  const scrollHandlers = useReaderScroll(screenRef, appearance.toggleTrigger === 'scroll' && !audioGivenQuestionPhase && !comparisonQuestionPhase && (questionPhase || Boolean(state?.currentObservation?.audio)), state?.currentObservation?.id, direction => {
-    taps.cancel();
-    if (questionPhase) {
-      setAudioMotionDirection(direction);
-      setQuestionControlsVisible(visible => {
-        if (visible) playerRef.current?.dismissPrecision();
-        setAudioMotion(visible ? 'exit' : 'enter');
-        return !visible;
-      });
-      return;
-    }
-    setAudioMotionDirection(direction);
-    setAudioMotion(controlsVisible ? 'exit' : 'enter');
-    setControlsVisible(scrollControlsVisible(controlsVisible));
-    setPrecisionInteraction(value => value + 1);
-  }, () => taps.cancel());
   useEffect(() => {
     const screen = screenRef.current;
-    if (!controlsVisible || !screen) return;
+    if (textGivenFlow || !controlsVisible || !screen) return;
     let idleTimer: number;
     const activePointers = new Set<number>();
     const scheduleHide = (event?: Event) => {
@@ -164,7 +136,7 @@ export function ObservationView({
       window.clearTimeout(idleTimer);
       for (const event of events) screen.removeEventListener(event, scheduleHide);
     };
-  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction]);
+  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);
   const observation =
     state?.currentObservation ?? null;
   useEffect(() => {
@@ -175,32 +147,36 @@ export function ObservationView({
   const fontAssignments = useObservationFontQueue(state, appearance.fonts);
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
     ?? 'Noto Sans Telugu';
+  const steps = useMemo(() => explorationSteps(observation?.text ?? ''), [observation?.text]);
+  const explorationRef = useRef<ExplorationHandle | null>(null);
+  const [exploration, setExploration] = useState<number | null>(null);
+  const exploring = exploration !== null && Boolean(steps[exploration]);
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
   const comparisonPhase = comparisonQuestionPhase;
   const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
-  const visibleAudio = comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
+  const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
   const audioReadinessKey = observation && visibleAudio ? `${observation.id}\0${visibleAudio.url}` : null;
   const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {
     if (!key) return;
     setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
       ? current : { key, loading, progress });
   }, []);
-  const audioControlsVisible = activeQuestion?.mode === 'text-given'
-    ? questionControlsVisible
-    : controlsVisible || Boolean(activeQuestion && visibleAudio);
-  const questionControlsAreVisible = activeQuestion?.mode === 'audio-given' || questionControlsVisible;
-  useEffect(() => {
+  const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));
+  // Reset page-owned presentation before paint, including any old exit animation.
+  useLayoutEffect(() => {
     taps.cancel();
+    setExploration(null);
     seamlessAudioKey.current = null;
-    setQuestionControlsVisible(false);
+    setAudioError(null);
     setAudioMotion('idle');
+    setPhaseMotion(textGivenFlow ? 'enter' : 'idle');
+    playerRef.current?.dismissPrecision();
     setComparisonReady(false);
     setResponseAudio(observation?.question?.responseAudio ?? null);
     setRecordingRange(null);
-    setControlsVisible(Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && (observation.audio || observation.question.responseAudio)));
-    setReadingMenu(null);
+    setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
     return () => taps.cancel();
-  }, [taps, observation?.id, observation?.question?.phase, appearance.scrollMode]);
+  }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
   const showsObservationText = observationShowsText(observation);
   const typography =
     useObservationTypography(
@@ -264,7 +240,7 @@ export function ObservationView({
               if (cancelled) return;
               await waitForIdle();
               if (cancelled) return;
-              await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor);
+              await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
             }
           }
         } catch {
@@ -287,7 +263,7 @@ export function ObservationView({
     };
     void worker().catch(() => {});
     return () => { cancelled = true; };
-  }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor]);
+  }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor, appearance.gradientBarrier]);
   const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
   // On the first load, do not reveal an interactive reader while prewarm work
   // can still monopolize the main thread. Individual failures are marked done
@@ -301,7 +277,7 @@ export function ObservationView({
     setInitialGateResolved(true);
   }, [observation?.id, neighborsPrewarmed]);
   const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
-    ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, observation.text].join('\0')
+    ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, observation.text].join('\0')
     : null;
   const gradientKey = showsObservationText ? presentationGradientKey : null;
   useEffect(() => {
@@ -326,7 +302,7 @@ export function ObservationView({
         await waitForIdle();
         if (cancelled) return;
         textures.push(await renderTeluguGradientTexture(
-          highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+          highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
         ));
       }
       if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
@@ -340,7 +316,7 @@ export function ObservationView({
       });
     });
     return () => { cancelled = true; };
-  }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor]);
+  }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier]);
   useEffect(() => {
     if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
     let cancelled = false;
@@ -357,10 +333,10 @@ export function ObservationView({
         if (cancelled) return;
         if (highlightRun.highlighted) {
           if (!hasTeluguGradientTexture(
-            highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor,
+            highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
           )) await nextFrame();
           if (cancelled) return;
-          const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor);
+          const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
           textures.push(texture);
           if (!cancelled) setGradientProgress(current => current?.key === gradientKey
             ? { ...current, completed: current.completed + 1 } : current);
@@ -388,7 +364,7 @@ export function ObservationView({
   const audioLoading = Boolean(audioReadinessKey)
     && audioReadinessKey !== seamlessAudioKey.current
     && (audioReadiness?.key !== audioReadinessKey || audioReadiness.loading);
-  const entryPrepared = Boolean(observation) && (comparisonPhase
+  const entryPrepared = Boolean(observation) && (comparisonPhase && !textComparison
     ? comparisonReady
     : (!showsObservationText || textReady) && !audioLoading && initialGateResolved);
   const presentationKey = observation
@@ -406,6 +382,8 @@ export function ObservationView({
       window.cancelAnimationFrame(secondFrame);
     };
   }, [entryPrepared, presentationKey]);
+  const [navigationError, setNavigationError] = useState('');
+  const pageTransition = useObservationTravel(screenRef, state?.currentPosition ?? null, Boolean(observation && (textGivenFlow ? textReady : entryPrepared)));
   const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
   useEffect(() => {
     if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
@@ -416,16 +394,14 @@ export function ObservationView({
     });
     observationLoadStartedAt.current = null;
   }, [entryReady, observation?.id]);
-  const [transitionLoaderVisible, setTransitionLoaderVisible] = useState(false);
-  useEffect(() => {
-    if (!navigationEvent || entryReady) {
-      setTransitionLoaderVisible(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setTransitionLoaderVisible(true), 500);
-    return () => window.clearTimeout(timer);
-  }, [navigationEvent?.sequence, entryReady]);
-  const showEntryLoadingIndicator = !navigationEvent || transitionLoaderVisible;
+  const showEntryLoadingIndicator = readerNeedsLoadingDots({
+    entryReady,
+    textVisible: pageTransition.hasOutgoing || Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+    audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
+    comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
+    errorVisible: Boolean(audioError || state?.grammarError),
+    startVisible: Boolean(!observation && state?.canNext && !busy),
+  });
   const progressParts = [
     ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
     ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
@@ -484,12 +460,67 @@ export function ObservationView({
   const move = async (
     direction: 'back' | 'next',
   ) => {
-    const moved =
-      await onMove(direction);
-    if (moved) {
-      setControlsVisible(false);
+    if(evaluationNavigation.current)return;
+    evaluationNavigation.current=true;
+    let moved = false;
+    try {
+      if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
+      if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
+        !(await evaluationRef.current?.commit()))return;
+      setNavigationError('');
+      phaseDirection.current = direction;
+      if (swipeChangesObservation(observation?.question?.phase, direction)) pageTransition.prepare(direction);
+      moved=await onMove(direction);
+      if (!moved) { pageTransition.cancel(); setNavigationError('Could not move. Try again.'); }
+      if(moved && !textGivenFlow)setControlsVisible(false);
+    } catch (error) {
+      pageTransition.cancel();
+      setNavigationError(error instanceof Error ? error.message : 'Could not move. Try again.');
+    } finally {
+      if (!moved) gradientTravel.cancelPreview();
+      evaluationNavigation.current=false;
     }
   };
+  const verticalSwipe = (direction: 'up' | 'down') => {
+    if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
+    if (exploring) {
+      const next = explorationIndex(exploration, direction, steps.length);
+      setExploration(next);
+      if (next === null) { if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+      return;
+    }
+    if (direction === 'up') {
+      if (controlsVisible) {
+        if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
+      } else if (showsObservationText && observation && steps.length) {
+        playerRef.current?.pause(); taps.cancel(); setExploration(0);
+      }
+      return;
+    }
+    if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+    if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
+    else playerRef.current?.openAssociatedControls();
+  };
+  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
+    `${observation?.id}:${observation?.question?.phase}`, direction => {
+      taps.cancel();
+      if (direction === 'up' || direction === 'down') {
+        verticalSwipe(direction);
+      }
+      else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
+      else gradientTravel.cancelPreview();
+    }, () => taps.cancel(), {
+      onDrag: (dx, dy, width) => {
+        if (evaluationNavigation.current || busy) return;
+        const fraction = gradientSwipeFraction(dx, dy, width);
+        const direction = fraction < 0 ? 'back' : 'next';
+        const allowed = direction === 'back' ? canBackWhileLoading : canNext;
+        if (fraction && allowed && swipeChangesObservation(observation?.question?.phase, direction)) {
+          gradientTravel.preview(fraction);
+        } else gradientTravel.cancelPreview();
+      },
+      onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
+    });
   const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
     const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
     if (!element || !observation) return null;
@@ -506,9 +537,17 @@ export function ObservationView({
   return (
     <main
       ref={screenRef}
-      {...scrollHandlers}
+      {...swipeHandlers}
+      data-swipe-navigation="true"
+      data-exploring={exploring}
+      data-text-given-flow={textGivenFlow}
+      data-phase-motion={phaseMotion}
+      onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
+      data-entry-ready={entryReady}
+      data-settings-idle={settingsIdle}
+      data-phase-direction={phaseDirection.current}
       data-scroll-mode={appearance.scrollMode}
-      data-question-mode={activeQuestion?.mode}
+      data-question-mode={textComparison ? 'text-given' : activeQuestion?.mode}
       data-question-phase={observation?.question?.phase}
       data-audio-motion={audioMotion}
       data-swipe-direction={audioMotionDirection === 1 ? 'right' : 'left'}
@@ -519,27 +558,6 @@ export function ObservationView({
             : ''
         }`
       }
-      onPointerDown={(event) => {
-        if (event.pointerType !== 'touch' || !event.isPrimary || event.button !== 0 || !observation || !entryReady) return;
-        if (event.target instanceof Element && event.target.closest('button:not(.nav-zone), [role="slider"], input, textarea, .audio-player-bar, .question-controls, .reading-context-menu, .word-profile')) return;
-        const { clientX, clientY, target } = event;
-        longPressOrigin.current = { x: clientX, y: clientY };
-        longPressTimer.current = window.setTimeout(() => {
-          longPressTimer.current = null;
-          longPressOrigin.current = null;
-          suppressNextClick.current = true;
-          window.getSelection()?.removeAllRanges();
-          openReadingMenu(clientX, clientY, wordAtPoint({ clientX, clientY, target }, true));
-        }, LONG_PRESS_MS);
-      }}
-      onPointerMove={(event) => {
-        if (!longPressOrigin.current) return;
-        const dx = event.clientX - longPressOrigin.current.x;
-        const dy = event.clientY - longPressOrigin.current.y;
-        if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE) cancelLongPress();
-      }}
-      onPointerUp={cancelLongPress}
-      onPointerCancel={cancelLongPress}
       onFocusCapture={(event) => {
         if (event.target.matches(':focus-visible')) {
           if (event.target.closest('.audio-player-bar')) {
@@ -561,23 +579,14 @@ export function ObservationView({
         }
       }}
       tabIndex={0}
-      aria-label={appearance.scrollMode
-        ? 'Reader. Tap to play or pause. Swipe to show or hide audio controls.'
-        : 'Reader. Tap above the bottom third to play or pause. Tap the bottom third for audio controls.'}
-      onContextMenu={(event) => {
-        if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
-        event.preventDefault();
-        if (observation && !entryReady) return;
-        cancelLongPress();
-        openReadingMenu(event.clientX, event.clientY, wordAtPoint(event, true));
-      }}
+      aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
+      onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
       onClick={(event) => {
+        if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
         // Typing in the keyboard must never count toward the reader's own
         // single/double-click gestures (playback toggle, back/next navigation).
         if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
         if (observation && !entryReady) return;
-        if (suppressNextClick.current) { suppressNextClick.current = false; return; }
-        if (readingMenu) { setReadingMenu(null); return; }
         const bounds = screenRef.current?.getBoundingClientRect();
         if (!bounds) return;
         const region = readerTapRegions(event.clientX, event.clientY, bounds);
@@ -590,8 +599,7 @@ export function ObservationView({
         // A single tap that will end up pausing playback must stop the audio
         // immediately, before the double-tap resolution delay, so the pause
         // lands exactly where the user tapped instead of bleeding later.
-        const willTogglePlay = appearance.scrollMode || region.single === 'playback';
-        const eagerlyPaused = willTogglePlay && Boolean(playerRef.current?.isPlaying());
+        const eagerlyPaused = Boolean(playerRef.current?.isPlaying());
         if (eagerlyPaused) {
           gesturePausedPlayback.current = true;
           playerRef.current?.pause();
@@ -603,24 +611,11 @@ export function ObservationView({
           if (word && observation) {
             setControlsVisible(false);
             setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
-          } else if (region.double === 'center' && activeQuestion?.mode === 'text-given' && appearance.toggleTrigger === 'tap') {
-            setQuestionControlsVisible(visible => {
-              if (visible) playerRef.current?.dismissPrecision();
-              return !visible;
-            });
-          } else if (region.double === 'center') playerRef.current?.toggleAssociatedControls();
-          else if (region.double === 'back' ? canBack : canNext) void move(region.double);
+          }
+
         }, () => {
           gesturePausedPlayback.current = false;
-          if (appearance.scrollMode) {
-            if (!eagerlyPaused) playerRef.current?.togglePlay();
-          } else if (region.single === 'playback') { if (!eagerlyPaused) playerRef.current?.togglePlay(); }
-          else if (!playerRef.current?.isPrecisionOpen()) setControlsVisible(visible => !visible);
-        }, () => {
-          if (gesturePausedPlayback.current) playerRef.current?.resume();
-          gesturePausedPlayback.current = false;
-          window.getSelection()?.removeAllRanges();
-          onOpenSettings(typography.fontFamily);
+          if (!eagerlyPaused) playerRef.current?.togglePlay();
         });
       }}
       onMouseDownCapture={(event) => {
@@ -633,18 +628,6 @@ export function ObservationView({
         event.preventDefault();
       }}
     >
-      {navigationEvent ? (
-        <div
-          key={navigationEvent.sequence}
-          className="navigation-feedback"
-          data-loading={Boolean(observation && !entryReady)}
-          role="status"
-          aria-label={navigationEvent.direction === 'next' ? 'Next' : 'Back'}
-          data-sequence={navigationEvent.sequence}
-        >
-          {navigationEvent.direction === 'next' ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowLeft size={18} aria-hidden="true" />}
-        </div>
-      ) : null}
       <div className="nav-region">
         <button
           className="nav-zone nav-zone-left"
@@ -663,27 +646,16 @@ export function ObservationView({
           }}
         />
       </div>
+      {exploring && observation ? <ExplorationSurface observation={observation} step={steps[exploration!]!}
+        profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
+        playbackRate={state?.audioSettings.playbackRate ?? 1}
+        onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
       <section
         ref={typography.containerRef}
         className="observation-center"
         data-entry-loading={Boolean(observation && !entryReady)}
       >
-        {observation && observationShowsPhaseIndicator(observation, visibleAudio) ? (
-          <div
-            className="question-phase-indicator"
-            data-after-navigation={Boolean(navigationEvent)}
-            role="img"
-            aria-label={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
-            title={observation.question?.phase === 'comparison' ? 'Comparison' : observation.question?.phase === 'observation' ? 'Observation' : 'Question'}
-          >
-            {observation.question?.phase === 'comparison'
-              ? <Check aria-hidden="true" />
-              : observation.question?.phase === 'observation'
-                ? <AlignJustify aria-hidden="true" />
-                : <CircleHelp aria-hidden="true" />}
-          </div>
-        ) : null}
-        {observation && comparisonPhase ? (
+        {observation && comparisonPhase && !textComparison ? (
           <ComparisonPage
             observation={observation}
             fontFamily={typography.fontFamily}
@@ -696,10 +668,12 @@ export function ObservationView({
           <div
             ref={typography.textRef}
             className="observation-text"
-            style={{ ...typography.style, opacity: entryReady ? 1 : 0 }}
+            onCopy={copyOriginalReaderText}
+            style={{ ...typography.style, opacity: (textGivenFlow ? textReady : entryReady) ? 1 : 0 }}
           >
             <TeluguWordText
               text={observation.text}
+              visibleRange={exploring ? steps[exploration!] : undefined}
               runs={highlightRuns}
               textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
             />
@@ -718,38 +692,39 @@ export function ObservationView({
             <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
           </button>
         ) : (
-          <div className="observation-placeholder"><LoadingSlit label="Loading observation" /></div>
+          <div className="observation-placeholder" />
         )}
-          {observation && !entryReady ? (
+          {showEntryLoadingIndicator ? (
             <div
               className="observation-entry-loading"
               onClick={(event) => {
                 event.stopPropagation();
-                if (event.detail < 2 || !canBackWhileLoading) return;
+                if (textGivenFlow || event.detail < 2 || !canBackWhileLoading) return;
                 const bounds = screenRef.current?.getBoundingClientRect();
                 if (bounds && readerTapRegions(event.clientX, event.clientY, bounds).double === 'back') void move('back');
               }}
               onContextMenu={(event) => event.preventDefault()}
               onPointerDown={(event) => event.stopPropagation()}
             >
-              {showEntryLoadingIndicator ? <LoadingSlit label="Preparing observation" progress={entryProgress} /> : null}
+              <LoadingSlit key={presentationKey ?? "empty"} delayMs={250} label={observation ? "Preparing observation" : "Loading observation"} progress={entryProgress} />
             </div>
           ) : null}
-          {!comparisonPhase ? <AudioPlayerBar
+          {!comparisonPhase || textComparison ? <AudioPlayerBar
             ref={playerRef}
             observationId={observation?.id ?? null}
             audio={visibleAudio}
             sourceId={activeQuestion?.mode === 'text-given' ? 'question-response' : observation?.sourceId ?? null}
             sourceKey={activeQuestion?.mode === 'text-given' ? `${state?.profileCode}:${observation?.id}` : observation?.sourceKey ?? null}
             defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
-            autoplay={state?.audioSettings.autoplay ?? true}
+            autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
+            persistentDisclosure={Boolean(textGivenFlow)}
             controlsVisible={audioControlsVisible}
-            playbackEnabled={entryReady && !selectedWord}
+            playbackEnabled={entryReady && !selectedWord && !exploring}
             readinessKey={audioReadinessKey}
             onLoadingChange={handleAudioLoadingChange}
             onPlaybackErrorChange={setAudioError}
             recordingRange={activeQuestion?.mode === 'text-given' ? recordingRange : null}
-            reserveAudioSpace={activeQuestion?.mode === 'text-given'}
+            reserveAudioSpace={activeQuestion?.mode === 'text-given' || Boolean(textComparison)}
             onPrecisionInteraction={() => {
               taps.cancel();
               setControlsVisible(true);
@@ -757,12 +732,15 @@ export function ObservationView({
             }}
           /> : null}
           {observation && activeQuestion ? <QuestionControls
+            key={`${state?.profileCode}:${observation.id}`}
+            ref={questionControlsRef}
             profileCode={state?.profileCode ?? ''}
             observationId={observation.id}
             mode={activeQuestion.mode}
             keyboard={activeQuestion.keyboard}
-            visible={questionControlsAreVisible}
+            visible={!exploring}
             initialText={activeQuestion.responseText}
+            fontFamily={typography.fontFamily}
             beginRecording={() => playerRef.current?.beginRecording() ?? 0}
             durationSeconds={() => playerRef.current?.duration() ?? 0}
             onAudioSaved={(audio) => {
@@ -771,7 +749,7 @@ export function ObservationView({
               setResponseAudio(audio);
               setControlsVisible(true);
             }}
-            onRecordingChange={setRecordingRange}
+            onRecordingChange={range => { setRecordingRange(range); if (range) setControlsVisible(true); }}
             onSubmit={() => { if (canNext) void move('next'); }}
           /> : null}
       </section>
@@ -793,27 +771,18 @@ export function ObservationView({
           }}
         />
       </div>
+      {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase) && !exploring} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+      {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
+      {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
       {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
       {selectedWord && selectedWord.observationId === observation?.id ? (
-        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word}
+        <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text} initialGrapheme={selectedWord.grapheme} suppressAudioControls={exploring}
           observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
-          onBlacklistTranscript={() => {
-            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
-          }}
           onClose={() => setSelectedWord(null)} />
       ) : null}
-      {readingMenu ? (
-        <ReadingContextMenu
-          menu={readingMenu}
-          onCopy={() => void copyToClipboard(observation?.text ?? '')}
-          onBlacklistTranscript={() => {
-            if (state && observation) void addBlacklistEntry(state.profileCode, observation.text.normalize('NFC').trim()).catch(() => {});
-          }}
-          onOpenSettings={() => onOpenSettings(typography.fontFamily)}
-          onClose={() => setReadingMenu(null)}
-        />
-      ) : null}
+      <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
+
     </main>
   );
 }

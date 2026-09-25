@@ -242,9 +242,12 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
   let uploaded = false;
   let inventoryFails = false;
   let inventoryRequests = 0;
+  let releaseInventory: (() => void) | undefined;
   if (backend === 'tigris') {
-    const server = createServer((_request, response) => {
+    const inventoryReleased = new Promise<void>(resolve => { releaseInventory = resolve; });
+    const server = createServer(async (_request, response) => {
       inventoryRequests += 1;
+      if (mode === 'rebuild') await inventoryReleased;
       if (inventoryFails) {
         response.writeHead(503).end();
         return;
@@ -329,6 +332,11 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
     const url = output.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
     assert.ok(url);
     assert.equal((await fetch(`${url}/api/health`)).status, 200);
+    if (backend === 'tigris' && mode === 'rebuild') {
+      assert.equal(inventoryRequests, 1);
+      assert.equal((await fetch(`${url}/api/data-sources`)).status, 503);
+      releaseInventory?.();
+    }
     if (production) {
       const frontend = await fetch(url);
       assert.equal(frontend.status, 200);
@@ -362,6 +370,7 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
     assert.equal(inventoryRequests, requestsAfterStartup);
     assert.equal((await fetch(`${url}/api/health`)).status, 200);
   } finally {
+    releaseInventory?.();
     child.kill('SIGTERM');
     await exited;
   }

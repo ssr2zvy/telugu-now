@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import { settingsGroups, settingsPageIcons, settingsPageLabel } from './navigation';
+import { settingsGroups, settingsPageLabel, visibleSettingsEntries } from './navigation';
 import {
   LanguageIcon,
 } from '../components/icons';
@@ -16,6 +16,7 @@ interface SettingsShellProps {
   title: string;
   page: SettingsPage;
   profileCode: string;
+  migrationAvailable?: boolean;
   onNavigate: (page: Exclude<SettingsPage, 'index'>) => void;
   onOverview: () => void;
   onBack?: () => void;
@@ -28,6 +29,7 @@ export function SettingsShell({
   title,
   page,
   profileCode,
+  migrationAvailable = false,
   onNavigate,
   onOverview,
   onBack,
@@ -37,7 +39,7 @@ export function SettingsShell({
 }: SettingsShellProps) {
   const [railCollapsed, setRailCollapsed] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Partial<Record<SettingsPage, boolean>>>(() =>
-    Object.fromEntries((settingsGroups.index ?? []).filter(group => settingsGroups[group]).map(group => [group, true])),
+    Object.fromEntries(Object.keys(settingsGroups).filter(group => group !== 'index').map(group => [group, true])),
   );
   const heading = useRef<HTMLHeadingElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -94,7 +96,6 @@ export function SettingsShell({
   }, []);
 
   const navigationButton = (destination: SettingsPage, nested = false) => {
-    const Icon = settingsPageIcons[destination];
     const label = settingsPageLabel(destination, language);
     return (
       <button
@@ -110,11 +111,27 @@ export function SettingsShell({
           setRailCollapsed(true);
         }}
       >
-        {!nested && <Icon aria-hidden="true" />}
+
         <span>{label}</span>
       </button>
     );
   };
+  const navigationGroup = (group: SettingsPage, depth = 0): ReactNode => (
+    <div className="settings-rail-group" key={group} style={{'--settings-nav-depth':depth} as CSSProperties}>
+      <div className="settings-rail-group-heading">
+        {navigationButton(group, depth > 0)}
+        {settingsGroups[group] ? <button className="settings-rail-disclosure" type="button"
+          aria-label={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group,language)}`}
+          aria-expanded={!collapsedGroups[group]} aria-controls={`settings-rail-${group}`}
+          onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>
+          {collapsedGroups[group] ? <ChevronRight size={16} aria-hidden="true"/> : <ChevronDown size={16} aria-hidden="true"/>}
+        </button> : null}
+      </div>
+      {settingsGroups[group] ? <div id={`settings-rail-${group}`} hidden={Boolean(collapsedGroups[group])}>
+        {visibleSettingsEntries(group,migrationAvailable).map(child => navigationGroup(child,depth + 1))}
+      </div> : null}
+    </div>
+  );
   return (
     <main
       ref={shell}
@@ -130,14 +147,6 @@ export function SettingsShell({
         onClick={() => setRailCollapsed((collapsed) => !collapsed)}
       >
         {railCollapsed ? <PanelLeftOpen size={20} aria-hidden="true" /> : <PanelLeftClose size={20} aria-hidden="true" />}
-      </button>
-      <button
-        className="settings-close"
-        type="button"
-        aria-label={t(language, 'close')}
-        onClick={onClose}
-      >
-        <X size={20} aria-hidden="true" />
       </button>
       {overviewOpen && !overviewIsFullScreen ? (
         <button
@@ -159,33 +168,13 @@ export function SettingsShell({
         </div>
         <nav aria-label={language === 'en' ? 'Settings navigation' : 'అమరికల నావిగేషన్'}>
           {navigationButton('index')}
-          {settingsGroups.index?.map((group) => (
-            <div className="settings-rail-group" key={group}>
-              <div className="settings-rail-group-heading">
-                {navigationButton(group)}
-                {settingsGroups[group] ? (
-                  <button
-                    className="settings-rail-disclosure"
-                    type="button"
-                    aria-label={`${collapsedGroups[group] ? (language === 'en' ? 'Expand' : 'విస్తరించు') : (language === 'en' ? 'Collapse' : 'కుదించు')} ${settingsPageLabel(group, language)}`}
-                    aria-expanded={!collapsedGroups[group]}
-                    aria-controls={`settings-rail-${group}`}
-                    onClick={() => setCollapsedGroups(current => ({ ...current, [group]: !current[group] }))}
-                  >
-                    {collapsedGroups[group] ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
-                  </button>
-                ) : null}
-              </div>
-              {settingsGroups[group] ? (
-                <div id={`settings-rail-${group}`} hidden={Boolean(collapsedGroups[group])}>
-                  {settingsGroups[group]?.map((child) => navigationButton(child, true))}
-                </div>
-              ) : null}
-            </div>
-          ))}
+          {visibleSettingsEntries('index', migrationAvailable).map(group => navigationGroup(group))}
         </nav>
       </aside>
       <header className="settings-header">
+        <div className="settings-heading">
+          <h1 ref={heading} tabIndex={-1}>{title}</h1>
+        </div>
         <div className="settings-header-side">
           {onBack ? (
             <button
@@ -203,9 +192,15 @@ export function SettingsShell({
             </button>
           ) : null}
         </div>
-        <div className="settings-heading">
-          <h1 ref={heading} tabIndex={-1}>{title}</h1>
-        </div>
+      <button
+        className="settings-close"
+        type="button"
+        aria-label={t(language, 'close')}
+        onClick={onClose}
+      >
+        <X size={20} aria-hidden="true" />
+      </button>
+
       </header>
       <div ref={content} className="settings-page-content">
         <div className="settings-page-transition" key={page}>{children}</div>

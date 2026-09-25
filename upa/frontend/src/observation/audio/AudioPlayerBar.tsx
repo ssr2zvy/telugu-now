@@ -26,6 +26,7 @@ interface AudioPlayerBarProps {
   onPlaybackErrorChange?: (error: string | null) => void;
   recordingRange?: RecordingTimeline | null;
   reserveAudioSpace?: boolean;
+  persistentDisclosure?: boolean;
 }
 
 export interface AudioPlayerBarHandle {
@@ -36,8 +37,10 @@ export interface AudioPlayerBarHandle {
   currentTime: () => number;
   duration: () => number;
   beginRecording: () => number;
+  rewind: () => void;
   prepareAudioReplacement: (cursorSeconds: number) => void;
   isPrecisionOpen: () => boolean;
+  openAssociatedControls: () => void;
   dismissPrecision: () => boolean;
   toggleAssociatedControls: () => boolean;
 }
@@ -58,6 +61,7 @@ export function AudioPlayerBar({
   onPlaybackErrorChange,
   recordingRange = null,
   reserveAudioSpace = false,
+  persistentDisclosure = false,
 }: AudioPlayerBarProps) {
   const recordingActive = Boolean(recordingRange);
   const player = useAudioPlayer(audio, sourceId, sourceKey, defaultPlaybackRate, observationId, autoplay, playbackEnabled);
@@ -98,6 +102,7 @@ export function AudioPlayerBar({
     resume: () => { if (!player.playing) player.togglePlay(); },
     currentTime: () => toSpeechTime(player.currentTime),
     duration: () => player.duration,
+    rewind: () => player.seek(0),
     beginRecording: () => {
       precisionBeforeRecording.current = precisionMode;
       dispatchPrecision('close');
@@ -107,6 +112,9 @@ export function AudioPlayerBar({
     },
     prepareAudioReplacement: player.prepareReplacementAt,
     isPrecisionOpen: () => magnifierOpen,
+    openAssociatedControls: () => {
+      if (controlsVisible && audio && !recordingActive && !associatedControlsOpen) dispatchPrecision('toggle-visibility');
+    },
     dismissPrecision: () => {
       if (!controlsVisible || !associatedControlsOpen) return false;
       closePrecision();
@@ -135,10 +143,10 @@ export function AudioPlayerBar({
     precisionBeforeRecording.current = null;
   }, [recordingActive]);
   useEffect(() => {
-    if (recordingActive || precisionMode.playback !== 'controls') return;
+    if (persistentDisclosure || recordingActive || precisionMode.playback !== 'controls') return;
     const timer = window.setTimeout(() => dispatchPrecision('toggle-controls'), appearance.autoFadeSeconds * 1000);
     return () => window.clearTimeout(timer);
-  }, [recordingActive, precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
+  }, [persistentDisclosure, recordingActive, precisionMode.playback, playbackInteraction, appearance.autoFadeSeconds]);
   const bookmarkError = associatedControlsOpen ? player.bookmarkError : null;
   const bookmarkSelected = isBookmarkAtTime(player.bookmarks, player.currentTime);
   const playerRecordingRange = recordingRange ? {
@@ -151,6 +159,9 @@ export function AudioPlayerBar({
     <div
       ref={playerRef}
       className="audio-player-bar"
+      data-controls-visible={controlsVisible}
+      inert={!controlsVisible}
+      aria-hidden={!controlsVisible}
       data-magnifier-position={appearance.magnifierPosition}
       data-speed-open={speedPopoverOpen}
       data-has-audio={Boolean(audio || recordingActive || reserveAudioSpace)}
@@ -251,9 +262,6 @@ export function AudioPlayerBar({
         onPointerSeekMove={player.updatePointerSeek}
         onPointerSeekEnd={player.endPointerSeek}
       />
-      {!bookmarkError && !player.playbackError && player.playbackStatus ? <div className="audio-playback-status" role="status">
-        {player.playbackStatus}
-      </div> : null}
       {bookmarkError || (!onPlaybackErrorChange && player.playbackError) ? <div className="audio-playback-error" role="alert">
         {bookmarkError ?? player.playbackError}
       </div> : null}

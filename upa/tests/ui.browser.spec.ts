@@ -400,7 +400,7 @@ async function wordImageFixture(page: Page) {
 }
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
-  test(`word profile generates once and reuses the root image at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+  test(`word profile generates once and reuses the complete-word image at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const fixture = await loadFixture(page, undefined, true, 'అవును చెట్లలో చెట్టు.');
     const images = await wordImageFixture(page);
@@ -414,18 +414,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     const dialog = page.getByRole('dialog', { name: 'చెట్లలో' });
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('h2')).toHaveText('చెట్లలో');
-    await expect(dialog.locator('.word-profile-ending')).toHaveText('ట్లలో');
-    expect(await dialog.locator('.word-profile-ending').evaluate(element => getComputedStyle(element).color)).not.toBe(await dialog.locator('h2').evaluate(element => getComputedStyle(element).color));
+    await expect(dialog.locator('#word-profile-title')).toHaveText('చెట్లలో');
+    await expect(dialog.locator('.word-profile-ending')).toHaveCount(0);
     await expect(dialog.locator('input, dl, h3')).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: 'Generate', exact: true })).toBeEnabled();
     expect(images.generations).toEqual([]);
     await dialog.getByRole('button', { name: 'Generate', exact: true }).click();
-    const image = dialog.getByRole('img', { name: 'Drawing of the concept of చెట్టు' });
+    const image = dialog.getByRole('img', { name: 'Drawing of the concept of చెట్లలో' });
     await expect(image).toBeVisible();
     await expect(image).toHaveJSProperty('naturalWidth', 256);
-    expect(images.generations).toEqual(['చెట్టు']);
+    expect(images.generations).toEqual(['చెట్లలో']);
     await expect(dialog.getByRole('button', { name: 'Generate', exact: true })).toHaveCount(0);
-    expect(images.images.has('చెట్టు')).toBe(true);
+    expect(images.images.has('చెట్లలో')).toBe(true);
     expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('word-profile.png') });
@@ -433,15 +433,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await text.getAttribute('style')).toBe(original);
     expect(fixture.navigationCount()).toBe(0);
-    await doubleClickWord(page, 'చెట్టు.');
-    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్టు' })).toBeVisible();
+    await doubleClickWord(page, 'చెట్లలో');
+    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్లలో' })).toBeVisible();
     expect(images.generations).toHaveLength(1);
     await page.keyboard.press('Escape');
     await page.reload();
     await page.locator('.profile-input').fill('001');
     await expect(text).toHaveCSS('opacity', '1');
-    await doubleClickWord(page, 'చెట్టు.');
-    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్టు' })).toBeVisible();
+    await doubleClickWord(page, 'చెట్లలో');
+    await expect(page.getByRole('img', { name: 'Drawing of the concept of చెట్లలో' })).toBeVisible();
     expect(images.generations).toHaveLength(1);
     expect(external).toEqual([]);
     await page.keyboard.press('Escape');

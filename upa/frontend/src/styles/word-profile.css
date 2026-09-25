@@ -11,7 +11,6 @@
 .word-profile-gradient { position: fixed; z-index: 0; clip-path: inset(0 50% 0 0); }
 .word-profile-header { position: relative; z-index: 1; container-type: inline-size; display: grid; min-width: 0; padding: clamp(72px, 8vw, 128px); place-items: center; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .word-profile-header h2 { max-width: 100%; min-width: 0; font-family: 'Noto Sans Telugu', sans-serif; font-size: clamp(.75rem, calc(80cqi / var(--word-graphemes)), 9rem); line-height: 1.2; font-weight: 400; margin: 0; white-space: nowrap; text-align: center; }
-.word-profile-ending { color: color-mix(in srgb, var(--foreground) 58%, var(--surface)); }
 .word-profile-back { position: fixed; z-index: 2; top: max(16px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .word-image-section { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow: hidden; background: var(--wash); }
 .word-profile-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; border: 0; border-radius: 6px; padding: 8px; color: inherit; background: transparent; cursor: pointer; font-size: .8rem; }
@@ -27,7 +26,7 @@
 .word-image-glass-action svg { width: 32px; height: 32px; fill: none; stroke: var(--audio-icon-paint); stroke-width: 2; filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
 .word-image-glass-action:disabled { opacity: .55; cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-  .word-image-glass-action:not(:disabled):hover svg { filter: invert(1) drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
+  .word-image-glass-action:not(:disabled):hover svg { filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)) saturate(1.16) contrast(1.08); }
 }
 .word-image-gallery { width: 100%; height: 100%; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 2px; padding: 2px; background: var(--surface); scrollbar-width: thin; }
 .word-image-gallery button { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; overflow: hidden; border: 0; background: var(--wash); cursor: pointer; }
@@ -41,7 +40,7 @@
 .word-image-info a { color: inherit; text-underline-offset: 3px; }
 .word-image-info button { justify-self: start; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .word-image-context-menu { z-index: 8; }
-.word-image-loading { position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; pointer-events: none; background: color-mix(in srgb, var(--wash) 82%, transparent); }
+.word-image-loading { position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; pointer-events: none; background: transparent; }
 .word-profile-error { border-inline-start: 3px solid currentColor; padding-inline-start: 12px; font-size: .8rem; line-height: 1.7; overflow-wrap: anywhere; }
 .word-profile[data-letter-page='true'] { display: block; }
 .word-profile[data-letter-page='true'] .word-profile-gradient { clip-path: none; }
@@ -72,3 +71,5 @@
 .image-generation-settings textarea { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: inherit; font: inherit; font-size: .9rem; line-height: 1.7; padding: 12px; }
 .image-prompt-requirement { font-size: .75rem; margin: 0; overflow-wrap: anywhere; }
 .image-generation-settings [role='status'] { font-size: .8rem; min-height: 24px; }
+
+.word-image-section:is([data-pane="image"], [data-pane="action"]) { touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; }

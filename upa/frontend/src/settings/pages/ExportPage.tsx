@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ChangeEvent } from 'react';
-import { Archive, BookOpen, Download, FileCode2, FileDown } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { Download, FileDown } from 'lucide-react';
 import {
   downloadPreparedExportArtifact,
   type ExportFormat,
@@ -13,12 +13,10 @@ interface ExportPageProps {
   exporting: boolean;
   phase: 'selecting' | 'packaging';
   error: boolean;
-  formatChooserOpen: boolean;
+  format: ExportFormat;
   preparedArtifact: PreparedExportArtifact | null;
   onCountChange: (count: string) => void;
   onRequestExport: () => void;
-  onCancelFormatChoice: () => void;
-  onChooseFormat: (format: ExportFormat) => void;
 }
 export function ExportPage({
   language,
@@ -26,30 +24,22 @@ export function ExportPage({
   exporting,
   phase,
   error,
-  formatChooserOpen,
+  format,
   preparedArtifact,
   onCountChange,
   onRequestExport,
-  onCancelFormatChoice,
-  onChooseFormat,
 }: ExportPageProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!formatChooserOpen || !dialog) return;
-    dialog.showModal();
-    return () => dialog.close();
-  }, [formatChooserOpen]);
   const progressLabel = phase === 'selecting'
     ? (language === 'en' ? 'Selecting observations' : 'పరిశీలనలను ఎంచుకుంటోంది')
     : (language === 'en' ? 'Preparing file' : 'ఫైల్ సిద్ధం చేస్తోంది');
-  const preparedFormatLabel = preparedArtifact?.format === 'epub'
+  const preparedFormatLabel = format === 'epub'
     ? t(language, 'epub')
-    : preparedArtifact?.format === 'app-archive'
+    : format === 'app-archive'
       ? t(language, 'appArchive')
       : t(language, 'html');
   return (
     <div className="export-page">
+      <p>{format === 'epub' ? t(language, 'epubDescription') : format === 'html' ? t(language, 'htmlDescription') : t(language, 'appArchiveDescription')}</p>
       <label className="export-count">
       <span>{t(language, 'count')}</span>
       <input
@@ -109,51 +99,6 @@ export function ExportPage({
           {t(language, 'invalidExport')}
         </div>
       ) : null}
-          <dialog
-            ref={dialogRef}
-            className="export-format-modal"
-            aria-labelledby="export-format-title"
-            onCancel={(event) => { event.preventDefault(); onCancelFormatChoice(); }}
-            onClick={(event) => {
-              const bounds = event.currentTarget.getBoundingClientRect();
-              if (event.target === event.currentTarget && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) onCancelFormatChoice();
-            }}
-          >
-            <h2 id="export-format-title">
-              {t(language, 'chooseExportFormat')}
-            </h2>
-            <button
-              className="export-format-option"
-              type="button"
-              onClick={() => onChooseFormat('epub')}
-            >
-              <BookOpen aria-hidden="true" />
-              <span><strong>{t(language, 'epub')}</strong><small>{t(language, 'epubDescription')}</small></span>
-            </button>
-            <button
-              className="export-format-option"
-              type="button"
-              onClick={() => onChooseFormat('html')}
-            >
-              <FileCode2 aria-hidden="true" />
-              <span><strong>{t(language, 'html')}</strong><small>{t(language, 'htmlDescription')}</small></span>
-            </button>
-            <button
-              className="export-format-option"
-              type="button"
-              onClick={() => onChooseFormat('app-archive')}
-            >
-              <Archive aria-hidden="true" />
-              <span><strong>{t(language, 'appArchive')}</strong><small>{t(language, 'appArchiveDescription')}</small></span>
-            </button>
-            <button
-              className="export-format-cancel"
-              type="button"
-              onClick={onCancelFormatChoice}
-            >
-              {t(language, 'cancel')}
-            </button>
-          </dialog>
     </div>
   );
 }

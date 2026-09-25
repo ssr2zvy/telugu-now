@@ -27,7 +27,7 @@ jobs:
   deploy:
     if: >-
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/deploy/') && !github.event.deleted) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/grammar' &&
       (inputs.action == 'deploy' || inputs.action == 'stop'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -46,4 +46,4 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           DEPLOY_ACTION: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
-        run: bash ci-cd/deploy.sh "$DEPLOY_ACTION"
+        run: bash ci-cd/deploy.sh deploy

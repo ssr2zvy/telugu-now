@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import type { QueuePreparationPhase, QueueViewResponse, QueueViewSlot } from '../../../../shared/contracts';
-import { getQueueView } from '../../api';
+import { getQueueView, resetQueue } from '../../api';
 import { LoadingSlit } from '../../components/LoadingSlit';
 import { getTeluguGradientCacheSnapshot } from '../../observation/telugu-gradient-renderer';
 import type { UiLanguage } from '../types';
 
-export function QueueViewPage({ profileCode, language }: { profileCode: string; language: UiLanguage }) {
+export function QueueViewPage({ profileCode, language, grammarActive }: { profileCode: string; language: UiLanguage; grammarActive?: boolean }) {
   const [data, setData] = useState<QueueViewResponse | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [error, setError] = useState(false);
@@ -58,6 +58,7 @@ export function QueueViewPage({ profileCode, language }: { profileCode: string; 
           <RotateCw aria-hidden="true" />
         </button>
       </div>
+      {grammarActive?<button type="button" onClick={()=>void resetQueue(profileCode,{visible:false}).then(()=>setReload(n=>n+1)).catch(()=>setError(true))}>Retry unavailable questions</button>:null}
       {error ? <p className="settings-error" role="alert">{text('The queue snapshot could not be loaded.', 'క్యూ స్థితిని లోడ్ చేయలేకపోయాము.')}</p> : null}
       {data ? <>
         <ol className="queue-slots" aria-label={text('Queue slots', 'క్యూ స్థానాలు')}>

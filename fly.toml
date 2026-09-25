@@ -18,6 +18,9 @@ primary_region = "iad"
   CORPUS_AVAILABILITY_REBUILD_ON_STARTUP = "true"
   # Force the volume's cached catalog to be refetched from Tigris on this deploy.
   CORPUS_CATALOG_FORCE_REDOWNLOAD = "false"
+  # Temporary migration UI/worker. Turn off after grammar activation; selection keeps working.
+  GRAMMAR_MIGRATION_ENABLED = "true"
+  # Set GRAMMAR_MIGRATION_TOKEN as a Fly secret; never put it in this file.
   AWS_ENDPOINT_URL_S3 = "https://fly.storage.tigris.dev"
   AWS_REGION = "auto"
   BUCKET_NAME = "telugu-now-corpus"

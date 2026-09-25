@@ -13,7 +13,7 @@ test('eons have their own localized settings destination and a clear loading sta
   assert.equal(settingsPageLabel('eons', 'en'), 'Eons');
   assert.equal(settingsPageLabel('eons', 'te'), 'యుగాలు');
   assert.ok(settingsPageIcons.eons);
-  assert.equal(settingsGroups.index?.at(-1), 'reset');
+  assert.equal(settingsGroups.observations?.at(-1), 'reset');
   const markup = renderToStaticMarkup(createElement(EonsPage, { profileCode: '001', language: 'en' }));
   assert.match(markup, /aria-busy="true"/);
   assert.match(markup, /role="status">Loading eons/);

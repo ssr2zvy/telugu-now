@@ -1,3 +1,8 @@
+import { resetCoreProgress } from './reset-core-progress';
+import { coreEvent } from '../parsing/audit';
+import { discardPendingChains, discardCurrentChain, isDiscarded } from './queue-service';
+import { selectionMode, attempt as selectionAttempt, markDisplayed } from '../parsing/state';
+import { attempt, system } from '../grammar/service';
 import { db } from '../db/database';
 import { config } from '../config/config';
 import type {
@@ -20,7 +25,7 @@ import type {
   TimingSummary,
   UpdateSelectionSettingsRequest,
 } from '../../../shared/contracts';
-import { appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
+import { retryLiveSelection, liveSelection, appendConsumptionReplacement, clearQueue, ensureLaunchQueue, getQueueCounts } from './queue-service';
 import { preparationService } from './preparation-service';
 import { getProfileSelectionSettings, updateProfileSelectionSettings } from './selection-settings-service';
 import { getProfileAudioSettings } from './audio-settings-service';
@@ -293,6 +298,7 @@ function parseSelectionSnapshot(raw: string): SelectionSnapshot | null {
     if (value.complexityMetric === undefined && typeof value.wordCount === 'number') {
       return { ...value, complexityMetric: 'word-count', intrinsicComplexityValue: value.wordCount, globalRowsAtComplexityValue: value.globalRowsAtWordCount ?? 0, selectedSourceRowsAtComplexityValue: value.selectedSourceRowsAtWordCount ?? 0 } as SelectionSnapshot;
     }
+    if (['grammar','core','random'].includes((value as {mode?:string}).mode??'')) return null;
     return value as SelectionSnapshot;
   } catch { return null; }
 }
@@ -370,6 +376,7 @@ function currentObservation(code: string, currentPosition: number | null): Displ
         durationSeconds: 0,
       } : null,
     } : null,
+    grammar: (selectionAttempt(row.id,code)??attempt(row.id,code)) ? {discarded:isDiscarded(row.id,code),target:JSON.parse(row.selection_snapshot_json),result:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===null?null:(selectionAttempt(row.id,code)??attempt(row.id,code))!.result===1} : null,
     diagnostic: {
       acquisitionNumber: row.acquisition_number,
       triggerKind: row.trigger_kind,
@@ -503,7 +510,7 @@ export function loadProfile(code: string, visible: boolean): ProfileStateRespons
     // visible interval at its last heartbeat rather than counting the whole absence.
     closeStaleVisibleInterval(code, now);
     preparationService.checkQueue(code, true);
-    ensureLaunchQueue(code);
+    if(selectionMode(code)==='core'){try{ensureLaunchQueue(code);}catch{/* The state response exposes blocked grammar pools. */}}else ensureLaunchQueue(code);
     setTailVisibility(code, visible, now);
     recordCurrentObservationView(db, code, 'load', now);
   }).immediate();
@@ -515,10 +522,17 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   assertValidProfileCode(code);
   ensureProfileRow(code);
   const now = Date.now();
+  let grammarError: string|null=null;
+  if(selectionMode(code)==='core'){try{ensureLaunchQueue(code);}catch(e){grammarError=e instanceof Error?e.message:'Grammar selection unavailable';}}
   preparationService.checkQueue(code);
   preparationService.kick();
   setTailVisibility(code, visible, now);
 
+  // A reset can wait across a reload/redeploy until the next chain's audio is ready.
+  if(db.prepare('SELECT 1 FROM live_chain_resets WHERE profile_code=?').get(code) && nextQueueItem(code)?.status==='ready'){
+    db.prepare('DELETE FROM live_chain_resets WHERE profile_code=?').run(code);
+    return navigateNext(code,visible);
+  }
   const profile = profileRow(code);
   const length = historyLength(code);
   const tailPosition = historyTailPosition(code);
@@ -529,6 +543,10 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
   const displayedObservation = currentObservation(code, profile.current_position);
 
   return {
+    grammarError: grammarError ?? liveSelection.get(code)?.error ?? null,
+    grammarActive: selectionMode(code)==='core',
+    grammarMigrationAvailable: false,
+    selectionMode: selectionMode(code),
     profileCode: code,
     currentPosition: profile.current_position,
     historyLength: length,
@@ -538,9 +556,9 @@ export function getProfileState(code: string, visible: boolean): ProfileStateRes
     previousPresentation: previousPresentation(code, profile.current_position),
     canBack: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'question')
       || adjacentHistoryPosition(code, profile.current_position, 'back') !== null,
-    canNext: Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
+    canNext: Boolean(displayedObservation?.grammar && !displayedObservation.grammar.discarded && displayedObservation.question?.phase==='observation' && displayedObservation.grammar.result===null) || Boolean(displayedObservation?.question && displayedObservation.question.phase !== 'observation')
       || inHistoricalForwardPath || nextQueue?.status === 'ready',
-    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? null),
+    nextStatus: inHistoricalForwardPath ? 'ready' : (nextQueue?.status ?? (['searching','parsing','selecting','loading-parser'].includes(liveSelection.get(code)?.phase??'') ? 'pending' : null)),
     queue: queueSummary(code),
     timing: timingSummary(code, now),
     selectionSettings: getProfileSelectionSettings(code),
@@ -564,9 +582,23 @@ export function setProfileVisibility(code: string, visible: boolean): void {
 
 // Discards every queued (not-yet-displayed) observation and refills the queue from
 // scratch. The currently displayed observation, if any, is untouched.
-export function resetQueue(code: string, visible: boolean): ProfileStateResponse {
+export function resetQueue(code: string, visible: boolean, scope: 'chain' | 'core' | 'all' = 'chain'): ProfileStateResponse {
   assertValidProfileCode(code);
   ensureProfileRow(code);
+  if (selectionMode(code)==='core') {
+    db.transaction(()=>{
+      if (scope === 'chain') discardCurrentChain(code);
+      else {
+        discardPendingChains(code);
+        const core = resetCoreProgress(db, code, scope);
+        coreEvent(code, 'progress-reset', {core}, {scope});
+      }
+      finalizeTail(code,Date.now());
+      db.prepare('UPDATE profiles SET current_position=NULL WHERE code=?').run(code);
+      db.prepare('INSERT INTO live_chain_resets VALUES(?,?) ON CONFLICT(profile_code) DO UPDATE SET requested_at=excluded.requested_at').run(code,Date.now());
+    })();
+    preparationService.kick();return getProfileState(code,visible);
+  }
   clearQueue(code);
   ensureLaunchQueue(code);
   preparationService.kick();
@@ -580,9 +612,7 @@ export function updateSelectionSettingsAndResetQueue(
   assertValidProfileCode(code);
   ensureProfileRow(code);
   const settings = updateProfileSelectionSettings(code, request);
-  clearQueue(code);
-  ensureLaunchQueue(code);
-  preparationService.kick();
+  if(selectionMode(code)==='weighted'){clearQueue(code);ensureLaunchQueue(code);preparationService.kick();}
   return settings;
 }
 
@@ -593,10 +623,10 @@ export function navigateBack(code: string, visible: boolean): ProfileStateRespon
     const profile = profileRow(code);
     if (profile.current_position !== null) {
       const current = db.prepare(`
-        SELECT h.presentation_state_json, a.observation_kind
+        SELECT h.observation_id, h.presentation_state_json, a.observation_kind
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
-      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
       if (phase === 'comparison' || phase === 'observation') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
@@ -637,10 +667,10 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
 
     if (profile.current_position !== null) {
       const current = db.prepare(`
-        SELECT h.presentation_state_json, a.observation_kind
+        SELECT h.observation_id, h.presentation_state_json, a.observation_kind
         FROM history_entries h JOIN observation_acquisitions a ON a.observation_id = h.observation_id
         WHERE h.profile_code = ? AND h.history_position = ?
-      `).get(code, profile.current_position) as { presentation_state_json: string; observation_kind: ObservationKind } | undefined;
+      `).get(code, profile.current_position) as { observation_id:string; presentation_state_json: string; observation_kind: ObservationKind } | undefined;
       const phase = current?.observation_kind === 'question' ? questionPhase(current.presentation_state_json) : null;
       if (phase === 'question' || phase === 'comparison') {
         db.prepare(`UPDATE history_entries SET presentation_state_json = ? WHERE profile_code = ? AND history_position = ?`)
@@ -648,6 +678,12 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
         return;
       }
     }
+
+    if(profile.current_position!==null){
+      const currentId=(db.prepare('SELECT observation_id FROM history_entries WHERE profile_code=? AND history_position=?').get(code,profile.current_position) as {observation_id:string}|undefined)?.observation_id;
+      if(currentId && !isDiscarded(currentId,code) && (selectionAttempt(currentId,code)??attempt(currentId,code))?.result===null)throw new NavigationUnavailableError('Self-evaluate this question first');
+    }
+    if(selectionMode(code)==='core')ensureLaunchQueue(code);
 
     // History mode: walk right through already-seen entries and do not consume queue.
     if (
@@ -686,6 +722,7 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
       ) VALUES (?, ?, ?, ?, ?)
     `).run(code, newHistoryPosition, queued.observation_id, now, visible ? now : null);
     recordFirstDisplay(code, queued.observation_id, now);
+    markDisplayed(code, queued.observation_id);
 
     db.prepare(`
       DELETE FROM queue_items
@@ -701,8 +738,8 @@ export function navigateNext(code: string, visible: boolean): ProfileStateRespon
     `).run(newHistoryPosition, now, now, code);
     recordCurrentObservationView(db, code, 'next', now);
 
-    // First-time display consumes one future slot. Reserve its replacement in this
-    // same transaction so consumption cannot commit without one-for-one replacement.
+    // Consumption schedules asynchronous live selection; an empty next slot uses
+    // the existing loading indicator until parsing and media preparation finish.
     appendConsumptionReplacement(code, queued.observation_id, newHistoryPosition, now);
     logger.info('queue_consumed_and_replacement_scheduled', {
       observationId: queued.observation_id,

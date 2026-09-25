@@ -101,7 +101,7 @@ function removeLastGrapheme(value: string): string {
   return value.slice(0, segments.at(-1)?.index ?? 0);
 }
 
-export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: string; onChange: (value: string) => void; onSubmit: () => void }) {
+export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily }: { fontFamily?: string | undefined; value: string; onChange: (value: string) => void; onSubmit: () => void }) {
   const { appearance } = useAppearance();
   const [keyFontFamily] = useState(() => {
     const pool = compatibleObservationFonts(appearance.fonts);
@@ -221,7 +221,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit }: { value: str
   const bottomRow = shifted && controlAlt ? SHIFT_CTRL_ALT_BOTTOM_ROW : shifted ? SHIFT_BOTTOM_ROW : controlAlt ? CTRL_ALT_BOTTOM_ROW : BOTTOM_ROW;
   return <div className="google-telugu-input">
     {scrolledUp ? <div className="question-answer-more" aria-hidden="true">&hellip;</div> : null}
-    <textarea ref={editor} className="question-answer-editor" style={{ caretColor: caretIdle ? 'var(--keyboard-accent)' : 'transparent' }} lang="te" aria-label="Typed answer" value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { const next = event.target.value.replace(/\r\n?|\n/g, ' '); draftValue.current = next; const caret = Math.min(event.target.selectionStart, next.length); select(caret); snapToEndPending.current = caret >= next.length; noteTyping(); onChange(next); }} onSelect={event => select(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+    <textarea ref={editor} className="question-answer-editor" style={{ fontFamily: fontFamily ? `"${fontFamily}", 'Noto Sans Telugu', sans-serif` : undefined, caretColor: caretIdle ? 'var(--keyboard-accent)' : 'transparent' }} lang="te" aria-label="Typed answer" value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { const next = event.target.value.replace(/\r\n?|\n/g, ' '); draftValue.current = next; const caret = Math.min(event.target.selectionStart, next.length); select(caret); snapToEndPending.current = caret >= next.length; noteTyping(); onChange(next); }} onSelect={event => select(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
     <div className="question-keyboard" aria-label="Telugu InScript keyboard" style={{ '--question-keyboard-font': `"${keyFontFamily}"` } as CSSProperties}>
       <div className="question-keyboard-row question-number-row">{numberRow.map(characterKey)}<button type="button" className="question-backspace-key" aria-label="Backspace" onClick={backspace}><Delete aria-hidden="true" strokeWidth={1.5} /></button></div>
       <div className="question-keyboard-row question-top-row">{topRow.map(characterKey)}</div>

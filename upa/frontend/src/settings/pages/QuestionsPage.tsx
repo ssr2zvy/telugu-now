@@ -4,6 +4,7 @@ import type { SettingsDraft, UiLanguage } from '../types';
 import { t } from '../language';
 
 interface QuestionsPageProps {
+  grammarActive?: boolean;
   language: UiLanguage;
   draft: SettingsDraft;
   saving: boolean;
@@ -44,13 +45,13 @@ function ProbabilityField({ label, complementLabel, value, onChange }: Probabili
   </label>;
 }
 
-export function QuestionsPage({ language, draft, saving, error, onDraftChange, onClearError, onSave }: QuestionsPageProps) {
+export function QuestionsPage({ grammarActive, language, draft, saving, error, onDraftChange, onClearError, onSave }: QuestionsPageProps) {
   const update = (key: 'questionPercent' | 'seenQuestionPercent' | 'audioGivenQuestionPercent') => (value: string) => {
     onClearError();
     onDraftChange({ ...draft, [key]: value });
   };
   return <div className="settings-form question-probability-form">
-    <ProbabilityField
+    {!grammarActive && <><ProbabilityField
       label={language === 'en' ? 'Questions' : 'ప్రశ్నలు'}
       complementLabel={language === 'en' ? 'Normal' : 'సాధారణ'}
       value={draft.questionPercent ?? '30'}
@@ -61,7 +62,7 @@ export function QuestionsPage({ language, draft, saving, error, onDraftChange, o
       complementLabel={language === 'en' ? 'Not Seen' : 'చూడనివి'}
       value={draft.seenQuestionPercent ?? '75'}
       onChange={update('seenQuestionPercent')}
-    />
+    /></>}
     <ProbabilityField
       label={language === 'en' ? 'Audio Given' : 'ఆడియో ఇవ్వబడింది'}
       complementLabel={language === 'en' ? 'Text Given' : 'టెక్స్ట్ ఇవ్వబడింది'}

@@ -15,7 +15,7 @@
 .settings-rail-scrim { display: none; }
 .settings-header {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) 44px 44px;
   align-items: center;
   gap: 12px;
   width: min(640px, 100%);
@@ -41,7 +41,7 @@
 @keyframes settings-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .settings-index { display: grid; width: calc(100% + 24px); margin-inline: -12px; }
 .settings-index button {
-  position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: center; gap: 18px;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 18px; align-items: center; gap: 18px;
   width: 100%; min-height: 76px; padding: 16px 12px; border: 0; border-radius: 6px;
   background: transparent; color: inherit; text-align: left; cursor: pointer;
 }
@@ -332,3 +332,87 @@
   .settings-form label { grid-template-columns: minmax(0, 1fr) 88px; gap: 12px; }
   .appearance-fonts label { grid-template-columns: 20px minmax(0, 1fr) 48px; gap: 8px; }
 }
+/* Parser pages share the menu's restrained type scale and spacing. */
+.parser-settings { display: grid; gap: 24px; min-width: 0; font-size: .875rem; line-height: 1.6; }
+.parser-settings :is(h2,h3,p,ul,ol,dl) { margin: 0; }
+.parser-settings :is(h2,h3) { font-size: .95rem; font-weight: 500; line-height: 1.5; }
+.parser-settings .parser-muted, .parser-settings small { color: var(--muted); font-size: .75rem; line-height: 1.6; }
+.parser-block, .parser-section-body { display: grid; gap: 12px; min-width: 0; }
+.parser-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+.parser-line > span:last-child { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.parser-settings progress { appearance: none; width: 100%; height: 4px; border: 0; border-radius: 4px; background: var(--wash); color: var(--foreground); }
+.parser-settings progress::-webkit-progress-bar { background: var(--wash); border-radius: 4px; }
+.parser-settings progress::-webkit-progress-value { background: var(--control-material-gradient, var(--foreground)); border-radius: 4px; }
+.parser-settings progress::-moz-progress-bar { background: var(--foreground); border-radius: 4px; }
+.parser-settings .parser-word { font-size: 1.4rem; font-weight: 500; line-height: 1.8; overflow-wrap: anywhere; }
+.parser-sentence { line-height: 1.9; overflow-wrap: anywhere; }
+.parser-settings mark { padding: 0 .12em; color: inherit; background: color-mix(in srgb, var(--foreground) 12%, transparent); border-radius: 2px; }
+.parser-chain { list-style: none; padding: 0; display: grid; gap: 4px; }
+.parser-chain li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; padding: 10px 0; overflow-wrap: anywhere; }
+.parser-chain li[aria-current='step'] > span { font-weight: 650; }
+.parser-chain li[aria-current='step'] > small { color: var(--foreground); }
+.parser-section { min-width: 0; }
+.parser-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 8px 0; cursor: pointer; list-style: none; font-size: .95rem; font-weight: 500; overflow-wrap: anywhere; }
+.parser-section > summary::-webkit-details-marker { display: none; }
+.parser-section > summary > span { display: grid; gap: 4px; min-width: 0; }
+.parser-section > summary small { font-weight: 400; font-variant-numeric: tabular-nums; }
+.parser-section > summary > svg { flex: none; color: var(--muted); transform: rotate(-90deg); transition: transform 140ms ease; }
+.parser-section[open] > summary > svg { transform: none; }
+.parser-section-body { padding: 12px 0 20px; }
+.parser-metrics { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 20px; }
+.parser-metrics dt { color: var(--muted); }
+.parser-metrics dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.parser-metric-pair { display: contents; }
+.parser-settings :is(pre,code) { max-width: 100%; font-size: .75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.parser-settings pre { margin: 0; }
+.parser-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.parser-filters label { display: grid; gap: 6px; color: var(--muted); font-size: .75rem; }
+.parser-filters .parser-search { grid-column: 1 / -1; }
+.parser-filters :is(input,select) { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 6px; color: var(--foreground); background: var(--wash); font: inherit; font-size: .875rem; }
+.parser-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.parser-settings :is(.primary-action,.secondary-action) { justify-self: start; }
+.question-mix { gap: 16px; }
+.question-mix > label { font-size: .95rem; font-weight: 500; }
+.question-mix input[type='range'] { width: 100%; height: 44px; margin: 0; accent-color: var(--foreground); cursor: pointer; }
+.question-mix .parser-line > span { font-size: .875rem; color: var(--muted); }
+.question-mix strong { color: var(--foreground); font-weight: 500; }
+.parser-settings summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .parser-section > summary > svg { transition: none; } }
+.settings-rail-group .settings-rail-child { padding-inline-start: calc(38px + max(0, var(--settings-nav-depth, 1) - 1) * 12px); }
+
+/* Keep the title baseline and reserved back slot identical at every depth. */
+.settings-screen .settings-header { min-height: 88px; align-items: center; padding-top: max(16px, env(safe-area-inset-top)); }
+.settings-header-side { width: 44px; height: 44px; }
+.settings-header .settings-close { position: static; align-self: center; }
+.settings-header h1 { line-height: 1.3; }
+.parser-search-step { display: block !important; }
+.parser-search-step > .parser-block { margin-block: 16px 28px; }
+
+.parser-attempt-link { display: grid; grid-template-columns: minmax(0,1fr) auto 16px; gap: 12px; align-items: center; width: 100%; padding: 10px 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.parser-attempt-link:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
+
+.settings-screen .settings-header { align-items: start; }
+.settings-header .settings-heading { padding-top: calc(22px - .91rem); }
+.settings-header .settings-close { align-self: start; }
+@media (min-width: 960px) { .settings-header .settings-heading { padding-top: calc(22px - 1.1375rem); } }
+
+.settings-overview-open .settings-header .settings-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); visibility: visible; pointer-events: auto; }
+
+/* Appearance uses the same page rows as the rest of Settings. */
+.appearance-paged { display: grid; gap: 24px; font-size: .875rem; }
+.appearance-control-page { display: grid; gap: 24px; }
+.appearance-control-page .appearance-section-heading { align-items: center; }
+.appearance-presets { display: grid; gap: 4px; }
+.appearance-preset { display: grid; grid-template-columns: 24px minmax(0,1fr); align-items: center; gap: 18px; min-height: 60px; width: 100%; padding: 12px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.appearance-preset-swatch { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 18%, transparent); }
+.appearance-preset[aria-pressed='true'] .appearance-preset-swatch { outline: 1px solid var(--foreground); outline-offset: 4px; }
+.appearance-preset:focus-visible { outline: 1px solid var(--foreground); outline-offset: 2px; }
+.appearance-font-sample { margin: 0; text-align: center; font-size: 3rem; line-height: 1.8; }
+.appearance-font-glyph { font-size: 1.2rem; }
+
+/* Back and Close share the right edge; the title never changes columns. */
+.settings-header .settings-heading { grid-column: 1; grid-row: 1; }
+.settings-header .settings-header-side { grid-column: 2; grid-row: 1; }
+.settings-header .settings-close { grid-column: 3; grid-row: 1; }
+/* Font previews convey the font itself, rather than decorating categories. */
+.settings-index button:has(.appearance-font-glyph) { grid-template-columns: 24px minmax(0, 1fr) 18px; }

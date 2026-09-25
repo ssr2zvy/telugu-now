@@ -5,6 +5,10 @@
 @import './styles/reading-context-menu.css';
 @import './styles/settings-layout.css';
 @import './styles/word-profile.css';
+@import './styles/control-material.css';
+@import './styles/audio-material.css';
+@import './styles/settings-material.css';
+@import './styles/entry-and-evaluation.css';
 
 .profile-preferences-error {
 	position: fixed;

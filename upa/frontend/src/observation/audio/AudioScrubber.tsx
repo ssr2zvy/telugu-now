@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
+import { magnifierWindow, magnifierBarLayout, coarseMagnifierWaveform } from './magnifier-waveform';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
 import { magnifierSeekTime, precisionSeekTime } from '../../../../shared/audio';
 import { DEFAULT_APPEARANCE } from '../../../../shared/appearance';
@@ -36,14 +37,6 @@ function clamp(minimum: number, maximum: number, value: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function magnifierWindowSeconds(duration: number): number {
-  return clamp(
-    AUDIO_PLAYER_PRESENTATION.magnifierWindowMinSeconds,
-    AUDIO_PLAYER_PRESENTATION.magnifierWindowMaxSeconds,
-    duration * AUDIO_PLAYER_PRESENTATION.magnifierWindowFraction,
-  );
-}
-
 function formatPreciseTime(seconds: number): string {
   const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60);
@@ -78,6 +71,20 @@ export function AudioScrubber({
   onPointerSeekEnd,
 }: AudioScrubberProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
+  const [magnifierWidth, setMagnifierWidth] = useState<number>(AUDIO_PLAYER_PRESENTATION.magnifierWidthPx);
+  const sizeObserver = useRef<ResizeObserver | null>(null);
+  const measureMagnifier = useCallback((node: HTMLDivElement | null) => {
+    sizeObserver.current?.disconnect();
+    sizeObserver.current = null;
+    if (!node) return;
+    const measure = () => { const width = node.getBoundingClientRect().width; if (width > 0) setMagnifierWidth(width); };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      sizeObserver.current = new ResizeObserver(measure);
+      sizeObserver.current.observe(node);
+    }
+  }, []);
+  useEffect(() => () => sizeObserver.current?.disconnect(), []);
   const barDrag = useRef<{ clientX: number; time: number; grabbedThumb: boolean } | null>(null);
   const fineDrag = useRef<{ clientX: number; time: number; dragging: boolean } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,6 +119,7 @@ export function AudioScrubber({
     const thumbClientX = rect.left + (duration > 0 ? currentTime / duration : 0) * rect.width;
     const grabbedThumb = Math.abs(event.clientX - thumbClientX) <= SCRUBBER_THUMB_GRAB_RADIUS_PX;
     const time = grabbedThumb ? currentTime : timeFromClientX(event.clientX);
+    event.currentTarget.dataset.dragging = 'true';
     barDrag.current = { clientX: event.clientX, time, grabbedThumb };
     onPointerSeekStart(time);
     clearHold();
@@ -133,6 +141,7 @@ export function AudioScrubber({
   };
 
   const releaseBarCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    delete event.currentTarget.dataset.dragging;
     clearHold();
     if (barDrag.current) {
       barDrag.current = null;
@@ -148,13 +157,9 @@ export function AudioScrubber({
   const progress = duration > 0 ? clamp(0, 1, displayTime(currentTime) / duration) : 0;
   const recordingStartPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.start ?? 0) / duration * 100) : 0;
   const recordingEndPct = duration > 0 ? clamp(0, 100, displayTime(recordingRange?.end ?? 0) / duration * 100) : 0;
-  const timelineFocus = currentTime;
-  const windowSeconds = magnifierWindowSeconds(duration);
-  const windowStart = clamp(0, Math.max(0, duration - windowSeconds), timelineFocus - windowSeconds / 2);
-  const windowEnd = Math.min(duration, windowStart + windowSeconds);
-  const firstPeak = duration > 0 ? Math.floor((windowStart / duration) * waveformPeaks.length) : 0;
-  const lastPeak = duration > 0 ? Math.max(1, Math.ceil((windowEnd / duration) * waveformPeaks.length)) : 0;
-  const magnifierPeaks = waveformPeaks.slice(firstPeak, lastPeak);
+  const { start: windowStart, end: windowEnd } = magnifierWindow(duration, currentTime);
+  const magnifierPeaks = coarseMagnifierWaveform(waveformPeaks, duration, windowStart, windowEnd);
+  const bars = magnifierBarLayout(magnifierWidth, magnifierPeaks.length);
 
   const windowStartPct = duration > 0 ? (windowStart / duration) * 100 : 0;
   const windowEndPct = duration > 0 ? (windowEnd / duration) * 100 : 100;
@@ -261,6 +266,9 @@ export function AudioScrubber({
         {speedControls ?? <>
           <div
             className="audio-magnifier-track"
+            ref={measureMagnifier}
+            style={{ '--magnifier-gap': `${bars.gap}px` } as CSSProperties}
+            data-window-seconds={windowEnd - windowStart}
             role="slider"
             tabIndex={disabled ? -1 : 0}
             aria-disabled={disabled}
@@ -296,7 +304,7 @@ export function AudioScrubber({
               <span
                 key={index}
                 className="audio-magnifier-bar"
-                style={{ height: `${peak > 0 ? Math.max(12, peak * 100) : 0}%` }}
+                style={{ height: `${peak > 0 ? Math.max(12, peak * 100) : 0}%`, width: `${bars.width}px`, '--waveform-paint-width': `${magnifierWidth}px`, '--waveform-paint-x': `${-index * (bars.width + bars.gap)}px` } as CSSProperties}
               />
             ))}
             <div

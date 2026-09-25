@@ -5,7 +5,7 @@ import type {
   SettingsPage,
   UiLanguage,
 } from '../types';
-import { settingsGroups, settingsPageIcons, settingsPageLabel } from '../navigation';
+import { visibleSettingsEntries, settingsPageLabel } from '../navigation';
 import { ChevronRight } from 'lucide-react';
 import type { ProfileStateResponse } from '../../../../shared/contracts';
 import { useAppearance } from '../../appearance';
@@ -34,22 +34,7 @@ export function SettingsIndex({
   onNavigate,
   onResetQueue,
 }: SettingsIndexProps) {
-  const { appearance } = useAppearance();
-  const entries = settingsGroups[currentPage] ?? [];
-  const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
-  const summaries: Partial<Record<SettingsPage, string>> = currentPage === 'index' ? {
-    sampling: `${t(language, 'target')} ${percent.format(state.selectionSettings.complexityPercentileTarget)} · ${t(language, 'spread')} ${percent.format(state.selectionSettings.complexityPercentileSpread)}`,
-    diagnostic: state.currentObservation
-      ? `${language === 'en' ? 'Acquisition' : 'సేకరణ'} ${state.currentObservation.diagnostic.acquisitionNumber}`
-      : t(language, 'unavailable'),
-    display: `${state.audioSettings.playbackRate}x · ${appearance.fonts.length} ${language === 'en' ? 'fonts' : 'ఫాంట్లు'}`,
-    eons: language === 'en' ? 'Named periods of use' : 'పేరు పెట్టిన వినియోగ కాలాలు',
-    export: 'EPUB / HTML',
-    import: language === 'en' ? 'Restore an app archive' : 'యాప్ ఆర్కైవ్‌ను పునరుద్ధరించండి',
-    controlsGuide: language === 'en' ? 'Reading, questions, audio, and navigation' : 'చదవడం, ప్రశ్నలు, ఆడియో మరియు నావిగేషన్',
-    about: language === 'en' ? 'Build and deployment information' : 'బిల్డ్ మరియు అమలు సమాచారం',
-    reset: `${state.queue.unseenCount} ${language === 'en' ? 'queued' : 'వరుసలో'}`,
-  } : {};
+  const entries = visibleSettingsEntries(currentPage, state.grammarMigrationAvailable ?? false);
   return (
     <div className="settings-index-page">
       <nav
@@ -63,7 +48,6 @@ export function SettingsIndex({
       >
         {entries.map(
           (page) => {
-            const Icon = settingsPageIcons[page];
             return (
             <button
               key={page}
@@ -72,13 +56,9 @@ export function SettingsIndex({
                 onNavigate(page as Exclude<SettingsPage, 'index'>)
               }
             >
-              <Icon className="settings-entry-icon" aria-hidden="true" />
               <span className="settings-entry-text">
                 <span className="settings-entry-label">{settingsPageLabel(page, language)}</span>
-                {summaries[page] && <span className="settings-entry-meta">
-                  {page === 'display' && <span className="settings-palette-preview" aria-hidden="true" />}
-                  <span>{summaries[page]}</span>
-                </span>}
+
               </span>
               <ChevronRight className="settings-entry-chevron" aria-hidden="true" />
             </button>
@@ -86,15 +66,15 @@ export function SettingsIndex({
           },
         )}
       </nav>
+      {currentPage === 'index' ? <form action="/access/logout" method="post" className="settings-index"><button type="submit"><span className="settings-entry-label">{language==='en'?'Sign out':'నిష్క్రమించు'}</span></button></form> : null}
       {currentPage === 'reset' && <div className="settings-reset-queue">
         <p className="settings-reset-queue-description">
-          {t(
-            language,
-            'resetQueueDescription',
-          )}
+          {state.grammarActive
+            ? (language === 'en' ? 'Retry preparation of the current question batch.' : 'ప్రస్తుత ప్రశ్నల సమూహాన్ని మళ్లీ సిద్ధం చేయండి.')
+            : t(language, 'resetQueueDescription')}
         </p>
         <p className="settings-reset-queue-description">
-          {language === 'en' ? 'Your current observation and history stay unchanged. Unseen observations are replaced using your current sampling settings.' : 'ప్రస్తుత పరిశీలన మరియు చరిత్ర మారవు. చూడని పరిశీలనలు ప్రస్తుత ఎంపిక సెట్టింగులతో భర్తీ అవుతాయి.'}
+          {state.grammarActive ? (language === 'en' ? 'Your selected targets, answers, progress and history stay unchanged. This does not draw a new batch.' : 'ఎంచుకున్న లక్ష్యాలు, సమాధానాలు, పురోగతి మరియు చరిత్ర మారవు. కొత్త సమూహాన్ని ఎంచుకోదు.') : language === 'en' ? 'Your current observation and history stay unchanged. Unseen observations are replaced using your current sampling settings.' : 'ప్రస్తుత పరిశీలన మరియు చరిత్ర మారవు. చూడని పరిశీలనలు ప్రస్తుత ఎంపిక సెట్టింగులతో భర్తీ అవుతాయి.'}
         </p>
         <button
           className="secondary-action"

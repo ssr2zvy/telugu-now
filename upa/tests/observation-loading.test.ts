@@ -65,21 +65,19 @@ test('comparison double-clicks navigate back on the left and forward on the righ
   assert.match(view, /setAudioMotion\('idle'\)/);
 });
 
-test('comparison centers both answers and separates them with audio glass', () => {
+test('comparison centers both answers without a divider', () => {
   const comparison = readFileSync(new URL('../frontend/src/observation/ComparisonPage.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(readFileSync(new URL('../frontend/src/styles/entry-and-evaluation.css', import.meta.url),'utf8')+css,/\.question-comparison::after/);
   assert.match(comparison, /appearanceAudioGlass\(appearance, 0\.45\)/);
   assert.match(comparison, /'--audio-glass-gradient': glass\.gradient, '--audio-glass-edge': glass\.edge/);
   assert.match(comparison, /className="question-comparison-empty" role="img" aria-label="No response recorded">—<\/span>/);
   assert.doesNotMatch(comparison, />No response recorded<\/span>/);
   assert.match(comparison, /if \(!correctPlayer\.current\?\.isPlaying\(\)\) userPlayer\.current\?\.pause\(\);\s*correctPlayer\.current\?\.togglePlay\(\)/);
   assert.match(comparison, /if \(!userPlayer\.current\?\.isPlaying\(\)\) correctPlayer\.current\?\.pause\(\);\s*userPlayer\.current\?\.togglePlay\(\)/);
-  assert.match(css, /\.question-comparison::after \{[^}]*top: 8%; bottom: 8%; left: 50%; width: 1px; background: var\(--audio-glass-gradient\); pointer-events: none;/);
-  assert.doesNotMatch(css, /\.question-comparison::after \{[^}]*(?:box-shadow|filter):/);
   assert.doesNotMatch(css, /\.question-comparison-(?:user|correct) > \* \{ transform:/);
   assert.match(css, /\.question-comparison \.audio-player-bar \{[^}]*justify-self: center; align-self: center; width: min\(416px, 100%\)/);
   assert.match(css, /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: 48px 0; \}/);
-  assert.match(css, /\.question-comparison::after \{ top: 50%; right: 8%; bottom: auto; left: 8%; width: auto; height: 1px; \}/);
   assert.doesNotMatch(css, /controls-visible \.audio-player-bar \{ animation: audio-enter/);
   assert.match(css, /controls-visible \.observation-center > \.audio-player-bar \{ animation: audio-enter/);
 });
@@ -99,7 +97,7 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
   const css = readFileSync(new URL('../frontend/src/styles/base.css', import.meta.url), 'utf8');
   assert.match(view, /for \(const highlightRun of highlightRuns\)/);
   assert.match(view, /await nextFrame\(\)/);
-  assert.match(view, /opacity: entryReady \? 1 : 0/);
+  assert.match(view, /opacity: \(textGivenFlow \? textReady : entryReady\) \? 1 : 0/);
   assert.doesNotMatch(gradient, /useEffect|useState|renderTeluguGradientTexture/);
   assert.match(loader, /loading-slit-window[\s\S]*<i \/><i \/><i \/><i \/>/);
   assert.match(css, /@keyframes loading-slit-dot/);
@@ -108,12 +106,15 @@ test('reader batches modifier textures and uses the moving slit while waiting', 
   assert.match(view, /const entryReady = entryPrepared && paintedPresentationKey === presentationKey/);
 });
 
-test('transition loading dots wait 500ms while the blank overlay remains immediate', () => {
+test('reader loading dots wait 250ms and are gated by visible content', () => {
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(view, /if \(!navigationEvent \|\| entryReady\) \{\s*setTransitionLoaderVisible\(false\)/);
-  assert.match(view, /setTimeout\(\(\) => setTransitionLoaderVisible\(true\), 500\)/);
-  assert.match(view, /const showEntryLoadingIndicator = !navigationEvent \|\| transitionLoaderVisible/);
-  assert.match(view, /observation && !entryReady[\s\S]*className="observation-entry-loading"[\s\S]*showEntryLoadingIndicator \? <LoadingSlit/);
+  const loader = readFileSync(new URL('../frontend/src/components/LoadingSlit.tsx', import.meta.url), 'utf8');
+  assert.match(view, /const showEntryLoadingIndicator = readerNeedsLoadingDots/);
+  assert.match(view, /showEntryLoadingIndicator \? \([\s\S]*className="observation-entry-loading"/);
+  assert.match(view, /<LoadingSlit[^>]*delayMs=\{250\}/);
+  assert.doesNotMatch(view, /Finding next parsed question|transitionLoaderVisible/);
+  assert.match(loader, /setTimeout\(\(\) => setVisible\(true\), delayMs\)/);
+  assert.match(loader, /clearTimeout\(timer\)/);
 });
 
 test('loading dots leave a blank interval between trains', () => {

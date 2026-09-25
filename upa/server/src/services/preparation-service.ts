@@ -8,11 +8,6 @@ import { replaceRejectedQueuedObservation } from './queue-service';
 import { SelectionUnavailableError } from './selection-engine';
 import { logger } from './logger';
 
-export class BlacklistedTextError extends Error {
-  readonly permanent = true;
-  constructor() { super('blacklisted-text'); }
-}
-
 interface PendingRow {
   profile_code: string;
   id: string;
@@ -114,10 +109,6 @@ class PreparationService {
     });
     try {
       const resolved = await sourceRecordService.resolve(row.profile_code, row.source_id, row.source_key);
-      if (db.prepare('SELECT 1 FROM profile_blacklisted_sentences WHERE profile_code = ? AND text = ?')
-        .get(row.profile_code, resolved.text)) {
-        throw new BlacklistedTextError();
-      }
       const preparedAt = Date.now();
       db.prepare(`
         UPDATE observations SET status = 'ready', text = ?, prepared_at = ?, audio_validated_at = ?,
@@ -135,11 +126,11 @@ class PreparationService {
       });
     } catch (error) {
       let code = error instanceof AudioValidationError ? error.code
-        : error instanceof BlacklistedTextError ? error.message : 'source-preparation-unavailable';
+        : 'source-preparation-unavailable';
       let exhausted = row.preparation_attempts + 1 >= MAX_ATTEMPTS;
-      if ((error instanceof AudioValidationError || error instanceof BlacklistedTextError) && error.permanent) {
+      if ((error instanceof AudioValidationError) && error.permanent) {
         try {
-          replaceRejectedQueuedObservation(row.id);
+          replaceRejectedQueuedObservation(row.id, code);
           logger.warn('observation_preparation_rejected', {
             observationId: row.id,
             sourceId: row.source_id,

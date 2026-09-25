@@ -117,6 +117,7 @@ function sectionHtml(title,rows){
   return '<div class="diagnostic-section"><h3 class="diagnostic-section-title">'+escapeHtml(title)+'</h3><div class="diagnostic-table-wrap">'+tableHtml(rows)+'</div></div>';
 }
 function renderDiagnostic(entry){
+  if(entry.diagnostic.grammar){const g=entry.diagnostic.grammar;diagnosticBody.innerHTML=sectionHtml('Request',rowsFor(entry))+sectionHtml('Grammar',[['Target',g.targetId],['Category',g.categoryLevel],['Route probability',g.routeProbability]]);return;}
   const selection=entry.diagnostic.selection;
   diagnosticBody.innerHTML=
     sectionHtml('Request',rowsFor(entry))+

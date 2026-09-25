@@ -18,8 +18,8 @@ test('padded WAV has sample-exact silence, normalized audible speech and one acc
       assert.equal(view.getUint32(40, true) / channels / 2 / sampleRate, result.duration);
       assert.ok(result.bytes.subarray(44, 44 + silentBytes).every(value => value === 0));
       for (let i = 44 + silentBytes; i < result.bytes.length; i += 2) assert.equal(view.getInt16(i, true), 1966);
-      assert.deepEqual(result.waveformPeaks.slice(0, 40), new Array(40).fill(0));
-      assert.ok(result.waveformPeaks.slice(40).every(value => value === 1));
+      assert.deepEqual(result.waveformPeaks.slice(0, 80), new Array(80).fill(0));
+      assert.ok(result.waveformPeaks.slice(80).every(value => value === 1));
     }
   }
 });

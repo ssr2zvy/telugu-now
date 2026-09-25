@@ -75,3 +75,19 @@ test('provider failures never expose credentials or upstream response bodies', a
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => { throw new Error('fixture-secret'); }), /could not be reached/);
   await assert.rejects(generatePollinationsImage('word', 'fixture-secret', async () => new Response('large', { headers: { 'content-length': String(MAX_IMAGE_BYTES + 1) } })), /oversized/);
 });
+test('sentence placeholder expands literally without recursively replacing sentence text', () => {
+  assert.equal(renderImagePrompt('Draw <core word> in <sentence>. Again: <sentence>', 'అవును', 'అవును $& <core word>'),
+    'Draw అవును in అవును $& <core word>. Again: అవును $& <core word>');
+  assert.throws(() => renderImagePrompt('<core word> in <sentence>', 'అవును'), /current sentence/);
+});
+
+
+test('complete surface words fill new and legacy placeholders; sentence remains opt-in', () => {
+  for (const word of ['చెట్లలో', 'పుస్తకాలలో', 'ఇంటికి', 'పిల్లలతో', 'అమ్మకు', 'నగరంలో', 'బట్టలు']) {
+    assert.equal(renderImagePrompt('Draw <word>', word, 'This must not be appended'), `Draw ${word}`);
+    assert.equal(renderImagePrompt('Draw <core word>', word), `Draw ${word}`);
+    assert.equal(renderImagePrompt('<word> / <core word> in <sentence>', word, 'the sentence'), `${word} / ${word} in the sentence`);
+  }
+  assert.equal(validImagePrompt('Draw <word>'), true);
+  assert.equal(validImagePrompt('Draw <sentence>'), false);
+});

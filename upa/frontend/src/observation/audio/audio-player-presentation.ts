@@ -8,11 +8,7 @@ export const AUDIO_PLAYER_PRESENTATION = {
   // Milliseconds a press must be held before the precision magnifier engages.
   magnifierHoldMs: 300,
   magnifierPressureThreshold: 0.75,
-  // The magnifier zooms into a window this fraction of the total duration,
-  // clamped to a sensible absolute range regardless of clip length.
-  magnifierWindowFraction: 0.02,
-  magnifierWindowMinSeconds: 0.5,
-  magnifierWindowMaxSeconds: 4,
+  // Progressive 2% window (0.25–2 seconds) is owned by magnifier-waveform.ts.
   magnifierWidthPx: 260,
   // A run of clicks on the bookmark button is only resolved once no further
   // click arrives within this window.

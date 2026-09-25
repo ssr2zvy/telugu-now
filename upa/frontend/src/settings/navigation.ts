@@ -1,15 +1,33 @@
+import { appearanceGroups, appearanceLabels, appearancePageLabel, isAppearancePage, type AppearancePage } from './appearance-navigation';
 import { diagnosticSectionLabel } from './diagnostic';
 import { t } from './language';
 import type { SettingsPage, UiLanguage } from './types';
-import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, Layers, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
+import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
-  index: SlidersHorizontal, sampling: SlidersHorizontal, diagnostic: Activity,
-  display: Palette, export: Download, import: Upload, reset: RotateCcw, complexity: ChartNoAxesCombined,
-  sources: Layers, dataSources: Database, trigger: Workflow, source: Database,
+  ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,
+  dataSourceDetail: Database,
+  searchAttempt: Activity,
+  currentChain: ListOrdered,
+  nextChainSearch: Activity,
+  lastSearchAttempt: Activity,
+  currentReset: RotateCcw, resetChain: RotateCcw, resetCore: RotateCcw, resetAllCores: RotateCcw,
+  coreProgress: Activity,
+  objectCoverage: Activity,
+  coverageNotes: Activity,
+  searchAndParse: Activity,
+  currentSearches: Activity,
+  allTimeSearches: Activity,
+  cycleHistory: Activity,
+  parserEvents: Activity,
+  parserDetails: Activity,
+
+  diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
+  parserCurrent: ListOrdered, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
+  display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
+  dataSources: Database, trigger: Workflow, source: Database,
   complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
   images: Image, eons: History, blacklist: Ban,
-  questions: CircleHelp,
   questionInfo: CircleHelp,
   queue: ListOrdered,
   controlsGuide: BookOpen,
@@ -17,9 +35,19 @@ export const settingsPageIcons = {
 };
 
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
-  index: ['sampling', 'diagnostic', 'display', 'eons', 'blacklist', 'export', 'import', 'controlsGuide', 'about', 'reset'],
-  sampling: ['questions', 'complexity', 'sources', 'dataSources'],
-  diagnostic: ['queue', 'questionInfo', 'trigger', 'source', 'complexityInfo', 'global'],
+  ...appearanceGroups,
+  dataSources: ['dataSourceDetail'],
+  index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
+  external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
+  observations: ['parser', 'parsingMode', 'dataSources'],
+  parser: ['parserCurrent', 'diagnostic'],
+  parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],
+  currentReset: ['resetChain','resetCore','resetAllCores'],
+  nextChainSearch: ['lastSearchAttempt'],
+  diagnostic: ['objectCoverage','searchAndParse','cycleHistory','parserEvents','parserDetails'],
+  objectCoverage: ['coverageNotes'],
+  searchAndParse: ['currentSearches','allTimeSearches'],
+  parserEvents: ['diagnosticsDownload'],
   display: ['playback', 'appearance', 'images'],
 };
 
@@ -28,25 +56,48 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
-  if (page === 'sampling') return language === 'en' ? 'Sampling' : 'నమూనా ఎంపిక';
-  if (page === 'questions') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';
+  if(page==='resetChain')return 'Reset chain';
+  if(page==='resetCore')return 'Reset current core';
+  if(page==='resetAllCores')return 'Reset all cores';
+  if(isAppearancePage(page))return appearancePageLabel(page,language);
+  if(page==='dataSourceDetail')return language==='en'?'Data source':'డేటా మూలం';
+  const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};
+  if(parserLabels[page])return parserLabels[page]!;
+  if (page === 'searchAttempt') return 'Search and parse attempt';
+  if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
+  if (page === 'parser') return language === 'en' ? 'Parser' : 'పార్సర్';
+  if (page === 'parserCurrent') return language === 'en' ? 'Current' : 'ప్రస్తుతం';
+  if (page === 'diagnostic') return language === 'en' ? 'Diagnostics' : 'విశ్లేషణ';
+  if (page === 'diagnosticsDownload') return language === 'en' ? 'Download' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';
+  if (page === 'parsingMode') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';
+  if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';
+  if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';
+  if (page === 'grammarMigration') return 'Grammar Migration';
+  if (page === 'category') return language === 'en' ? 'Category' : 'వర్గం';
+  if (page === 'external') return language === 'en' ? 'External' : 'బాహ్య';
+  if (page === 'epubExport') return language === 'en' ? 'EPUB Export' : 'EPUB ఎగుమతి';
+  if (page === 'htmlExport') return language === 'en' ? 'HTML Export' : 'HTML ఎగుమతి';
+  if (page === 'archiveExport') return language === 'en' ? 'App Archive Export' : 'యాప్ ఆర్కైవ్ ఎగుమతి';
   if (page === 'display') return language === 'en' ? 'Display' : 'ప్రదర్శన';
-  if (page === 'appearance') return language === 'en' ? 'Appearance' : 'రూపం';
   if (page === 'images') return language === 'en' ? 'Image Generation' : 'చిత్ర సృష్టి';
   if (page === 'playback') return language === 'en' ? 'Playback Settings' : 'ప్లేబ్యాక్ అమరికలు';
   if (page === 'eons') return language === 'en' ? 'Eons' : 'యుగాలు';
   if (page === 'blacklist') return language === 'en' ? 'Blacklist' : 'బ్లాక్‌లిస్ట్';
   if (page === 'queue') return language === 'en' ? 'View the Queue' : 'క్యూను చూడండి';
-  if (page === 'import') return language === 'en' ? 'Import' : 'దిగుమతి';
+  if (page === 'archiveImport') return language === 'en' ? 'App Archive Import' : 'యాప్ ఆర్కైవ్ దిగుమతి';
   if (page === 'controlsGuide') return language === 'en' ? 'Controls Guide' : 'నియంత్రణల మార్గదర్శి';
   if (page === 'about') return language === 'en' ? 'Version & Deployment' : 'వెర్షన్ మరియు అమలు';
   if (page === 'questionInfo') return diagnosticSectionLabel(language, 'questions');
   if (page === 'trigger' || page === 'source' || page === 'global' || page === 'complexityInfo') {
     return diagnosticSectionLabel(language, page === 'complexityInfo' ? 'complexity' : page);
   }
-  if (page === 'sources') return language === 'en' ? 'Source Weights' : t(language, 'sourceWeights');
   if (page === 'dataSources') return language === 'en' ? 'Data Sources' : t(language, 'dataSources');
   if (page === 'reset') return language === 'en' ? 'Reset Queue' : t(language, 'resetQueue');
   const labels = { index: 'settings' } as const;
   return t(language, page in labels ? labels[page as keyof typeof labels] : page as 'complexity' | 'dataSources' | 'diagnostic' | 'export');
 }
+export function visibleSettingsEntries(page: SettingsPage, migrationAvailable: boolean): SettingsPage[] {
+  return (settingsGroups[page] ?? []).filter(entry => entry !== 'dataSourceDetail' && entry !== 'appearanceFont' && (entry !== 'grammarMigration' || migrationAvailable));
+}
+
+export const exportFormatForPage = {epubExport: 'epub', htmlExport: 'html', archiveExport: 'app-archive'} as const;

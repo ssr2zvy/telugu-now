@@ -1,3 +1,4 @@
+import { highlightPresets } from '../frontend/src/highlight-presets';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appearanceAudioColor, appearanceAudioGlass, appearanceAudioHoverColor, appearanceCornerColor, appearanceModificationColor, appearanceModificationTextShiftColor, appearanceSurface, CONTROL_SPACING_LIMITS, DEFAULT_APPEARANCE, parseAppearance, randomAppearanceColors } from '../frontend/src/appearance';
@@ -9,7 +10,7 @@ test('appearance validates persisted data and keeps a nonempty font pool', () =>
   assert.deepEqual(parseAppearance({ fonts: ['Mandali', 'unknown'] }).fonts, ['Mandali']);
   assert.equal(parseAppearance({ fontScale: 900 }).fontScale, 100);
   assert.equal(parseAppearance({ fontScale: NaN }).fontScale, 50);
-  assert.equal(parseAppearance({ foreground: 'url(bad)' }).foreground, '#171717');
+  assert.equal(parseAppearance({ foreground: 'url(bad)' }).foreground, DEFAULT_APPEARANCE.foreground);
   assert.equal(parseAppearance({ gradient: ['#ffffff'] }).gradient.length, 3);
   assert.equal(randomAppearanceColors(() => 0).gradient.length, 3);
   const previousLevels = [0x9a, 0x70, 0x51];
@@ -99,10 +100,10 @@ test('control darkness and timestamp visibility validate old and new preferences
   }
 });
 
-test('modification color defaults to the shared audio icon color', () => {
+test('modification color defaults to the nearest font-relative preset', () => {
   const color = appearanceModificationColor(DEFAULT_APPEARANCE);
   assert.match(color, /^#[0-9a-f]{6}$/);
-  assert.equal(color, appearanceAudioColor(DEFAULT_APPEARANCE));
+  assert.equal(color, highlightPresets(DEFAULT_APPEARANCE)[0]!.color);
   assert.equal(
     appearanceModificationColor({ ...DEFAULT_APPEARANCE, modificationColor: '#28a5d9' }),
     '#28a5d9',
@@ -113,9 +114,10 @@ test('modification text-shift preset shifts only the reading color lightness aga
   const color = appearanceModificationTextShiftColor(DEFAULT_APPEARANCE);
   assert.match(color, /^#[0-9a-f]{6}$/);
   const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map(value => parseInt(value, 16));
-  assert.equal(channels[0], channels[1]);
-  assert.equal(channels[1], channels[2]);
-  assert.ok(channels[0]! >= parseInt(DEFAULT_APPEARANCE.foreground.slice(1, 3), 16) + 60);
+  assert.ok(channels[2]! > channels[0]! && channels[0]! > channels[1]!, "text shift retains the tinted foreground hue");
+  const originalChannels = [1, 3, 5].map(offset => parseInt(DEFAULT_APPEARANCE.foreground.slice(offset, offset + 2), 16));
+  const lightnessShift = (Math.max(...channels) + Math.min(...channels) - Math.max(...originalChannels) - Math.min(...originalChannels)) / 2;
+  assert.ok(Math.abs(lightnessShift - DEFAULT_APPEARANCE.modificationLightness / 100 * 255) <= 1);
   const lightForeground = { ...DEFAULT_APPEARANCE, gradient: ['#101010', '#202020', '#303030'] as [string, string, string], foreground: '#eeeeee' };
   assert.ok(parseInt(appearanceModificationTextShiftColor(lightForeground).slice(1, 3), 16) <= 0xee - 60);
   assert.equal(appearanceModificationTextShiftColor({ ...DEFAULT_APPEARANCE, modificationLightness: 0 }), DEFAULT_APPEARANCE.foreground);
@@ -125,13 +127,13 @@ test('modification text-shift preset shifts only the reading color lightness aga
   );
 });
 
-test('audio hover color mirrors the invert(1) filter applied to audio icons on hover', () => {
-  const base = appearanceAudioColor(DEFAULT_APPEARANCE);
-  const hover = appearanceAudioHoverColor(DEFAULT_APPEARANCE);
+test('emphasized audio preview retains palette color and responds to darkness', () => {
+  const palette = parseAppearance({ gradient: ['#dfe5f2', '#c1c9e0', '#c2dcd0'] });
+  const hover = appearanceAudioHoverColor(palette);
   assert.match(hover, /^#[0-9a-f]{6}$/);
-  const baseChannels = [1, 3, 5].map(offset => parseInt(base.slice(offset, offset + 2), 16));
-  const hoverChannels = [1, 3, 5].map(offset => parseInt(hover.slice(offset, offset + 2), 16));
-  assert.deepEqual(hoverChannels, baseChannels.map(channel => 255 - channel));
+  const channels = [1, 3, 5].map(offset => parseInt(hover.slice(offset, offset + 2), 16));
+  assert.ok(Math.max(...channels) > Math.min(...channels));
+  assert.notEqual(appearanceAudioHoverColor({ ...palette, controlDarkness: 0 }), appearanceAudioHoverColor({ ...palette, controlDarkness: 40 }));
 });
 
 test('audio gaps migrate shared spacing and remain independent in either orientation', () => {
@@ -259,7 +261,7 @@ test('surface colors remain independent while corner colors adapt to palette and
   assert.equal(appearanceSurface(parseAppearance({ foreground: '#ffffff' })), '#191b1d');
   const custom = parseAppearance({ surface: '#e8eeee', gradient: ['#ff0000', '#00ff00', '#0000ff'] });
   assert.equal(appearanceSurface(custom), '#e8eeee');
-  assert.equal(appearanceSurface(parseAppearance({ ...custom, ...randomAppearanceColors(() => 0), surface: null })), '#f8f9fa');
+  assert.equal(appearanceSurface(parseAppearance({ ...custom, ...randomAppearanceColors(() => 0), surface: null })), '#191b1d');
   const relativeLuminance = (color: string) => [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
     .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
     .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
@@ -291,12 +293,12 @@ test('surface colors remain independent while corner colors adapt to palette and
   assert.match(appearanceCornerColor(extreme), /^#[0-9a-f]{6}$/);
 });
 
-test('settings leaf pages return to their group and reset remains last', () => {
-  assert.equal(parentSettingsPage('complexity'), 'sampling');
-  assert.equal(parentSettingsPage('global'), 'diagnostic');
+test('settings leaf pages return to their observation or display group', () => {
+  assert.equal(parentSettingsPage('dataSources'), 'observations');
+  assert.equal(parentSettingsPage('currentSearches'), 'searchAndParse');
   assert.equal(parentSettingsPage('appearance'), 'display');
-  assert.equal(parentSettingsPage('sampling'), 'index');
-  assert.equal(settingsGroups.index?.at(-1), 'reset');
+  assert.equal(parentSettingsPage('external'), 'index');
+  assert.equal(settingsGroups.observations?.at(-1), 'dataSources');
 });
 
 test('non-object persisted appearance values recover all defaults', () => {
@@ -339,4 +341,12 @@ test('persisted font pools discard duplicates and unknown fonts in canonical ord
   const parsed = parseAppearance({ fonts: [...fonts, fonts[0], 'unknown', fonts[0]] });
   assert.deepEqual(parsed.fonts, [...OBSERVATION_FONTS]);
   assert.equal(new Set(parsed.fonts).size, parsed.fonts.length);
+});
+
+test('record and switch position persists and stays within upward offset bounds', () => {
+  assert.equal(parseAppearance({questionActionOffset: 84}).questionActionOffset, 84);
+  assert.equal(parseAppearance({questionActionOffset: -40}).questionActionOffset, 0);
+  assert.equal(parseAppearance({questionActionOffset: 900}).questionActionOffset, 200);
+  assert.equal(parseAppearance({questionActionOffset: NaN}).questionActionOffset, 0);
+  assert.equal(parseAppearance({}).questionActionOffset, 0);
 });
