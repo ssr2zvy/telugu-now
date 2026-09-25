@@ -1,4 +1,3 @@
-import {oneTimeRecovery} from '../server/src/access/recovery';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
@@ -39,7 +38,7 @@ test('existing secrets migrate once; stored credentials win over later environme
 });
 test('volume-backed sessions work across a new gate instance; anonymous profile access remains blocked',async()=>{
   const db=new Database(':memory:');try {
-    accessCredentials(db); oneTimeRecovery(db).replace(saved);
+    accessCredentials(db); accessCredentials(db).initialize(saved);
     const cookie='__Host-telugu-access='+issueAccessSession(saved.hash,saved.secret);
     for(let i=0;i<2;i++){
       const app=new Hono();app.use('*',accessGate(db,{secure:true}));app.get('/api/profile',c=>c.json({profile:true}));
