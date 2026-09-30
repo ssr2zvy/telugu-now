@@ -1,3 +1,4 @@
+import { DEFAULT_EXPLORATION, parseExploration, type ExplorationSettings } from './exploration';
 export const OBSERVATION_FONTS = [
   'Noto Sans Telugu',
   'Noto Serif Telugu',
@@ -12,7 +13,7 @@ export const OBSERVATION_FONTS = [
 ] as const;
 export type ObservationFontFamily = (typeof OBSERVATION_FONTS)[number];
 
-export interface AppearanceSettings {
+export interface AppearanceSettings extends ExplorationSettings {
   gradient: [string, string, string];
   foreground: string;
   foregroundDefaultVersion: 2;
@@ -45,6 +46,7 @@ export interface AppearanceSettings {
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
+  ...DEFAULT_EXPLORATION,
   gradient: ['#b6b6b6', '#969696', '#787878'],
   foreground: '#34304a',
   foregroundDefaultVersion: 2,
@@ -89,6 +91,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   const fonts = OBSERVATION_FONTS.filter((font) => Array.isArray(candidate.fonts) && candidate.fonts.includes(font));
   const legacyGap = Math.min(1, parseControlGap(candidate.controlSpacing, DEFAULT_APPEARANCE.audioTimestampGap));
   return {
+    ...parseExploration(candidate),
     gradient: Array.isArray(candidate.gradient) && candidate.gradient.length === 3 && candidate.gradient.every(isColor)
       ? [...candidate.gradient] : [...DEFAULT_APPEARANCE.gradient],
     foreground: isColor(candidate.foreground) && (candidate.foregroundDefaultVersion === 2 || candidate.foreground.toLowerCase() !== '#171717') ? candidate.foreground : DEFAULT_APPEARANCE.foreground,

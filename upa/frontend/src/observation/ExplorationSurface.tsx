@@ -7,7 +7,7 @@ import {visibleWordAtPoint,visibleGraphemeAtPoint} from './visible-glyph-hit-tes
 import type {ExplorationStep} from './exploration-steps';
 
 export interface ExplorationFocus {word:string;start:number;end:number;grapheme?:{text:string;start:number;end:number}}
-export interface ExplorationHandle { tap(clientX: number, clientY: number): void }
+export interface ExplorationHandle { tap(clientX: number, clientY: number): void; pause(): void }
 export function ExplorationSurface({observation,step,profileCode,textRef,ref,playbackRate,active,onFocus}: {
   observation:DisplayObservation;step:ExplorationStep;profileCode:string; textRef:RefObject<HTMLDivElement|null>; ref:Ref<ExplorationHandle>;
   playbackRate:number;active:boolean;onFocus:(focus:ExplorationFocus)=>void;
@@ -40,7 +40,7 @@ export function ExplorationSurface({observation,step,profileCode,textRef,ref,pla
     }).catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'Audio unavailable.');});
     return ()=>{controller.abort();taps.cancel();};
   },[stepKey,profileCode]);
-  useImperativeHandle(ref, () => ({tap(clientX, clientY) {
+  useImperativeHandle(ref, () => ({pause() { taps.cancel(); player.pause(); }, tap(clientX, clientY) {
     if (!active) return;
     const element=textRef.current;
     const candidate=element?(step.kind==='letter'?visibleGraphemeAtPoint(element,observation.text,clientX,clientY):visibleWordAtPoint(element,observation.text,clientX,clientY)):null;

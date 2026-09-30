@@ -1,3 +1,4 @@
+import { ExplorationSettingsPage } from './pages/ExplorationSettingsPage';
 import { isAppearancePage } from './appearance-navigation';
 import { ParserDetailPage } from './pages/ParserDetailPage';
 import { ParserCurrentPage } from './pages/ParserCurrentPage';
@@ -61,6 +62,7 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
+  if(page==='explorationStart' || page==='explorationEnd' || page==='explorationDraws')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ExplorationSettingsPage page={page} language={language}/></SettingsShell>;
   if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>
     <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>
   </SettingsShell>;
