@@ -1,5 +1,6 @@
 import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
-import { explorationSteps, explorationIndex } from './exploration-steps';
+import type { ExplorationStep } from './exploration-steps';
+import { explorationChoices, RandomExploration } from './random-exploration';
 import { useObservationTravel } from './useObservationTravel';
 import { useGradientTravel } from '../GradientBackdrop';
 import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
@@ -147,10 +148,11 @@ export function ObservationView({
   const fontAssignments = useObservationFontQueue(state, appearance.fonts);
   const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
     ?? 'Noto Sans Telugu';
-  const steps = useMemo(() => explorationSteps(observation?.text ?? ''), [observation?.text]);
+  const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);
+  const explorationSession = useRef<RandomExploration | null>(null);
   const explorationRef = useRef<ExplorationHandle | null>(null);
-  const [exploration, setExploration] = useState<number | null>(null);
-  const exploring = exploration !== null && Boolean(steps[exploration]);
+  const [exploration, setExploration] = useState<ExplorationStep | null>(null);
+  const exploring = exploration !== null;
   const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
   const comparisonPhase = comparisonQuestionPhase;
   const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
@@ -166,6 +168,7 @@ export function ObservationView({
   useLayoutEffect(() => {
     taps.cancel();
     setExploration(null);
+    explorationSession.current = null;
     seamlessAudioKey.current = null;
     setAudioError(null);
     setAudioMotion('idle');
@@ -484,16 +487,19 @@ export function ObservationView({
   const verticalSwipe = (direction: 'up' | 'down') => {
     if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
     if (exploring) {
-      const next = explorationIndex(exploration, direction, steps.length);
+      explorationRef.current?.pause();
+      const next = explorationSession.current?.move(direction) ?? null;
       setExploration(next);
-      if (next === null) { if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+      if (next === null) { explorationSession.current = null; if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
       return;
     }
     if (direction === 'up') {
       if (controlsVisible) {
         if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
-      } else if (showsObservationText && observation && steps.length) {
-        playerRef.current?.pause(); taps.cancel(); setExploration(0);
+      } else if (showsObservationText && observation && (choices.letters.length || choices.words.length)) {
+        playerRef.current?.pause(); taps.cancel();
+        explorationSession.current = new RandomExploration(observation.text, appearance);
+        setExploration(explorationSession.current.move('up'));
       }
       return;
     }
@@ -646,7 +652,7 @@ export function ObservationView({
           }}
         />
       </div>
-      {exploring && observation ? <ExplorationSurface observation={observation} step={steps[exploration!]!}
+      {exploring && observation ? <ExplorationSurface observation={observation} step={exploration!}
         profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
         playbackRate={state?.audioSettings.playbackRate ?? 1}
         onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
@@ -673,7 +679,7 @@ export function ObservationView({
           >
             <TeluguWordText
               text={observation.text}
-              visibleRange={exploring ? steps[exploration!] : undefined}
+              visibleRange={exploration ?? undefined}
               runs={highlightRuns}
               textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
             />

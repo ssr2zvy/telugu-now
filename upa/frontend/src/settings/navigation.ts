@@ -5,6 +5,7 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
+  exploration: BookOpen, explorationStart: SlidersHorizontal, explorationEnd: SlidersHorizontal, explorationDraws: SlidersHorizontal,
   ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,
   dataSourceDetail: Database,
   searchAttempt: Activity,
@@ -39,7 +40,8 @@ export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   dataSources: ['dataSourceDetail'],
   index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
-  observations: ['parser', 'parsingMode', 'dataSources'],
+  observations: ['parser', 'parsingMode', 'exploration', 'dataSources'],
+  exploration: ['explorationStart', 'explorationEnd', 'explorationDraws'],
   parser: ['parserCurrent', 'diagnostic'],
   parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],
   currentReset: ['resetChain','resetCore','resetAllCores'],
@@ -56,6 +58,10 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 }
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+  if(page==='exploration')return language==='en'?'Exploration':'అన్వేషణ';
+  if(page==='explorationStart')return language==='en'?'Start probabilities':'ప్రారంభ అవకాశాలు';
+  if(page==='explorationEnd')return language==='en'?'End probabilities':'చివరి అవకాశాలు';
+  if(page==='explorationDraws')return language==='en'?'Transition draws':'మార్పు ఎంపికలు';
   if(page==='resetChain')return 'Reset chain';
   if(page==='resetCore')return 'Reset current core';
   if(page==='resetAllCores')return 'Reset all cores';

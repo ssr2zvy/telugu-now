@@ -6,6 +6,7 @@ interface ControlsGuidePageProps {
 
 const guides = {
   en: [
+    ['Exploration', 'With the audio bar hidden, swipe up to draw a random letter or word. Swipe up for another draw; swipe down to retrace and return to the observation. Tap to hear the selection. Each visit starts at your starting probabilities.'],
     ['Navigate', 'Swipe left to move forward and right to go back, including over revealed controls. Desktop arrow keys do the same.'],
     ['Read', 'Double-tap a word to inspect it. Tap the background to play or pause.'],
     ['Audio', 'Tap the audio timeline to seek. Press and hold it to open the magnifier, then drag for precise movement.'],
@@ -15,6 +16,7 @@ const guides = {
     ['Settings', 'Open Settings with the bottom-right icon. Back returns one level.'],
   ],
   te: [
+    ['అన్వేషణ', 'ఆడియో బార్ దాచినప్పుడు పైకి స్వైప్ చేస్తే యాదృచ్ఛిక అక్షరం లేదా పదం కనిపిస్తుంది. మళ్లీ పైకి స్వైప్ చేస్తే మరో ఎంపిక; కిందికి స్వైప్ చేస్తే వెనక్కి వెళ్లవచ్చు. వినడానికి నొక్కండి. ప్రతిసారి ప్రారంభ అవకాశాలతో మొదలవుతుంది.'],
     ['నావిగేషన్', 'వెనుకకు లేదా ముందుకు వెళ్లడానికి ఎడమ మరియు కుడి పఠన ప్రాంతాలను నొక్కండి. స్క్రోల్ మోడ్‌లో అడ్డంగా స్వైప్ చేయండి.'],
     ['చదవడం', 'పాయింటర్‌తో వచనాన్ని ఎంచుకోండి లేదా టచ్ స్క్రీన్‌పై పదాన్ని నొక్కి పట్టుకుని పఠన చర్యలను తెరవండి.'],
     ['ఆడియో', 'స్థానం మార్చడానికి ఆడియో కాలరేఖను నొక్కండి. మాగ్నిఫైయర్ తెరవడానికి నొక్కి పట్టుకుని, ఖచ్చితమైన కదలిక కోసం లాగండి.'],
