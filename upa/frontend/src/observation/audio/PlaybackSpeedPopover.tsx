@@ -100,7 +100,10 @@ export function PlaybackSpeedPopover({
       draggable={false}
       onDragStart={(event) => event.preventDefault()}
       onContextMenu={(event) => event.preventDefault()}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (view === 'editor' && event.target instanceof Element && !event.target.closest('.audio-speed-track')) onClose();
+      }}
       onPointerDownCapture={onInteraction}
       onKeyDownCapture={onInteraction}
       role="group"
@@ -168,7 +171,7 @@ export function PlaybackSpeedPopover({
           <div className="audio-speed-fill" style={{ width: `${fraction * 100}%` }} />
           <div className="audio-speed-thumb" style={{ left: `${fraction * 100}%` }} />
         </div>
-        <div className="audio-speed-readout">{playbackRate.toFixed(2)}x</div>
+        <button type="button" className="audio-speed-readout" aria-label="Close playback speed">{playbackRate.toFixed(2)}x</button>
       </div> : null}
     </div>
   );

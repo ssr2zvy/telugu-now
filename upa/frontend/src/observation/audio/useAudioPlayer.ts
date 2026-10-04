@@ -1,3 +1,4 @@
+import { playbackFailureMessage } from './playback-error';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ObservationAudio } from '../../../../shared/contracts';
 import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';
@@ -83,9 +84,9 @@ export function useAudioPlayer(
   const pendingBookmarks = useRef<number[] | null>(null);
   const bookmarkWriteInFlight = useRef(false);
 
-  const requestPlayback = (element: HTMLAudioElement) => {
+  const requestPlayback = (element: HTMLAudioElement, automatic = false) => {
     naturallyCompletedRef.current = false;
-    wantsPlaybackRef.current = autoplay;
+    wantsPlaybackRef.current = true;
     naturallyCompletedRef.current = false;
     pointerSeekRef.current = null;
     setPlaybackError(null);
@@ -101,9 +102,7 @@ export function useAudioPlayer(
       element.pause();
       setPlaying(false);
       setPlaybackStatus(null);
-      setPlaybackError(error instanceof DOMException && error.name === 'NotAllowedError'
-        ? 'Tap above the bottom third to start audio, or allow sound for this site.'
-        : 'This audio file could not be played. Tap above the bottom third to retry.');
+      setPlaybackError(playbackFailureMessage(error, automatic));
       reportClientTelemetry({
         event: 'observation_audio_failed',
         ...(observationId ? { observationId } : {}),
@@ -196,7 +195,7 @@ export function useAudioPlayer(
         };
         if (element.readyState >= HTMLMediaElement.HAVE_METADATA) restoreCursor();
         else element.addEventListener('loadedmetadata', restoreCursor, { once: true });
-      } else if (wantsPlaybackRef.current && playbackEnabled) requestPlayback(element);
+      } else if (wantsPlaybackRef.current && playbackEnabled) requestPlayback(element, true);
     };
     const cached = lease.value();
     if (cached) attach(cached);
@@ -204,7 +203,7 @@ export function useAudioPlayer(
       if (disposed) return;
       setLoading(false);
       setPlaybackStatus(null);
-      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap above the bottom third to retry.`);
+      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap to retry.`);
     });
     return () => {
       disposed = true;
@@ -225,7 +224,7 @@ export function useAudioPlayer(
     const element = audioRef.current;
     if (suppressReplacementAutoplayRef.current || !playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current?.value()) return;
     wantsPlaybackRef.current = true;
-    requestPlayback(element);
+    requestPlayback(element, true);
   }, [playbackEnabled, autoplay, loading, audio?.url]);
 
   useEffect(() => {
