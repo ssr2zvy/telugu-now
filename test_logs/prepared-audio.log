@@ -1,0 +1,84 @@
+TAP version 13
+# (node:45764) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: padded WAV has sample-exact silence, normalized audible speech and one accurate waveform/timeline
+ok 1 - padded WAV has sample-exact silence, normalized audible speech and one accurate waveform/timeline
+  ---
+  duration_ms: 40.822176
+  type: 'test'
+  ...
+# Subtest: bookmark translation never persists padding or accumulates drift, including original zero
+ok 2 - bookmark translation never persists padding or accumulates drift, including original zero
+  ---
+  duration_ms: 0.251768
+  type: 'test'
+  ...
+# Subtest: aligned audio fragments fetch the original URL and crop decoded samples exactly
+ok 3 - aligned audio fragments fetch the original URL and crop decoded samples exactly
+  ---
+  duration_ms: 0.409905
+  type: 'test'
+  ...
+# Subtest: invalid or oversized decoded audio fails explicitly, never unpadded fallback
+ok 4 - invalid or oversized decoded audio fails explicitly, never unpadded fallback
+  ---
+  duration_ms: 0.417874
+  type: 'test'
+  ...
+# Subtest: warm and active owners deduplicate fetch/decode and retain the same prepared object
+ok 5 - warm and active owners deduplicate fetch/decode and retain the same prepared object
+  ---
+  duration_ms: 0.690058
+  type: 'test'
+  ...
+# Subtest: speculative requests are serial and an active clip takes the reserved slot ahead of the queue
+ok 6 - speculative requests are serial and an active clip takes the reserved slot ahead of the queue
+  ---
+  duration_ms: 0.542303
+  type: 'test'
+  ...
+# Subtest: unowned pending loads abort, stale completions revoke, and a new source remains valid
+ok 7 - unowned pending loads abort, stale completions revoke, and a new source remains valid
+  ---
+  duration_ms: 0.477306
+  type: 'test'
+  ...
+# Subtest: queue warming progresses alongside a cold active download and abandoned queued jobs never fetch
+ok 8 - queue warming progresses alongside a cold active download and abandoned queued jobs never fetch
+  ---
+  duration_ms: 0.551808
+  type: 'test'
+  ...
+# Subtest: failed preparation is deduplicated until explicit retry, which cannot be poisoned by old owners
+ok 9 - failed preparation is deduplicated until explicit retry, which cannot be poisoned by old owners
+  ---
+  duration_ms: 13.84738
+  type: 'test'
+  ...
+# Subtest: LRU memory eviction never revokes an active native owner, and ownership is released idempotently
+ok 10 - LRU memory eviction never revokes an active native owner, and ownership is released idempotently
+  ---
+  duration_ms: 0.524973
+  type: 'test'
+  ...
+# Subtest: memory pressure fails explicitly instead of revoking pinned native media
+ok 11 - memory pressure fails explicitly instead of revoking pinned native media
+  ---
+  duration_ms: 0.359444
+  type: 'test'
+  ...
+# Subtest: timeouts abort loading and stale results cannot resurrect a timed-out entry
+ok 12 - timeouts abort loading and stale results cannot resurrect a timed-out entry
+  ---
+  duration_ms: 0.888949
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 164.97643

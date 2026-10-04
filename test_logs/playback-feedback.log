@@ -1,0 +1,54 @@
+TAP version 13
+# (node:45623) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a real network failure is reported, then cleared when playback recovers without another play event
+ok 1 - a real network failure is reported, then cleared when playback recovers without another play event
+  ---
+  duration_ms: 1.407375
+  type: 'test'
+  ...
+# Subtest: network errors do not show while the native clock advances, but a subsequent real stall does
+ok 2 - network errors do not show while the native clock advances, but a subsequent real stall does
+  ---
+  duration_ms: 0.482673
+  type: 'test'
+  ...
+# Subtest: late errors from the original source do not poison the silent lead-in or its restored source
+ok 3 - late errors from the original source do not poison the silent lead-in or its restored source
+  ---
+  duration_ms: 0.400276
+  type: 'test'
+  ...
+# Subtest: successful loading clears only media feedback, not an autoplay rejection
+ok 4 - successful loading clears only media feedback, not an autoplay rejection
+  ---
+  duration_ms: 0.590479
+  type: 'test'
+  ...
+# Subtest: aborted loads and error events without a current MediaError do not invent failures
+ok 5 - aborted loads and error events without a current MediaError do not invent failures
+  ---
+  duration_ms: 0.20692
+  type: 'test'
+  ...
+# Subtest: decoder failures remain actionable, including an error already present when listeners attach
+ok 6 - decoder failures remain actionable, including an error already present when listeners attach
+  ---
+  duration_ms: 0.282973
+  type: 'test'
+  ...
+# Subtest: cleanup cancels confirmation and removes listeners from the old observation
+ok 7 - cleanup cancels confirmation and removes listeners from the old observation
+  ---
+  duration_ms: 0.128465
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 105.331107

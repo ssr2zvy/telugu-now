@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: presets are distinct, subtle and derived from the font and palette
+ok 1 - presets are distinct, subtle and derived from the font and palette
+  ---
+  duration_ms: 19.678397
+  type: 'test'
+  ...
+# Subtest: selected preset follows theme changes and survives preference parsing; custom colors stay exact
+ok 2 - selected preset follows theme changes and survives preference parsing; custom colors stay exact
+  ---
+  duration_ms: 0.762067
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 152.606027

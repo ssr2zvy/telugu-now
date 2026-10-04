@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: S3 audio streams without buffering and preserves object metadata
+ok 1 - S3 audio streams without buffering and preserves object metadata
+  ---
+  duration_ms: 15.74184
+  type: 'test'
+  ...
+# Subtest: S3 audio forwards exact single ranges and preserves partial metadata
+ok 2 - S3 audio forwards exact single ranges and preserves partial metadata
+  ---
+  duration_ms: 3.806754
+  type: 'test'
+  ...
+# Subtest: HEAD uses metadata without downloading audio or forwarding Range
+ok 3 - HEAD uses metadata without downloading audio or forwarding Range
+  ---
+  duration_ms: 0.89965
+  type: 'test'
+  ...
+# Subtest: condition headers use HTTP precedence and dates
+ok 4 - condition headers use HTTP precedence and dates
+  ---
+  duration_ms: 2.232236
+  type: 'test'
+  ...
+# Subtest: If-Range uses HEAD and sends Range only for a matching strong validator
+ok 5 - If-Range uses HEAD and sends Range only for a matching strong validator
+  ---
+  duration_ms: 5.812179
+  type: 'test'
+  ...
+# Subtest: If-Range falls back to full response when object changes between HEAD and GET
+ok 6 - If-Range falls back to full response when object changes between HEAD and GET
+  ---
+  duration_ms: 1.015298
+  type: 'test'
+  ...
+# Subtest: If-Range pins metadata even with wildcard If-Match and rechecks original conditions on change
+ok 7 - If-Range pins metadata even with wildcard If-Match and rechecks original conditions on change
+  ---
+  duration_ms: 0.78413
+  type: 'test'
+  ...
+# Subtest: cancelling a proxied response destroys the upstream stream
+ok 8 - cancelling a proxied response destroys the upstream stream
+  ---
+  duration_ms: 1.684433
+  type: 'test'
+  ...
+# Subtest: missing body and transport failures return only a generic 502
+ok 9 - missing body and transport failures return only a generic 502
+  ---
+  duration_ms: 1.836642
+  type: 'test'
+  ...
+# Subtest: upstream expected errors preserve HTTP status and never expose errors
+ok 10 - upstream expected errors preserve HTTP status and never expose errors
+  ---
+  duration_ms: 1.524433
+  type: 'test'
+  ...
+# Subtest: range error obtains missing Content-Range using metadata
+ok 11 - range error obtains missing Content-Range using metadata
+  ---
+  duration_ms: 0.478649
+  type: 'test'
+  ...
+# Subtest: unsafe URL keys are rejected before any upstream call
+ok 12 - unsafe URL keys are rejected before any upstream call
+  ---
+  duration_ms: 1.246277
+  type: 'test'
+  ...
+# Subtest: local audio still streams ranges and refuses symlinks outside the objects root
+ok 13 - local audio still streams ranges and refuses symlinks outside the objects root
+  ---
+  duration_ms: 8.572974
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 323.096947

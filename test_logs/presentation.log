@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: observation font collection is the fixed curated Telugu set
+ok 1 - observation font collection is the fixed curated Telugu set
+  ---
+  duration_ms: 0.978045
+  type: 'test'
+  ...
+# Subtest: random font selection maps the full random interval onto the curated collection
+ok 2 - random font selection maps the full random interval onto the curated collection
+  ---
+  duration_ms: 0.155074
+  type: 'test'
+  ...
+# Subtest: iOS devices use only fonts verified with Safari shaping
+ok 3 - iOS devices use only fonts verified with Safari shaping
+  ---
+  duration_ms: 0.253399
+  type: 'test'
+  ...
+# Subtest: preferred font size decreases smoothly as observation content grows
+ok 4 - preferred font size decreases smoothly as observation content grows
+  ---
+  duration_ms: 0.348027
+  type: 'test'
+  ...
+# Subtest: preferred font size responds to available observation width without buckets
+ok 5 - preferred font size responds to available observation width without buckets
+  ---
+  duration_ms: 0.161054
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.174569

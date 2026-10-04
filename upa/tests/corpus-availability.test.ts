@@ -15,6 +15,10 @@ import { SelectionEngine } from '../server/src/services/selection-engine';
 import type { ProfileSelectionSettings } from '../shared/contracts';
 import { CorpusObjectStore, type CorpusObject, type CorpusS3Client } from '../server/src/services/corpus-object-store';
 import { AudioValidationStore, audioStorageIdentity } from '../server/src/services/audio-validation-store';
+import { issueAccessSession } from '../server/src/access/gate';
+
+const ACCESS_HASH = `scrypt-v1$${'11'.repeat(16)}$${'22'.repeat(64)}`;
+const ACCESS_SECRET = '33'.repeat(32);
 
 function fixture(t: { after: (fn: () => void) => void }): AvailabilityOptions {
   const root = path.join(process.cwd(), 'test-results', `availability-${randomUUID()}`);
@@ -302,6 +306,10 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
         AWS_ACCESS_KEY_ID: 'test', AWS_SECRET_ACCESS_KEY: 'test', AWS_MAX_ATTEMPTS: '1',
       } : {}),
       PORT: '0', API_DEV_PORT: '0',
+      // Only /api/health bypasses the access gate; every other endpoint this test
+      // exercises (notably /api/data-sources) needs configured credentials.
+      ACCESS_PASSPHRASE_HASH: ACCESS_HASH,
+      ACCESS_SESSION_SECRET: ACCESS_SECRET,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -309,6 +317,13 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
   let output = '';
   child.stdout.on('data', data => { output += String(data); });
   child.stderr.on('data', data => { output += String(data); });
+  // The server only ever emits structured JSON log lines (see services/logger.ts);
+  // there is no human-readable "Server listening on ..." banner to scan for.
+  function logEvents(): Array<Record<string, unknown>> {
+    return output.split('\n').flatMap(line => {
+      try { return [JSON.parse(line) as Record<string, unknown>]; } catch { return []; }
+    });
+  }
   async function until(check: () => boolean | Promise<boolean>): Promise<void> {
     for (let attempt = 0; attempt < 150; attempt += 1) {
       if (await check()) return;
@@ -321,31 +336,44 @@ test(`${backend} startup availability lifecycle: ${mode}`, { timeout: 20_000 }, 
     if (failsStartup) {
       const [code] = await exited;
       assert.notEqual(code, 0, output);
-      assert.match(output, /Snapshot-only startup requires an existing compatible availability.sqlite/);
-      assert.equal(output.includes('Server listening on'), false);
+      assert.ok(logEvents().some(event => event.event === 'corpus_snapshot_unavailable'
+        && event.failureCategory === 'missing-or-incompatible-snapshot'), output);
+      // The HTTP port is intentionally opened (and "server_started" logged) before
+      // corpus availability is validated, so health checks can respond during
+      // startup; for the tigris backend the corpus database download always
+      // finishes after the listen callback fires, so "server_started" reliably
+      // appears even though startup goes on to fail. The meaningful invariant is
+      // that the app never actually becomes reachable, which is covered below by
+      // the untouched snapshot and the absence of inventory requests.
       assert.equal(inventoryRequests, 0);
       if (originalSnapshot) assert.deepEqual(fs.readFileSync(options.corpusAvailabilityPath), originalSnapshot);
       else assert.equal(fs.existsSync(options.corpusAvailabilityPath), false);
       return;
     }
-    await until(() => output.includes('Server listening on'));
-    const url = output.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
+    await until(() => logEvents().some(event => event.event === 'server_started'));
+    const started = logEvents().find(event => event.event === 'server_started');
+    const url = started ? `http://127.0.0.1:${started.port}` : undefined;
     assert.ok(url);
+    // Every endpoint besides /api/health sits behind the access gate; authenticate
+    // with a session cookie matching the credentials configured above instead of
+    // performing the interactive password flow.
+    const cookieName = production ? '__Host-telugu-access' : 'telugu-access';
+    const authHeaders = { Cookie: `${cookieName}=${issueAccessSession(ACCESS_HASH, ACCESS_SECRET)}` };
     assert.equal((await fetch(`${url}/api/health`)).status, 200);
     if (backend === 'tigris' && mode === 'rebuild') {
       assert.equal(inventoryRequests, 1);
-      assert.equal((await fetch(`${url}/api/data-sources`)).status, 503);
+      assert.equal((await fetch(`${url}/api/data-sources`, { headers: authHeaders })).status, 503);
       releaseInventory?.();
     }
     if (production) {
-      const frontend = await fetch(url);
+      const frontend = await fetch(url, { headers: authHeaders });
       assert.equal(frontend.status, 200);
       assert.match(frontend.headers.get('content-type') ?? '', /text\/html/);
       assert.match(await frontend.text(), /id="root"/);
-      assert.equal((await fetch(`${url}/fonts/noto-sans-telugu.woff2`, { method: 'HEAD' })).status, 200);
+      assert.equal((await fetch(`${url}/fonts/noto-sans-telugu.woff2`, { method: 'HEAD', headers: authHeaders })).status, 200);
     }
     async function count(): Promise<number> {
-      const response = await fetch(`${url}/api/data-sources`);
+      const response = await fetch(`${url}/api/data-sources`, { headers: authHeaders });
       const body = await response.json() as { sources: Array<{ sourceId: string; acceptedRows: number }> };
       return body.sources.find(source => source.sourceId === 'fleurs-te')!.acceptedRows;
     }

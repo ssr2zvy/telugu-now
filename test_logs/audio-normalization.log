@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: computeRmsLoudness returns 0 for silence and the exact RMS for a known signal
+ok 1 - computeRmsLoudness returns 0 for silence and the exact RMS for a known signal
+  ---
+  duration_ms: 0.670396
+  type: 'test'
+  ...
+# Subtest: computeNormalizationGain amplifies quiet clips and attenuates loud clips toward the target RMS
+ok 2 - computeNormalizationGain amplifies quiet clips and attenuates loud clips toward the target RMS
+  ---
+  duration_ms: 0.15177
+  type: 'test'
+  ...
+# Subtest: computeNormalizationGain clamps to the configured gain bounds and is neutral for silence
+ok 3 - computeNormalizationGain clamps to the configured gain bounds and is neutral for silence
+  ---
+  duration_ms: 0.101691
+  type: 'test'
+  ...
+# Subtest: computeWaveformPeaks buckets the whole clip, normalizes to the loudest bucket, and always includes the tail
+ok 4 - computeWaveformPeaks buckets the whole clip, normalizes to the loudest bucket, and always includes the tail
+  ---
+  duration_ms: 0.271749
+  type: 'test'
+  ...
+# Subtest: computeWaveformPeaks returns all-zero buckets for an empty buffer
+ok 5 - computeWaveformPeaks returns all-zero buckets for an empty buffer
+  ---
+  duration_ms: 0.607526
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 98.163824

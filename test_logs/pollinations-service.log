@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: image prompt requires the placeholder and replaces every occurrence literally
+ok 1 - image prompt requires the placeholder and replaces every occurrence literally
+  ---
+  duration_ms: 0.982507
+  type: 'test'
+  ...
+# Subtest: image key comes only from the server environment and trims whitespace
+ok 2 - image key comes only from the server environment and trims whitespace
+  ---
+  duration_ms: 0.315149
+  type: 'test'
+  ...
+# Subtest: Vite refuses to serve the local secrets file
+ok 3 - Vite refuses to serve the local secrets file
+  ---
+  duration_ms: 431.868623
+  type: 'test'
+  ...
+# Subtest: missing or blank image keys stay empty without a local file fallback
+ok 4 - missing or blank image keys stay empty without a local file fallback
+  ---
+  duration_ms: 0.67377
+  type: 'test'
+  ...
+# Subtest: Pollinations uses the exact model and keeps the key out of the URL
+ok 5 - Pollinations uses the exact model and keeps the key out of the URL
+  ---
+  duration_ms: 5.255001
+  type: 'test'
+  ...
+# Subtest: provider failures never expose credentials or upstream response bodies
+ok 6 - provider failures never expose credentials or upstream response bodies
+  ---
+  duration_ms: 1.655448
+  type: 'test'
+  ...
+# Subtest: sentence placeholder expands literally without recursively replacing sentence text
+ok 7 - sentence placeholder expands literally without recursively replacing sentence text
+  ---
+  duration_ms: 0.320701
+  type: 'test'
+  ...
+# Subtest: complete surface words fill new and legacy placeholders; sentence remains opt-in
+ok 8 - complete surface words fill new and legacy placeholders; sentence remains opt-in
+  ---
+  duration_ms: 0.183193
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 552.85394

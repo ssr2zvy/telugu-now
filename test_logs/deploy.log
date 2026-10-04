@@ -1,0 +1,201 @@
+TAP version 13
+# Subtest: deployment commands fail safely, use the root context, and preserve command failures
+not ok 1 - deployment commands fail safely, use the root context, and preserve command failures
+  ---
+  duration_ms: 62.216712
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:12:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|status --config fly.toml --json',
+    +   '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m --build-arg BUILD_REVISION=3d73b82129984aaa32c591eee9c3349395e216f5 --build-arg BUILD_ID=37206204554.1 --build-arg BUILD_TIMESTAMP=2026-10-04T14:14:16Z'
+    -   '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|status --config fly.toml --json'
+    1: '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m'
+  actual:
+    0: '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|status --config fly.toml --json'
+    1: '/home/runner/work/telugu-now/telugu-now/upa/test-results/deploy-c5d689bd-1d4f-4f99-aa0d-f5f7eac0301b|deploy . --config fly.toml --remote-only --ha=false --wait-timeout 5m --build-arg BUILD_REVISION=3d73b82129984aaa32c591eee9c3349395e216f5 --build-arg BUILD_ID=37206204554.1 --build-arg BUILD_TIMESTAMP=2026-10-04T14:14:16Z'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:82:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: controller deploy atomically pushes clean main and a pinned deployment tag without gh
+ok 2 - controller deploy atomically pushes clean main and a pinned deployment tag without gh
+  ---
+  duration_ms: 168.649639
+  type: 'test'
+  ...
+# Subtest: deployment tags pin the checkout and a rejected atomic push leaves both remote refs unchanged
+not ok 3 - deployment tags pin the checkout and a rejected atomic push leaves both remote refs unchanged
+  ---
+  duration_ms: 61.235841
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:216:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    fatal: cannot use bare repository '/home/runner/work/telugu-now/telugu-now/upa/test-results/deployment-git-91e2bb8c-e53f-41ee-8b69-e8bbaa21a7dd/remote.git' (safe.bareRepository is 'explicit')
+    
+    
+    128 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 128
+  operator: 'strictEqual'
+  stack: |-
+    git (/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:227:12)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:243:18)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Fly configuration deploys main revisions through deployment tags or manual dispatch
+not ok 4 - Fly configuration deploys main revisions through deployment tags or manual dispatch
+  ---
+  duration_ms: 0.995419
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:263:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /run: bash ci-cd\/deploy.sh "\$DEPLOY_ACTION"/. Input:
+    
+    'name: Fly deployment\n' +
+      '\n' +
+      '# Deployment tag pushes deploy the app; manual dispatch deploys or stops its Machines.\n' +
+      "# The repository Actions secret FLY_API_TOKEN is passed straight into the step's\n" +
+      '# environment, where ci-cd/deploy.sh reads it; Actions masks it in the logs and\n' +
+      '# nothing ever prints or inspects its value.\n' +
+      'on:\n' +
+      '  push:\n' +
+      "    tags: ['deploy/*']\n" +
+      '  workflow_dispatch:\n' +
+      '    inputs:\n' +
+      '      action:\n' +
+      '        description: Deploy or stop the app Machines\n' +
+      '        type: choice\n' +
+      '        options: [deploy, stop]\n' +
+      '        default: stop\n' +
+      '        required: true\n' +
+      '\n' +
+      'permissions:\n' +
+      '  contents: read\n' +
+      '\n' +
+      'concurrency:\n' +
+      '  group: fly-production\n' +
+      '  cancel-in-progress: false\n' +
+      '\n' +
+      'jobs:\n' +
+      '  deploy:\n' +
+      '    if: >-\n' +
+      "      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/deploy/') && !github.event.deleted) ||\n" +
+      "      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&\n" +
+      "      (inputs.action == 'deploy' || inputs.action == 'stop'))\n" +
+      '    runs-on: ubuntu-latest\n' +
+      '    timeout-minutes: 30\n' +
+      '    steps:\n' +
+      '      - name: Check out the triggering revision\n' +
+      '        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n' +
+      '        with:\n' +
+      '          persist-credentials: false\n' +
+      '          fetch-depth: 0\n' +
+      '      - name: Verify deployment revision belongs to main\n' +
+      "        if: github.event_name == 'push'\n" +
+      '        run: git merge-base --is-ancestor HEAD refs/remotes/origin/main\n' +
+      '      - name: Install Fly CLI\n' +
+      '        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1\n' +
+      '      - name: Deploy or stop\n' +
+      '        env:\n' +
+      '          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}\n' +
+      "          DEPLOY_ACTION: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}\n" +
+      '        run: bash ci-cd/deploy.sh deploy\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    name: Fly deployment
+    
+    # Deployment tag pushes deploy the app; manual dispatch deploys or stops its Machines.
+    # The repository Actions secret FLY_API_TOKEN is passed straight into the step's
+    # environment, where ci-cd/deploy.sh reads it; Actions masks it in the logs and
+    # nothing ever prints or inspects its value.
+    on:
+      push:
+        tags: ['deploy/*']
+      workflow_dispatch:
+        inputs:
+          action:
+            description: Deploy or stop the app Machines
+            type: choice
+            options: [deploy, stop]
+            default: stop
+            required: true
+    
+    permissions:
+      contents: read
+    
+    concurrency:
+      group: fly-production
+      cancel-in-progress: false
+    
+    jobs:
+      deploy:
+        if: >-
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/deploy/') && !github.event.deleted) ||
+          (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+          (inputs.action == 'deploy' || inputs.action == 'stop'))
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+          - name: Check out the triggering revision
+            uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+            with:
+              persist-credentials: false
+              fetch-depth: 0
+          - name: Verify deployment revision belongs to main
+            if: github.event_name == 'push'
+            run: git merge-base --is-ancestor HEAD refs/remotes/origin/main
+          - name: Install Fly CLI
+            uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+          - name: Deploy or stop
+            env:
+              FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+              DEPLOY_ACTION: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
+            run: bash ci-cd/deploy.sh deploy
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/deploy.test.ts:285:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 390.510045

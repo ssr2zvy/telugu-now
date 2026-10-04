@@ -1,0 +1,167 @@
+TAP version 13
+# {"word":"అవును","operation":"create","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.443Z","level":"info","event":"word_image_generation_start"}
+# {"word":"అవును","failureCategory":"duplicate-concurrent-request","timestamp":"2026-10-04T14:15:42.444Z","level":"info","event":"word_image_generation_duplicate_request"}
+# {"word":"అవును","operation":"create","mimeType":"image/png","bytes":68,"durationMs":1,"timestamp":"2026-10-04T14:15:42.444Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"అవును","operation":"create","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","durationMs":1,"timestamp":"2026-10-04T14:15:42.444Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"అవును","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","timestamp":"2026-10-04T14:15:42.447Z","level":"info","event":"word_image_generation_cache_hit"}
+# {"word":"test","failureCategory":"provider-failed","errorName":"Error","timestamp":"2026-10-04T14:15:42.454Z","level":"error","event":"word_image_generation_failed"}
+# {"word":"tree","operation":"create","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.457Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","operation":"create","mimeType":"image/png","bytes":68,"durationMs":1,"timestamp":"2026-10-04T14:15:42.458Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"tree","operation":"create","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","durationMs":1,"timestamp":"2026-10-04T14:15:42.458Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"tree","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","timestamp":"2026-10-04T14:15:42.459Z","level":"info","event":"word_image_generation_cache_hit"}
+# {"word":"another","operation":"create","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.459Z","level":"info","event":"word_image_generation_start"}
+# {"word":"another","operation":"create","mimeType":"image/png","bytes":68,"durationMs":0,"timestamp":"2026-10-04T14:15:42.459Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"another","operation":"create","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","durationMs":0,"timestamp":"2026-10-04T14:15:42.459Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"test","operation":"create","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.461Z","level":"info","event":"word_image_generation_start"}
+# {"word":"test","operation":"create","mimeType":"image/png","bytes":68,"durationMs":1,"timestamp":"2026-10-04T14:15:42.462Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"test","failureCategory":"persistence-failed","errorName":"Error","timestamp":"2026-10-04T14:15:42.462Z","level":"error","event":"word_image_generation_failed"}
+# {"word":"test","operation":"create","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","durationMs":0,"timestamp":"2026-10-04T14:15:42.462Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"tree","operation":"create","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.471Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","operation":"create","mimeType":"image/png","bytes":68,"durationMs":0,"timestamp":"2026-10-04T14:15:42.472Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"tree","operation":"create","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","durationMs":1,"timestamp":"2026-10-04T14:15:42.472Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"tree","operation":"append","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.472Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","operation":"append","mimeType":"image/jpeg","bytes":6,"durationMs":0,"timestamp":"2026-10-04T14:15:42.472Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"tree","operation":"append","imageId":"418de53628fb1c5de440725baeaadd2313e5956f0d4255664cb40f24286dbba7","durationMs":1,"timestamp":"2026-10-04T14:15:42.473Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"tree","batchId":"3b40ae41-9c4d-4a42-b36f-21f7d54b0c81","existingImages":0,"timestamp":"2026-10-04T14:15:42.476Z","level":"info","event":"word_image_search_batch_start"}
+# {"word":"tree","batchId":"3b40ae41-9c4d-4a42-b36f-21f7d54b0c81","imageId":"fde7753716a0b2739e98f9b461844bc10b82c0c0da0fa06d38dfb4fee8f0fd59","resultIndex":0,"source":"Commons","timestamp":"2026-10-04T14:15:42.477Z","level":"info","event":"word_image_search_image_saved"}
+# {"word":"tree","batchId":"3b40ae41-9c4d-4a42-b36f-21f7d54b0c81","imageId":"418de53628fb1c5de440725baeaadd2313e5956f0d4255664cb40f24286dbba7","resultIndex":1,"source":"Archive","timestamp":"2026-10-04T14:15:42.478Z","level":"info","event":"word_image_search_image_saved"}
+# {"word":"tree","batchId":"3b40ae41-9c4d-4a42-b36f-21f7d54b0c81","added":2,"inspected":11,"pagesSearched":1,"target":8,"durationMs":2,"timestamp":"2026-10-04T14:15:42.478Z","level":"info","event":"word_image_search_batch_complete"}
+# {"word":"tree","batchId":"c1541100-cd34-400d-89d4-f7987a0de393","existingImages":0,"timestamp":"2026-10-04T14:15:42.482Z","level":"info","event":"word_image_search_batch_start"}
+# {"word":"tree","batchId":"c1541100-cd34-400d-89d4-f7987a0de393","added":0,"inspected":1,"pagesSearched":1,"target":8,"durationMs":0,"timestamp":"2026-10-04T14:15:42.482Z","level":"info","event":"word_image_search_batch_complete"}
+# {"word":"tree","batchId":"8d871d9f-9c9f-4a71-a35f-1db720f3bd6a","existingImages":0,"timestamp":"2026-10-04T14:15:42.483Z","level":"info","event":"word_image_search_batch_start"}
+# {"word":"tree","batchId":"8d871d9f-9c9f-4a71-a35f-1db720f3bd6a","added":0,"inspected":0,"pagesSearched":1,"target":8,"durationMs":1,"timestamp":"2026-10-04T14:15:42.484Z","level":"info","event":"word_image_search_batch_complete"}
+# {"word":"tree","operation":"replace","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.493Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","failureCategory":"duplicate-concurrent-request","timestamp":"2026-10-04T14:15:42.493Z","level":"info","event":"word_image_generation_duplicate_request"}
+# {"word":"tree","operation":"replace","mimeType":"image/jpeg","bytes":6,"durationMs":1,"timestamp":"2026-10-04T14:15:42.494Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"tree","operation":"replace","imageId":"418de53628fb1c5de440725baeaadd2313e5956f0d4255664cb40f24286dbba7","durationMs":1,"timestamp":"2026-10-04T14:15:42.494Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"tree","imageId":"418de53628fb1c5de440725baeaadd2313e5956f0d4255664cb40f24286dbba7","timestamp":"2026-10-04T14:15:42.495Z","level":"info","event":"word_image_generation_cache_hit"}
+# {"word":"tree","operation":"replace","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.498Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","failureCategory":"provider-failed","errorName":"Error","timestamp":"2026-10-04T14:15:42.498Z","level":"error","event":"word_image_generation_failed"}
+# {"word":"tree","operation":"replace","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.499Z","level":"info","event":"word_image_generation_start"}
+# {"word":"tree","operation":"replace","mimeType":"image/jpeg","bytes":6,"durationMs":1,"timestamp":"2026-10-04T14:15:42.499Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"tree","failureCategory":"persistence-failed","errorName":"Error","timestamp":"2026-10-04T14:15:42.499Z","level":"error","event":"word_image_generation_failed"}
+# {"word":"tree","operation":"replace","imageId":"418de53628fb1c5de440725baeaadd2313e5956f0d4255664cb40f24286dbba7","durationMs":1,"timestamp":"2026-10-04T14:15:42.500Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"చెట్లలో","operation":"append","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.504Z","level":"info","event":"word_image_generation_start"}
+# {"word":"చెట్లలో","operation":"append","model":"microsoft/mai-image-2.5-flash","timestamp":"2026-10-04T14:15:42.504Z","level":"info","event":"word_image_generation_start"}
+# {"word":"చెట్లలో","failureCategory":"duplicate-concurrent-request","timestamp":"2026-10-04T14:15:42.504Z","level":"info","event":"word_image_generation_duplicate_request"}
+# Subtest: legacy image data transfers to global files before its table is removed
+ok 1 - legacy image data transfers to global files before its table is removed
+  ---
+  duration_ms: 7.183418
+  type: 'test'
+  ...
+# Subtest: legacy search state transfers from the user database to global word files
+ok 2 - legacy search state transfers from the user database to global word files
+  ---
+  duration_ms: 1.371256
+  type: 'test'
+  ...
+# Subtest: word lookup respects word boundaries and builds the exact concept prompt
+ok 3 - word lookup respects word boundaries and builds the exact concept prompt
+  ---
+  duration_ms: 11.60352
+  type: 'test'
+  ...
+# Subtest: word image generation coalesces requests and reuses files independently of SQLite
+ok 4 - word image generation coalesces requests and reuses files independently of SQLite
+  ---
+  duration_ms: 23.532452
+  type: 'test'
+  ...
+# Subtest: word image routes reject invalid settings and never accept browser image uploads
+ok 5 - word image routes reject invalid settings and never accept browser image uploads
+  ---
+  duration_ms: 5.254627
+  type: 'test'
+  ...
+# Subtest: image prompts belong to profiles but saved root images remain global
+ok 6 - image prompts belong to profiles but saved root images remain global
+  ---
+  duration_ms: 5.684631
+  type: 'test'
+  ...
+# Subtest: image save retry retains generated bytes without another provider call
+ok 7 - image save retry retains generated bytes without another provider call
+  ---
+  duration_ms: 2.614041
+  type: 'test'
+  ...
+# Subtest: word image files preserve the first image and publish metadata and bytes together
+ok 8 - word image files preserve the first image and publish metadata and bytes together
+  ---
+  duration_ms: 2.154808
+  type: 'test'
+  ...
+# Subtest: word image galleries preserve order and metadata through append retries and removals
+ok 9 - word image galleries preserve order and metadata through append retries and removals
+  ---
+  duration_ms: 2.76386
+  type: 'test'
+  ...
+# Subtest: word image galleries keep generations first and searches ordered by batch and result rank
+ok 10 - word image galleries keep generations first and searches ordered by batch and result rank
+  ---
+  duration_ms: 2.279218
+  type: 'test'
+  ...
+# Subtest: word image gallery routes append, retrieve, list and remove ordered images
+ok 11 - word image gallery routes append, retrieve, list and remove ordered images
+  ---
+  duration_ms: 4.661567
+  type: 'test'
+  ...
+# Subtest: word image search streams each licensed image after it is persisted with attribution
+ok 12 - word image search streams each licensed image after it is persisted with attribution
+  ---
+  duration_ms: 4.226848
+  type: 'test'
+  ...
+# Subtest: word image search skips candidates rejected by an earlier search
+ok 13 - word image search skips candidates rejected by an earlier search
+  ---
+  duration_ms: 5.969513
+  type: 'test'
+  ...
+# Subtest: damaged word image files return a safe error without regenerating
+ok 14 - damaged word image files return a safe error without regenerating
+  ---
+  duration_ms: 2.128535
+  type: 'test'
+  ...
+# Subtest: image replacement publishes atomically and leaves the old image readable after failed publication
+ok 15 - image replacement publishes atomically and leaves the old image readable after failed publication
+  ---
+  duration_ms: 2.205093
+  type: 'test'
+  ...
+# Subtest: regeneration requires the profile toggle, coalesces requests and replaces the shared image
+ok 16 - regeneration requires the profile toggle, coalesces requests and replaces the shared image
+  ---
+  duration_ms: 6.416458
+  type: 'test'
+  ...
+# Subtest: failed regeneration preserves the old image and retries publication without another paid call
+ok 17 - failed regeneration preserves the old image and retries publication without another paid call
+  ---
+  duration_ms: 4.544882
+  type: 'test'
+  ...
+# {"word":"చెట్లలో","operation":"append","mimeType":"image/jpeg","bytes":4,"durationMs":10,"timestamp":"2026-10-04T14:15:42.514Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"చెట్లలో","operation":"append","imageId":"32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af","durationMs":10,"timestamp":"2026-10-04T14:15:42.514Z","level":"info","event":"word_image_generation_saved"}
+# {"word":"చెట్లలో","operation":"append","mimeType":"image/jpeg","bytes":4,"durationMs":11,"timestamp":"2026-10-04T14:15:42.515Z","level":"info","event":"word_image_generation_provider_result"}
+# {"word":"చెట్లలో","operation":"append","imageId":"32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af","durationMs":11,"timestamp":"2026-10-04T14:15:42.515Z","level":"info","event":"word_image_generation_saved"}
+# Subtest: sentence image prompts validate context and do not coalesce distinct sentences
+ok 18 - sentence image prompts validate context and do not coalesce distinct sentences
+  ---
+  duration_ms: 14.851162
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 393.860059

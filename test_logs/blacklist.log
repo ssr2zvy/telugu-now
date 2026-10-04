@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: blacklist store validates text before inserting
+ok 1 - blacklist store validates text before inserting
+  ---
+  duration_ms: 222.34105
+  type: 'test'
+  ...
+# Subtest: add/list/remove manage entries scoped per profile, trimmed and de-duplicated
+ok 2 - add/list/remove manage entries scoped per profile, trimmed and de-duplicated
+  ---
+  duration_ms: 1.840275
+  type: 'test'
+  ...
+# Subtest: blacklisting a displayed-again sentence replaces only the matching ready reservations
+not ok 3 - blacklisting a displayed-again sentence replaces only the matching ready reservations
+  ---
+  duration_ms: 54.240848
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/blacklist.test.ts:93:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 10
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 10
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/blacklist.test.ts:96:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: blacklist routes validate profiles, payloads and origins, and stay isolated per profile
+ok 4 - blacklist routes validate profiles, payloads and origins, and stay isolated per profile
+  ---
+  duration_ms: 29.694974
+  type: 'test'
+  ...
+# {"error":"Live parser stopped (1): Traceback (most recent call last):\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 249, in <module>\\n    main()\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 238, in main\\n    worker=LiveParser(args.frequency,args.corpus,args.availability,args.validation)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 47, in __init__\\n    self.db = sqlite3.connect(Path(frequency).resolve().as_uri() + '?mode=rw', uri=True)\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nsqlite3.OperationalError: unable to open database file\\n","timestamp":"2026-10-04T14:13:47.503Z","level":"error","event":"live_parser_failed"}
+# Error: Test "blacklisting a displayed-again sentence replaces only the matching ready reservations" at tests/blacklist.test.ts:93:1 generated asynchronous activity after the test ended. This activity created the error "TypeError: The database connection is not open" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12897.832225

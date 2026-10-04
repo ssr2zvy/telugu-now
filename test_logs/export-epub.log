@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: EPUB is a real stored ZIP with mimetype first and uncompressed
+ok 1 - EPUB is a real stored ZIP with mimetype first and uncompressed
+  ---
+  duration_ms: 4.121205
+  type: 'test'
+  ...
+# Subtest: EPUB contains the complete scripted viewer, data, fonts, and licenses
+ok 2 - EPUB contains the complete scripted viewer, data, fonts, and licenses
+  ---
+  duration_ms: 2.62659
+  type: 'test'
+  ...
+# Subtest: EPUB viewer CSS uses packaged relative fonts rather than remote or data URLs
+ok 3 - EPUB viewer CSS uses packaged relative fonts rather than remote or data URLs
+  ---
+  duration_ms: 0.844226
+  type: 'test'
+  ...
+# Subtest: audio EPUB opens with script-free text, native audio sources, and visible fallback links
+ok 4 - audio EPUB opens with script-free text, native audio sources, and visible fallback links
+  ---
+  duration_ms: 1.746565
+  type: 'test'
+  ...
+# Subtest: EPUB fetches converted MP3 bytes once per original URL and leaves the source unchanged
+ok 5 - EPUB fetches converted MP3 bytes once per original URL and leaves the source unchanged
+  ---
+  duration_ms: 18.145488
+  type: 'test'
+  ...
+# Subtest: EPUB rejects failed, empty, mislabeled conversion responses and non-corpus URLs
+ok 6 - EPUB rejects failed, empty, mislabeled conversion responses and non-corpus URLs
+  ---
+  duration_ms: 1.294855
+  type: 'test'
+  ...
+# Subtest: EPUB without audio keeps the existing viewer as its only spine document
+ok 7 - EPUB without audio keeps the existing viewer as its only spine document
+  ---
+  duration_ms: 0.813992
+  type: 'test'
+  ...
+# Subtest: prepared EPUB resolves local fonts and audio and exposes one downloadable epub blob
+ok 8 - prepared EPUB resolves local fonts and audio and exposes one downloadable epub blob
+  ---
+  duration_ms: 5.993943
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 143.530323

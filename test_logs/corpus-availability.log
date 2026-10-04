@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: local availability indexes only nonempty audio, densely, without mutating canonical content
+ok 1 - local availability indexes only nonempty audio, densely, without mutating canonical content
+  ---
+  duration_ms: 29.281923
+  type: 'test'
+  ...
+# Subtest: persistent quarantine removes every row sharing invalid audio and updates generation, counts and exact probabilities
+ok 2 - persistent quarantine removes every row sharing invalid audio and updates generation, counts and exact probabilities
+  ---
+  duration_ms: 35.361087
+  type: 'test'
+  ...
+# Subtest: Tigris paginated uploaded inventory and local files feed identical selection and complexity algorithms
+ok 3 - Tigris paginated uploaded inventory and local files feed identical selection and complexity algorithms
+  ---
+  duration_ms: 37.752118
+  type: 'test'
+  ...
+# Subtest: incremental publication preserves old readers and invalidates selection references at generation boundaries
+ok 4 - incremental publication preserves old readers and invalidates selection references at generation boundaries
+  ---
+  duration_ms: 47.513785
+  type: 'test'
+  ...
+# Subtest: partial remote inventories, malformed duplicates and local scan failures never replace a good snapshot
+ok 5 - partial remote inventories, malformed duplicates and local scan failures never replace a good snapshot
+  ---
+  duration_ms: 33.418272
+  type: 'test'
+  ...
+# Subtest: missing or backend-mismatched availability never falls back to canonical selection indexes
+ok 6 - missing or backend-mismatched availability never falls back to canonical selection indexes
+  ---
+  duration_ms: 22.698207
+  type: 'test'
+  ...
+# Subtest: failed index construction preserves the published snapshot and existing reader
+ok 7 - failed index construction preserves the published snapshot and existing reader
+  ---
+  duration_ms: 26.796898
+  type: 'test'
+  ...
+# Subtest: local inventory excludes symlinks escaping the audio root
+ok 8 - local inventory excludes symlinks escaping the audio root
+  ---
+  duration_ms: 19.84299
+  type: 'test'
+  ...
+# Subtest: local startup availability lifecycle: reuse
+ok 9 - local startup availability lifecycle: reuse
+  ---
+  duration_ms: 1569.562914
+  type: 'test'
+  ...
+# Subtest: local startup availability lifecycle: missing
+ok 10 - local startup availability lifecycle: missing
+  ---
+  duration_ms: 288.235304
+  type: 'test'
+  ...
+# Subtest: local startup availability lifecycle: invalid
+ok 11 - local startup availability lifecycle: invalid
+  ---
+  duration_ms: 304.003909
+  type: 'test'
+  ...
+# Subtest: local startup availability lifecycle: incompatible
+ok 12 - local startup availability lifecycle: incompatible
+  ---
+  duration_ms: 282.626125
+  type: 'test'
+  ...
+# Subtest: local startup availability lifecycle: rebuild
+ok 13 - local startup availability lifecycle: rebuild
+  ---
+  duration_ms: 1516.093564
+  type: 'test'
+  ...
+# Subtest: tigris startup availability lifecycle: reuse
+ok 14 - tigris startup availability lifecycle: reuse
+  ---
+  duration_ms: 1528.332035
+  type: 'test'
+  ...
+# Subtest: tigris startup availability lifecycle: missing
+ok 15 - tigris startup availability lifecycle: missing
+  ---
+  duration_ms: 293.14877
+  type: 'test'
+  ...
+# Subtest: tigris startup availability lifecycle: invalid
+ok 16 - tigris startup availability lifecycle: invalid
+  ---
+  duration_ms: 300.435455
+  type: 'test'
+  ...
+# Subtest: tigris startup availability lifecycle: incompatible
+ok 17 - tigris startup availability lifecycle: incompatible
+  ---
+  duration_ms: 293.574484
+  type: 'test'
+  ...
+# Subtest: tigris startup availability lifecycle: rebuild
+ok 18 - tigris startup availability lifecycle: rebuild
+  ---
+  duration_ms: 1542.429446
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8466.654124

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: resolveAudioFilePath joins a well-formed object key under the objects root
+ok 1 - resolveAudioFilePath joins a well-formed object key under the objects root
+  ---
+  duration_ms: 0.774298
+  type: 'test'
+  ...
+# Subtest: audio serving provides exact byte ranges for FLAC and WAV seeking
+ok 2 - audio serving provides exact byte ranges for FLAC and WAV seeking
+  ---
+  duration_ms: 32.182883
+  type: 'test'
+  ...
+# Subtest: resolveAudioFilePath decodes percent-encoded path segments
+ok 3 - resolveAudioFilePath decodes percent-encoded path segments
+  ---
+  duration_ms: 0.211634
+  type: 'test'
+  ...
+# Subtest: resolveAudioFilePath rejects traversal and empty segments
+ok 4 - resolveAudioFilePath rejects traversal and empty segments
+  ---
+  duration_ms: 0.376236
+  type: 'test'
+  ...
+# Subtest: resolveAudioFilePath rejects an encoded traversal segment
+ok 5 - resolveAudioFilePath rejects an encoded traversal segment
+  ---
+  duration_ms: 0.114511
+  type: 'test'
+  ...
+# Subtest: audioMimeTypeForFilePath maps known audio extensions and falls back for unknown ones
+ok 6 - audioMimeTypeForFilePath maps known audio extensions and falls back for unknown ones
+  ---
+  duration_ms: 0.086568
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 312.665175

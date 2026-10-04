@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: every transition has the same draw length, including reverse and constant probabilities
+ok 1 - every transition has the same draw length, including reverse and constant probabilities
+  ---
+  duration_ms: 0.662615
+  type: 'test'
+  ...
+# Subtest: choose type first, then uniformly choose an occurrence; duplicate words retain offsets
+ok 2 - choose type first, then uniformly choose an occurrence; duplicate words retain offsets
+  ---
+  duration_ms: 10.08199
+  type: 'test'
+  ...
+# Subtest: draws reach the endpoint and a single reverse gesture exits and resets
+ok 3 - draws reach the endpoint and a single reverse gesture exits and resets
+  ---
+  duration_ms: 0.281923
+  type: 'test'
+  ...
+# Subtest: one-word observations include whole-word draws; empty inputs exit safely; repeats are permitted
+ok 4 - one-word observations include whole-word draws; empty inputs exit safely; repeats are permitted
+  ---
+  duration_ms: 0.186056
+  type: 'test'
+  ...
+# Subtest: saved settings survive profile normalization; legacy profiles get defaults and malformed values are bounded
+ok 5 - saved settings survive profile normalization; legacy profiles get defaults and malformed values are bounded
+  ---
+  duration_ms: 0.527361
+  type: 'test'
+  ...
+# Subtest: exploration settings have dedicated pages within observations
+ok 6 - exploration settings have dedicated pages within observations
+  ---
+  duration_ms: 0.254789
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 307.425678

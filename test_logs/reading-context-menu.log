@@ -1,0 +1,1236 @@
+TAP version 13
+# Subtest: right-click menu targets either one word or reader settings
+ok 1 - right-click menu targets either one word or reader settings
+  ---
+  duration_ms: 1.015681
+  type: 'test'
+  ...
+# Subtest: word and settings context menus expose disjoint actions
+not ok 2 - word and settings context menus expose disjoint actions
+  ---
+  duration_ms: 1.280154
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:21:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript[\s\S]*:\s*<button/. Input:
+    
+    "import { useEffect, useRef, useState } from 'react';\n" +
+      "import { Copy } from 'lucide-react';\n" +
+      "import { SettingsIcon } from '../components/icons';\n" +
+      '\n' +
+      'export type ReadingContextMenuState =\n' +
+      "  | { kind: 'word'; text: string; x: number; y: number }\n" +
+      "  | { kind: 'settings'; x: number; y: number };\n" +
+      '\n' +
+      'export function readingContextMenuState(x: number, y: number, word: string | null): ReadingContextMenuState {\n' +
+      "  return word ? { kind: 'word', text: word, x, y } : { kind: 'settings', x, y };\n" +
+      '}\n' +
+      '\n' +
+      'interface ReadingContextMenuProps {\n' +
+      '  menu: ReadingContextMenuState;\n' +
+      '  onCopy: (text: string) => void | Promise<void>;\n' +
+      '  onOpenSettings?: () => void;\n' +
+      '  onClose: () => void;\n' +
+      '}\n' +
+      '\n' +
+      '// Word menus contain word actions only; the rest of the reader opens Settings only.\n' +
+      'export function ReadingContextMenu({ menu, onCopy, onOpenSettings, onClose }: ReadingContextMenuProps) {\n' +
+      "  const [status, setStatus] = useState<'copied' | null>(null);\n" +
+      '  const [busy, setBusy] = useState(false);\n' +
+      "  const [error, setError] = useState('');\n" +
+      '  const running = useRef(false);\n' +
+      '  const alive = useRef(true);\n' +
+      '  const closeTimer = useRef<number | null>(null);\n' +
+      '  useEffect(() => {\n' +
+      '    alive.current = true;\n' +
+      '    return () => { alive.current = false; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };\n' +
+      '  }, []);\n' +
+      "  const perform = async (action: () => void | Promise<void>, next: 'copied') => {\n" +
+      '    if (running.current) return;\n' +
+      '    running.current = true;\n' +
+      '    setBusy(true);\n' +
+      "    setError('');\n" +
+      '    try {\n' +
+      '      await action();\n' +
+      '      if (!alive.current) return;\n' +
+      '      setStatus(next);\n' +
+      '      closeTimer.current = window.setTimeout(onClose, 700);\n' +
+      '    } catch (caught) {\n' +
+      "      if (alive.current) setError(caught instanceof Error ? caught.message : 'Action failed. Try again.');\n" +
+      '      running.current = false;\n' +
+      '    } finally { if (alive.current) setBusy(false); }\n' +
+      '  };\n' +
+      '  const root = useRef<HTMLDivElement>(null);\n' +
+      "  const placement = menu.y < 60 ? 'below' : 'above';\n" +
+      '  useEffect(() => {\n' +
+      '    const dismiss = (event: PointerEvent | KeyboardEvent) => {\n' +
+      '      if (event instanceof KeyboardEvent) {\n' +
+      "        if (event.key === 'Escape') onClose();\n" +
+      '        return;\n' +
+      '      }\n' +
+      '      if (!(event.target instanceof Node) || !root.current?.contains(event.target)) onClose();\n' +
+      '    };\n' +
+      "    document.addEventListener('pointerdown', dismiss, true);\n" +
+      "    document.addEventListener('keydown', dismiss, true);\n" +
+      '    return () => {\n' +
+      "      document.removeEventListener('pointerdown', dismiss, true);\n" +
+      "      document.removeEventListener('keydown', dismiss, true);\n" +
+      '    };\n' +
+      '  }, [onClose]);\n' +
+      '  return (\n' +
+      '    <div\n' +
+      '      ref={root}\n' +
+      '      className="reading-context-menu"\n' +
+      '      role="menu"\n' +
+      '      data-placement={placement}\n' +
+      '      data-feedback={status ?? undefined}\n' +
+      '      aria-busy={busy}\n' +
+      '      style={{ left: `clamp(28px, ${menu.x}px, calc(100vw - 28px))`, top: menu.y }}\n' +
+      '      onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}\n' +
+      '    >\n' +
+      "      {menu.kind === 'word' ? <>\n" +
+      '        <button\n' +
+      '          type="button"\n' +
+      '          role="menuitem"\n' +
+      '          className="reading-context-menu-action"\n' +
+      '          aria-label="కాపీ చేయి"\n' +
+      '          disabled={busy || status !== null}\n' +
+      "          onClick={() => void perform(() => onCopy(menu.text), 'copied')}\n" +
+      '        >\n' +
+      '          <Copy size={18} aria-hidden="true" />\n' +
+      '        </button>\n' +
+      '      </> : <button\n' +
+      '          type="button"\n' +
+      '          role="menuitem"\n' +
+      '          className="reading-context-menu-action"\n' +
+      '          aria-label="అమరికలు"\n' +
+      '          onClick={() => {\n' +
+      '            onClose();\n' +
+      '            onOpenSettings?.();\n' +
+      '          }}\n' +
+      '        >\n' +
+      '          <SettingsIcon />\n' +
+      '        </button>}\n' +
+      '      <span className="reading-context-menu-status" role="status" aria-live="polite">\n' +
+      "        {error || (busy ? '…' : status === 'copied' ? 'కాపీ అయ్యింది' : '')}\n" +
+      '      </span>\n' +
+      '    </div>\n' +
+      '  );\n' +
+      '}\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { useEffect, useRef, useState } from 'react';
+    import { Copy } from 'lucide-react';
+    import { SettingsIcon } from '../components/icons';
+    
+    export type ReadingContextMenuState =
+      | { kind: 'word'; text: string; x: number; y: number }
+      | { kind: 'settings'; x: number; y: number };
+    
+    export function readingContextMenuState(x: number, y: number, word: string | null): ReadingContextMenuState {
+      return word ? { kind: 'word', text: word, x, y } : { kind: 'settings', x, y };
+    }
+    
+    interface ReadingContextMenuProps {
+      menu: ReadingContextMenuState;
+      onCopy: (text: string) => void | Promise<void>;
+      onOpenSettings?: () => void;
+      onClose: () => void;
+    }
+    
+    // Word menus contain word actions only; the rest of the reader opens Settings only.
+    export function ReadingContextMenu({ menu, onCopy, onOpenSettings, onClose }: ReadingContextMenuProps) {
+      const [status, setStatus] = useState<'copied' | null>(null);
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState('');
+      const running = useRef(false);
+      const alive = useRef(true);
+      const closeTimer = useRef<number | null>(null);
+      useEffect(() => {
+        alive.current = true;
+        return () => { alive.current = false; if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); };
+      }, []);
+      const perform = async (action: () => void | Promise<void>, next: 'copied') => {
+        if (running.current) return;
+        running.current = true;
+        setBusy(true);
+        setError('');
+        try {
+          await action();
+          if (!alive.current) return;
+          setStatus(next);
+          closeTimer.current = window.setTimeout(onClose, 700);
+        } catch (caught) {
+          if (alive.current) setError(caught instanceof Error ? caught.message : 'Action failed. Try again.');
+          running.current = false;
+        } finally { if (alive.current) setBusy(false); }
+      };
+      const root = useRef<HTMLDivElement>(null);
+      const placement = menu.y < 60 ? 'below' : 'above';
+      useEffect(() => {
+        const dismiss = (event: PointerEvent | KeyboardEvent) => {
+          if (event instanceof KeyboardEvent) {
+            if (event.key === 'Escape') onClose();
+            return;
+          }
+          if (!(event.target instanceof Node) || !root.current?.contains(event.target)) onClose();
+        };
+        document.addEventListener('pointerdown', dismiss, true);
+        document.addEventListener('keydown', dismiss, true);
+        return () => {
+          document.removeEventListener('pointerdown', dismiss, true);
+          document.removeEventListener('keydown', dismiss, true);
+        };
+      }, [onClose]);
+      return (
+        <div
+          ref={root}
+          className="reading-context-menu"
+          role="menu"
+          data-placement={placement}
+          data-feedback={status ?? undefined}
+          aria-busy={busy}
+          style={{ left: `clamp(28px, ${menu.x}px, calc(100vw - 28px))`, top: menu.y }}
+          onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
+        >
+          {menu.kind === 'word' ? <>
+            <button
+              type="button"
+              role="menuitem"
+              className="reading-context-menu-action"
+              aria-label="కాపీ చేయి"
+              disabled={busy || status !== null}
+              onClick={() => void perform(() => onCopy(menu.text), 'copied')}
+            >
+              <Copy size={18} aria-hidden="true" />
+            </button>
+          </> : <button
+              type="button"
+              role="menuitem"
+              className="reading-context-menu-action"
+              aria-label="అమరికలు"
+              onClick={() => {
+                onClose();
+                onOpenSettings?.();
+              }}
+            >
+              <SettingsIcon />
+            </button>}
+          <span className="reading-context-menu-status" role="status" aria-live="polite">
+            {error || (busy ? '…' : status === 'copied' ? 'కాపీ అయ్యింది' : '')}
+          </span>
+        </div>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:24:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: diagnostics report the active font without obsolete keyboard weights
+not ok 3 - diagnostics report the active font without obsolete keyboard weights
+  ---
+  duration_ms: 0.925959
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:28:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /<DiagnosticPage[\s\S]*fontFamily=\{fontFamily\}/. Input:
+    
+    "import { ExplorationSettingsPage } from './pages/ExplorationSettingsPage';\n" +
+      "import { isAppearancePage } from './appearance-navigation';\n" +
+      "import { ParserDetailPage } from './pages/ParserDetailPage';\n" +
+      "import { ParserCurrentPage } from './pages/ParserCurrentPage';\n" +
+      "import { DiagnosticsDownloadPage } from './pages/DiagnosticsDownloadPage';\n" +
+      "import { ParsingPage } from './pages/ParsingPage';\n" +
+      "import { NormalWeightingPage } from './pages/NormalWeightingPage';\n" +
+      "import { CategoryPage } from './pages/CategoryPage';\n" +
+      "import { GrammarQuestionTypePage } from './pages/GrammarQuestionTypePage';\n" +
+      "import { GrammarMigrationPage } from './pages/GrammarMigrationPage';\n" +
+      "import type { ProfileStateResponse } from '../../../shared/contracts';\n" +
+      "import { ParserDiagnosticsPage } from './pages/ParserDiagnosticsPage';\n" +
+      "import { DataSourcesPage, DataSourceDetailPage } from './pages/DataSourcesPage';\n" +
+      "import { SettingsShell } from './SettingsShell';\n" +
+      "import type { SettingsController } from './useSettingsController';\n" +
+      "import { DiagnosticPage } from './pages/DiagnosticPage';\n" +
+      "import { ExportPage } from './pages/ExportPage';\n" +
+      "import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';\n" +
+      "import { SettingsIndex } from './pages/SettingsIndex';\n" +
+      "import { settingsGroups, settingsPageLabel, exportFormatForPage } from './navigation';\n" +
+      "import { OrganizedAppearancePage } from './pages/OrganizedAppearancePage';\n" +
+      "import { ImageGenerationPage } from './pages/ImageGenerationPage';\n" +
+      "import { EonsPage } from './pages/EonsPage';\n" +
+      "import { BlacklistPage } from './pages/BlacklistPage';\n" +
+      "import { QueueViewPage } from './pages/QueueViewPage';\n" +
+      "import { ImportPage } from './pages/ImportPage';\n" +
+      "import { ControlsGuidePage } from './pages/ControlsGuidePage';\n" +
+      "import { AboutPage } from './pages/AboutPage';\n" +
+      'interface SettingsViewProps {\n' +
+      '  state: ProfileStateResponse;\n' +
+      '  controller: SettingsController;\n' +
+      '  fontFamily: string | null;\n' +
+      '  onClose: () => void;\n' +
+      '}\n' +
+      'export function SettingsView({\n' +
+      '  state,\n' +
+      '  controller,\n' +
+      '  fontFamily,\n' +
+      '  onClose,\n' +
+      '}: SettingsViewProps) {\n' +
+      '  const {\n' +
+      '    page,\n' +
+      '    language,\n' +
+      '    queueResetting,\n' +
+      '    queueResetError,\n' +
+      '    playbackRateDraft,\n' +
+      '    playbackAutoplayDraft,\n' +
+      '    playbackSaving,\n' +
+      '    playbackError,\n' +
+      '    exportCount,\n' +
+      '    exporting,\n' +
+      '    exportError,\n' +
+      '    preparedArtifact,\n' +
+      '  } = controller;\n' +
+      '  const shellProps = {\n' +
+      '    language,\n' +
+      '    page,\n' +
+      '    profileCode: state.profileCode,\n' +
+      '    migrationAvailable: state.grammarMigrationAvailable ?? false,\n' +
+      '    onNavigate: controller.enterPage,\n' +
+      '    onOverview: controller.openOverview,\n' +
+      '    onClose,\n' +
+      '    onToggleLanguage: controller.toggleLanguage,\n' +
+      '  };\n' +
+      "  if(page==='explorationStart' || page==='explorationEnd' || page==='explorationDraws')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ExplorationSettingsPage page={page} language={language}/></SettingsShell>;\n" +
+      "  if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>\n" +
+      '    <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>\n' +
+      '  </SettingsShell>;\n' +
+      "  if(page==='dataSources')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourcesPage language={language} onSelect={controller.openDataSource}/></SettingsShell>;\n" +
+      "  if(page==='dataSourceDetail')return <SettingsShell {...shellProps} title={controller.selectedDataSource?.displayName??settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourceDetailPage language={language} source={controller.selectedDataSource}/></SettingsShell>;\n" +
+      '  if(["searchAttempt", "currentChain", "nextChainSearch", "lastSearchAttempt", "resetChain", "resetCore", "resetAllCores", "coreProgress", "objectCoverage", "coverageNotes", "searchAndParse", "currentSearches", "allTimeSearches", "cycleHistory", "parserEvents", "parserDetails"].includes(page) && page!==\'searchAndParse\') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserDetailPage key={`${state.profileCode}:${page}`} page={page} selectedAttempt={controller.selectedAttempt} onAttempt={controller.openSearchAttempt} profileCode={state.profileCode} observation={state.currentObservation} onNavigate={controller.enterPage} onState={controller.acceptState}/></SettingsShell>;\n' +
+      "  if(page==='parsingMode')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParsingPage key={state.profileCode} profileCode={state.profileCode} onState={controller.acceptState}/></SettingsShell>;\n" +
+      '\n' +
+      "  if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;\n" +
+      `  if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;\n` +
+      "  if ((settingsGroups[page] && page !== 'parserCurrent') || page === 'reset') {\n" +
+      '    return (\n' +
+      '      <SettingsShell\n' +
+      '        {...shellProps}\n' +
+      '        title={settingsPageLabel(page, language)}\n' +
+      "        {...(page === 'index' ? {} : { onBack: controller.backToIndex })}\n" +
+      '      >\n' +
+      '        <SettingsIndex\n' +
+      '          page={page}\n' +
+      '          language={language}\n' +
+      '          state={state}\n' +
+      '          resetting={queueResetting}\n' +
+      '          resetError={queueResetError}\n' +
+      '          onNavigate={controller.enterPage}\n' +
+      '          onResetQueue={() => void controller.resetQueue()}\n' +
+      '        />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'eons') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <EonsPage key={state.profileCode} profileCode={state.profileCode} language={language} />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'images') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <ImageGenerationPage language={language} />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'playback') {\n" +
+      '    return (\n' +
+      '      <SettingsShell\n' +
+      '        {...shellProps}\n' +
+      '        title={settingsPageLabel(page, language)}\n' +
+      '        onBack={controller.backToIndex}\n' +
+      '      >\n' +
+      '        <PlaybackSpeedPage\n' +
+      '          language={language}\n' +
+      '          rate={playbackRateDraft}\n' +
+      '          autoplay={playbackAutoplayDraft}\n' +
+      '          saving={playbackSaving}\n' +
+      '          error={playbackError}\n' +
+      '          onRateChange={controller.setPlaybackRateDraft}\n' +
+      '          onAutoplayChange={controller.setPlaybackAutoplayDraft}\n' +
+      '          onClearError={controller.clearPlaybackError}\n' +
+      '          onSave={() => void controller.savePlaybackSettings()}\n' +
+      '        />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'archiveImport') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <ImportPage language={language} />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'controlsGuide') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <ControlsGuidePage language={language} />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'about') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <AboutPage language={language} />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'epubExport' || page === 'htmlExport' || page === 'archiveExport') {\n" +
+      '    return (\n' +
+      '      <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>\n' +
+      '        <ExportPage\n' +
+      '          language={language}\n' +
+      '          count={exportCount}\n' +
+      '          exporting={exporting}\n' +
+      '          phase={controller.exportPhase}\n' +
+      '          error={exportError}\n' +
+      '          format={exportFormatForPage[page]}\n' +
+      '          preparedArtifact={preparedArtifact?.format === exportFormatForPage[page] ? preparedArtifact : null}\n' +
+      '          onCountChange={controller.setExportCount}\n' +
+      '          onRequestExport={() => void controller.chooseExportFormat(exportFormatForPage[page])}\n' +
+      '        />\n' +
+      '      </SettingsShell>\n' +
+      '    );\n' +
+      '  }\n' +
+      "  if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation} onState={controller.acceptState} onNavigate={controller.enterPage}/></SettingsShell>;\n" +
+      "  if (page === 'diagnosticsDownload') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DiagnosticsDownloadPage profileCode={state.profileCode}/></SettingsShell>;\n" +
+      "  if (page === 'diagnostic') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')} onNavigate={controller.enterPage}/></SettingsShell>;\n" +
+      `  if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;\n` +
+      "  if (['trigger','source','complexityInfo','global','questionInfo','complexity','sources'].includes(page)) {\n" +
+      '    return <SettingsShell {...shellProps} title="Live parsing diagnostics" onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservati'... 159 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { ExplorationSettingsPage } from './pages/ExplorationSettingsPage';
+    import { isAppearancePage } from './appearance-navigation';
+    import { ParserDetailPage } from './pages/ParserDetailPage';
+    import { ParserCurrentPage } from './pages/ParserCurrentPage';
+    import { DiagnosticsDownloadPage } from './pages/DiagnosticsDownloadPage';
+    import { ParsingPage } from './pages/ParsingPage';
+    import { NormalWeightingPage } from './pages/NormalWeightingPage';
+    import { CategoryPage } from './pages/CategoryPage';
+    import { GrammarQuestionTypePage } from './pages/GrammarQuestionTypePage';
+    import { GrammarMigrationPage } from './pages/GrammarMigrationPage';
+    import type { ProfileStateResponse } from '../../../shared/contracts';
+    import { ParserDiagnosticsPage } from './pages/ParserDiagnosticsPage';
+    import { DataSourcesPage, DataSourceDetailPage } from './pages/DataSourcesPage';
+    import { SettingsShell } from './SettingsShell';
+    import type { SettingsController } from './useSettingsController';
+    import { DiagnosticPage } from './pages/DiagnosticPage';
+    import { ExportPage } from './pages/ExportPage';
+    import { PlaybackSpeedPage } from './pages/PlaybackSpeedPage';
+    import { SettingsIndex } from './pages/SettingsIndex';
+    import { settingsGroups, settingsPageLabel, exportFormatForPage } from './navigation';
+    import { OrganizedAppearancePage } from './pages/OrganizedAppearancePage';
+    import { ImageGenerationPage } from './pages/ImageGenerationPage';
+    import { EonsPage } from './pages/EonsPage';
+    import { BlacklistPage } from './pages/BlacklistPage';
+    import { QueueViewPage } from './pages/QueueViewPage';
+    import { ImportPage } from './pages/ImportPage';
+    import { ControlsGuidePage } from './pages/ControlsGuidePage';
+    import { AboutPage } from './pages/AboutPage';
+    interface SettingsViewProps {
+      state: ProfileStateResponse;
+      controller: SettingsController;
+      fontFamily: string | null;
+      onClose: () => void;
+    }
+    export function SettingsView({
+      state,
+      controller,
+      fontFamily,
+      onClose,
+    }: SettingsViewProps) {
+      const {
+        page,
+        language,
+        queueResetting,
+        queueResetError,
+        playbackRateDraft,
+        playbackAutoplayDraft,
+        playbackSaving,
+        playbackError,
+        exportCount,
+        exporting,
+        exportError,
+        preparedArtifact,
+      } = controller;
+      const shellProps = {
+        language,
+        page,
+        profileCode: state.profileCode,
+        migrationAvailable: state.grammarMigrationAvailable ?? false,
+        onNavigate: controller.enterPage,
+        onOverview: controller.openOverview,
+        onClose,
+        onToggleLanguage: controller.toggleLanguage,
+      };
+      if(page==='explorationStart' || page==='explorationEnd' || page==='explorationDraws')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ExplorationSettingsPage page={page} language={language}/></SettingsShell>;
+      if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>
+        <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>
+      </SettingsShell>;
+      if(page==='dataSources')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourcesPage language={language} onSelect={controller.openDataSource}/></SettingsShell>;
+      if(page==='dataSourceDetail')return <SettingsShell {...shellProps} title={controller.selectedDataSource?.displayName??settingsPageLabel(page,language)} onBack={controller.backToIndex}><DataSourceDetailPage language={language} source={controller.selectedDataSource}/></SettingsShell>;
+      if(["searchAttempt", "currentChain", "nextChainSearch", "lastSearchAttempt", "resetChain", "resetCore", "resetAllCores", "coreProgress", "objectCoverage", "coverageNotes", "searchAndParse", "currentSearches", "allTimeSearches", "cycleHistory", "parserEvents", "parserDetails"].includes(page) && page!=='searchAndParse') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserDetailPage key={`${state.profileCode}:${page}`} page={page} selectedAttempt={controller.selectedAttempt} onAttempt={controller.openSearchAttempt} profileCode={state.profileCode} observation={state.currentObservation} onNavigate={controller.enterPage} onState={controller.acceptState}/></SettingsShell>;
+      if(page==='parsingMode')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParsingPage key={state.profileCode} profileCode={state.profileCode} onState={controller.acceptState}/></SettingsShell>;
+    
+      if(page==='category')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><CategoryPage key={state.profileCode} profileCode={state.profileCode}/></SettingsShell>;
+      if(page==='grammarMigration' && state.grammarMigrationAvailable)return <SettingsShell {...shellProps} title="Grammar Migration" onBack={controller.backToIndex}><GrammarMigrationPage profileCode={state.profileCode}/></SettingsShell>;
+      if ((settingsGroups[page] && page !== 'parserCurrent') || page === 'reset') {
+        return (
+          <SettingsShell
+            {...shellProps}
+            title={settingsPageLabel(page, language)}
+            {...(page === 'index' ? {} : { onBack: controller.backToIndex })}
+          >
+            <SettingsIndex
+              page={page}
+              language={language}
+              state={state}
+              resetting={queueResetting}
+              resetError={queueResetError}
+              onNavigate={controller.enterPage}
+              onResetQueue={() => void controller.resetQueue()}
+            />
+          </SettingsShell>
+        );
+      }
+      if (page === 'eons') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <EonsPage key={state.profileCode} profileCode={state.profileCode} language={language} />
+          </SettingsShell>
+        );
+      }
+      if (page === 'images') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <ImageGenerationPage language={language} />
+          </SettingsShell>
+        );
+      }
+      if (page === 'playback') {
+        return (
+          <SettingsShell
+            {...shellProps}
+            title={settingsPageLabel(page, language)}
+            onBack={controller.backToIndex}
+          >
+            <PlaybackSpeedPage
+              language={language}
+              rate={playbackRateDraft}
+              autoplay={playbackAutoplayDraft}
+              saving={playbackSaving}
+              error={playbackError}
+              onRateChange={controller.setPlaybackRateDraft}
+              onAutoplayChange={controller.setPlaybackAutoplayDraft}
+              onClearError={controller.clearPlaybackError}
+              onSave={() => void controller.savePlaybackSettings()}
+            />
+          </SettingsShell>
+        );
+      }
+      if (page === 'archiveImport') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <ImportPage language={language} />
+          </SettingsShell>
+        );
+      }
+      if (page === 'controlsGuide') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <ControlsGuidePage language={language} />
+          </SettingsShell>
+        );
+      }
+      if (page === 'about') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <AboutPage language={language} />
+          </SettingsShell>
+        );
+      }
+      if (page === 'epubExport' || page === 'htmlExport' || page === 'archiveExport') {
+        return (
+          <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}>
+            <ExportPage
+              language={language}
+              count={exportCount}
+              exporting={exporting}
+              phase={controller.exportPhase}
+              error={exportError}
+              format={exportFormatForPage[page]}
+              preparedArtifact={preparedArtifact?.format === exportFormatForPage[page] ? preparedArtifact : null}
+              onCountChange={controller.setExportCount}
+              onRequestExport={() => void controller.chooseExportFormat(exportFormatForPage[page])}
+            />
+          </SettingsShell>
+        );
+      }
+      if (page === 'parserCurrent') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ParserCurrentPage key={state.profileCode} profileCode={state.profileCode} observation={state.currentObservation} onState={controller.acceptState} onNavigate={controller.enterPage}/></SettingsShell>;
+      if (page === 'diagnosticsDownload') return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><DiagnosticsDownloadPage profileCode={state.profileCode}/></SettingsShell>;
+      if (page === 'diagnostic') return <SettingsShell {...shellProps} title={settingsPageLabel(page, language)} onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')} onNavigate={controller.enterPage}/></SettingsShell>;
+      if (page === 'questionInfo' && state.currentObservation?.grammar) return <SettingsShell {...shellProps} title="Question type" onBack={controller.backToIndex}><GrammarQuestionTypePage selected={state.currentObservation.grammar.target} mode={state.currentObservation.question?.mode ?? null}/></SettingsShell>;
+      if (['trigger','source','complexityInfo','global','questionInfo','complexity','sources'].includes(page)) {
+        return <SettingsShell {...shellProps} title="Live parsing diagnostics" onBack={controller.backToIndex}><ParserDiagnosticsPage profileCode={state.profileCode} observation={state.currentObservation} language={language} onDownload={()=>controller.enterPage('diagnosticsDownload')} onNavigate={controller.enterPage}/></SettingsShell>;
+      }
+      return null;
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:34:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: word profiles fill the viewport with word and image columns
+not ok 4 - word profiles fill the viewport with word and image columns
+  ---
+  duration_ms: 0.994723
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:40:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /className="gradient-field word-profile-gradient"[^>]*><div \/><div \/><div \/>/. Input:
+    
+    "import { GradientBackdrop } from '../../GradientBackdrop';\n" +
+      "import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';\n" +
+      "import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';\n" +
+      "import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';\n" +
+      "import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';\n" +
+      "import { CustomCursor } from '../../components/CustomCursor';\n" +
+      "import { teluguHighlightRuns } from '../telugu-highlighting';\n" +
+      "import { TeluguGradientText } from '../TeluguGradientText';\n" +
+      "import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';\n" +
+      "import type { ObservationFontFamily } from '../../presentation';\n" +
+      "import { visibleGraphemeAtPoint } from '../visible-glyph-hit-testing';\n" +
+      "import { ReaderTaps } from '../reader-taps';\n" +
+      "import { LetterProfile } from './LetterProfile';\n" +
+      "import { getAlignedWordAudio } from '../../api';\n" +
+      "import { useAudioPlayer } from '../audio/useAudioPlayer';\n" +
+      "import type { AlignedWordAudio } from '../../../../shared/contracts';\n" +
+      "import { useWordImageNavigation } from './useWordImageNavigation';\n" +
+      "import { LoadingSlit } from '../../components/LoadingSlit';\n" +
+      '\n' +
+      'async function copyWord(text: string): Promise<void> {\n' +
+      '  try {\n' +
+      '    await navigator.clipboard.writeText(text);\n' +
+      '    return;\n' +
+      '  } catch {\n' +
+      "    const textarea = document.createElement('textarea');\n" +
+      '    textarea.value = text;\n' +
+      "    textarea.style.position = 'fixed';\n" +
+      "    textarea.style.opacity = '0';\n" +
+      '    document.body.appendChild(textarea);\n' +
+      '    textarea.select();\n' +
+      "    try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }\n" +
+      '  }\n' +
+      '}\n' +
+      '\n' +
+      'async function copyImage(blob: Blob): Promise<void> {\n' +
+      "  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Image copying is not supported by this browser.');\n" +
+      '  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);\n' +
+      '}\n' +
+      '\n' +
+      "type ImagePane = 'action' | 'image' | 'gallery' | 'info';\n" +
+      '\n' +
+      'function WordImage({ word, sentence }: { word: string; sentence: string }) {\n' +
+      '  const { appearance, profileCode } = useAppearance();\n' +
+      '  const [images, setImages] = useState<WordImageMetadata[]>([]);\n' +
+      '  const [currentIndex, setCurrentIndex] = useState(0);\n' +
+      "  const [pane, setPane] = useState<ImagePane>('action');\n" +
+      "  const [boundary, setBoundary] = useState<'before' | 'after'>('after');\n" +
+      '  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);\n' +
+      '  const section = useRef<HTMLElement>(null);\n' +
+      "  const [feedback, setFeedback] = useState('');\n" +
+      "  useEffect(() => { setFeedback(''); }, [pane, currentIndex]);\n" +
+      "  const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'searching' | 'error'>('loading');\n" +
+      "  const [error, setError] = useState('');\n" +
+      '  const active = useRef(true);\n' +
+      '  const running = useRef(false);\n' +
+      '  const imagesRef = useRef<WordImageMetadata[]>([]);\n' +
+      '  const current = images[currentIndex];\n' +
+      '  const currentThumbnail = useRef<HTMLButtonElement>(null);\n' +
+      "  const paintId = `word-image-glass-${useId().replace(/:/g, '')}`;\n" +
+      '  const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);\n' +
+      '  useEffect(() => {\n' +
+      '    active.current = true;\n' +
+      '    return () => { active.current = false; };\n' +
+      '  }, []);\n' +
+      '  useEffect(() => {\n' +
+      '    let cancelled = false;\n' +
+      "    setStatus('loading');\n" +
+      "    setError('');\n" +
+      '    void wordImageGallery(word).then(saved => {\n' +
+      '      if (cancelled) return;\n' +
+      '      imagesRef.current = saved;\n' +
+      '      setImages(saved);\n' +
+      '      setCurrentIndex(0);\n' +
+      "      setPane(saved.length ? 'image' : 'action');\n" +
+      "      setStatus('ready');\n" +
+      '    }).catch(reason => {\n' +
+      "      if (!cancelled) { setError(wordImageError(reason)); setStatus('error'); }\n" +
+      '    });\n' +
+      '    return () => { cancelled = true; };\n' +
+      '  }, [word]);\n' +
+      '  useEffect(() => {\n' +
+      "    if (pane === 'gallery') currentThumbnail.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });\n" +
+      '  }, [pane, currentIndex]);\n' +
+      '  useEffect(() => {\n' +
+      '    if (!menu) return;\n' +
+      '    const close = () => setMenu(null);\n' +
+      "    window.addEventListener('pointerdown', close);\n" +
+      "    return () => window.removeEventListener('pointerdown', close);\n" +
+      '  }, [menu]);\n' +
+      '  const generate = async () => {\n' +
+      '    if (running.current || !profileCode) return;\n' +
+      '    running.current = true;\n' +
+      "    setStatus('generating');\n" +
+      "    setError('');\n" +
+      '    const existingIds = new Set(images.map(image => image.id));\n' +
+      '    try {\n' +
+      '      await generateWordImage(word, profileCode, false, images.length > 0, sentence);\n' +
+      '      const saved = await wordImageGallery(word);\n' +
+      '      if (active.current) {\n' +
+      '        imagesRef.current = saved;\n' +
+      '        setImages(saved);\n' +
+      '        const generated = saved.findIndex(image => !existingIds.has(image.id));\n' +
+      '        setCurrentIndex(generated < 0 ? 0 : generated);\n' +
+      "        setPane(saved.length ? 'image' : 'action');\n" +
+      "        setStatus('ready');\n" +
+      '      }\n' +
+      '    } catch (reason) {\n' +
+      "      if (active.current) { setError(wordImageError(reason)); setStatus('error'); }\n" +
+      '    } finally {\n' +
+      '      running.current = false;\n' +
+      '    }\n' +
+      '  };\n' +
+      '  const searchImages = async () => {\n' +
+      '    if (running.current || !profileCode) return;\n' +
+      '    running.current = true;\n' +
+      "    setStatus('searching');\n" +
+      "    setError('');\n" +
+      '    let firstId: string | null = null;\n' +
+      '    let batchId: string | null = null;\n' +
+      '    try {\n' +
+      '      const { added, inspected, pagesSearched } = await searchWordImages(word, profileCode, image => {\n' +
+      '        if (!active.current) return;\n' +
+      '        if (!firstId) {\n' +
+      '          firstId = image.id;\n' +
+      '          batchId = image.batchId ?? null;\n' +
+      '        }\n' +
+      '        const ordered = insertOrderedWordImage(imagesRef.current, image);\n' +
+      '        imagesRef.current = ordered;\n' +
+      '        setImages(ordered);\n' +
+      '        setCurrentIndex(Math.max(0, ordered.findIndex(saved => saved.id === firstId)));\n' +
+      "        setPane('image');\n" +
+      '      });\n' +
+      '      if (!active.current) return;\n' +
+      '      const saved = await wordImageGallery(word);\n' +
+      '      imagesRef.current = saved;\n' +
+      '      setImages(saved);\n' +
+      '      if (firstId) {\n' +
+      '        const batchFirst = batchId ? saved.findIndex(image => image.batchId === batchId) : -1;\n' +
+      '        setCurrentIndex(batchFirst >= 0 ? batchFirst : Math.max(0, saved.findIndex(image => image.id === firstId)));\n' +
+      '      }\n' +
+      "      if (!added) setError(`Found 0 images after checking ${inspected} candidates across ${pagesSearched} ${pagesSearched === 1 ? 'page' : 'pages'}.`);\n" +
+      "      setStatus('ready');\n" +
+      '    } catch (reason) {\n' +
+      "      if (active.current) { setError(wordImageError(reason)); setStatus('error'); }\n" +
+      '    } finally {\n' +
+      '      running.current = false;\n' +
+      '    }\n' +
+      '  };\n' +
+      '  const navigate = (direction: -1 | 1) => {\n' +
+      '    setMenu(null);\n' +
+      '    if (busy) return;\n' +
+      "    if (pane !== 'image' && pane !== 'action') return;\n" +
+      "    const next = navigateWordImages(pane === 'action' ? { pane: 'action' } : { pane: 'image', index: currentIndex }, images.length, direction);\n" +
+      "    if (next.pane === 'action') {\n" +
+      "      setBoundary(direction < 0 ? 'before' : 'after');\n" +
+      "      setPane('action');\n" +
+      '    } else {\n' +
+      '      setCurrentIndex(next.index);\n' +
+      "      setPane('image');\n" +
+      '    }\n' +
+      '  };\n' +
+      '  const copyCurrent = async () => {\n' +
+      '    if (!current) return;\n' +
+      '    setMenu(null);\n' +
+      "    setError('');\n" +
+      "    try { await copyImage(await wordImageBlob(word, current.id)); if (active.current) setFeedback('Image copied.'); }\n" +
+      '    catch (reason) { setError(wordImageError(reason)); }\n' +
+      '  };\n' +
+      "  const busy = status === 'loading' || status === 'generating' || status === 'searching';\n" +
+      "  const imageNavigation = useWordImageNavigation(section, !busy && !menu && (pane === 'image' || pane === 'action'), navigate);\n" +
+      '  return (\n' +
+      '    <section ref={section} {...imageNavigation} data-pane={pane} className="word-image-section" aria-label="Concept images" aria-busy={busy}\n' +
+      "      style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}\n" +
+      '      onClick={event => event.stopPropagation()}\n' +
+      '      onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); }}>\n' +
+      '      <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">\n' +
+      '        <defs><linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">\n' +
+      '          {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}\n' +
+      '        </linearGradient></defs>\n' +
+      '      </svg>\n' +
+      `      {!busy && pane === 'image' && current ? <div className="word-image-preview" onContextMenu={event => {\n` +
+      '        event.preventDefault();\n' +
+      '        setMenu({ x: event.clientX, y: event.clientY });\n' +
+      '      }}>\n' +
+      '        <img draggable={false} src={wordImageUrl(word, current.id)} alt={`Drawing of the concept of ${word}`} />\n' +
+      '      </div> : null}\n' +
+      `      {!busy && pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>\n` +
+      '        <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}\n' +
+      "          aria-label={images.length ? 'Generate another image' : 'Generate image'}\n" +
+      '          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>\n' +
+      '          <Sparkles aria-hidden="true" />\n' +
+      '        </button>\n' +
+      '        <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}\n' +
+      '          aria-label="Search for licensed images"\n' +
+      '          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void searchImages(); }}>\n' +
+      '          <Search aria-hidden="true" />\n' +
+      '        </button>\n' +
+      '      </div>\n' +
+      '      : null}\n' +
+      `      {!busy && pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">\n` +
+      '        {images.map((image, index) => <button key={image.id} ref={index === currentIndex ? currentThumbnail : undefined}\n' +
+      '          type="button" aria-label={`Open image ${index + 1}`} aria-current={index === currentIndex}\n' +
+      '          onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCurre'... 8942 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { GradientBackdrop } from '../../GradientBackdrop';
+    import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+    import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
+    import { generateWordImage, insertOrderedWordImage, navigateWordImages, removeWordImage, searchWordImages, wordImageBlob, wordImageError, wordImageGallery, wordImageUrl, type WordImageMetadata } from './word-images';
+    import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../../appearance';
+    import { CustomCursor } from '../../components/CustomCursor';
+    import { teluguHighlightRuns } from '../telugu-highlighting';
+    import { TeluguGradientText } from '../TeluguGradientText';
+    import { renderTeluguGradientTexture, type TeluguGradientTexture } from '../telugu-gradient-renderer';
+    import type { ObservationFontFamily } from '../../presentation';
+    import { visibleGraphemeAtPoint } from '../visible-glyph-hit-testing';
+    import { ReaderTaps } from '../reader-taps';
+    import { LetterProfile } from './LetterProfile';
+    import { getAlignedWordAudio } from '../../api';
+    import { useAudioPlayer } from '../audio/useAudioPlayer';
+    import type { AlignedWordAudio } from '../../../../shared/contracts';
+    import { useWordImageNavigation } from './useWordImageNavigation';
+    import { LoadingSlit } from '../../components/LoadingSlit';
+    
+    async function copyWord(text: string): Promise<void> {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }
+      }
+    }
+    
+    async function copyImage(blob: Blob): Promise<void> {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Image copying is not supported by this browser.');
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    }
+    
+    type ImagePane = 'action' | 'image' | 'gallery' | 'info';
+    
+    function WordImage({ word, sentence }: { word: string; sentence: string }) {
+      const { appearance, profileCode } = useAppearance();
+      const [images, setImages] = useState<WordImageMetadata[]>([]);
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [pane, setPane] = useState<ImagePane>('action');
+      const [boundary, setBoundary] = useState<'before' | 'after'>('after');
+      const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+      const section = useRef<HTMLElement>(null);
+      const [feedback, setFeedback] = useState('');
+      useEffect(() => { setFeedback(''); }, [pane, currentIndex]);
+      const [status, setStatus] = useState<'loading' | 'ready' | 'generating' | 'searching' | 'error'>('loading');
+      const [error, setError] = useState('');
+      const active = useRef(true);
+      const running = useRef(false);
+      const imagesRef = useRef<WordImageMetadata[]>([]);
+      const current = images[currentIndex];
+      const currentThumbnail = useRef<HTMLButtonElement>(null);
+      const paintId = `word-image-glass-${useId().replace(/:/g, '')}`;
+      const glass = useMemo(() => appearanceAudioGlass(appearance), [appearance.gradient]);
+      useEffect(() => {
+        active.current = true;
+        return () => { active.current = false; };
+      }, []);
+      useEffect(() => {
+        let cancelled = false;
+        setStatus('loading');
+        setError('');
+        void wordImageGallery(word).then(saved => {
+          if (cancelled) return;
+          imagesRef.current = saved;
+          setImages(saved);
+          setCurrentIndex(0);
+          setPane(saved.length ? 'image' : 'action');
+          setStatus('ready');
+        }).catch(reason => {
+          if (!cancelled) { setError(wordImageError(reason)); setStatus('error'); }
+        });
+        return () => { cancelled = true; };
+      }, [word]);
+      useEffect(() => {
+        if (pane === 'gallery') currentThumbnail.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, [pane, currentIndex]);
+      useEffect(() => {
+        if (!menu) return;
+        const close = () => setMenu(null);
+        window.addEventListener('pointerdown', close);
+        return () => window.removeEventListener('pointerdown', close);
+      }, [menu]);
+      const generate = async () => {
+        if (running.current || !profileCode) return;
+        running.current = true;
+        setStatus('generating');
+        setError('');
+        const existingIds = new Set(images.map(image => image.id));
+        try {
+          await generateWordImage(word, profileCode, false, images.length > 0, sentence);
+          const saved = await wordImageGallery(word);
+          if (active.current) {
+            imagesRef.current = saved;
+            setImages(saved);
+            const generated = saved.findIndex(image => !existingIds.has(image.id));
+            setCurrentIndex(generated < 0 ? 0 : generated);
+            setPane(saved.length ? 'image' : 'action');
+            setStatus('ready');
+          }
+        } catch (reason) {
+          if (active.current) { setError(wordImageError(reason)); setStatus('error'); }
+        } finally {
+          running.current = false;
+        }
+      };
+      const searchImages = async () => {
+        if (running.current || !profileCode) return;
+        running.current = true;
+        setStatus('searching');
+        setError('');
+        let firstId: string | null = null;
+        let batchId: string | null = null;
+        try {
+          const { added, inspected, pagesSearched } = await searchWordImages(word, profileCode, image => {
+            if (!active.current) return;
+            if (!firstId) {
+              firstId = image.id;
+              batchId = image.batchId ?? null;
+            }
+            const ordered = insertOrderedWordImage(imagesRef.current, image);
+            imagesRef.current = ordered;
+            setImages(ordered);
+            setCurrentIndex(Math.max(0, ordered.findIndex(saved => saved.id === firstId)));
+            setPane('image');
+          });
+          if (!active.current) return;
+          const saved = await wordImageGallery(word);
+          imagesRef.current = saved;
+          setImages(saved);
+          if (firstId) {
+            const batchFirst = batchId ? saved.findIndex(image => image.batchId === batchId) : -1;
+            setCurrentIndex(batchFirst >= 0 ? batchFirst : Math.max(0, saved.findIndex(image => image.id === firstId)));
+          }
+          if (!added) setError(`Found 0 images after checking ${inspected} candidates across ${pagesSearched} ${pagesSearched === 1 ? 'page' : 'pages'}.`);
+          setStatus('ready');
+        } catch (reason) {
+          if (active.current) { setError(wordImageError(reason)); setStatus('error'); }
+        } finally {
+          running.current = false;
+        }
+      };
+      const navigate = (direction: -1 | 1) => {
+        setMenu(null);
+        if (busy) return;
+        if (pane !== 'image' && pane !== 'action') return;
+        const next = navigateWordImages(pane === 'action' ? { pane: 'action' } : { pane: 'image', index: currentIndex }, images.length, direction);
+        if (next.pane === 'action') {
+          setBoundary(direction < 0 ? 'before' : 'after');
+          setPane('action');
+        } else {
+          setCurrentIndex(next.index);
+          setPane('image');
+        }
+      };
+      const copyCurrent = async () => {
+        if (!current) return;
+        setMenu(null);
+        setError('');
+        try { await copyImage(await wordImageBlob(word, current.id)); if (active.current) setFeedback('Image copied.'); }
+        catch (reason) { setError(wordImageError(reason)); }
+      };
+      const busy = status === 'loading' || status === 'generating' || status === 'searching';
+      const imageNavigation = useWordImageNavigation(section, !busy && !menu && (pane === 'image' || pane === 'action'), navigate);
+      return (
+        <section ref={section} {...imageNavigation} data-pane={pane} className="word-image-section" aria-label="Concept images" aria-busy={busy}
+          style={{ '--audio-icon-paint': `url(#${paintId})`, '--audio-glass-edge': glass.edge } as CSSProperties}
+          onClick={event => event.stopPropagation()}
+          onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); }}>
+          <svg className="audio-paint-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+            <defs><linearGradient id={paintId} x1="0%" y1="0%" x2="100%" y2="100%">
+              {glass.stops.map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />)}
+            </linearGradient></defs>
+          </svg>
+          {!busy && pane === 'image' && current ? <div className="word-image-preview" onContextMenu={event => {
+            event.preventDefault();
+            setMenu({ x: event.clientX, y: event.clientY });
+          }}>
+            <img draggable={false} src={wordImageUrl(word, current.id)} alt={`Drawing of the concept of ${word}`} />
+          </div> : null}
+          {!busy && pane === 'action' ? <div className="word-image-entry" data-boundary={boundary}>
+            <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
+              aria-label={images.length ? 'Generate another image' : 'Generate image'}
+              onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void generate(); }}>
+              <Sparkles aria-hidden="true" />
+            </button>
+            <button className="word-image-glass-action" type="button" disabled={busy || !profileCode}
+              aria-label="Search for licensed images"
+              onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void searchImages(); }}>
+              <Search aria-hidden="true" />
+            </button>
+          </div>
+          : null}
+          {!busy && pane === 'gallery' ? <div className="word-image-gallery" role="dialog" aria-label="Image gallery">
+            {images.map((image, index) => <button key={image.id} ref={index === currentIndex ? currentThumbnail : undefined}
+              type="button" aria-label={`Open image ${index + 1}`} aria-current={index === currentIndex}
+              onDoubleClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCurrentIndex(index); setPane('image'); }}>
+              <img src={wordImageUrl(word, image.id)} alt="" />
+            </button>)}
+          </div> : null}
+          {!busy && pane === 'info' && current ? <div className="word-image-info" role="dialog" aria-label="Image information" onDoubleClick={event => event.stopPropagation()}>
+            <dl>{current.title ? <div><dt>Title</dt><dd>{current.title}</dd></div> : null}
+              <div><dt>Retrieval</dt><dd>{current.method === 'generation' ? 'Generated' : 'Search'}</dd></div>
+              <div><dt>Vendor</dt><dd>{current.vendor}</dd></div>
+              {current.sourceUrl ? <div><dt>Source</dt><dd><a href={current.sourceUrl} target="_blank" rel="noreferrer">{current.sourceName ?? 'Open source page'}</a></dd></div> : null}
+              {current.license && current.licenseUrl ? <div><dt>License</dt><dd><a href={current.licenseUrl} target="_blank" rel="noreferrer">{current.license}</a></dd></div> : null}
+              <div><dt>Added</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd></div></dl>
+            <button type="button" onClick={() => setPane('image')}>Close</button>
+          </div> : null}
+          {busy ? <div className="word-image-loading">
+            <LoadingSlit label={status === 'loading' ? 'Checking saved images' : status === 'generating' ? 'Generating image' : 'Searching for licensed images'} />
+          </div> : null}
+          {!busy && menu && current ? <div className="reading-context-menu word-image-context-menu" role="menu" aria-label="Image actions"
+            style={{ left: menu.x, top: menu.y }} onPointerDown={event => event.stopPropagation()}>
+            <button className="reading-context-menu-action" role="menuitem" type="button" title="Copy" aria-label="Copy image" onClick={() => void copyCurrent()}><Copy size={18} /></button>
+            <button className="reading-context-menu-action" role="menuitem" type="button" title="Gallery" aria-label="Open gallery" onClick={() => { setMenu(null); setPane('gallery'); }}><Images size={18} /></button>
+            <button className="reading-context-menu-action" role="menuitem" type="button" title="Info" aria-label="Image information" onClick={() => { setMenu(null); setPane('info'); }}><Info size={18} /></button>
+            <button className="reading-context-menu-action" role="menuitem" type="button" title="Add" aria-label="Add image" onClick={() => { setMenu(null); setBoundary('after'); setPane('action'); }}><Plus size={18} /></button>
+          </div> : null}
+          {feedback ? <p className="word-image-feedback" role="status">{feedback}</p> : null}
+          {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
+        </section>
+      );
+    }
+    
+    export function WordProfile({ word, sentence, initialGrapheme, suppressAudioControls = false, observationId, wordStart, wordEnd, fontFamily, playbackRate, onClose }: {
+      word: string;
+      sentence: string;
+      initialGrapheme?: {text:string;start:number;end:number} | undefined;
+      suppressAudioControls?: boolean;
+      observationId: string;
+      wordStart: number;
+      wordEnd: number;
+      fontFamily: ObservationFontFamily;
+      playbackRate: number;
+      onClose: () => void;
+    }) {
+      const { appearance, profileCode } = useAppearance();
+      const highlightRuns = appearance.highlightMods ? teluguHighlightRuns(word) : null;
+      const gradientEndColor = appearanceModificationColor(appearance);
+      const gradientKey = highlightRuns?.some(run => run.highlighted)
+        ? [word, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
+        : null;
+      const [gradientPresentation, setGradientPresentation] = useState<{
+        key: string;
+        textures: Array<TeluguGradientTexture | null>;
+      } | null>(null);
+      const graphemeCount = [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(word)].length;
+      const [selectedGrapheme, setSelectedGrapheme] = useState<{ text: string; start: number; end: number } | null>(initialGrapheme ?? null);
+      const [alignedWord, setAlignedWord] = useState<AlignedWordAudio | null>(null);
+      const [alignmentError, setAlignmentError] = useState(false);
+      const [alignmentAttempt, setAlignmentAttempt] = useState(0);
+      const [playWhenReady, setPlayWhenReady] = useState(false);
+      const [letterTaps] = useState(() => new ReaderTaps());
+      const dialog = useRef<HTMLDialogElement>(null);
+      const wordPlayer = useAudioPlayer(alignedWord?.audio ?? null, null, null, playbackRate, observationId, playWhenReady, !selectedGrapheme);
+      useEffect(() => {
+        const element = dialog.current;
+        element?.showModal();
+        return () => { letterTaps.cancel(); element?.close(); };
+      }, [letterTaps]);
+      useEffect(() => {
+        if (!gradientKey || !highlightRuns) return;
+        let cancelled = false;
+        void Promise.all(highlightRuns.map(run => run.highlighted
+          ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier)
+          : Promise.resolve(null))).then(textures => {
+            if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
+          }).catch(() => {
+            if (!cancelled) setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+          });
+        return () => { cancelled = true; };
+      }, [gradientKey]);
+      useEffect(() => {
+        if (!profileCode) return;
+        const controller = new AbortController();
+        setAlignedWord(null);
+        setAlignmentError(false);
+        void getAlignedWordAudio(profileCode, observationId, wordStart, wordEnd, controller.signal)
+          .then(result => { if (!controller.signal.aborted) setAlignedWord(result); })
+          .catch(() => { if (!controller.signal.aborted) setAlignmentError(true); });
+        return () => controller.abort();
+      }, [profileCode, observationId, wordStart, wordEnd, alignmentAttempt]);
+      const toggleWordPlayback = () => {
+        if (alignedWord) { wordPlayer.togglePlay(); return; }
+        setPlayWhenReady(value => alignmentError || !value);
+        if (alignmentError) setAlignmentAttempt(value => value + 1);
+      };
+      return (
+        <dialog ref={dialog} className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
+          onCancel={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (selectedGrapheme) setSelectedGrapheme(null);
+            else onClose();
+          }}
+          onDoubleClick={event => event.stopPropagation()}
+          onClick={event => {
+            event.stopPropagation();
+            if (event.target !== event.currentTarget) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+          }}>
+          <CustomCursor />
+          <audio ref={wordPlayer.audioRef} preload="auto" hidden />
+          <GradientBackdrop className="gradient-field word-profile-gradient" />
+          {selectedGrapheme && profileCode ? <LetterProfile suppressAudioControls={suppressAudioControls} letter={selectedGrapheme.text}
+            observationId={observationId} word={word} wordStart={wordStart} wordEnd={wordEnd}
+            graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
+            profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
+            onCopy={copyWord}
+            onBack={() => setSelectedGrapheme(null)} /> : <>
+          <header className="word-profile-header" onClick={event => {
+            const hit = visibleGraphemeAtPoint(event.currentTarget, word, event.clientX, event.clientY);
+            letterTaps.tap(hit ? `grapheme:${hit.start}` : 'word', event.clientX, event.clientY, () => {
+              if (!hit) return;
+              letterTaps.cancel();
+              wordPlayer.pause();
+              setPlayWhenReady(false);
+              setSelectedGrapheme({ text: hit.text, start: hit.start, end: hit.end });
+            }, toggleWordPlayback);
+          }} onContextMenu={event => {
+            event.preventDefault();
+          }}>
+            <h2 id="word-profile-title" lang="te" aria-label={word}
+              style={{ '--word-graphemes': Math.max(1, graphemeCount), fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
+              {highlightRuns ? highlightRuns.map((run, index) => run.highlighted
+                ? <TeluguGradientText key={index} text={run.text} texture={gradientPresentation?.key === gradientKey ? gradientPresentation.textures[index] ?? null : null} />
+                : run.text) : word}
+            </h2>
+            {alignmentError ? <p className="word-profile-error" role="alert">Aligned word audio unavailable.</p> : null}
+            {wordPlayer.playbackError ? <p className="word-profile-error" role="alert">{wordPlayer.playbackError}</p> : null}
+          </header>
+          <button type="button" className="word-profile-back" aria-label="Back to reading" onClick={onClose}><ArrowLeft size={20} aria-hidden="true" /></button>
+          <WordImage key={word} word={word} sentence={sentence} />
+    
+          </>}
+        </dialog>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:47:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: errors enter over the bottom-right corner and fade within fifteen seconds
+ok 5 - errors enter over the bottom-right corner and fade within fifteen seconds
+  ---
+  duration_ms: 0.6086
+  type: 'test'
+  ...
+# Subtest: modification controls have dedicated barrier and color pages without an Automatic option
+ok 6 - modification controls have dedicated barrier and color pages without an Automatic option
+  ---
+  duration_ms: 0.230046
+  type: 'test'
+  ...
+# Subtest: queue diagnostics are available under the Diagnostic settings group
+not ok 7 - queue diagnostics are available under the Diagnostic settings group
+  ---
+  duration_ms: 3.48979
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:127:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(settingsGroups.diagnostic?.includes('queue'))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/reading-context-menu.test.ts:128:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 3
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 327.071343

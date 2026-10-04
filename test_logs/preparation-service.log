@@ -1,0 +1,57 @@
+TAP version 13
+# {"observationId":"observation-1","sourceId":"source1","attempt":1,"timestamp":"2026-10-04T14:15:14.317Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"observation-1","sourceId":"source1","attempt":1,"durationMs":7,"cacheHit":false,"timestamp":"2026-10-04T14:15:14.324Z","level":"info","event":"observation_preparation_completed"}
+# {"observationId":"observation-2","sourceId":"source1","attempt":1,"timestamp":"2026-10-04T14:15:14.324Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"observation-2","sourceId":"source1","attempt":1,"durationMs":6,"cacheHit":false,"timestamp":"2026-10-04T14:15:14.330Z","level":"info","event":"observation_preparation_completed"}
+# {"observationId":"observation-3","sourceId":"source1","attempt":1,"timestamp":"2026-10-04T14:15:14.330Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"observation-3","sourceId":"source1","attempt":1,"durationMs":6,"cacheHit":false,"timestamp":"2026-10-04T14:15:14.336Z","level":"info","event":"observation_preparation_completed"}
+# {"observationId":"observation-repeat","sourceId":"source1","attempt":1,"timestamp":"2026-10-04T14:15:14.339Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"observation-repeat","sourceId":"source1","attempt":1,"durationMs":0,"cacheHit":true,"timestamp":"2026-10-04T14:15:14.339Z","level":"info","event":"observation_preparation_completed"}
+# {"observationId":"transient","sourceId":"source1","attempt":1,"timestamp":"2026-10-04T14:15:14.345Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"transient","sourceId":"source1","attempt":1,"durationMs":0,"failureCategory":"source-preparation-unavailable","timestamp":"2026-10-04T14:15:14.345Z","level":"warn","event":"observation_preparation_retry_scheduled"}
+# {"observationId":"transient","sourceId":"source1","attempt":2,"timestamp":"2026-10-04T14:15:14.352Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"transient","sourceId":"source1","attempt":2,"durationMs":0,"failureCategory":"source-preparation-unavailable","timestamp":"2026-10-04T14:15:14.352Z","level":"warn","event":"observation_preparation_retry_scheduled"}
+# {"observationId":"transient","sourceId":"source1","attempt":3,"timestamp":"2026-10-04T14:15:14.357Z","level":"info","event":"observation_preparation_started"}
+# {"observationId":"transient","sourceId":"source1","attempt":3,"durationMs":0,"failureCategory":"source-preparation-unavailable","timestamp":"2026-10-04T14:15:14.357Z","level":"error","event":"observation_preparation_exhausted"}
+# Subtest: live preparation is sequential, respects queue order, and reuses the shared cache
+not ok 1 - live preparation is sequential, respects queue order, and reuses the shared cache
+  ---
+  duration_ms: 337.699791
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/preparation-service.test.ts:15:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + null
+    - {
+    -   attempts: 3,
+    -   code: 'source-preparation-unavailable',
+    -   retryAt: null
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    code: 'source-preparation-unavailable'
+    attempts: 3
+    retryAt: ~
+  actual: ~
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/preparation-service.test.ts:159:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"error":"Live parser stopped (1): Traceback (most recent call last):\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 249, in <module>\\n    main()\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 238, in main\\n    worker=LiveParser(args.frequency,args.corpus,args.availability,args.validation)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 47, in __init__\\n    self.db = sqlite3.connect(Path(frequency).resolve().as_uri() + '?mode=rw', uri=True)\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nsqlite3.OperationalError: unable to open database file\\n","timestamp":"2026-10-04T14:15:26.803Z","level":"error","event":"live_parser_failed"}
+# Error: Test "live preparation is sequential, respects queue order, and reuses the shared cache" at tests/preparation-service.test.ts:15:1 generated asynchronous activity after the test ended. This activity created the error "TypeError: The database connection is not open" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12803.554164

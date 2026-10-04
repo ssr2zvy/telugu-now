@@ -1,0 +1,2830 @@
+TAP version 13
+# Subtest: audio questions without prompt audio reveal their text instead of an icon-only screen
+ok 1 - audio questions without prompt audio reveal their text instead of an icon-only screen
+  ---
+  duration_ms: 0.791926
+  type: 'test'
+  ...
+# Subtest: audio questions hide text only when prompt audio exists
+ok 2 - audio questions hide text only when prompt audio exists
+  ---
+  duration_ms: 0.122787
+  type: 'test'
+  ...
+# Subtest: contentless question payloads show neither stray phase icon
+ok 3 - contentless question payloads show neither stray phase icon
+  ---
+  duration_ms: 0.091986
+  type: 'test'
+  ...
+# Subtest: question-set phases use question, comparison, and observation icons
+not ok 4 - question-set phases use question, comparison, and observation icons
+  ---
+  duration_ms: 1.831115
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:51:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /phase === 'comparison'[\s\S]*<Check aria-hidden="true" \/>/. Input:
+    
+    "import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';\n" +
+      "import type { ExplorationStep } from './exploration-steps';\n" +
+      "import { explorationChoices, RandomExploration } from './random-exploration';\n" +
+      "import { useObservationTravel } from './useObservationTravel';\n" +
+      "import { useGradientTravel } from '../GradientBackdrop';\n" +
+      "import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';\n" +
+      "import { useReaderSettingsFade } from './useReaderSettingsFade';\n" +
+      "import { readerNeedsLoadingDots } from './reader-loading';\n" +
+      "import { useReaderSwipes } from './useReaderSwipes';\n" +
+      "import { copyOriginalReaderText } from './reader-hyphenation';\n" +
+      "import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';\n" +
+      'import {\n' +
+      '  useCallback,\n' +
+      '  useMemo,\n' +
+      '  useEffect,\n' +
+      '  useLayoutEffect,\n' +
+      '  useRef,\n' +
+      '  useState,\n' +
+      '  type MouseEvent,\n' +
+      "} from 'react';\n" +
+      "import { ArrowRight, Settings } from 'lucide-react';\n" +
+      'import type {\n' +
+      '  ProfileStateResponse,\n' +
+      "} from '../../../shared/contracts';\n" +
+      'import {\n' +
+      '  AudioPlayerBar,\n' +
+      '  type AudioPlayerBarHandle,\n' +
+      "} from './audio/AudioPlayerBar';\n" +
+      "import type { RecordingTimeline } from './audio/AudioScrubber';\n" +
+      'import {\n' +
+      '  prewarmObservationTypography,\n' +
+      '  useObservationTypography,\n' +
+      "} from './useObservationTypography';\n" +
+      "import { useObservationFontQueue } from './useObservationFontQueue';\n" +
+      "import { WordProfile } from './word/WordProfile';\n" +
+      "import { appearanceModificationColor, useAppearance } from '../appearance';\n" +
+      "import { LoadingSlit } from '../components/LoadingSlit';\n" +
+      "import { ReaderTaps, readerTapRegions } from './reader-taps';\n" +
+      "import { type ScrollDirection } from './reader-scroll';\n" +
+      "import { reportClientTelemetry } from '../api';\n" +
+      "import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';\n" +
+      "import { teluguHighlightRuns } from './telugu-highlighting';\n" +
+      "import { TeluguWordText } from './TeluguGradientText';\n" +
+      "import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';\n" +
+      "import { observationShowsText } from './observation-content';\n" +
+      "import { visibleWordAtPoint } from './visible-glyph-hit-testing';\n" +
+      "import type { VisibleGlyphHit } from './visible-glyph-hit-testing';\n" +
+      "import { ComparisonPage } from './ComparisonPage';\n" +
+      '\n' +
+      'function fontAvailability(fontFamily: string, text: string): boolean | null {\n' +
+      '  try {\n' +
+      '    return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));\n' +
+      '  } catch {\n' +
+      '    return null;\n' +
+      '  }\n' +
+      '}\n' +
+      'interface ObservationViewProps {\n' +
+      '  state: ProfileStateResponse | null;\n' +
+      '  busy: boolean;\n' +
+      "  navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;\n" +
+      '  onMove: (\n' +
+      "    direction: 'back' | 'next',\n" +
+      '  ) => Promise<boolean>;\n' +
+      '  onOpenSettings: (fontFamily: string) => void;\n' +
+      '}\n' +
+      'interface ReaderPoint {\n' +
+      '  clientX: number;\n' +
+      '  clientY: number;\n' +
+      '  target: EventTarget;\n' +
+      '}\n' +
+      'export function ObservationView({\n' +
+      '  state,\n' +
+      '  busy,\n' +
+      '  navigationEvent,\n' +
+      '  onMove,\n' +
+      '  onOpenSettings,\n' +
+      '}: ObservationViewProps) {\n' +
+      '  const { appearance } = useAppearance();\n' +
+      '  const gradientTravel = useGradientTravel();\n' +
+      '  const [\n' +
+      '    controlsVisible,\n' +
+      '    setControlsVisible,\n' +
+      '  ] = useState(false);\n' +
+      "  const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');\n" +
+      '  const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);\n' +
+      '  const [precisionInteraction, setPrecisionInteraction] = useState(0);\n' +
+      '  const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);\n' +
+      '  const seamlessAudioKey = useRef<string | null>(null);\n' +
+      '  const [audioError, setAudioError] = useState<string | null>(null);\n' +
+      '  const questionControlsRef = useRef<QuestionControlsHandle>(null);\n' +
+      '  const evaluationRef=useRef<GrammarEvaluationHandle>(null);\n' +
+      '  const evaluationNavigation=useRef(false);\n' +
+      "  const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');\n" +
+      "  const phaseDirection = useRef<'back' | 'next'>('next');\n" +
+      '  const evaluationDrafts = useRef(new Map<string, boolean>());\n' +
+      '  const [comparisonReady, setComparisonReady] = useState(false);\n' +
+      '  const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);\n' +
+      '  const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);\n' +
+      '  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);\n' +
+      '  const [gradientPresentation, setGradientPresentation] = useState<{\n' +
+      '    key: string;\n' +
+      '    textures: Array<TeluguGradientTexture | null>;\n' +
+      '  } | null>(null);\n' +
+      '  const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);\n' +
+      '  const screenRef = useRef<HTMLElement>(null);\n' +
+      '  const settingsIdle = useReaderSettingsFade(screenRef);\n' +
+      '  const playerRef = useRef<AudioPlayerBarHandle>(null);\n' +
+      '  const [taps] = useState(() => new ReaderTaps());\n' +
+      '  const gesturePausedPlayback = useRef(false);\n' +
+      '  const observationLoadStartedAt = useRef<number | null>(null);\n' +
+      "  const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';\n" +
+      "  const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';\n" +
+      "  const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';\n" +
+      '  const textComparison = textGivenFlow && comparisonQuestionPhase;\n' +
+      "  const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';\n" +
+      '  useEffect(() => {\n' +
+      '    const screen = screenRef.current;\n' +
+      '    if (textGivenFlow || !controlsVisible || !screen) return;\n' +
+      '    let idleTimer: number;\n' +
+      '    const activePointers = new Set<number>();\n' +
+      '    const scheduleHide = (event?: Event) => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      if (event instanceof PointerEvent) {\n' +
+      "        if (event.type === 'pointerdown') activePointers.add(event.pointerId);\n" +
+      "        if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);\n" +
+      '      }\n' +
+      '      if (activePointers.size > 0) return;\n' +
+      '      idleTimer = window.setTimeout(() => {\n' +
+      "        setAudioMotion('exit');\n" +
+      '        setControlsVisible(false);\n' +
+      '      }, appearance.autoFadeSeconds * 1000);\n' +
+      '    };\n' +
+      "    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];\n" +
+      '    for (const event of events) screen.addEventListener(event, scheduleHide);\n' +
+      '    scheduleHide();\n' +
+      '    return () => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      for (const event of events) screen.removeEventListener(event, scheduleHide);\n' +
+      '    };\n' +
+      '  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);\n' +
+      '  const observation =\n' +
+      '    state?.currentObservation ?? null;\n' +
+      '  useEffect(() => {\n' +
+      '    if (!observation) return;\n' +
+      '    observationLoadStartedAt.current = performance.now();\n' +
+      "    reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });\n" +
+      '  }, [observation?.id]);\n' +
+      '  const fontAssignments = useObservationFontQueue(state, appearance.fonts);\n' +
+      '  const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily\n' +
+      "    ?? 'Noto Sans Telugu';\n" +
+      "  const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);\n" +
+      '  const explorationSession = useRef<RandomExploration | null>(null);\n' +
+      '  const explorationRef = useRef<ExplorationHandle | null>(null);\n' +
+      '  const [exploration, setExploration] = useState<ExplorationStep | null>(null);\n' +
+      '  const exploring = exploration !== null;\n' +
+      "  const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;\n" +
+      '  const comparisonPhase = comparisonQuestionPhase;\n' +
+      "  const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;\n" +
+      '  const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;\n' +
+      '  const audioReadinessKey = observation && visibleAudio ? `${observation.id}\\0${visibleAudio.url}` : null;\n' +
+      '  const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {\n' +
+      '    if (!key) return;\n' +
+      '    setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress\n' +
+      '      ? current : { key, loading, progress });\n' +
+      '  }, []);\n' +
+      '  const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));\n' +
+      '  // Reset page-owned presentation before paint, including any old exit animation.\n' +
+      '  useLayoutEffect(() => {\n' +
+      '    taps.cancel();\n' +
+      '    setExploration(null);\n' +
+      '    explorationSession.current = null;\n' +
+      '    seamlessAudioKey.current = null;\n' +
+      '    setAudioError(null);\n' +
+      "    setAudioMotion('idle');\n" +
+      "    setPhaseMotion(textGivenFlow ? 'enter' : 'idle');\n" +
+      '    playerRef.current?.dismissPrecision();\n' +
+      '    setComparisonReady(false);\n' +
+      '    setResponseAudio(observation?.question?.responseAudio ?? null);\n' +
+      '    setRecordingRange(null);\n' +
+      "    setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));\n" +
+      '    return () => taps.cancel();\n' +
+      '  }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);\n' +
+      '  const showsObservationText = observationShowsText(observation);\n' +
+      '  const typography =\n' +
+      '    useObservationTypography(\n' +
+      '      observation,\n' +
+      '      assignedFont,\n' +
+      '      showsObservationText,\n' +
+      '    );\n' +
+      '  const presentationHighlightRuns = appearance.highlightMods && observation\n' +
+      '    ? teluguHighlightRuns(observation.text)\n' +
+      '    : null;\n' +
+      '  const highlightRuns = showsObservationText ? presentationHighlightRu'... 30198 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
+    import type { ExplorationStep } from './exploration-steps';
+    import { explorationChoices, RandomExploration } from './random-exploration';
+    import { useObservationTravel } from './useObservationTravel';
+    import { useGradientTravel } from '../GradientBackdrop';
+    import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
+    import { useReaderSettingsFade } from './useReaderSettingsFade';
+    import { readerNeedsLoadingDots } from './reader-loading';
+    import { useReaderSwipes } from './useReaderSwipes';
+    import { copyOriginalReaderText } from './reader-hyphenation';
+    import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
+    import {
+      useCallback,
+      useMemo,
+      useEffect,
+      useLayoutEffect,
+      useRef,
+      useState,
+      type MouseEvent,
+    } from 'react';
+    import { ArrowRight, Settings } from 'lucide-react';
+    import type {
+      ProfileStateResponse,
+    } from '../../../shared/contracts';
+    import {
+      AudioPlayerBar,
+      type AudioPlayerBarHandle,
+    } from './audio/AudioPlayerBar';
+    import type { RecordingTimeline } from './audio/AudioScrubber';
+    import {
+      prewarmObservationTypography,
+      useObservationTypography,
+    } from './useObservationTypography';
+    import { useObservationFontQueue } from './useObservationFontQueue';
+    import { WordProfile } from './word/WordProfile';
+    import { appearanceModificationColor, useAppearance } from '../appearance';
+    import { LoadingSlit } from '../components/LoadingSlit';
+    import { ReaderTaps, readerTapRegions } from './reader-taps';
+    import { type ScrollDirection } from './reader-scroll';
+    import { reportClientTelemetry } from '../api';
+    import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
+    import { teluguHighlightRuns } from './telugu-highlighting';
+    import { TeluguWordText } from './TeluguGradientText';
+    import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
+    import { observationShowsText } from './observation-content';
+    import { visibleWordAtPoint } from './visible-glyph-hit-testing';
+    import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
+    import { ComparisonPage } from './ComparisonPage';
+    
+    function fontAvailability(fontFamily: string, text: string): boolean | null {
+      try {
+        return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));
+      } catch {
+        return null;
+      }
+    }
+    interface ObservationViewProps {
+      state: ProfileStateResponse | null;
+      busy: boolean;
+      navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
+      onMove: (
+        direction: 'back' | 'next',
+      ) => Promise<boolean>;
+      onOpenSettings: (fontFamily: string) => void;
+    }
+    interface ReaderPoint {
+      clientX: number;
+      clientY: number;
+      target: EventTarget;
+    }
+    export function ObservationView({
+      state,
+      busy,
+      navigationEvent,
+      onMove,
+      onOpenSettings,
+    }: ObservationViewProps) {
+      const { appearance } = useAppearance();
+      const gradientTravel = useGradientTravel();
+      const [
+        controlsVisible,
+        setControlsVisible,
+      ] = useState(false);
+      const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');
+      const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);
+      const [precisionInteraction, setPrecisionInteraction] = useState(0);
+      const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);
+      const seamlessAudioKey = useRef<string | null>(null);
+      const [audioError, setAudioError] = useState<string | null>(null);
+      const questionControlsRef = useRef<QuestionControlsHandle>(null);
+      const evaluationRef=useRef<GrammarEvaluationHandle>(null);
+      const evaluationNavigation=useRef(false);
+      const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');
+      const phaseDirection = useRef<'back' | 'next'>('next');
+      const evaluationDrafts = useRef(new Map<string, boolean>());
+      const [comparisonReady, setComparisonReady] = useState(false);
+      const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
+      const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
+      const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);
+      const [gradientPresentation, setGradientPresentation] = useState<{
+        key: string;
+        textures: Array<TeluguGradientTexture | null>;
+      } | null>(null);
+      const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);
+      const screenRef = useRef<HTMLElement>(null);
+      const settingsIdle = useReaderSettingsFade(screenRef);
+      const playerRef = useRef<AudioPlayerBarHandle>(null);
+      const [taps] = useState(() => new ReaderTaps());
+      const gesturePausedPlayback = useRef(false);
+      const observationLoadStartedAt = useRef<number | null>(null);
+      const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
+      const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
+      const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
+      const textComparison = textGivenFlow && comparisonQuestionPhase;
+      const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
+      useEffect(() => {
+        const screen = screenRef.current;
+        if (textGivenFlow || !controlsVisible || !screen) return;
+        let idleTimer: number;
+        const activePointers = new Set<number>();
+        const scheduleHide = (event?: Event) => {
+          window.clearTimeout(idleTimer);
+          if (event instanceof PointerEvent) {
+            if (event.type === 'pointerdown') activePointers.add(event.pointerId);
+            if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);
+          }
+          if (activePointers.size > 0) return;
+          idleTimer = window.setTimeout(() => {
+            setAudioMotion('exit');
+            setControlsVisible(false);
+          }, appearance.autoFadeSeconds * 1000);
+        };
+        const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
+        for (const event of events) screen.addEventListener(event, scheduleHide);
+        scheduleHide();
+        return () => {
+          window.clearTimeout(idleTimer);
+          for (const event of events) screen.removeEventListener(event, scheduleHide);
+        };
+      }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);
+      const observation =
+        state?.currentObservation ?? null;
+      useEffect(() => {
+        if (!observation) return;
+        observationLoadStartedAt.current = performance.now();
+        reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });
+      }, [observation?.id]);
+      const fontAssignments = useObservationFontQueue(state, appearance.fonts);
+      const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
+        ?? 'Noto Sans Telugu';
+      const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);
+      const explorationSession = useRef<RandomExploration | null>(null);
+      const explorationRef = useRef<ExplorationHandle | null>(null);
+      const [exploration, setExploration] = useState<ExplorationStep | null>(null);
+      const exploring = exploration !== null;
+      const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
+      const comparisonPhase = comparisonQuestionPhase;
+      const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
+      const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
+      const audioReadinessKey = observation && visibleAudio ? `${observation.id}\0${visibleAudio.url}` : null;
+      const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {
+        if (!key) return;
+        setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
+          ? current : { key, loading, progress });
+      }, []);
+      const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));
+      // Reset page-owned presentation before paint, including any old exit animation.
+      useLayoutEffect(() => {
+        taps.cancel();
+        setExploration(null);
+        explorationSession.current = null;
+        seamlessAudioKey.current = null;
+        setAudioError(null);
+        setAudioMotion('idle');
+        setPhaseMotion(textGivenFlow ? 'enter' : 'idle');
+        playerRef.current?.dismissPrecision();
+        setComparisonReady(false);
+        setResponseAudio(observation?.question?.responseAudio ?? null);
+        setRecordingRange(null);
+        setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
+        return () => taps.cancel();
+      }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
+      const showsObservationText = observationShowsText(observation);
+      const typography =
+        useObservationTypography(
+          observation,
+          assignedFont,
+          showsObservationText,
+        );
+      const presentationHighlightRuns = appearance.highlightMods && observation
+        ? teluguHighlightRuns(observation.text)
+        : null;
+      const highlightRuns = showsObservationText ? presentationHighlightRuns : null;
+      const gradientEndColor = appearanceModificationColor(appearance);
+      // The rolling prewarm window covers every deck entry adjacent to the
+      // current observation - the one behind and the one ahead - so that by the
+      // time the user navigates either direction, its font, size-fit, and
+      // (if enabled) gradient texture are already computed and cached.
+      const neighborAssignments = fontAssignments.filter(assignment => assignment.id !== observation?.id);
+      const [neighborPrewarmReadyIds, setNeighborPrewarmReadyIds] = useState<Set<string>>(new Set());
+      const neighborKey = neighborAssignments.map(assignment => [assignment.id, assignment.fontFamily, assignment.text].join('\0')).join('\u0001');
+      useEffect(() => {
+        if (!neighborKey) {
+          setNeighborPrewarmReadyIds(new Set());
+          return;
+        }
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const worker = async () => {
+          for (const assignment of neighborAssignments) {
+            if (cancelled) return;
+            try {
+              await waitForIdle();
+              if (cancelled) return;
+              await document.fonts.load(`400 220px "${assignment.fontFamily}"`, assignment.text.slice(0, 64));
+              if (cancelled) return;
+              const container = typography.containerRef.current;
+              if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
+                await prewarmObservationTypography({
+                  id: assignment.id,
+                  text: assignment.text,
+                  fontFamily: assignment.fontFamily,
+                  fontScale: appearance.fontScale,
+                  textOffset: appearance.textOffset,
+                  containerRect: {
+                    left: containerRect.left,
+                    top: containerRect.top,
+                    width: containerRect.width,
+                    height: containerRect.height,
+                  },
+                  audioTop: audioBounds ? audioBounds.top : null,
+                });
+              }
+              if (cancelled) return;
+              if (appearance.highlightMods) {
+                const runs = teluguHighlightRuns(assignment.text).filter(run => run.highlighted);
+                for (const run of runs) {
+                  if (cancelled) return;
+                  await waitForIdle();
+                  if (cancelled) return;
+                  await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+                }
+              }
+            } catch {
+              // The current observation can still fit or render this item on demand.
+              if (!cancelled) reportClientTelemetry({
+                event: 'observation_render_failed',
+                observationId: assignment.id,
+                stage: 'neighbor-prewarm',
+                failureCategory: 'render-fallback',
+              });
+            } finally {
+              if (!cancelled) setNeighborPrewarmReadyIds(current => {
+                if (current.has(assignment.id)) return current;
+                const next = new Set(current);
+                next.add(assignment.id);
+                return next;
+              });
+            }
+          }
+        };
+        void worker().catch(() => {});
+        return () => { cancelled = true; };
+      }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor, appearance.gradientBarrier]);
+      const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
+      // On the first load, do not reveal an interactive reader while prewarm work
+      // can still monopolize the main thread. Individual failures are marked done
+      // above and fall back to on-demand rendering, so no timeout escape is needed.
+      const initialGateAppliedRef = useRef(false);
+      const [initialGateResolved, setInitialGateResolved] = useState(false);
+      useEffect(() => {
+        if (initialGateAppliedRef.current || !observation) return;
+        if (!neighborsPrewarmed) return;
+        initialGateAppliedRef.current = true;
+        setInitialGateResolved(true);
+      }, [observation?.id, neighborsPrewarmed]);
+      const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
+        ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, observation.text].join('\0')
+        : null;
+      const gradientKey = showsObservationText ? presentationGradientKey : null;
+      useEffect(() => {
+        if (showsObservationText || !observation) return;
+        const hiddenObservation = observation;
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const run = async () => {
+          await document.fonts.load(`400 220px "${typography.fontFamily}"`, hiddenObservation.text.slice(0, 64));
+          if (!presentationGradientKey || !presentationHighlightRuns
+            || gradientPresentation?.key === presentationGradientKey) return;
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of presentationHighlightRuns) {
+            if (cancelled) return;
+            if (!highlightRun.highlighted) {
+              textures.push(null);
+              continue;
+            }
+            await waitForIdle();
+            if (cancelled) return;
+            textures.push(await renderTeluguGradientTexture(
+              highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+            ));
+          }
+          if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: hiddenObservation.id,
+            stage: 'hidden-prewarm',
+            failureCategory: 'render-fallback',
+          });
+        });
+        return () => { cancelled = true; };
+      }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier]);
+      useEffect(() => {
+        if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
+        let cancelled = false;
+        const total = highlightRuns.filter(run => run.highlighted).length;
+        setGradientProgress({ key: gradientKey, completed: 0, total });
+        // Each texture is a heavy synchronous canvas computation; yielding to a
+        // frame between runs keeps the main thread free so the cursor (and any
+        // other input handling) doesn't freeze while a whole observation's worth
+        // of gradient textures render back-to-back.
+        const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const run = async () => {
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of highlightRuns) {
+            if (cancelled) return;
+            if (highlightRun.highlighted) {
+              if (!hasTeluguGradientTexture(
+                highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+              )) await nextFrame();
+              if (cancelled) return;
+              const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+              textures.push(texture);
+              if (!cancelled) setGradientProgress(current => current?.key === gradientKey
+                ? { ...current, completed: current.completed + 1 } : current);
+            } else {
+              textures.push(null);
+            }
+          }
+          if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) {
+            setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+            reportClientTelemetry({
+              event: 'observation_render_failed',
+              ...(observation ? { observationId: observation.id } : {}),
+              stage: 'gradient',
+              failureCategory: 'render-fallback',
+            });
+          }
+        });
+        return () => { cancelled = true; };
+      }, [gradientKey, gradientPresentation?.key]);
+      const gradientsReady = !gradientKey || gradientPresentation?.key === gradientKey;
+      const textReady = typography.ready && gradientsReady;
+      const audioLoading = Boolean(audioReadinessKey)
+        && audioReadinessKey !== seamlessAudioKey.current
+        && (audioReadiness?.key !== audioReadinessKey || audioReadiness.loading);
+      const entryPrepared = Boolean(observation) && (comparisonPhase && !textComparison
+        ? comparisonReady
+        : (!showsObservationText || textReady) && !audioLoading && initialGateResolved);
+      const presentationKey = observation
+        ? `${observation.id}\0${observation.question?.phase ?? observation.kind}`
+        : null;
+      const [paintedPresentationKey, setPaintedPresentationKey] = useState<string | null>(null);
+      useEffect(() => {
+        if (!entryPrepared || !presentationKey) return;
+        let secondFrame = 0;
+        const firstFrame = window.requestAnimationFrame(() => {
+          secondFrame = window.requestAnimationFrame(() => setPaintedPresentationKey(presentationKey));
+        });
+        return () => {
+          window.cancelAnimationFrame(firstFrame);
+          window.cancelAnimationFrame(secondFrame);
+        };
+      }, [entryPrepared, presentationKey]);
+      const [navigationError, setNavigationError] = useState('');
+      const pageTransition = useObservationTravel(screenRef, state?.currentPosition ?? null, Boolean(observation && (textGivenFlow ? textReady : entryPrepared)));
+      const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
+      useEffect(() => {
+        if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
+        reportClientTelemetry({
+          event: 'observation_ready',
+          observationId: observation.id,
+          durationMs: performance.now() - observationLoadStartedAt.current,
+        });
+        observationLoadStartedAt.current = null;
+      }, [entryReady, observation?.id]);
+      const showEntryLoadingIndicator = readerNeedsLoadingDots({
+        entryReady,
+        textVisible: pageTransition.hasOutgoing || Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+        audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
+        comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
+        errorVisible: Boolean(audioError || state?.grammarError),
+        startVisible: Boolean(!observation && state?.canNext && !busy),
+      });
+      const progressParts = [
+        ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
+        ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
+          ? gradientProgress.completed / gradientProgress.total : 0] : []),
+        ...(audioReadinessKey ? [audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : 0] : []),
+        ...(!initialGateResolved && neighborAssignments.length
+          ? [neighborPrewarmReadyIds.size / neighborAssignments.length] : []),
+      ];
+      const entryProgress = entryReady ? 1 : progressParts.reduce((sum, progress) => sum + progress, 0) / Math.max(1, progressParts.length);
+      useEffect(() => {
+        if (entryReady || !observation) return;
+        const timer = window.setTimeout(() => {
+          console.warn('[telugu-now] observation readiness stalled', {
+            observationId: observation.id,
+            progress: Math.round(entryProgress * 100),
+            gates: {
+              initialPrewarm: initialGateResolved,
+              typography: !showsObservationText || typography.ready,
+              typographyFont: typography.fontFamily,
+              typographyDiagnostics: typography.diagnostics(),
+              fontSetStatus: document.fonts.status,
+              fontAvailable: fontAvailability(typography.fontFamily, observation.text),
+              gradients: !gradientKey || gradientPresentation?.key === gradientKey,
+              gradientProgress: gradientKey && gradientProgress?.key === gradientKey
+                ? { completed: gradientProgress.completed, total: gradientProgress.total }
+                : null,
+              audio: !audioReadinessKey || !audioLoading,
+              audioProgress: audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : null,
+            },
+            gradientCache: getTeluguGradientCacheSnapshot(),
+          });
+          reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: observation.id,
+            stage: 'readiness',
+            failureCategory: 'readiness-stalled',
+            durationMs: 5000,
+          });
+        }, 5000);
+        return () => window.clearTimeout(timer);
+      }, [entryReady, observation?.id, entryProgress, initialGateResolved, showsObservationText,
+        typography.ready, gradientKey, gradientPresentation?.key, gradientProgress,
+        audioReadinessKey, audioLoading, audioReadiness]);
+      const canBack =
+        Boolean(state?.canBack) &&
+        !busy &&
+        (!observation || entryReady);
+      const canNext =
+        Boolean(state?.canNext) &&
+        !busy &&
+        (!observation || entryReady);
+      // Going back while the current entry is still loading shows the previous
+      // page immediately; the abandoned load keeps running in the background and
+      // its result is discarded if the user never returns to it.
+      const canBackWhileLoading = Boolean(state?.canBack) && !busy;
+      const move = async (
+        direction: 'back' | 'next',
+      ) => {
+        if(evaluationNavigation.current)return;
+        evaluationNavigation.current=true;
+        let moved = false;
+        try {
+          if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
+          if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
+            !(await evaluationRef.current?.commit()))return;
+          setNavigationError('');
+          phaseDirection.current = direction;
+          if (swipeChangesObservation(observation?.question?.phase, direction)) pageTransition.prepare(direction);
+          moved=await onMove(direction);
+          if (!moved) { pageTransition.cancel(); setNavigationError('Could not move. Try again.'); }
+          if(moved && !textGivenFlow)setControlsVisible(false);
+        } catch (error) {
+          pageTransition.cancel();
+          setNavigationError(error instanceof Error ? error.message : 'Could not move. Try again.');
+        } finally {
+          if (!moved) gradientTravel.cancelPreview();
+          evaluationNavigation.current=false;
+        }
+      };
+      const verticalSwipe = (direction: 'up' | 'down') => {
+        if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
+        if (exploring) {
+          explorationRef.current?.pause();
+          const next = explorationSession.current?.move(direction) ?? null;
+          setExploration(next);
+          if (next === null) { explorationSession.current = null; if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+          return;
+        }
+        if (direction === 'up') {
+          if (controlsVisible) {
+            if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
+          } else if (showsObservationText && observation && (choices.letters.length || choices.words.length)) {
+            playerRef.current?.pause(); taps.cancel();
+            explorationSession.current = new RandomExploration(observation.text, appearance);
+            setExploration(explorationSession.current.move('up'));
+          }
+          return;
+        }
+        if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+        if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
+        else playerRef.current?.openAssociatedControls();
+      };
+      const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
+        `${observation?.id}:${observation?.question?.phase}`, direction => {
+          taps.cancel();
+          if (direction === 'up' || direction === 'down') {
+            verticalSwipe(direction);
+          }
+          else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
+          else gradientTravel.cancelPreview();
+        }, () => taps.cancel(), {
+          onDrag: (dx, dy, width) => {
+            if (evaluationNavigation.current || busy) return;
+            const fraction = gradientSwipeFraction(dx, dy, width);
+            const direction = fraction < 0 ? 'back' : 'next';
+            const allowed = direction === 'back' ? canBackWhileLoading : canNext;
+            if (fraction && allowed && swipeChangesObservation(observation?.question?.phase, direction)) {
+              gradientTravel.preview(fraction);
+            } else gradientTravel.cancelPreview();
+          },
+          onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
+        });
+      const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
+        const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
+        if (!element || !observation) return null;
+        return visibleWordAtPoint(
+          element,
+          observation.text,
+          event.clientX,
+          event.clientY,
+          contextMenu ? 8 : 2,
+          contextMenu ? 4 : 2,
+        );
+      };
+      const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => wordHitAtPoint(event, contextMenu)?.text ?? null;
+      return (
+        <main
+          ref={screenRef}
+          {...swipeHandlers}
+          data-swipe-navigation="true"
+          data-exploring={exploring}
+          data-text-given-flow={textGivenFlow}
+          data-phase-motion={phaseMotion}
+          onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
+          data-entry-ready={entryReady}
+          data-settings-idle={settingsIdle}
+          data-phase-direction={phaseDirection.current}
+          data-scroll-mode={appearance.scrollMode}
+          data-question-mode={textComparison ? 'text-given' : activeQuestion?.mode}
+          data-question-phase={observation?.question?.phase}
+          data-audio-motion={audioMotion}
+          data-swipe-direction={audioMotionDirection === 1 ? 'right' : 'left'}
+          className={
+            `app-shell observation-screen ${
+              audioControlsVisible
+                ? 'controls-visible'
+                : ''
+            }`
+          }
+          onFocusCapture={(event) => {
+            if (event.target.matches(':focus-visible')) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          onKeyDownCapture={(event) => {
+            if (observation && !entryReady) return;
+            if (event.target === event.currentTarget && (event.key === ' ' || event.key === 'Enter')) {
+              event.preventDefault();
+              if (!event.repeat) playerRef.current?.togglePlay();
+              return;
+            }
+            if (event.target instanceof Element) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          tabIndex={0}
+          aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
+          onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
+          onClick={(event) => {
+            if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
+            // Typing in the keyboard must never count toward the reader's own
+            // single/double-click gestures (playback toggle, back/next navigation).
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            if (observation && !entryReady) return;
+            const bounds = screenRef.current?.getBoundingClientRect();
+            if (!bounds) return;
+            const region = readerTapRegions(event.clientX, event.clientY, bounds);
+            const word = wordHitAtPoint(event);
+            const doubleRegion = word ? `word:${word.start}` : region.double;
+            if (!window.getSelection()?.isCollapsed && !taps.matches(doubleRegion, event.clientX, event.clientY)) {
+              taps.cancel();
+              return;
+            }
+            // A single tap that will end up pausing playback must stop the audio
+            // immediately, before the double-tap resolution delay, so the pause
+            // lands exactly where the user tapped instead of bleeding later.
+            const eagerlyPaused = Boolean(playerRef.current?.isPlaying());
+            if (eagerlyPaused) {
+              gesturePausedPlayback.current = true;
+              playerRef.current?.pause();
+            }
+            taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+              if (gesturePausedPlayback.current) playerRef.current?.resume();
+              gesturePausedPlayback.current = false;
+              window.getSelection()?.removeAllRanges();
+              if (word && observation) {
+                setControlsVisible(false);
+                setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
+              }
+    
+            }, () => {
+              gesturePausedPlayback.current = false;
+              if (!eagerlyPaused) playerRef.current?.togglePlay();
+            });
+          }}
+          onMouseDownCapture={(event) => {
+            if (event.button !== 0 || event.detail < 2) return;
+            if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile, .google-telugu-input')) return;
+            event.preventDefault();
+          }}
+          onDoubleClick={(event) => {
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            event.preventDefault();
+          }}
+        >
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-left"
+              type="button"
+              aria-label="వెనుక"
+              disabled={!canBack}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canBack) void move('back');
+                }
+              }}
+            />
+          </div>
+          {exploring && observation ? <ExplorationSurface observation={observation} step={exploration!}
+            profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
+            playbackRate={state?.audioSettings.playbackRate ?? 1}
+            onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
+          <section
+            ref={typography.containerRef}
+            className="observation-center"
+            data-entry-loading={Boolean(observation && !entryReady)}
+          >
+            {observation && comparisonPhase && !textComparison ? (
+              <ComparisonPage
+                observation={observation}
+                fontFamily={typography.fontFamily}
+                playbackRate={state?.audioSettings.playbackRate ?? 1}
+                onReady={() => setComparisonReady(true)}
+                onBack={() => { if (canBack) void move('back'); }}
+                onAdvance={() => { if (canNext) void move('next'); }}
+              />
+            ) : observation && showsObservationText ? (
+              <div
+                ref={typography.textRef}
+                className="observation-text"
+                onCopy={copyOriginalReaderText}
+                style={{ ...typography.style, opacity: (textGivenFlow ? textReady : entryReady) ? 1 : 0 }}
+              >
+                <TeluguWordText
+                  text={observation.text}
+                  visibleRange={exploration ?? undefined}
+                  runs={highlightRuns}
+                  textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
+                />
+              </div>
+            ) : observation && activeQuestion && visibleAudio ? null : canNext ? (
+              <button
+                className="observation-start"
+                type="button"
+                aria-label="Start observations"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void move('next');
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            ) : (
+              <div className="observation-placeholder" />
+            )}
+              {showEntryLoadingIndicator ? (
+                <div
+                  className="observation-entry-loading"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (textGivenFlow || event.detail < 2 || !canBackWhileLoading) return;
+                    const bounds = screenRef.current?.getBoundingClientRect();
+                    if (bounds && readerTapRegions(event.clientX, event.clientY, bounds).double === 'back') void move('back');
+                  }}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <LoadingSlit key={presentationKey ?? "empty"} delayMs={250} label={observation ? "Preparing observation" : "Loading observation"} progress={entryProgress} />
+                </div>
+              ) : null}
+              {!comparisonPhase || textComparison ? <AudioPlayerBar
+                ref={playerRef}
+                observationId={observation?.id ?? null}
+                audio={visibleAudio}
+                sourceId={activeQuestion?.mode === 'text-given' ? 'question-response' : observation?.sourceId ?? null}
+                sourceKey={activeQuestion?.mode === 'text-given' ? `${state?.profileCode}:${observation?.id}` : observation?.sourceKey ?? null}
+                defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
+                autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
+                persistentDisclosure={Boolean(textGivenFlow)}
+                controlsVisible={audioControlsVisible}
+                playbackEnabled={entryReady && !selectedWord && !exploring}
+                readinessKey={audioReadinessKey}
+                onLoadingChange={handleAudioLoadingChange}
+                onPlaybackErrorChange={setAudioError}
+                recordingRange={activeQuestion?.mode === 'text-given' ? recordingRange : null}
+                reserveAudioSpace={activeQuestion?.mode === 'text-given' || Boolean(textComparison)}
+                onPrecisionInteraction={() => {
+                  taps.cancel();
+                  setControlsVisible(true);
+                  setPrecisionInteraction(value => value + 1);
+                }}
+              /> : null}
+              {observation && activeQuestion ? <QuestionControls
+                key={`${state?.profileCode}:${observation.id}`}
+                ref={questionControlsRef}
+                profileCode={state?.profileCode ?? ''}
+                observationId={observation.id}
+                mode={activeQuestion.mode}
+                keyboard={activeQuestion.keyboard}
+                visible={!exploring}
+                initialText={activeQuestion.responseText}
+                fontFamily={typography.fontFamily}
+                beginRecording={() => playerRef.current?.beginRecording() ?? 0}
+                durationSeconds={() => playerRef.current?.duration() ?? 0}
+                onAudioSaved={(audio) => {
+                  playerRef.current?.prepareAudioReplacement(0);
+                  seamlessAudioKey.current = observation ? `${observation.id}\0${audio.url}` : null;
+                  setResponseAudio(audio);
+                  setControlsVisible(true);
+                }}
+                onRecordingChange={range => { setRecordingRange(range); if (range) setControlsVisible(true); }}
+                onSubmit={() => { if (canNext) void move('next'); }}
+              /> : null}
+          </section>
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-right"
+              type="button"
+              aria-label="తర్వాత"
+              disabled={!canNext}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canNext) void move('next');
+                }
+              }}
+            />
+          </div>
+          {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase) && !exploring} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+          {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
+          {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
+          {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
+          {selectedWord && selectedWord.observationId === observation?.id ? (
+            <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text} initialGrapheme={selectedWord.grapheme} suppressAudioControls={exploring}
+              observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
+              fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
+              onClose={() => setSelectedWord(null)} />
+          ) : null}
+          <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
+    
+        </main>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:53:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: comparison double-clicks navigate back on the left and forward on the right
+not ok 5 - comparison double-clicks navigate back on the left and forward on the right
+  ---
+  duration_ms: 0.703975
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:58:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /const horizontal = \(event\.clientX - bounds\.left\) \/ bounds\.width/. Input:
+    
+    "import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';\n" +
+      "import type { DisplayObservation, ObservationAudio } from '../../../shared/contracts';\n" +
+      "import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../appearance';\n" +
+      "import type { ObservationFontFamily } from '../presentation';\n" +
+      "import { AudioPlayerBar, type AudioPlayerBarHandle } from './audio/AudioPlayerBar';\n" +
+      "import { ReaderTaps, readerTapRegions } from './reader-taps';\n" +
+      "import { teluguHighlightRuns } from './telugu-highlighting';\n" +
+      "import { TeluguWordText } from './TeluguGradientText';\n" +
+      "import { renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';\n" +
+      '\n' +
+      'function ComparisonText({ text, fontFamily, onReady }: {\n' +
+      '  text: string;\n' +
+      '  fontFamily: ObservationFontFamily;\n' +
+      '  onReady: () => void;\n' +
+      '}) {\n' +
+      '  const { appearance } = useAppearance();\n' +
+      '  const runs = appearance.highlightMods ? teluguHighlightRuns(text) : null;\n' +
+      '  const gradientEndColor = appearanceModificationColor(appearance);\n' +
+      '  const key = runs?.some(run => run.highlighted)\n' +
+      "    ? [text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\\0')\n" +
+      '    : null;\n' +
+      '  const [presentation, setPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    let cancelled = false;\n' +
+      '    const prepare = async () => {\n' +
+      '      await document.fonts.load(`400 160px "${fontFamily}"`, text.slice(0, 64));\n' +
+      '      if (!key || !runs) {\n' +
+      '        if (!cancelled) onReady();\n' +
+      '        return;\n' +
+      '      }\n' +
+      '      const textures = await Promise.all(runs.map(run => run.highlighted\n' +
+      '        ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier)\n' +
+      '        : Promise.resolve(null)));\n' +
+      '      if (cancelled) return;\n' +
+      '      setPresentation({ key, textures });\n' +
+      '      onReady();\n' +
+      '    };\n' +
+      '    void prepare().catch(() => { if (!cancelled) onReady(); });\n' +
+      '    return () => { cancelled = true; };\n' +
+      '  }, [key, text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, onReady]);\n' +
+      '\n' +
+      '  return <div className="question-comparison-text" lang="te" style={{ fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` }}>\n' +
+      '    <TeluguWordText text={text} runs={runs} textures={presentation?.key === key ? presentation.textures : null} />\n' +
+      '  </div>;\n' +
+      '}\n' +
+      'function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, player, onReady }: {\n' +
+      '  audio: ObservationAudio | null;\n' +
+      '  observationId: string;\n' +
+      '  sourceId: string;\n' +
+      '  sourceKey: string;\n' +
+      '  playbackRate: number;\n' +
+      '  player: RefObject<AudioPlayerBarHandle | null>;\n' +
+      '  onReady: () => void;\n' +
+      '}) {\n' +
+      '  useEffect(() => {\n' +
+      '    if (!audio) onReady();\n' +
+      '  }, [audio, onReady]);\n' +
+      '  return <div className="question-comparison-audio">\n' +
+      '    {audio ? <AudioPlayerBar\n' +
+      '      ref={player}\n' +
+      '      observationId={observationId}\n' +
+      '      audio={audio}\n' +
+      '      sourceId={sourceId}\n' +
+      '      sourceKey={sourceKey}\n' +
+      '      defaultPlaybackRate={playbackRate}\n' +
+      '      autoplay={false}\n' +
+      '      controlsVisible\n' +
+      '      onLoadingChange={(_key, loading) => { if (!loading) onReady(); }}\n' +
+      '    /> : <span className="question-comparison-empty" role="img" aria-label="No response recorded">—</span>}\n' +
+      '  </div>;\n' +
+      '}\n' +
+      '\n' +
+      'export function ComparisonPage({ observation, fontFamily, playbackRate, onReady, onBack, onAdvance }: {\n' +
+      '  observation: DisplayObservation;\n' +
+      '  fontFamily: ObservationFontFamily;\n' +
+      '  playbackRate: number;\n' +
+      '  onReady: () => void;\n' +
+      '  onBack: () => void;\n' +
+      '  onAdvance: () => void;\n' +
+      '}) {\n' +
+      '  const { appearance } = useAppearance();\n' +
+      '  const glass = useMemo(() => appearanceAudioGlass(appearance, 0.45), [appearance.gradient]);\n' +
+      '  const question = observation.question!;\n' +
+      '  const [taps] = useState(() => new ReaderTaps());\n' +
+      '  useEffect(() => () => taps.cancel(), [taps, observation.id]);\n' +
+      '  const correctPlayer = useRef<AudioPlayerBarHandle>(null);\n' +
+      '  const userPlayer = useRef<AudioPlayerBarHandle>(null);\n' +
+      '  const [userReady, setUserReady] = useState(false);\n' +
+      '  const [correctReady, setCorrectReady] = useState(false);\n' +
+      '  const markUserReady = useCallback(() => setUserReady(true), []);\n' +
+      '  const markCorrectReady = useCallback(() => setCorrectReady(true), []);\n' +
+      '  useEffect(() => {\n' +
+      '    if (userReady && correctReady) onReady();\n' +
+      '  }, [userReady, correctReady, onReady]);\n' +
+      '\n' +
+      "  const textComparison = question.mode === 'audio-given';\n" +
+      '  const toggleCorrectAudio = () => {\n' +
+      '    if (!correctPlayer.current?.isPlaying()) userPlayer.current?.pause();\n' +
+      '    correctPlayer.current?.togglePlay();\n' +
+      '  };\n' +
+      '  const toggleUserAudio = () => {\n' +
+      '    if (!userPlayer.current?.isPlaying()) correctPlayer.current?.pause();\n' +
+      '    userPlayer.current?.togglePlay();\n' +
+      '  };\n' +
+      '  return <div className="question-comparison" data-ready={userReady && correctReady}\n' +
+      "    style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}\n" +
+      '    onClick={event => {\n' +
+      '      event.stopPropagation();\n' +
+      `      if (event.target instanceof Element && event.target.closest('button, [role="slider"], .audio-player-bar')) {\n` +
+      '        taps.cancel();\n' +
+      '        return;\n' +
+      '      }\n' +
+      '      const region = readerTapRegions(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect());\n' +
+      "      const userSide = event.target instanceof Element && Boolean(event.target.closest('.question-comparison-user'));\n" +
+      '      const player = userSide ? userPlayer : correctPlayer;\n' +
+      "      taps.tap(`${region.double}:${userSide ? 'user' : 'correct'}`, event.clientX, event.clientY, () => {\n" +
+      '        // Page navigation and audio disclosure use swipes.\n' +
+      '      }, () => {\n' +
+      '        if (!textComparison) (userSide ? toggleUserAudio : toggleCorrectAudio)();\n' +
+      '      });\n' +
+      '    }}\n' +
+      '    onDoubleClick={event => {\n' +
+      '      // ReaderTaps handles both mouse clicks and touch taps; never run navigation twice.\n' +
+      '      event.preventDefault();\n' +
+      '      event.stopPropagation();\n' +
+      '    }}>\n' +
+      '    <section className="question-comparison-side question-comparison-correct" aria-label="Correct answer">\n' +
+      '      {textComparison\n' +
+      '        ? <ComparisonText text={observation.text} fontFamily={fontFamily} onReady={markCorrectReady} />\n' +
+      '        : <ComparisonAudio audio={observation.audio} observationId={`${observation.id}:correct`}\n' +
+      '          sourceId={observation.sourceId} sourceKey={observation.sourceKey} playbackRate={playbackRate}\n' +
+      '          player={correctPlayer} onReady={markCorrectReady} />}\n' +
+      '    </section>\n' +
+      '    <section className="question-comparison-side question-comparison-user" aria-label="Your answer">\n' +
+      '      {textComparison\n' +
+      "        ? <ComparisonText text={question.responseText || '—'} fontFamily={fontFamily} onReady={markUserReady} />\n" +
+      '        : <ComparisonAudio audio={question.responseAudio} observationId={`${observation.id}:user`}\n' +
+      '          sourceId="question-response" sourceKey={observation.id} playbackRate={playbackRate}\n' +
+      '          player={userPlayer} onReady={markUserReady} />}\n' +
+      '    </section>\n' +
+      '  </div>;\n' +
+      '}\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
+    import type { DisplayObservation, ObservationAudio } from '../../../shared/contracts';
+    import { appearanceAudioGlass, appearanceModificationColor, useAppearance } from '../appearance';
+    import type { ObservationFontFamily } from '../presentation';
+    import { AudioPlayerBar, type AudioPlayerBarHandle } from './audio/AudioPlayerBar';
+    import { ReaderTaps, readerTapRegions } from './reader-taps';
+    import { teluguHighlightRuns } from './telugu-highlighting';
+    import { TeluguWordText } from './TeluguGradientText';
+    import { renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
+    
+    function ComparisonText({ text, fontFamily, onReady }: {
+      text: string;
+      fontFamily: ObservationFontFamily;
+      onReady: () => void;
+    }) {
+      const { appearance } = useAppearance();
+      const runs = appearance.highlightMods ? teluguHighlightRuns(text) : null;
+      const gradientEndColor = appearanceModificationColor(appearance);
+      const key = runs?.some(run => run.highlighted)
+        ? [text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier].join('\0')
+        : null;
+      const [presentation, setPresentation] = useState<{ key: string; textures: Array<TeluguGradientTexture | null> } | null>(null);
+    
+      useEffect(() => {
+        let cancelled = false;
+        const prepare = async () => {
+          await document.fonts.load(`400 160px "${fontFamily}"`, text.slice(0, 64));
+          if (!key || !runs) {
+            if (!cancelled) onReady();
+            return;
+          }
+          const textures = await Promise.all(runs.map(run => run.highlighted
+            ? renderTeluguGradientTexture(run.text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier)
+            : Promise.resolve(null)));
+          if (cancelled) return;
+          setPresentation({ key, textures });
+          onReady();
+        };
+        void prepare().catch(() => { if (!cancelled) onReady(); });
+        return () => { cancelled = true; };
+      }, [key, text, fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, onReady]);
+    
+      return <div className="question-comparison-text" lang="te" style={{ fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` }}>
+        <TeluguWordText text={text} runs={runs} textures={presentation?.key === key ? presentation.textures : null} />
+      </div>;
+    }
+    function ComparisonAudio({ audio, observationId, sourceId, sourceKey, playbackRate, player, onReady }: {
+      audio: ObservationAudio | null;
+      observationId: string;
+      sourceId: string;
+      sourceKey: string;
+      playbackRate: number;
+      player: RefObject<AudioPlayerBarHandle | null>;
+      onReady: () => void;
+    }) {
+      useEffect(() => {
+        if (!audio) onReady();
+      }, [audio, onReady]);
+      return <div className="question-comparison-audio">
+        {audio ? <AudioPlayerBar
+          ref={player}
+          observationId={observationId}
+          audio={audio}
+          sourceId={sourceId}
+          sourceKey={sourceKey}
+          defaultPlaybackRate={playbackRate}
+          autoplay={false}
+          controlsVisible
+          onLoadingChange={(_key, loading) => { if (!loading) onReady(); }}
+        /> : <span className="question-comparison-empty" role="img" aria-label="No response recorded">—</span>}
+      </div>;
+    }
+    
+    export function ComparisonPage({ observation, fontFamily, playbackRate, onReady, onBack, onAdvance }: {
+      observation: DisplayObservation;
+      fontFamily: ObservationFontFamily;
+      playbackRate: number;
+      onReady: () => void;
+      onBack: () => void;
+      onAdvance: () => void;
+    }) {
+      const { appearance } = useAppearance();
+      const glass = useMemo(() => appearanceAudioGlass(appearance, 0.45), [appearance.gradient]);
+      const question = observation.question!;
+      const [taps] = useState(() => new ReaderTaps());
+      useEffect(() => () => taps.cancel(), [taps, observation.id]);
+      const correctPlayer = useRef<AudioPlayerBarHandle>(null);
+      const userPlayer = useRef<AudioPlayerBarHandle>(null);
+      const [userReady, setUserReady] = useState(false);
+      const [correctReady, setCorrectReady] = useState(false);
+      const markUserReady = useCallback(() => setUserReady(true), []);
+      const markCorrectReady = useCallback(() => setCorrectReady(true), []);
+      useEffect(() => {
+        if (userReady && correctReady) onReady();
+      }, [userReady, correctReady, onReady]);
+    
+      const textComparison = question.mode === 'audio-given';
+      const toggleCorrectAudio = () => {
+        if (!correctPlayer.current?.isPlaying()) userPlayer.current?.pause();
+        correctPlayer.current?.togglePlay();
+      };
+      const toggleUserAudio = () => {
+        if (!userPlayer.current?.isPlaying()) correctPlayer.current?.pause();
+        userPlayer.current?.togglePlay();
+      };
+      return <div className="question-comparison" data-ready={userReady && correctReady}
+        style={{ '--audio-glass-gradient': glass.gradient, '--audio-glass-edge': glass.edge } as CSSProperties}
+        onClick={event => {
+          event.stopPropagation();
+          if (event.target instanceof Element && event.target.closest('button, [role="slider"], .audio-player-bar')) {
+            taps.cancel();
+            return;
+          }
+          const region = readerTapRegions(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect());
+          const userSide = event.target instanceof Element && Boolean(event.target.closest('.question-comparison-user'));
+          const player = userSide ? userPlayer : correctPlayer;
+          taps.tap(`${region.double}:${userSide ? 'user' : 'correct'}`, event.clientX, event.clientY, () => {
+            // Page navigation and audio disclosure use swipes.
+          }, () => {
+            if (!textComparison) (userSide ? toggleUserAudio : toggleCorrectAudio)();
+          });
+        }}
+        onDoubleClick={event => {
+          // ReaderTaps handles both mouse clicks and touch taps; never run navigation twice.
+          event.preventDefault();
+          event.stopPropagation();
+        }}>
+        <section className="question-comparison-side question-comparison-correct" aria-label="Correct answer">
+          {textComparison
+            ? <ComparisonText text={observation.text} fontFamily={fontFamily} onReady={markCorrectReady} />
+            : <ComparisonAudio audio={observation.audio} observationId={`${observation.id}:correct`}
+              sourceId={observation.sourceId} sourceKey={observation.sourceKey} playbackRate={playbackRate}
+              player={correctPlayer} onReady={markCorrectReady} />}
+        </section>
+        <section className="question-comparison-side question-comparison-user" aria-label="Your answer">
+          {textComparison
+            ? <ComparisonText text={question.responseText || '—'} fontFamily={fontFamily} onReady={markUserReady} />
+            : <ComparisonAudio audio={question.responseAudio} observationId={`${observation.id}:user`}
+              sourceId="question-response" sourceKey={observation.id} playbackRate={playbackRate}
+              player={userPlayer} onReady={markUserReady} />}
+        </section>
+      </div>;
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:61:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: comparison centers both answers without a divider
+not ok 6 - comparison centers both answers without a divider
+  ---
+  duration_ms: 0.720913
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:68:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: 48px 0; \}/. Input:
+    
+    '.observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 64px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: calc(var(--audio-placement-bottom) + var(--audio-detail-height)); --audio-min-bottom: max(12px, env(safe-area-inset-bottom)); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }\n' +
+      '.observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }\n' +
+      '.observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-placement-bottom) + 60px); }\n' +
+      '.observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }\n' +
+      '.telugu-gradient-text { position: relative; display: inline-block; vertical-align: baseline; line-height: inherit; overflow: visible; color: var(--foreground); }\n' +
+      '.telugu-word { display: inline-block; white-space: nowrap; }\n' +
+      '.reader-discretionary-hyphen { display: none; }\n' +
+      '.observation-text { text-wrap: balance; }\n' +
+      '.observation-text .telugu-word[data-hyphenate="true"] { display: inline; white-space: normal; hyphens: manual; -webkit-hyphens: manual; hyphenate-character: "-"; }\n' +
+      '.observation-text .telugu-word[data-hyphenate="true"] > .reader-discretionary-hyphen { display: inline; }\n' +
+      "/* The browser includes the visible '-' advance in line fitting, balancing and centering. */\n" +
+      '.telugu-gradient-text.is-ready { color: transparent; }\n' +
+      ".telugu-gradient-text.is-ready::before { content: ''; position: absolute; left: var(--telugu-gradient-left); top: var(--telugu-gradient-top); width: var(--telugu-gradient-width); height: var(--telugu-gradient-height); background: var(--telugu-gradient-image) center / 100% 100% no-repeat; pointer-events: none; }\n" +
+      '.telugu-gradient-text.is-ready::selection { background: var(--foreground); color: var(--surface); }\n' +
+      '.question-phase-indicator { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); display: grid; place-items: center; width: 36px; height: 36px; color: var(--corner-control-color); pointer-events: none; }\n' +
+      '.question-phase-indicator[data-after-navigation="true"] { opacity: 0; animation: question-phase-indicator-arrive 260ms ease-out 1550ms both; }\n' +
+      '.question-phase-indicator svg { width: 18px; height: 18px; stroke-width: 1.7; }\n' +
+      '@keyframes question-phase-indicator-arrive { from { opacity: 0; } to { opacity: 1; } }\n' +
+      '@media (prefers-reduced-motion: reduce) { .question-phase-indicator[data-after-navigation="true"] { animation: none; opacity: 1; } }\n' +
+      '@media (hover: none) and (pointer: coarse) {\n' +
+      '  .observation-text { -webkit-user-select: none; user-select: none; }\n' +
+      '}\n' +
+      '.observation-placeholder, .observation-entry-loading { position: absolute; inset: 0; display: grid; place-items: center; user-select: none; }\n' +
+      '.observation-placeholder { pointer-events: none; }\n' +
+      '.observation-entry-loading { pointer-events: auto; }\n' +
+      ".observation-center[data-entry-loading='true'] > :not(.observation-entry-loading) { visibility: hidden; }\n" +
+      '.observation-start { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }\n' +
+      '@media (hover: hover) and (pointer: fine) {\n' +
+      '  .observation-start:hover { background: var(--wash); }\n' +
+      '}\n' +
+      '.audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }\n' +
+      '.controls-visible .audio-player-bar { opacity: 1; pointer-events: auto; transition-duration: 0ms; }\n' +
+      '.nav-region { z-index: 1; min-width: 0; touch-action: manipulation; user-select: none; }\n' +
+      '.nav-zone { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--control-color); cursor: default; touch-action: manipulation; user-select: none; }\n' +
+      '.nav-zone:disabled { cursor: default; pointer-events: none; }\n' +
+      '.navigation-feedback { position: absolute; z-index: 6; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); display: grid; place-items: center; width: 36px; height: 36px; color: var(--corner-control-color); pointer-events: none; animation: navigation-feedback 1500ms ease-out both; }\n' +
+      ".navigation-feedback[data-loading='true'] { opacity: 1; animation: none; }\n" +
+      '.audio-loading-indicator { animation: none; font-size: 1.4rem; letter-spacing: .12em; }\n' +
+      '@keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }\n' +
+      '@media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }\n' +
+      '.audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height); align-items: center; gap: 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }\n' +
+      '.audio-player-bar[data-has-audio="false"] { display: none; }\n' +
+      '.observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }\n' +
+      '@media (hover: none) and (pointer: coarse) {\n' +
+      '  .observation-screen[data-scroll-mode="true"] { touch-action: pan-x pinch-zoom; }\n' +
+      '}\n' +
+      '.observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="right"].controls-visible .observation-center > .audio-player-bar { animation: audio-enter-right var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }\n' +
+      '.observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="left"].controls-visible .observation-center > .audio-player-bar { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }\n' +
+      '.observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="right"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }\n' +
+      '.observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="left"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }\n' +
+      '@keyframes audio-enter-right { from { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }\n' +
+      '@keyframes audio-enter-left { from { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }\n' +
+      '@keyframes audio-exit-right { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } }\n' +
+      '@keyframes audio-exit-left { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } }\n' +
+      '@media (prefers-reduced-motion: reduce) {\n' +
+      '  .observation-screen[data-scroll-mode="true"] :is(.audio-player-bar, .question-record-controls) { animation: none; transition: none; }\n' +
+      '}\n' +
+      '.audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-row-height); }\n' +
+      '.audio-transport-button { display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; touch-action: manipulation; }\n' +
+      '.audio-transport-button .control-icon { width: 17px; height: 17px; }\n' +
+      '.audio-bookmark-button .control-icon { width: 19px; height: 19px; }\n' +
+      '.audio-glass-icon { display: block; width: 17px; height: 17px; }\n' +
+      '.audio-paint-definitions { position: absolute; pointer-events: none; }\n' +
+      '.audio-transport-button svg { stroke: var(--audio-icon-paint); filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }\n' +
+      '.audio-transport-button .control-icon-fill { fill: var(--audio-icon-paint); stroke: none; }\n' +
+      '.audio-speed-button .settings-icon-fill-shape { fill: var(--audio-icon-paint); }\n' +
+      '.audio-bookmark-button[aria-pressed="true"], .audio-speed-button[aria-pressed="true"] { background: transparent; }\n' +
+      '.audio-precision-panel { --audio-detail-track-height: 32px; --audio-detail-track-width: 48%; position: relative; grid-row: 2; grid-column: 1 / -1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--timestamp-magnifier-gap, 1px); min-width: 0; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }\n' +
+      '.audio-precision-panel[data-visible="true"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease, visibility 0s; }\n' +
+      '.audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-row: 1; justify-content: flex-end; }\n' +
+      '.audio-playback-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }\n' +
+      '.audio-playback-error { grid-row: 3; grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; text-align: left; }\n' +
+      '.audio-reader-error { position: absolute; z-index: 7; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); transform: none; width: auto; max-width: 416px; margin-inli'... 27350 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    .observation-screen { --nav-width: max(3.5rem, 16vw); --audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 64px; --record-gap: clamp(24px, 4dvh, 44px); --audio-base-bottom: calc(var(--audio-placement-bottom) + var(--audio-detail-height)); --audio-min-bottom: max(12px, env(safe-area-inset-bottom)); --audio-bottom: clamp(var(--audio-min-bottom), calc(var(--audio-base-bottom) - var(--audio-offset)), max(var(--audio-min-bottom), calc(100dvh - 260px))); display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--nav-width); touch-action: manipulation; }
+    .observation-center { z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 2rem .5rem; text-align: center; }
+    .observation-center:has(.audio-player-bar[data-has-audio="true"]) { margin-bottom: calc(var(--audio-placement-bottom) + 60px); }
+    .observation-text { width: 100%; max-width: min(82vw, 70rem); line-height: 1.2; overflow-wrap: normal; word-break: normal; -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
+    .telugu-gradient-text { position: relative; display: inline-block; vertical-align: baseline; line-height: inherit; overflow: visible; color: var(--foreground); }
+    .telugu-word { display: inline-block; white-space: nowrap; }
+    .reader-discretionary-hyphen { display: none; }
+    .observation-text { text-wrap: balance; }
+    .observation-text .telugu-word[data-hyphenate="true"] { display: inline; white-space: normal; hyphens: manual; -webkit-hyphens: manual; hyphenate-character: "-"; }
+    .observation-text .telugu-word[data-hyphenate="true"] > .reader-discretionary-hyphen { display: inline; }
+    /* The browser includes the visible '-' advance in line fitting, balancing and centering. */
+    .telugu-gradient-text.is-ready { color: transparent; }
+    .telugu-gradient-text.is-ready::before { content: ''; position: absolute; left: var(--telugu-gradient-left); top: var(--telugu-gradient-top); width: var(--telugu-gradient-width); height: var(--telugu-gradient-height); background: var(--telugu-gradient-image) center / 100% 100% no-repeat; pointer-events: none; }
+    .telugu-gradient-text.is-ready::selection { background: var(--foreground); color: var(--surface); }
+    .question-phase-indicator { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); display: grid; place-items: center; width: 36px; height: 36px; color: var(--corner-control-color); pointer-events: none; }
+    .question-phase-indicator[data-after-navigation="true"] { opacity: 0; animation: question-phase-indicator-arrive 260ms ease-out 1550ms both; }
+    .question-phase-indicator svg { width: 18px; height: 18px; stroke-width: 1.7; }
+    @keyframes question-phase-indicator-arrive { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .question-phase-indicator[data-after-navigation="true"] { animation: none; opacity: 1; } }
+    @media (hover: none) and (pointer: coarse) {
+      .observation-text { -webkit-user-select: none; user-select: none; }
+    }
+    .observation-placeholder, .observation-entry-loading { position: absolute; inset: 0; display: grid; place-items: center; user-select: none; }
+    .observation-placeholder { pointer-events: none; }
+    .observation-entry-loading { pointer-events: auto; }
+    .observation-center[data-entry-loading='true'] > :not(.observation-entry-loading) { visibility: hidden; }
+    .observation-start { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--control-color); cursor: pointer; }
+    @media (hover: hover) and (pointer: fine) {
+      .observation-start:hover { background: var(--wash); }
+    }
+    .audio-player-bar { opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+    .controls-visible .audio-player-bar { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
+    .nav-region { z-index: 1; min-width: 0; touch-action: manipulation; user-select: none; }
+    .nav-zone { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--control-color); cursor: default; touch-action: manipulation; user-select: none; }
+    .nav-zone:disabled { cursor: default; pointer-events: none; }
+    .navigation-feedback { position: absolute; z-index: 6; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); display: grid; place-items: center; width: 36px; height: 36px; color: var(--corner-control-color); pointer-events: none; animation: navigation-feedback 1500ms ease-out both; }
+    .navigation-feedback[data-loading='true'] { opacity: 1; animation: none; }
+    .audio-loading-indicator { animation: none; font-size: 1.4rem; letter-spacing: .12em; }
+    @keyframes navigation-feedback { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .navigation-feedback { animation: none; } }
+    .audio-player-bar { position: absolute; z-index: 5; left: 50%; bottom: var(--audio-bottom); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--audio-row-height); align-items: center; gap: 0; width: min(416px, calc(100vw - 144px)); padding: 0; background: none; transform: translateX(-50%); color: var(--audio-control-color); cursor: default; }
+    .audio-player-bar[data-has-audio="false"] { display: none; }
+    .observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }
+    @media (hover: none) and (pointer: coarse) {
+      .observation-screen[data-scroll-mode="true"] { touch-action: pan-x pinch-zoom; }
+    }
+    .observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="right"].controls-visible .observation-center > .audio-player-bar { animation: audio-enter-right var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
+    .observation-screen[data-scroll-mode="true"][data-audio-motion="enter"][data-swipe-direction="left"].controls-visible .observation-center > .audio-player-bar { animation: audio-enter-left var(--audio-slide-duration) cubic-bezier(.22, 1, .36, 1) both; }
+    .observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="right"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-right var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
+    .observation-screen[data-scroll-mode="true"][data-audio-motion="exit"][data-swipe-direction="left"]:not(.controls-visible) .observation-center > .audio-player-bar { animation: audio-exit-left var(--audio-slide-duration) cubic-bezier(.55, 0, .78, 0) both; }
+    @keyframes audio-enter-right { from { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
+    @keyframes audio-enter-left { from { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } to { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } }
+    @keyframes audio-exit-right { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% + 72px)); clip-path: inset(-72px 0 -48px 100%); } }
+    @keyframes audio-exit-left { from { opacity: 1; transform: translateX(-50%); clip-path: inset(-72px -48px); } to { opacity: 0; transform: translateX(calc(-50% - 72px)); clip-path: inset(-72px 100% -48px 0); } }
+    @media (prefers-reduced-motion: reduce) {
+      .observation-screen[data-scroll-mode="true"] :is(.audio-player-bar, .question-record-controls) { animation: none; transition: none; }
+    }
+    .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-row-height); }
+    .audio-transport-button { display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; touch-action: manipulation; }
+    .audio-transport-button .control-icon { width: 17px; height: 17px; }
+    .audio-bookmark-button .control-icon { width: 19px; height: 19px; }
+    .audio-glass-icon { display: block; width: 17px; height: 17px; }
+    .audio-paint-definitions { position: absolute; pointer-events: none; }
+    .audio-transport-button svg { stroke: var(--audio-icon-paint); filter: drop-shadow(0 .5px .4px var(--audio-glass-edge)) brightness(var(--control-brightness, .85)); }
+    .audio-transport-button .control-icon-fill { fill: var(--audio-icon-paint); stroke: none; }
+    .audio-speed-button .settings-icon-fill-shape { fill: var(--audio-icon-paint); }
+    .audio-bookmark-button[aria-pressed="true"], .audio-speed-button[aria-pressed="true"] { background: transparent; }
+    .audio-precision-panel { --audio-detail-track-height: 32px; --audio-detail-track-width: 48%; position: relative; grid-row: 2; grid-column: 1 / -1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--timestamp-magnifier-gap, 1px); min-width: 0; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
+    .audio-precision-panel[data-visible="true"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease, visibility 0s; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-row: 1; justify-content: flex-end; }
+    .audio-playback-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .audio-playback-error { grid-row: 3; grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; text-align: left; }
+    .audio-reader-error { position: absolute; z-index: 7; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); transform: none; width: auto; max-width: 416px; margin-inline: auto; overflow-wrap: anywhere; padding: 8px 10px; border-radius: 4px; background: var(--surface); color: var(--foreground); font-size: .75rem; line-height: 1.5; text-align: center; }
+    .audio-scrubber-wrap, .audio-magnifier-track, .audio-speed-popover { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    .audio-scrubber-thumb, .audio-scrubber-progress, .audio-scrubber-bookmark, .audio-scrubber-window, .audio-scrubber-recording-range, .audio-magnifier-bar, .audio-magnifier-playhead { pointer-events: none; }
+    .audio-scrubber-wrap { display: contents; }
+    .audio-scrubber-row { position: relative; grid-row: 1; grid-column: 1 / -1; align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 0; }
+    .audio-bookmark-controls-slot, .audio-playback-controls-slot { position: absolute; top: 0; width: 48px; height: 48px; opacity: 0; visibility: hidden; transition: opacity 180ms ease, visibility 0s linear 180ms; }
+    .audio-bookmark-controls-slot[data-visible="true"], .audio-playback-controls-slot[data-visible="true"] { opacity: 1; visibility: visible; transition: opacity 180ms ease, visibility 0s; }
+    .audio-bookmark-controls-slot { left: 0; }
+    .audio-playback-controls-slot { right: 0; }
+    .audio-playback-controls-slot > .audio-speed-popover-controls { position: absolute; top: 50%; left: 8px; width: max-content; transform: translateY(-50%); }
+    .audio-playback-controls-slot > .audio-speed-button { transform: none; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-scrubber-row { grid-row: 1; }
+    .audio-scrubber { position: relative; flex: 0 0 68%; display: flex; align-items: center; width: 68%; height: 48px; min-width: 0; touch-action: none; cursor: pointer; }
+    .audio-player-bar audio { outline: none; }
+    /* A ring around the whole bar reads oddly; highlight just the thumb instead,
+       still gated to real keyboard focus like every other control. */
+    html[data-input-modality="keyboard"] .audio-scrubber:focus-visible { outline: none; }
+    html[data-input-modality="keyboard"] .audio-scrubber:focus-visible .audio-scrubber-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--foreground) 18%, transparent); }
+    .audio-scrubber::before { content: ''; position: absolute; inset-inline: 0; top: 50%; height: 1px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
+    .audio-scrubber-progress { position: absolute; top: 50%; left: 0; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
+    .audio-scrubber-recording-range { position: absolute; z-index: 2; top: 50%; height: 5px; border-radius: 3px; background: var(--audio-glass-gradient); background-position: 0 50%; background-size: 200% 100%; box-shadow: inset 0 .5px 0 var(--audio-glass-edge); filter: contrast(1.55) brightness(var(--control-brightness, .85)); transform: translateY(-50%); animation: recording-gradient-loop 1600ms ease-in-out infinite alternate; }
+    @keyframes recording-gradient-loop { from { background-position: 0 50%; } to { background-position: 100% 50%; } }
+    @media (prefers-reduced-motion: reduce) { .audio-scrubber-recording-range { animation: none; } }
+    .audio-scrubber-bookmark { position: absolute; top: 15px; bottom: 15px; width: 2px; background: currentColor; transform: translateX(-1px); }
+    .audio-scrubber-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
+    .audio-scrubber-window { --audio-detail-brightness: .8; position: absolute; z-index: 3; top: 17px; bottom: 17px; border-radius: 5px; opacity: 1; }
+    .audio-magnifier-track { position: relative; order: 2; display: flex; flex-shrink: 0; align-items: center; gap: 1px; width: var(--audio-detail-track-width); height: var(--audio-detail-track-height); touch-action: none; cursor: ew-resize; }
+    .audio-magnifier-time { order: 1; flex-shrink: 0; margin: 0; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 1; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { order: 2; }
+    .audio-magnifier-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); border-radius: 2px; pointer-events: none; }
+    .audio-magnifier-bar { flex: 1 1 0; min-width: 0; border-radius: 1px; background: currentColor; }
+    .audio-magnifier-playhead { --audio-detail-brightness: .8; position: absolute; top: 0; bottom: 0; width: 2px; background: currentColor; transform: translateX(-1px); }
+    .audio-speed-popover { position: relative; display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; }
+    .audio-speed-popover-controls { transform-origin: left center; animation: audio-controls-expand 160ms cubic-bezier(.22, 1, .36, 1) both; }
+    @keyframes audio-controls-expand { from { opacity: 0; transform: translateY(-50%) scaleX(.25); } to { opacity: 1; transform: translateY(-50%) scaleX(1); } }
+    .audio-speed-track { position: relative; width: 100%; height: 44px; touch-action: none; cursor: ew-resize; }
+    .audio-speed-track::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; border-radius: 2px; background: currentColor; transform: translateY(-50%); }
+    .audio-speed-fill { position: absolute; left: 0; top: 50%; height: 3px; border-radius: 2px; background: currentColor; transform: translateY(-50%); pointer-events: none; }
+    .audio-speed-thumb { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); pointer-events: none; }
+    .audio-speed-readout { margin: 0; font-family: ui-monospace, monospace; font-size: .75rem; line-height: 18px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .audio-playback-settings-row { display: flex; align-items: center; gap: 0; height: 48px; }
+    .audio-speed-editor { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; min-height: calc(var(--audio-detail-track-height) + 18px + var(--timestamp-magnifier-gap, 1px)); padding: 0; }
+    .audio-speed-editor .audio-speed-track { flex: 0 0 var(--audio-detail-track-height); width: var(--audio-detail-track-width); }
+    .audio-speed-editor .audio-speed-readout { flex: none; margin-top: var(--timestamp-magnifier-gap, 1px); }
+    .audio-playback-option { display: grid; place-items: center; width: 36px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+    .audio-playback-option[aria-pressed="true"]:not(.audio-loop-option) { background: radial-gradient(circle, color-mix(in srgb, var(--foreground) 16%, transparent) 0 48%, color-mix(in srgb, var(--foreground) 7%, transparent) 66%, transparent 74%); }
+    .audio-scrubber::before, .audio-scrubber-progress, .audio-magnifier-track::before,
+    .audio-scrubber-thumb, .audio-scrubber-bookmark, .audio-scrubber-window, .audio-magnifier-bar, .audio-magnifier-playhead, .audio-speed-track::before, .audio-speed-fill, .audio-speed-thumb { background: var(--audio-glass-gradient); box-shadow: inset 0 .5px 0 var(--audio-glass-edge); filter: brightness(calc(var(--control-brightness, .85) * var(--audio-detail-brightness, 1))); }
+    .audio-scrubber-window { background: var(--audio-glass-gradient), var(--surface); }
+    .audio-magnifier-time, .audio-speed-readout { background: var(--audio-glass-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; filter: brightness(var(--control-brightness, .85)); }
+    .question-controls { position: absolute; z-index: 6; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); width: min(760px, calc(100vw - 2rem)); transform: translateX(-50%); }
+    .observation-screen[data-question-mode='audio-given'] .observation-center:has(.audio-player-bar[data-has-audio='true']) { margin-bottom: 0; }
+    .observation-screen[data-question-mode='audio-given'] .audio-player-bar { top: 35%; bottom: auto; transform: translate(-50%, -50%); }
+    .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 50px); bottom: max(0px, env(safe-area-inset-bottom)); width: min(860px, calc(100vw - 2rem)); overflow: hidden; }
+    /* The primary bar uses the same anchor in every text-given phase. The action
+       is positioned separately, with collision avoidance for expanded controls. */
+    .observation-screen[data-text-given-flow='true'] { --question-action-floor: max(48px, calc(env(safe-area-inset-bottom) + 40px)); }
+    .observation-screen[data-question-mode='text-given'] .question-record-controls { top: auto; bottom: var(--question-action-bottom, var(--question-action-floor)); }
+    .question-record-controls { display: grid; justify-items: center; gap: 8px; color: var(--audio-control-color); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+    .question-record-controls[data-visible='true'] { opacity: 1; pointer-events: auto; transition-duration: 0ms; }
+    .question-record-button { width: var(--record-button-size); height: var(--record-button-size); }
+    .question-record-button .control-icon { width: 34px; height: 34px; }
+    @media (hover: hover) and (pointer: fine) {
+      .observation-screen { --record-gap: clamp(16px, 3dvh, 36px); }
+    }
+    .question-response-error { padding: 5px 8px; background: var(--surface); color: #b42318; font-size: .8rem; }
+    .question-keyboard-controls { display: grid; align-content: start; gap: 8px; visibility: hidden; pointer-events: none; contain: paint; transform: translate3d(-50%, 32px, 0); transition: transform 240ms cubic-bezier(.22, 1, .36, 1), visibility 0s linear 240ms; will-change: transform; }
+    .question-keyboard-controls[data-visible='true'] { visibility: visible; pointer-events: auto; transform: translate3d(-50%, 0, 0); transition: transform 240ms cubic-bezier(.22, 1, .36, 1), visibility 0s; }
+    .google-telugu-input { position: relative; display: grid; gap: 9px; }
+    /* Floats above the text box when earlier lines are scrolled out of view. */
+    .question-answer-more { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 18px; line-height: 1; letter-spacing: 2px; pointer-events: none; }
+    /* A plain visible textarea between the audio bar and the keyboard: fixed
+       two-line height, centered text, native caret, no border chrome. */
+    /* Height is exactly two 30px lines plus padding, so a partly visible third
+       line is geometrically impossible in any scroll position. The taller
+       line-height (vs. the 22px font) gives Telugu's stacked vowel signs room
+       so they don't read as sitting above the caret's vertical center. */
+    .question-answer-editor { display: block; box-sizing: border-box; justify-self: center; width: min(100%, 725px); height: 72px; padding: 2px 18px; border: 0; outline: 0; background: transparent; color: var(--foreground); font-family: 'Noto Sans Telugu', sans-serif; font-size: 25px; line-height: 33px; text-align: center; overflow-y: auto; overscroll-behavior: contain; resize: none; scrollbar-width: none; }
+    .question-answer-editor::-webkit-scrollbar { display: none; }
+    .question-answer-editor:focus, .question-answer-editor:focus-visible { border: 0; outline: 0; box-shadow: none; }
+    .question-keyboard { display: grid; gap: 7px 0; padding: 7px; border: 0; border-radius: 11px; background: var(--keyboard-gradient); color: var(--keyboard-ink); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--keyboard-glow) 30%, transparent), inset 0 0 33px color-mix(in srgb, var(--keyboard-glow) 12%, transparent), 0 9px 27px rgb(0 0 0 / .09); overflow: hidden; }
+    .question-keyboard-row { position: relative; display: flex; justify-content: center; gap: 0; }
+    .question-keyboard-row button { position: relative; display: grid; grid-template-columns: 1fr; place-items: center; flex: 0 1 58px; min-width: 36px; height: 48px; padding: 3px 8px; border: 0; border-radius: 7px; background: transparent; color: color-mix(in srgb, var(--keyboard-ink) 55%, gray 45%); font: inherit; cursor: pointer; box-shadow: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .question-keyboard-row button:not([aria-disabled='true']):hover { color: color-mix(in srgb, var(--keyboard-ink) 55%, var(--keyboard-accent) 45%); }
+    }
+    .question-keyboard-row button:not([aria-disabled='true']):active, .question-keyboard-row button[aria-pressed='true'] { color: color-mix(in srgb, var(--keyboard-ink) 35%, var(--keyboard-accent) 65%); }
+    .question-keyboard-row button[aria-disabled='true'] { cursor: default; }
+    .question-keyboard-row button span { font-family: var(--question-keyboard-font, 'Noto Sans Telugu'), 'Noto Sans Telugu', sans-serif; font-size: 1.52rem; line-height: 1; }
+    .question-number-row .question-backspace-key { grid-template-columns: 1fr; flex-basis: 104px; }
+    .question-home-row .question-enter-key { grid-template-columns: 1fr; flex-basis: 104px; }
+    .question-bottom-row .question-shift-key { grid-template-columns: 1fr; flex-basis: 117px; }
+    .question-shift-key svg { width: 17px; height: 17px; justify-self: center; }
+    .question-backspace-key svg { width: 21px; height: 21px; justify-self: center; }
+    .question-keyboard-actions .question-control-key { display: grid; grid-template-columns: 1fr; flex-basis: 158px; }
+    .question-keyboard-actions .question-space-key { display: grid; grid-template-columns: 1fr; flex-basis: 498px; }
+    .question-enter-key svg, .question-keyboard-actions svg { width: 17px; height: 17px; justify-self: center; }
+    .question-comparison { position: absolute; inset: 0; z-index: 4; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: 'user correct'; opacity: 0; }
+    .question-comparison[data-ready='true'] { opacity: 1; }
+    .question-comparison-side { position: relative; isolation: isolate; display: grid; place-items: center; min-width: 0; min-height: 0; padding: clamp(1rem, 4vw, 4rem); overflow: hidden; }
+    /* Soft, borderless surfaces separate the two answers without moving content. */
+    .question-comparison-side::before { content: ''; position: absolute; z-index: -1; inset: 8% clamp(12px, 2vw, 28px); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--foreground) 5%, transparent), transparent 72%); pointer-events: none; }
+    .question-comparison-correct { grid-area: correct; }
+    .question-comparison-user { grid-area: user; }
+    .question-comparison-text { max-width: 100%; font-size: clamp(2rem, 7vmin, 6rem); line-height: 1.25; overflow-wrap: normal; word-break: normal; }
+    .question-comparison-audio { display: grid; place-items: center; width: 100%; height: 100%; cursor: pointer; }
+    .question-comparison .audio-player-bar { position: relative; left: auto; bottom: auto; justify-self: center; align-self: center; width: min(416px, 100%); opacity: 1; pointer-events: auto; transform: none; }
+    .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+    .question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+    .question-comparison-empty { color: var(--muted); font-size: .85rem; }
+    .audio-scrubber-thumb, .audio-speed-thumb { -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); }
+    @supports (mask-image: linear-gradient(#000, #000)) or (-webkit-mask-image: linear-gradient(#000, #000)) {
+      .audio-glass-icon { background: var(--audio-glass-gradient); -webkit-mask-image: var(--audio-icon-mask); mask-image: var(--audio-icon-mask); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-backdrop-filter: blur(5px) saturate(1.25); backdrop-filter: blur(5px) saturate(1.25); filter: brightness(var(--control-brightness, .85)); }
+      .audio-glass-icon > svg { opacity: 0; }
+    }
+    @media (max-width: 600px) and (hover: none) and (pointer: coarse) {
+      .observation-center { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      .observation-screen { --audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 72px; --record-gap: clamp(32px, 5dvh, 48px); }
+      .audio-player-bar { grid-template-rows: var(--audio-row-height); width: min(520px, calc(100vw - 24px)); }
+      .audio-player-bar[data-magnifier-position="above"] { grid-template-rows: var(--audio-row-height); }
+      .audio-precision-panel { --audio-detail-track-height: 44px; --audio-detail-track-width: 64%; }
+      .audio-transport-button, .audio-bookmark-controls-slot, .audio-playback-controls-slot { width: 56px; height: 56px; }
+      .audio-transport-button .control-icon, .audio-glass-icon { width: 22px; height: 22px; }
+      .audio-bookmark-button .control-icon { width: 24px; height: 24px; }
+      .audio-scrubber { height: 56px; }
+    }
+    @media (max-width: 600px) and (hover: none) and (pointer: coarse) and (orientation: portrait) {
+      .observation-screen { --record-gap: clamp(19px, 3.5dvh, 42px); }
+    }
+    @media (max-width: 600px) {
+      .observation-screen { --nav-width: 13vw; }
+      .question-controls { width: calc(100vw - .5rem); }
+      .observation-screen[data-question-mode='audio-given'] .question-keyboard-controls { bottom: max(0px, env(safe-area-inset-bottom)); align-content: end; }
+      .question-keyboard { padding: 3px; }
+      .question-keyboard-row button { min-width: 0; height: 36px; padding-inline: 2px; }
+      .question-keyboard-row button span { font-size: 1.05rem; }
+      .question-number-row .question-backspace-key { flex-basis: 64px; }
+      .question-home-row .question-enter-key { flex-basis: 64px; }
+      .question-bottom-row .question-shift-key { flex-basis: 60px; }
+      .question-keyboard-actions .question-control-key { flex-basis: 104px; font-size: .61rem; white-space: nowrap; }
+      .question-keyboard-actions .question-space-key { flex-basis: 240px; }
+      .question-comparison { grid-template: 1fr 1fr / 1fr; grid-template-areas: 'correct' 'user'; }
+      .question-comparison-side { padding: clamp(.75rem, 4vw, 1.5rem); }
+      .question-comparison .audio-player-bar { width: min(416px, 100%); }
+      .question-comparison .audio-player-bar:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+      .question-comparison .audio-player-bar[data-magnifier-position='above']:not(:has(.audio-precision-panel[data-visible='true'])) { grid-template-rows: var(--audio-row-height); }
+    }
+    @media (max-height: 620px) { .observation-screen[data-question-mode='audio-given'] .question-controls { top: calc(35% + 38px); } .question-keyboard-row button { height: 32px; } }
+    @media (prefers-reduced-motion: reduce) { .audio-speed-popover { animation: none; } .audio-precision-panel, .audio-bookmark-controls-slot, .audio-playback-controls-slot { transition: none; } }
+    
+    /* A newly entered text prompt must not fade out the previous page's audio UI. */
+    .observation-screen[data-question-mode="text-given"][data-audio-motion="idle"]:not(.controls-visible) .observation-center > .audio-player-bar,
+    
+    /* Text-given question -> comparison: one fixed text surface, one audio bar. */
+    .observation-screen[data-text-given-flow='true'],
+    .observation-screen[data-text-given-flow='true'] .nav-zone,
+    .observation-screen[data-text-given-flow='true'] .nav-region { touch-action: pinch-zoom; }
+    .observation-screen[data-text-given-flow='true'] .observation-center[data-entry-loading='true'] > .observation-text { visibility: visible; }
+    .observation-screen[data-text-given-flow='true'][data-question-mode='text-given'] .question-record-controls { gap: 0; }
+    .observation-screen[data-text-given-flow='true'] .question-record-controls .recording-readiness,
+    .observation-screen[data-text-given-flow='true'] .question-record-controls .question-response-error { position: absolute; top: calc(100% + 8px); }
+    .observation-screen[data-text-given-flow='true'][data-question-phase='comparison'] .grammar-evaluation {
+      bottom: var(--question-action-bottom, var(--question-action-floor));
+      width: auto; height: var(--record-button-size);
+      display: grid; place-items: center;
+    }
+    .observation-screen[data-text-given-flow='true'] .evaluation-switch {
+      width: 76px; height: 48px; padding: 0; background: transparent; border-radius: 24px;
+    }
+    .observation-screen[data-text-given-flow='true'] .evaluation-switch::before {
+      content: ''; position: absolute; inset: 8px 4px; border-radius: 18px;
+      background: color-mix(in srgb, var(--foreground) 10%, transparent);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
+    }
+    .observation-screen[data-text-given-flow='true'] .evaluation-switch-indicator {
+      z-index: 1; inset: 12px auto auto 8px; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--control-material-gradient); opacity: .5;
+      transition: transform 180ms ease, opacity 180ms ease;
+    }
+    .observation-screen[data-text-given-flow='true'] .evaluation-switch[data-value='true'] .evaluation-switch-indicator { transform: translateX(36px); opacity: 1; }
+    .observation-screen[data-text-given-flow='true'] .grammar-evaluation p[role='alert'] { position: absolute; bottom: 100%; width: min(80vw, 320px); }
+    /* Only controls move. The text does not participate in the phase animation. */
+    .observation-screen[data-text-given-flow='true'] { --phase-shift: 64px; }
+    .observation-screen[data-text-given-flow='true'][data-phase-direction='back'] { --phase-shift: -64px; }
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='exit'].controls-visible .observation-center > .audio-player-bar,
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='exit'] .question-record-controls[data-visible='true'],
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='exit'] .grammar-evaluation { animation: question-controls-leave 160ms ease-in both; pointer-events: none; }
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='enter'].controls-visible .observation-center > .audio-player-bar,
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='enter'] .question-record-controls[data-visible='true'],
+    .observation-screen[data-text-given-flow='true'][data-phase-motion='enter'] .grammar-evaluation { animation: question-controls-arrive 220ms cubic-bezier(.22, 1, .36, 1) both; }
+    @keyframes question-controls-leave { from { opacity: 1; translate: 0; } to { opacity: 0; translate: calc(-1 * var(--phase-shift)) 0; } }
+    @keyframes question-controls-arrive { from { opacity: 0; translate: var(--phase-shift) 0; } to { opacity: 1; translate: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .observation-screen[data-text-given-flow='true'] :is(.audio-player-bar, .question-record-controls, .grammar-evaluation, .evaluation-switch-indicator) { animation: none !important; transition: none !important; }
+    }
+    
+    
+    
+    .observation-screen[data-swipe-navigation='true'],
+    .observation-screen[data-swipe-navigation='true'] :is(.nav-zone,.nav-region) { touch-action: pinch-zoom; }
+    
+    .reader-settings { position: absolute; z-index: 40; top: max(12px, calc(env(safe-area-inset-top) - 4px)); right: max(16px, calc(env(safe-area-inset-right) - 4px)); width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--corner-control-color); cursor: pointer; }
+    .reader-settings svg { width: 18px; height: 18px; stroke-width: 1.7; stroke: var(--control-icon-paint, currentColor); }
+    .reader-settings:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
+    
+    /* Fade only the painted icon: the 44px Settings button stays hit-testable. */
+    .appearance-root .observation-screen .reader-settings svg { opacity: var(--material-rest-opacity, .72); transition: opacity 220ms ease; }
+    .observation-screen[data-settings-idle='true'] .reader-settings svg { opacity: 0; }
+    html[data-input-modality='keyboard'] .reader-settings:focus-visible svg { opacity: 1; }
+    @media (prefers-reduced-motion: reduce) { .appearance-root .observation-screen .reader-settings svg { transition: none; } }
+    
+    /* Both swipe axes are app gestures; pinch zoom remains native. */
+    .observation-screen[data-swipe-navigation='true'] { touch-action: pinch-zoom; }
+    .audio-player-bar[data-controls-visible='false'],
+    .audio-player-bar[data-controls-visible='false'] * { pointer-events: none !important; }
+    .audio-precision-panel[data-visible='false'],
+    .audio-precision-panel[data-visible='false'] * { pointer-events: none !important; }
+    
+    /* The bar is the position anchor. The magnifier is out of layout flow,
+       offset from the visible timeline's center, independent of reserved rows. */
+    .audio-precision-panel { position: absolute; grid-area: auto; left: 0; right: 0; top: calc(50% + var(--magnifier-bar-gap, 4px)); bottom: auto; margin: 0; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-precision-panel { grid-area: auto; top: auto; bottom: calc(50% + var(--magnifier-bar-gap, 4px)); margin: 0; }
+    .observation-screen { overflow: hidden; }
+    
+    .audio-magnifier-track { order: 1; }
+    .audio-magnifier-time { order: 2; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-track { order: 2; }
+    .audio-player-bar[data-magnifier-position="above"] .audio-magnifier-time { order: 1; }
+    
+    /* Stable, user-controlled action anchor: animation never changes layout. */
+    .observation-screen[data-text-given-flow='true'] { --question-action-bottom: clamp(var(--question-action-floor), calc(var(--question-action-floor) + var(--question-action-offset, 0px)), calc(100dvh - var(--record-button-size) - 24px)); }
+    .audio-player-bar[data-controls-visible='true'] .audio-bookmark-controls-slot[data-visible='true'],
+    .audio-player-bar[data-controls-visible='true'] .audio-playback-controls-slot[data-visible='true'] { animation: audio-icons-arrive 180ms ease-out both; }
+    @keyframes audio-icons-arrive { from { opacity: 0; translate: 0 -10px; } to { opacity: 1; translate: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .audio-player-bar .audio-bookmark-controls-slot, .audio-player-bar .audio-playback-controls-slot { animation: none !important; } }
+    
+    /* Preserve the live sentence and its audio anchor during exploration. Only
+       paint visibility changes; hidden controls retain their layout dimensions. */
+    .observation-screen[data-exploring='true'] > .observation-center > :not(.observation-text),
+    .observation-screen[data-exploring='true'] > .observation-center > :not(.observation-text) *,
+    .observation-screen[data-exploring='true'] > .grammar-evaluation { visibility: hidden !important; pointer-events: none !important; }
+    [data-reader-concealed] { visibility: hidden !important; pointer-events: none !important; user-select: none; -webkit-user-select: none; }
+    [data-reader-concealed] * { visibility: hidden !important; }
+    .exploration-focus .audio-player-bar { display: none; }
+    
+    /* Expand the speed editor dismissal target without moving its slider. */
+    .audio-speed-popover-editor::before { content: ""; position: absolute; inset: -16px; cursor: pointer; }
+    .audio-speed-popover-editor .audio-speed-editor { pointer-events: none; }
+    .audio-speed-popover-editor .audio-speed-track, .audio-speed-popover-editor .audio-speed-readout { pointer-events: auto; }
+    .audio-speed-readout { position: relative; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:80:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: mobile long press owns empty reader space without intercepting controls
+not ok 7 - mobile long press owns empty reader space without intercepting controls
+  ---
+  duration_ms: 1.032864
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:85:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /onPointerDown=\{\(event\) => \{[\s\S]*event\.pointerType !== 'touch'[\s\S]*\.reading-context-menu, \.word-profile'[\s\S]*wordAtPoint\(\{ clientX, clientY, target \}\)/. Input:
+    
+    "import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';\n" +
+      "import type { ExplorationStep } from './exploration-steps';\n" +
+      "import { explorationChoices, RandomExploration } from './random-exploration';\n" +
+      "import { useObservationTravel } from './useObservationTravel';\n" +
+      "import { useGradientTravel } from '../GradientBackdrop';\n" +
+      "import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';\n" +
+      "import { useReaderSettingsFade } from './useReaderSettingsFade';\n" +
+      "import { readerNeedsLoadingDots } from './reader-loading';\n" +
+      "import { useReaderSwipes } from './useReaderSwipes';\n" +
+      "import { copyOriginalReaderText } from './reader-hyphenation';\n" +
+      "import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';\n" +
+      'import {\n' +
+      '  useCallback,\n' +
+      '  useMemo,\n' +
+      '  useEffect,\n' +
+      '  useLayoutEffect,\n' +
+      '  useRef,\n' +
+      '  useState,\n' +
+      '  type MouseEvent,\n' +
+      "} from 'react';\n" +
+      "import { ArrowRight, Settings } from 'lucide-react';\n" +
+      'import type {\n' +
+      '  ProfileStateResponse,\n' +
+      "} from '../../../shared/contracts';\n" +
+      'import {\n' +
+      '  AudioPlayerBar,\n' +
+      '  type AudioPlayerBarHandle,\n' +
+      "} from './audio/AudioPlayerBar';\n" +
+      "import type { RecordingTimeline } from './audio/AudioScrubber';\n" +
+      'import {\n' +
+      '  prewarmObservationTypography,\n' +
+      '  useObservationTypography,\n' +
+      "} from './useObservationTypography';\n" +
+      "import { useObservationFontQueue } from './useObservationFontQueue';\n" +
+      "import { WordProfile } from './word/WordProfile';\n" +
+      "import { appearanceModificationColor, useAppearance } from '../appearance';\n" +
+      "import { LoadingSlit } from '../components/LoadingSlit';\n" +
+      "import { ReaderTaps, readerTapRegions } from './reader-taps';\n" +
+      "import { type ScrollDirection } from './reader-scroll';\n" +
+      "import { reportClientTelemetry } from '../api';\n" +
+      "import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';\n" +
+      "import { teluguHighlightRuns } from './telugu-highlighting';\n" +
+      "import { TeluguWordText } from './TeluguGradientText';\n" +
+      "import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';\n" +
+      "import { observationShowsText } from './observation-content';\n" +
+      "import { visibleWordAtPoint } from './visible-glyph-hit-testing';\n" +
+      "import type { VisibleGlyphHit } from './visible-glyph-hit-testing';\n" +
+      "import { ComparisonPage } from './ComparisonPage';\n" +
+      '\n' +
+      'function fontAvailability(fontFamily: string, text: string): boolean | null {\n' +
+      '  try {\n' +
+      '    return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));\n' +
+      '  } catch {\n' +
+      '    return null;\n' +
+      '  }\n' +
+      '}\n' +
+      'interface ObservationViewProps {\n' +
+      '  state: ProfileStateResponse | null;\n' +
+      '  busy: boolean;\n' +
+      "  navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;\n" +
+      '  onMove: (\n' +
+      "    direction: 'back' | 'next',\n" +
+      '  ) => Promise<boolean>;\n' +
+      '  onOpenSettings: (fontFamily: string) => void;\n' +
+      '}\n' +
+      'interface ReaderPoint {\n' +
+      '  clientX: number;\n' +
+      '  clientY: number;\n' +
+      '  target: EventTarget;\n' +
+      '}\n' +
+      'export function ObservationView({\n' +
+      '  state,\n' +
+      '  busy,\n' +
+      '  navigationEvent,\n' +
+      '  onMove,\n' +
+      '  onOpenSettings,\n' +
+      '}: ObservationViewProps) {\n' +
+      '  const { appearance } = useAppearance();\n' +
+      '  const gradientTravel = useGradientTravel();\n' +
+      '  const [\n' +
+      '    controlsVisible,\n' +
+      '    setControlsVisible,\n' +
+      '  ] = useState(false);\n' +
+      "  const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');\n" +
+      '  const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);\n' +
+      '  const [precisionInteraction, setPrecisionInteraction] = useState(0);\n' +
+      '  const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);\n' +
+      '  const seamlessAudioKey = useRef<string | null>(null);\n' +
+      '  const [audioError, setAudioError] = useState<string | null>(null);\n' +
+      '  const questionControlsRef = useRef<QuestionControlsHandle>(null);\n' +
+      '  const evaluationRef=useRef<GrammarEvaluationHandle>(null);\n' +
+      '  const evaluationNavigation=useRef(false);\n' +
+      "  const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');\n" +
+      "  const phaseDirection = useRef<'back' | 'next'>('next');\n" +
+      '  const evaluationDrafts = useRef(new Map<string, boolean>());\n' +
+      '  const [comparisonReady, setComparisonReady] = useState(false);\n' +
+      '  const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);\n' +
+      '  const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);\n' +
+      '  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);\n' +
+      '  const [gradientPresentation, setGradientPresentation] = useState<{\n' +
+      '    key: string;\n' +
+      '    textures: Array<TeluguGradientTexture | null>;\n' +
+      '  } | null>(null);\n' +
+      '  const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);\n' +
+      '  const screenRef = useRef<HTMLElement>(null);\n' +
+      '  const settingsIdle = useReaderSettingsFade(screenRef);\n' +
+      '  const playerRef = useRef<AudioPlayerBarHandle>(null);\n' +
+      '  const [taps] = useState(() => new ReaderTaps());\n' +
+      '  const gesturePausedPlayback = useRef(false);\n' +
+      '  const observationLoadStartedAt = useRef<number | null>(null);\n' +
+      "  const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';\n" +
+      "  const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';\n" +
+      "  const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';\n" +
+      '  const textComparison = textGivenFlow && comparisonQuestionPhase;\n' +
+      "  const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';\n" +
+      '  useEffect(() => {\n' +
+      '    const screen = screenRef.current;\n' +
+      '    if (textGivenFlow || !controlsVisible || !screen) return;\n' +
+      '    let idleTimer: number;\n' +
+      '    const activePointers = new Set<number>();\n' +
+      '    const scheduleHide = (event?: Event) => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      if (event instanceof PointerEvent) {\n' +
+      "        if (event.type === 'pointerdown') activePointers.add(event.pointerId);\n" +
+      "        if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);\n" +
+      '      }\n' +
+      '      if (activePointers.size > 0) return;\n' +
+      '      idleTimer = window.setTimeout(() => {\n' +
+      "        setAudioMotion('exit');\n" +
+      '        setControlsVisible(false);\n' +
+      '      }, appearance.autoFadeSeconds * 1000);\n' +
+      '    };\n' +
+      "    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];\n" +
+      '    for (const event of events) screen.addEventListener(event, scheduleHide);\n' +
+      '    scheduleHide();\n' +
+      '    return () => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      for (const event of events) screen.removeEventListener(event, scheduleHide);\n' +
+      '    };\n' +
+      '  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);\n' +
+      '  const observation =\n' +
+      '    state?.currentObservation ?? null;\n' +
+      '  useEffect(() => {\n' +
+      '    if (!observation) return;\n' +
+      '    observationLoadStartedAt.current = performance.now();\n' +
+      "    reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });\n" +
+      '  }, [observation?.id]);\n' +
+      '  const fontAssignments = useObservationFontQueue(state, appearance.fonts);\n' +
+      '  const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily\n' +
+      "    ?? 'Noto Sans Telugu';\n" +
+      "  const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);\n" +
+      '  const explorationSession = useRef<RandomExploration | null>(null);\n' +
+      '  const explorationRef = useRef<ExplorationHandle | null>(null);\n' +
+      '  const [exploration, setExploration] = useState<ExplorationStep | null>(null);\n' +
+      '  const exploring = exploration !== null;\n' +
+      "  const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;\n" +
+      '  const comparisonPhase = comparisonQuestionPhase;\n' +
+      "  const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;\n" +
+      '  const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;\n' +
+      '  const audioReadinessKey = observation && visibleAudio ? `${observation.id}\\0${visibleAudio.url}` : null;\n' +
+      '  const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {\n' +
+      '    if (!key) return;\n' +
+      '    setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress\n' +
+      '      ? current : { key, loading, progress });\n' +
+      '  }, []);\n' +
+      '  const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));\n' +
+      '  // Reset page-owned presentation before paint, including any old exit animation.\n' +
+      '  useLayoutEffect(() => {\n' +
+      '    taps.cancel();\n' +
+      '    setExploration(null);\n' +
+      '    explorationSession.current = null;\n' +
+      '    seamlessAudioKey.current = null;\n' +
+      '    setAudioError(null);\n' +
+      "    setAudioMotion('idle');\n" +
+      "    setPhaseMotion(textGivenFlow ? 'enter' : 'idle');\n" +
+      '    playerRef.current?.dismissPrecision();\n' +
+      '    setComparisonReady(false);\n' +
+      '    setResponseAudio(observation?.question?.responseAudio ?? null);\n' +
+      '    setRecordingRange(null);\n' +
+      "    setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));\n" +
+      '    return () => taps.cancel();\n' +
+      '  }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);\n' +
+      '  const showsObservationText = observationShowsText(observation);\n' +
+      '  const typography =\n' +
+      '    useObservationTypography(\n' +
+      '      observation,\n' +
+      '      assignedFont,\n' +
+      '      showsObservationText,\n' +
+      '    );\n' +
+      '  const presentationHighlightRuns = appearance.highlightMods && observation\n' +
+      '    ? teluguHighlightRuns(observation.text)\n' +
+      '    : null;\n' +
+      '  const highlightRuns = showsObservationText ? presentationHighlightRu'... 30198 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
+    import type { ExplorationStep } from './exploration-steps';
+    import { explorationChoices, RandomExploration } from './random-exploration';
+    import { useObservationTravel } from './useObservationTravel';
+    import { useGradientTravel } from '../GradientBackdrop';
+    import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
+    import { useReaderSettingsFade } from './useReaderSettingsFade';
+    import { readerNeedsLoadingDots } from './reader-loading';
+    import { useReaderSwipes } from './useReaderSwipes';
+    import { copyOriginalReaderText } from './reader-hyphenation';
+    import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
+    import {
+      useCallback,
+      useMemo,
+      useEffect,
+      useLayoutEffect,
+      useRef,
+      useState,
+      type MouseEvent,
+    } from 'react';
+    import { ArrowRight, Settings } from 'lucide-react';
+    import type {
+      ProfileStateResponse,
+    } from '../../../shared/contracts';
+    import {
+      AudioPlayerBar,
+      type AudioPlayerBarHandle,
+    } from './audio/AudioPlayerBar';
+    import type { RecordingTimeline } from './audio/AudioScrubber';
+    import {
+      prewarmObservationTypography,
+      useObservationTypography,
+    } from './useObservationTypography';
+    import { useObservationFontQueue } from './useObservationFontQueue';
+    import { WordProfile } from './word/WordProfile';
+    import { appearanceModificationColor, useAppearance } from '../appearance';
+    import { LoadingSlit } from '../components/LoadingSlit';
+    import { ReaderTaps, readerTapRegions } from './reader-taps';
+    import { type ScrollDirection } from './reader-scroll';
+    import { reportClientTelemetry } from '../api';
+    import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
+    import { teluguHighlightRuns } from './telugu-highlighting';
+    import { TeluguWordText } from './TeluguGradientText';
+    import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
+    import { observationShowsText } from './observation-content';
+    import { visibleWordAtPoint } from './visible-glyph-hit-testing';
+    import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
+    import { ComparisonPage } from './ComparisonPage';
+    
+    function fontAvailability(fontFamily: string, text: string): boolean | null {
+      try {
+        return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));
+      } catch {
+        return null;
+      }
+    }
+    interface ObservationViewProps {
+      state: ProfileStateResponse | null;
+      busy: boolean;
+      navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
+      onMove: (
+        direction: 'back' | 'next',
+      ) => Promise<boolean>;
+      onOpenSettings: (fontFamily: string) => void;
+    }
+    interface ReaderPoint {
+      clientX: number;
+      clientY: number;
+      target: EventTarget;
+    }
+    export function ObservationView({
+      state,
+      busy,
+      navigationEvent,
+      onMove,
+      onOpenSettings,
+    }: ObservationViewProps) {
+      const { appearance } = useAppearance();
+      const gradientTravel = useGradientTravel();
+      const [
+        controlsVisible,
+        setControlsVisible,
+      ] = useState(false);
+      const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');
+      const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);
+      const [precisionInteraction, setPrecisionInteraction] = useState(0);
+      const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);
+      const seamlessAudioKey = useRef<string | null>(null);
+      const [audioError, setAudioError] = useState<string | null>(null);
+      const questionControlsRef = useRef<QuestionControlsHandle>(null);
+      const evaluationRef=useRef<GrammarEvaluationHandle>(null);
+      const evaluationNavigation=useRef(false);
+      const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');
+      const phaseDirection = useRef<'back' | 'next'>('next');
+      const evaluationDrafts = useRef(new Map<string, boolean>());
+      const [comparisonReady, setComparisonReady] = useState(false);
+      const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
+      const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
+      const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);
+      const [gradientPresentation, setGradientPresentation] = useState<{
+        key: string;
+        textures: Array<TeluguGradientTexture | null>;
+      } | null>(null);
+      const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);
+      const screenRef = useRef<HTMLElement>(null);
+      const settingsIdle = useReaderSettingsFade(screenRef);
+      const playerRef = useRef<AudioPlayerBarHandle>(null);
+      const [taps] = useState(() => new ReaderTaps());
+      const gesturePausedPlayback = useRef(false);
+      const observationLoadStartedAt = useRef<number | null>(null);
+      const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
+      const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
+      const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
+      const textComparison = textGivenFlow && comparisonQuestionPhase;
+      const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
+      useEffect(() => {
+        const screen = screenRef.current;
+        if (textGivenFlow || !controlsVisible || !screen) return;
+        let idleTimer: number;
+        const activePointers = new Set<number>();
+        const scheduleHide = (event?: Event) => {
+          window.clearTimeout(idleTimer);
+          if (event instanceof PointerEvent) {
+            if (event.type === 'pointerdown') activePointers.add(event.pointerId);
+            if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);
+          }
+          if (activePointers.size > 0) return;
+          idleTimer = window.setTimeout(() => {
+            setAudioMotion('exit');
+            setControlsVisible(false);
+          }, appearance.autoFadeSeconds * 1000);
+        };
+        const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
+        for (const event of events) screen.addEventListener(event, scheduleHide);
+        scheduleHide();
+        return () => {
+          window.clearTimeout(idleTimer);
+          for (const event of events) screen.removeEventListener(event, scheduleHide);
+        };
+      }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);
+      const observation =
+        state?.currentObservation ?? null;
+      useEffect(() => {
+        if (!observation) return;
+        observationLoadStartedAt.current = performance.now();
+        reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });
+      }, [observation?.id]);
+      const fontAssignments = useObservationFontQueue(state, appearance.fonts);
+      const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
+        ?? 'Noto Sans Telugu';
+      const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);
+      const explorationSession = useRef<RandomExploration | null>(null);
+      const explorationRef = useRef<ExplorationHandle | null>(null);
+      const [exploration, setExploration] = useState<ExplorationStep | null>(null);
+      const exploring = exploration !== null;
+      const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
+      const comparisonPhase = comparisonQuestionPhase;
+      const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
+      const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
+      const audioReadinessKey = observation && visibleAudio ? `${observation.id}\0${visibleAudio.url}` : null;
+      const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {
+        if (!key) return;
+        setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
+          ? current : { key, loading, progress });
+      }, []);
+      const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));
+      // Reset page-owned presentation before paint, including any old exit animation.
+      useLayoutEffect(() => {
+        taps.cancel();
+        setExploration(null);
+        explorationSession.current = null;
+        seamlessAudioKey.current = null;
+        setAudioError(null);
+        setAudioMotion('idle');
+        setPhaseMotion(textGivenFlow ? 'enter' : 'idle');
+        playerRef.current?.dismissPrecision();
+        setComparisonReady(false);
+        setResponseAudio(observation?.question?.responseAudio ?? null);
+        setRecordingRange(null);
+        setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
+        return () => taps.cancel();
+      }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
+      const showsObservationText = observationShowsText(observation);
+      const typography =
+        useObservationTypography(
+          observation,
+          assignedFont,
+          showsObservationText,
+        );
+      const presentationHighlightRuns = appearance.highlightMods && observation
+        ? teluguHighlightRuns(observation.text)
+        : null;
+      const highlightRuns = showsObservationText ? presentationHighlightRuns : null;
+      const gradientEndColor = appearanceModificationColor(appearance);
+      // The rolling prewarm window covers every deck entry adjacent to the
+      // current observation - the one behind and the one ahead - so that by the
+      // time the user navigates either direction, its font, size-fit, and
+      // (if enabled) gradient texture are already computed and cached.
+      const neighborAssignments = fontAssignments.filter(assignment => assignment.id !== observation?.id);
+      const [neighborPrewarmReadyIds, setNeighborPrewarmReadyIds] = useState<Set<string>>(new Set());
+      const neighborKey = neighborAssignments.map(assignment => [assignment.id, assignment.fontFamily, assignment.text].join('\0')).join('\u0001');
+      useEffect(() => {
+        if (!neighborKey) {
+          setNeighborPrewarmReadyIds(new Set());
+          return;
+        }
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const worker = async () => {
+          for (const assignment of neighborAssignments) {
+            if (cancelled) return;
+            try {
+              await waitForIdle();
+              if (cancelled) return;
+              await document.fonts.load(`400 220px "${assignment.fontFamily}"`, assignment.text.slice(0, 64));
+              if (cancelled) return;
+              const container = typography.containerRef.current;
+              if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
+                await prewarmObservationTypography({
+                  id: assignment.id,
+                  text: assignment.text,
+                  fontFamily: assignment.fontFamily,
+                  fontScale: appearance.fontScale,
+                  textOffset: appearance.textOffset,
+                  containerRect: {
+                    left: containerRect.left,
+                    top: containerRect.top,
+                    width: containerRect.width,
+                    height: containerRect.height,
+                  },
+                  audioTop: audioBounds ? audioBounds.top : null,
+                });
+              }
+              if (cancelled) return;
+              if (appearance.highlightMods) {
+                const runs = teluguHighlightRuns(assignment.text).filter(run => run.highlighted);
+                for (const run of runs) {
+                  if (cancelled) return;
+                  await waitForIdle();
+                  if (cancelled) return;
+                  await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+                }
+              }
+            } catch {
+              // The current observation can still fit or render this item on demand.
+              if (!cancelled) reportClientTelemetry({
+                event: 'observation_render_failed',
+                observationId: assignment.id,
+                stage: 'neighbor-prewarm',
+                failureCategory: 'render-fallback',
+              });
+            } finally {
+              if (!cancelled) setNeighborPrewarmReadyIds(current => {
+                if (current.has(assignment.id)) return current;
+                const next = new Set(current);
+                next.add(assignment.id);
+                return next;
+              });
+            }
+          }
+        };
+        void worker().catch(() => {});
+        return () => { cancelled = true; };
+      }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor, appearance.gradientBarrier]);
+      const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
+      // On the first load, do not reveal an interactive reader while prewarm work
+      // can still monopolize the main thread. Individual failures are marked done
+      // above and fall back to on-demand rendering, so no timeout escape is needed.
+      const initialGateAppliedRef = useRef(false);
+      const [initialGateResolved, setInitialGateResolved] = useState(false);
+      useEffect(() => {
+        if (initialGateAppliedRef.current || !observation) return;
+        if (!neighborsPrewarmed) return;
+        initialGateAppliedRef.current = true;
+        setInitialGateResolved(true);
+      }, [observation?.id, neighborsPrewarmed]);
+      const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
+        ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, observation.text].join('\0')
+        : null;
+      const gradientKey = showsObservationText ? presentationGradientKey : null;
+      useEffect(() => {
+        if (showsObservationText || !observation) return;
+        const hiddenObservation = observation;
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const run = async () => {
+          await document.fonts.load(`400 220px "${typography.fontFamily}"`, hiddenObservation.text.slice(0, 64));
+          if (!presentationGradientKey || !presentationHighlightRuns
+            || gradientPresentation?.key === presentationGradientKey) return;
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of presentationHighlightRuns) {
+            if (cancelled) return;
+            if (!highlightRun.highlighted) {
+              textures.push(null);
+              continue;
+            }
+            await waitForIdle();
+            if (cancelled) return;
+            textures.push(await renderTeluguGradientTexture(
+              highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+            ));
+          }
+          if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: hiddenObservation.id,
+            stage: 'hidden-prewarm',
+            failureCategory: 'render-fallback',
+          });
+        });
+        return () => { cancelled = true; };
+      }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier]);
+      useEffect(() => {
+        if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
+        let cancelled = false;
+        const total = highlightRuns.filter(run => run.highlighted).length;
+        setGradientProgress({ key: gradientKey, completed: 0, total });
+        // Each texture is a heavy synchronous canvas computation; yielding to a
+        // frame between runs keeps the main thread free so the cursor (and any
+        // other input handling) doesn't freeze while a whole observation's worth
+        // of gradient textures render back-to-back.
+        const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const run = async () => {
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of highlightRuns) {
+            if (cancelled) return;
+            if (highlightRun.highlighted) {
+              if (!hasTeluguGradientTexture(
+                highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+              )) await nextFrame();
+              if (cancelled) return;
+              const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+              textures.push(texture);
+              if (!cancelled) setGradientProgress(current => current?.key === gradientKey
+                ? { ...current, completed: current.completed + 1 } : current);
+            } else {
+              textures.push(null);
+            }
+          }
+          if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) {
+            setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+            reportClientTelemetry({
+              event: 'observation_render_failed',
+              ...(observation ? { observationId: observation.id } : {}),
+              stage: 'gradient',
+              failureCategory: 'render-fallback',
+            });
+          }
+        });
+        return () => { cancelled = true; };
+      }, [gradientKey, gradientPresentation?.key]);
+      const gradientsReady = !gradientKey || gradientPresentation?.key === gradientKey;
+      const textReady = typography.ready && gradientsReady;
+      const audioLoading = Boolean(audioReadinessKey)
+        && audioReadinessKey !== seamlessAudioKey.current
+        && (audioReadiness?.key !== audioReadinessKey || audioReadiness.loading);
+      const entryPrepared = Boolean(observation) && (comparisonPhase && !textComparison
+        ? comparisonReady
+        : (!showsObservationText || textReady) && !audioLoading && initialGateResolved);
+      const presentationKey = observation
+        ? `${observation.id}\0${observation.question?.phase ?? observation.kind}`
+        : null;
+      const [paintedPresentationKey, setPaintedPresentationKey] = useState<string | null>(null);
+      useEffect(() => {
+        if (!entryPrepared || !presentationKey) return;
+        let secondFrame = 0;
+        const firstFrame = window.requestAnimationFrame(() => {
+          secondFrame = window.requestAnimationFrame(() => setPaintedPresentationKey(presentationKey));
+        });
+        return () => {
+          window.cancelAnimationFrame(firstFrame);
+          window.cancelAnimationFrame(secondFrame);
+        };
+      }, [entryPrepared, presentationKey]);
+      const [navigationError, setNavigationError] = useState('');
+      const pageTransition = useObservationTravel(screenRef, state?.currentPosition ?? null, Boolean(observation && (textGivenFlow ? textReady : entryPrepared)));
+      const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
+      useEffect(() => {
+        if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
+        reportClientTelemetry({
+          event: 'observation_ready',
+          observationId: observation.id,
+          durationMs: performance.now() - observationLoadStartedAt.current,
+        });
+        observationLoadStartedAt.current = null;
+      }, [entryReady, observation?.id]);
+      const showEntryLoadingIndicator = readerNeedsLoadingDots({
+        entryReady,
+        textVisible: pageTransition.hasOutgoing || Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+        audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
+        comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
+        errorVisible: Boolean(audioError || state?.grammarError),
+        startVisible: Boolean(!observation && state?.canNext && !busy),
+      });
+      const progressParts = [
+        ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
+        ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
+          ? gradientProgress.completed / gradientProgress.total : 0] : []),
+        ...(audioReadinessKey ? [audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : 0] : []),
+        ...(!initialGateResolved && neighborAssignments.length
+          ? [neighborPrewarmReadyIds.size / neighborAssignments.length] : []),
+      ];
+      const entryProgress = entryReady ? 1 : progressParts.reduce((sum, progress) => sum + progress, 0) / Math.max(1, progressParts.length);
+      useEffect(() => {
+        if (entryReady || !observation) return;
+        const timer = window.setTimeout(() => {
+          console.warn('[telugu-now] observation readiness stalled', {
+            observationId: observation.id,
+            progress: Math.round(entryProgress * 100),
+            gates: {
+              initialPrewarm: initialGateResolved,
+              typography: !showsObservationText || typography.ready,
+              typographyFont: typography.fontFamily,
+              typographyDiagnostics: typography.diagnostics(),
+              fontSetStatus: document.fonts.status,
+              fontAvailable: fontAvailability(typography.fontFamily, observation.text),
+              gradients: !gradientKey || gradientPresentation?.key === gradientKey,
+              gradientProgress: gradientKey && gradientProgress?.key === gradientKey
+                ? { completed: gradientProgress.completed, total: gradientProgress.total }
+                : null,
+              audio: !audioReadinessKey || !audioLoading,
+              audioProgress: audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : null,
+            },
+            gradientCache: getTeluguGradientCacheSnapshot(),
+          });
+          reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: observation.id,
+            stage: 'readiness',
+            failureCategory: 'readiness-stalled',
+            durationMs: 5000,
+          });
+        }, 5000);
+        return () => window.clearTimeout(timer);
+      }, [entryReady, observation?.id, entryProgress, initialGateResolved, showsObservationText,
+        typography.ready, gradientKey, gradientPresentation?.key, gradientProgress,
+        audioReadinessKey, audioLoading, audioReadiness]);
+      const canBack =
+        Boolean(state?.canBack) &&
+        !busy &&
+        (!observation || entryReady);
+      const canNext =
+        Boolean(state?.canNext) &&
+        !busy &&
+        (!observation || entryReady);
+      // Going back while the current entry is still loading shows the previous
+      // page immediately; the abandoned load keeps running in the background and
+      // its result is discarded if the user never returns to it.
+      const canBackWhileLoading = Boolean(state?.canBack) && !busy;
+      const move = async (
+        direction: 'back' | 'next',
+      ) => {
+        if(evaluationNavigation.current)return;
+        evaluationNavigation.current=true;
+        let moved = false;
+        try {
+          if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
+          if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
+            !(await evaluationRef.current?.commit()))return;
+          setNavigationError('');
+          phaseDirection.current = direction;
+          if (swipeChangesObservation(observation?.question?.phase, direction)) pageTransition.prepare(direction);
+          moved=await onMove(direction);
+          if (!moved) { pageTransition.cancel(); setNavigationError('Could not move. Try again.'); }
+          if(moved && !textGivenFlow)setControlsVisible(false);
+        } catch (error) {
+          pageTransition.cancel();
+          setNavigationError(error instanceof Error ? error.message : 'Could not move. Try again.');
+        } finally {
+          if (!moved) gradientTravel.cancelPreview();
+          evaluationNavigation.current=false;
+        }
+      };
+      const verticalSwipe = (direction: 'up' | 'down') => {
+        if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
+        if (exploring) {
+          explorationRef.current?.pause();
+          const next = explorationSession.current?.move(direction) ?? null;
+          setExploration(next);
+          if (next === null) { explorationSession.current = null; if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+          return;
+        }
+        if (direction === 'up') {
+          if (controlsVisible) {
+            if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
+          } else if (showsObservationText && observation && (choices.letters.length || choices.words.length)) {
+            playerRef.current?.pause(); taps.cancel();
+            explorationSession.current = new RandomExploration(observation.text, appearance);
+            setExploration(explorationSession.current.move('up'));
+          }
+          return;
+        }
+        if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+        if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
+        else playerRef.current?.openAssociatedControls();
+      };
+      const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
+        `${observation?.id}:${observation?.question?.phase}`, direction => {
+          taps.cancel();
+          if (direction === 'up' || direction === 'down') {
+            verticalSwipe(direction);
+          }
+          else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
+          else gradientTravel.cancelPreview();
+        }, () => taps.cancel(), {
+          onDrag: (dx, dy, width) => {
+            if (evaluationNavigation.current || busy) return;
+            const fraction = gradientSwipeFraction(dx, dy, width);
+            const direction = fraction < 0 ? 'back' : 'next';
+            const allowed = direction === 'back' ? canBackWhileLoading : canNext;
+            if (fraction && allowed && swipeChangesObservation(observation?.question?.phase, direction)) {
+              gradientTravel.preview(fraction);
+            } else gradientTravel.cancelPreview();
+          },
+          onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
+        });
+      const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
+        const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
+        if (!element || !observation) return null;
+        return visibleWordAtPoint(
+          element,
+          observation.text,
+          event.clientX,
+          event.clientY,
+          contextMenu ? 8 : 2,
+          contextMenu ? 4 : 2,
+        );
+      };
+      const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => wordHitAtPoint(event, contextMenu)?.text ?? null;
+      return (
+        <main
+          ref={screenRef}
+          {...swipeHandlers}
+          data-swipe-navigation="true"
+          data-exploring={exploring}
+          data-text-given-flow={textGivenFlow}
+          data-phase-motion={phaseMotion}
+          onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
+          data-entry-ready={entryReady}
+          data-settings-idle={settingsIdle}
+          data-phase-direction={phaseDirection.current}
+          data-scroll-mode={appearance.scrollMode}
+          data-question-mode={textComparison ? 'text-given' : activeQuestion?.mode}
+          data-question-phase={observation?.question?.phase}
+          data-audio-motion={audioMotion}
+          data-swipe-direction={audioMotionDirection === 1 ? 'right' : 'left'}
+          className={
+            `app-shell observation-screen ${
+              audioControlsVisible
+                ? 'controls-visible'
+                : ''
+            }`
+          }
+          onFocusCapture={(event) => {
+            if (event.target.matches(':focus-visible')) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          onKeyDownCapture={(event) => {
+            if (observation && !entryReady) return;
+            if (event.target === event.currentTarget && (event.key === ' ' || event.key === 'Enter')) {
+              event.preventDefault();
+              if (!event.repeat) playerRef.current?.togglePlay();
+              return;
+            }
+            if (event.target instanceof Element) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          tabIndex={0}
+          aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
+          onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
+          onClick={(event) => {
+            if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
+            // Typing in the keyboard must never count toward the reader's own
+            // single/double-click gestures (playback toggle, back/next navigation).
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            if (observation && !entryReady) return;
+            const bounds = screenRef.current?.getBoundingClientRect();
+            if (!bounds) return;
+            const region = readerTapRegions(event.clientX, event.clientY, bounds);
+            const word = wordHitAtPoint(event);
+            const doubleRegion = word ? `word:${word.start}` : region.double;
+            if (!window.getSelection()?.isCollapsed && !taps.matches(doubleRegion, event.clientX, event.clientY)) {
+              taps.cancel();
+              return;
+            }
+            // A single tap that will end up pausing playback must stop the audio
+            // immediately, before the double-tap resolution delay, so the pause
+            // lands exactly where the user tapped instead of bleeding later.
+            const eagerlyPaused = Boolean(playerRef.current?.isPlaying());
+            if (eagerlyPaused) {
+              gesturePausedPlayback.current = true;
+              playerRef.current?.pause();
+            }
+            taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+              if (gesturePausedPlayback.current) playerRef.current?.resume();
+              gesturePausedPlayback.current = false;
+              window.getSelection()?.removeAllRanges();
+              if (word && observation) {
+                setControlsVisible(false);
+                setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
+              }
+    
+            }, () => {
+              gesturePausedPlayback.current = false;
+              if (!eagerlyPaused) playerRef.current?.togglePlay();
+            });
+          }}
+          onMouseDownCapture={(event) => {
+            if (event.button !== 0 || event.detail < 2) return;
+            if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile, .google-telugu-input')) return;
+            event.preventDefault();
+          }}
+          onDoubleClick={(event) => {
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            event.preventDefault();
+          }}
+        >
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-left"
+              type="button"
+              aria-label="వెనుక"
+              disabled={!canBack}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canBack) void move('back');
+                }
+              }}
+            />
+          </div>
+          {exploring && observation ? <ExplorationSurface observation={observation} step={exploration!}
+            profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
+            playbackRate={state?.audioSettings.playbackRate ?? 1}
+            onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
+          <section
+            ref={typography.containerRef}
+            className="observation-center"
+            data-entry-loading={Boolean(observation && !entryReady)}
+          >
+            {observation && comparisonPhase && !textComparison ? (
+              <ComparisonPage
+                observation={observation}
+                fontFamily={typography.fontFamily}
+                playbackRate={state?.audioSettings.playbackRate ?? 1}
+                onReady={() => setComparisonReady(true)}
+                onBack={() => { if (canBack) void move('back'); }}
+                onAdvance={() => { if (canNext) void move('next'); }}
+              />
+            ) : observation && showsObservationText ? (
+              <div
+                ref={typography.textRef}
+                className="observation-text"
+                onCopy={copyOriginalReaderText}
+                style={{ ...typography.style, opacity: (textGivenFlow ? textReady : entryReady) ? 1 : 0 }}
+              >
+                <TeluguWordText
+                  text={observation.text}
+                  visibleRange={exploration ?? undefined}
+                  runs={highlightRuns}
+                  textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
+                />
+              </div>
+            ) : observation && activeQuestion && visibleAudio ? null : canNext ? (
+              <button
+                className="observation-start"
+                type="button"
+                aria-label="Start observations"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void move('next');
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            ) : (
+              <div className="observation-placeholder" />
+            )}
+              {showEntryLoadingIndicator ? (
+                <div
+                  className="observation-entry-loading"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (textGivenFlow || event.detail < 2 || !canBackWhileLoading) return;
+                    const bounds = screenRef.current?.getBoundingClientRect();
+                    if (bounds && readerTapRegions(event.clientX, event.clientY, bounds).double === 'back') void move('back');
+                  }}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <LoadingSlit key={presentationKey ?? "empty"} delayMs={250} label={observation ? "Preparing observation" : "Loading observation"} progress={entryProgress} />
+                </div>
+              ) : null}
+              {!comparisonPhase || textComparison ? <AudioPlayerBar
+                ref={playerRef}
+                observationId={observation?.id ?? null}
+                audio={visibleAudio}
+                sourceId={activeQuestion?.mode === 'text-given' ? 'question-response' : observation?.sourceId ?? null}
+                sourceKey={activeQuestion?.mode === 'text-given' ? `${state?.profileCode}:${observation?.id}` : observation?.sourceKey ?? null}
+                defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
+                autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
+                persistentDisclosure={Boolean(textGivenFlow)}
+                controlsVisible={audioControlsVisible}
+                playbackEnabled={entryReady && !selectedWord && !exploring}
+                readinessKey={audioReadinessKey}
+                onLoadingChange={handleAudioLoadingChange}
+                onPlaybackErrorChange={setAudioError}
+                recordingRange={activeQuestion?.mode === 'text-given' ? recordingRange : null}
+                reserveAudioSpace={activeQuestion?.mode === 'text-given' || Boolean(textComparison)}
+                onPrecisionInteraction={() => {
+                  taps.cancel();
+                  setControlsVisible(true);
+                  setPrecisionInteraction(value => value + 1);
+                }}
+              /> : null}
+              {observation && activeQuestion ? <QuestionControls
+                key={`${state?.profileCode}:${observation.id}`}
+                ref={questionControlsRef}
+                profileCode={state?.profileCode ?? ''}
+                observationId={observation.id}
+                mode={activeQuestion.mode}
+                keyboard={activeQuestion.keyboard}
+                visible={!exploring}
+                initialText={activeQuestion.responseText}
+                fontFamily={typography.fontFamily}
+                beginRecording={() => playerRef.current?.beginRecording() ?? 0}
+                durationSeconds={() => playerRef.current?.duration() ?? 0}
+                onAudioSaved={(audio) => {
+                  playerRef.current?.prepareAudioReplacement(0);
+                  seamlessAudioKey.current = observation ? `${observation.id}\0${audio.url}` : null;
+                  setResponseAudio(audio);
+                  setControlsVisible(true);
+                }}
+                onRecordingChange={range => { setRecordingRange(range); if (range) setControlsVisible(true); }}
+                onSubmit={() => { if (canNext) void move('next'); }}
+              /> : null}
+          </section>
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-right"
+              type="button"
+              aria-label="తర్వాత"
+              disabled={!canNext}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canNext) void move('next');
+                }
+              }}
+            />
+          </div>
+          {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase) && !exploring} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+          {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
+          {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
+          {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
+          {selectedWord && selectedWord.observationId === observation?.id ? (
+            <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text} initialGrapheme={selectedWord.grapheme} suppressAudioControls={exploring}
+              observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
+              fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
+              onClose={() => setSelectedWord(null)} />
+          ) : null}
+          <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
+    
+        </main>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/observation-loading.test.ts:88:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: reader batches modifier textures and uses the moving slit while waiting
+ok 8 - reader batches modifier textures and uses the moving slit while waiting
+  ---
+  duration_ms: 1.151936
+  type: 'test'
+  ...
+# Subtest: reader loading dots wait 250ms and are gated by visible content
+ok 9 - reader loading dots wait 250ms and are gated by visible content
+  ---
+  duration_ms: 0.733746
+  type: 'test'
+  ...
+# Subtest: loading dots leave a blank interval between trains
+ok 10 - loading dots leave a blank interval between trains
+  ---
+  duration_ms: 0.543718
+  type: 'test'
+  ...
+# Subtest: hidden question answers prewarm gradients and cached textures render without frame delays
+ok 11 - hidden question answers prewarm gradients and cached textures render without frame delays
+  ---
+  duration_ms: 0.404571
+  type: 'test'
+  ...
+# Subtest: stalled observation readiness reports each gate and gradient cache state
+ok 12 - stalled observation readiness reports each gate and gradient cache state
+  ---
+  duration_ms: 0.340549
+  type: 'test'
+  ...
+# Subtest: typography cannot stall forever on an unsettled font promise
+ok 13 - typography cannot stall forever on an unsettled font promise
+  ---
+  duration_ms: 0.513465
+  type: 'test'
+  ...
+# Subtest: profile digits match loader numerals without darkening filled or focused slots
+ok 14 - profile digits match loader numerals without darkening filled or focused slots
+  ---
+  duration_ms: 0.175275
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 10
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 115.66343

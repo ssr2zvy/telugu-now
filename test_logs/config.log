@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: default data layout is repository-relative from unrelated working directories
+ok 1 - default data layout is repository-relative from unrelated working directories
+  ---
+  duration_ms: 79.685535
+  type: 'test'
+  ...
+# Subtest: availability and catalog-redownload switches have backend-independent defaults and explicit boolean overrides
+ok 2 - availability and catalog-redownload switches have backend-independent defaults and explicit boolean overrides
+  ---
+  duration_ms: 1431.021138
+  type: 'test'
+  ...
+# Subtest: explicit external data mount and backend overrides do not require control_local.sh
+ok 3 - explicit external data mount and backend overrides do not require control_local.sh
+  ---
+  duration_ms: 78.892798
+  type: 'test'
+  ...
+# Subtest: configuration rejects invalid backend, root and escaping paths
+ok 4 - configuration rejects invalid backend, root and escaping paths
+  ---
+  duration_ms: 622.157606
+  type: 'test'
+  ...
+# Subtest: default shared word image directory follows DATA_DIRECTORY
+ok 5 - default shared word image directory follows DATA_DIRECTORY
+  ---
+  duration_ms: 81.584316
+  type: 'test'
+  ...
+# Subtest: controller offers Python dependencies independently of npm and propagates installer failures
+ok 6 - controller offers Python dependencies independently of npm and propagates installer failures
+  ---
+  duration_ms: 189.098133
+  type: 'test'
+  ...
+# Subtest: controller requires local prepared data but never generates a corpus for Tigris
+ok 7 - controller requires local prepared data but never generates a corpus for Tigris
+  ---
+  duration_ms: 750.325792
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3331.640953

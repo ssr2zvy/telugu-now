@@ -1,0 +1,60 @@
+TAP version 13
+# Subtest: artifact script builds from its own repository and propagates build failures
+ok 1 - artifact script builds from its own repository and propagates build failures
+  ---
+  duration_ms: 16.476604
+  type: 'test'
+  ...
+# Subtest: artifact metadata preserves independent source versions and rejects invalid requests
+not ok 2 - artifact metadata preserves independent source versions and rejects invalid requests
+  ---
+  duration_ms: 29.688039
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/build-artifacts.test.ts:44:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    node:internal/fs/promises:639
+      return new FileHandle(await PromisePrototypeThen(
+                            ^
+    
+    Error: ENOENT: no such file or directory, open '/home/runner/work/telugu-now/telugu-now/upa/test-results/artifact-versions-119ca25f-fa32-4c5b-a5ae-c60d25ecaf3a/package.json'
+        at async open (node:internal/fs/promises:639:25)
+        at async readFile (node:internal/fs/promises:1252:14)
+        at async file:///home/runner/work/telugu-now/telugu-now/upa/test-results/artifact-versions-119ca25f-fa32-4c5b-a5ae-c60d25ecaf3a/scripts/write-artifact-versions.mjs:17:36 {
+      errno: -2,
+      code: 'ENOENT',
+      syscall: 'open',
+      path: '/home/runner/work/telugu-now/telugu-now/upa/test-results/artifact-versions-119ca25f-fa32-4c5b-a5ae-c60d25ecaf3a/package.json'
+    }
+    
+    Node.js v22.23.3
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    async open (node:internal/fs/promises:639:25)
+    async readFile (node:internal/fs/promises:1252:14)
+    async file:///home/runner/work/telugu-now/telugu-now/upa/test-results/artifact-versions-119ca25f-fa32-4c5b-a5ae-c60d25ecaf3a/scripts/write-artifact-versions.mjs:17:36 {
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/build-artifacts.test.ts:65:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 143.514432

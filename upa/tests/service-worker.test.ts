@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('service worker clones network responses before asynchronous cache writes', () => {
+test('service worker retires offline caches and unregisters itself', () => {
   const worker = readFileSync(new URL('../frontend/public/service-worker.js', import.meta.url), 'utf8');
-  assert.match(worker, /if \(response\.ok\) \{\s*const copy = response\.clone\(\);\s*void caches\.open\(CACHE\)\.then\(cache => cache\.put\(request, copy\)\)/);
-  assert.doesNotMatch(worker, /caches\.open\(CACHE\)\.then\(cache => cache\.put\(request, response\.clone\(\)\)\)/);
-  assert.match(worker, /const copy = response\.clone\(\);\s*void caches\.open\(CACHE\)\.then\(cache => cache\.put\('\/', copy\)\)/);
-  assert.match(worker, /shell cache write failed/);
-  assert.match(worker, /asset cache write failed/);
+  const gate = readFileSync(new URL('../server/src/access/gate.ts', import.meta.url), 'utf8');
+  assert.match(worker, /self\.addEventListener\('install',\(\)=>self\.skipWaiting\(\)\);/);
+  assert.match(worker, /self\.addEventListener\('activate',event=>event\.waitUntil\(caches\.keys\(\)\.then\(keys=>Promise\.all\(keys\.filter\(k=>k\.startsWith\('telugu-now-'\)\)\.map\(k=>caches\.delete\(k\)\)\)\)\.then\(\(\)=>self\.clients\.claim\(\)\)\.then\(\(\)=>self\.registration\.unregister\(\)\)\)\);/);
+  assert.doesNotMatch(worker, /cache\.put|caches\.open\(|response\.clone\(/);
+  assert.match(gate, /export const retireOfflineCache = `self\.addEventListener\('install',\(\)=>self\.skipWaiting\(\)\);/);
+  assert.match(gate, /retireOfflineCache/);
 });

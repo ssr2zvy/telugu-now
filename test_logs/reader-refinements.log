@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: random themes span continuously generated colors with readable tinted text
+ok 1 - random themes span continuously generated colors with readable tinted text
+  ---
+  duration_ms: 34.899969
+  type: 'test'
+  ...
+# Subtest: gradient barrier keeps the old curve at default, changes sharpness, and remains bounded and monotone
+ok 2 - gradient barrier keeps the old curve at default, changes sharpness, and remains bounded and monotone
+  ---
+  duration_ms: 0.903956
+  type: 'test'
+  ...
+# Subtest: saved preferences migrate independently and texture caches distinguish barriers
+ok 3 - saved preferences migrate independently and texture caches distinguish barriers
+  ---
+  duration_ms: 1.030416
+  type: 'test'
+  ...
+# Subtest: highlight mods expose the barrier as its own slider page
+ok 4 - highlight mods expose the barrier as its own slider page
+  ---
+  duration_ms: 8.961345
+  type: 'test'
+  ...
+# Subtest: loader is eligible only on a blank reader and begins hidden during its delay
+ok 5 - loader is eligible only on a blank reader and begins hidden during its delay
+  ---
+  duration_ms: 0.745438
+  type: 'test'
+  ...
+# Subtest: record/switch slot stays put when clear and avoids expanded controls on phone and short screens
+ok 6 - record/switch slot stays put when clear and avoids expanded controls on phone and short screens
+  ---
+  duration_ms: 0.399137
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 422.875017

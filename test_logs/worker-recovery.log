@@ -1,0 +1,19 @@
+TAP version 13
+# {"error":"Parser search timed out. Selection will retry.","timestamp":"2026-10-04T14:15:43.484Z","level":"error","event":"live_parser_failed"}
+# {"error":"Parser restarted.","timestamp":"2026-10-04T14:15:43.555Z","level":"error","event":"live_parser_failed"}
+# {"error":"Parser restarted.","timestamp":"2026-10-04T14:15:43.574Z","level":"error","event":"live_parser_failed"}
+# Subtest: stopping a stalled worker releases pending searches and allows a clean restart
+ok 1 - stopping a stalled worker releases pending searches and allows a clean restart
+  ---
+  duration_ms: 645.744672
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 740.35338

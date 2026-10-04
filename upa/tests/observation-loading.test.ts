@@ -50,18 +50,19 @@ test('contentless question payloads show neither stray phase icon', () => {
 
 test('question-set phases use question, comparison, and observation icons', () => {
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(view, /phase === 'comparison'[\s\S]*<Check aria-hidden="true" \/>/);
-  assert.match(view, /phase === 'observation'[\s\S]*<AlignJustify aria-hidden="true" \/>/);
-  assert.match(view, /<CircleHelp aria-hidden="true" \/>/);
+  assert.match(view, /const questionPhase = state\?\.currentObservation\?\.kind === 'question' && state\.currentObservation\.question\?\.phase === 'question'/);
+  assert.match(view, /const presentationKey = observation[\s\S]*`\$\{observation\.id\}\\0\$\{observation\.question\?\.phase \?\? observation\.kind\}`/);
+  assert.match(view, /data-question-phase=\{observation\?\.question\?\.phase\}/);
 });
 
 test('comparison double-clicks navigate back on the left and forward on the right', () => {
   const comparison = readFileSync(new URL('../frontend/src/observation/ComparisonPage.tsx', import.meta.url), 'utf8');
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(comparison, /const horizontal = \(event\.clientX - bounds\.left\) \/ bounds\.width/);
-  assert.match(comparison, /horizontal < 1 \/ 3\) onBack\(\)/);
-  assert.match(comparison, /horizontal >= 2 \/ 3\) onAdvance\(\)/);
-  assert.match(view, /!audioGivenQuestionPhase && !comparisonQuestionPhase/);
+  assert.match(comparison, /const region = readerTapRegions\(event\.clientX, event\.clientY, event\.currentTarget\.getBoundingClientRect\(\)\)/);
+  assert.match(comparison, /const userSide = event\.target instanceof Element && Boolean\(event\.target\.closest\('\.question-comparison-user'\)\)/);
+  assert.match(comparison, /taps\.tap\(`\$\{region\.double\}:\$\{userSide \? 'user' : 'correct'\}`/);
+  assert.match(comparison, /if \(!textComparison\) \(userSide \? toggleUserAudio : toggleCorrectAudio\)\(\);/);
+  assert.match(view, /\{observation && comparisonPhase && !textComparison \? \([\s\S]*<ComparisonPage/);
   assert.match(view, /setAudioMotion\('idle'\)/);
 });
 
@@ -77,7 +78,7 @@ test('comparison centers both answers without a divider', () => {
   assert.match(comparison, /if \(!userPlayer\.current\?\.isPlaying\(\)\) correctPlayer\.current\?\.pause\(\);\s*userPlayer\.current\?\.togglePlay\(\)/);
   assert.doesNotMatch(css, /\.question-comparison-(?:user|correct) > \* \{ transform:/);
   assert.match(css, /\.question-comparison \.audio-player-bar \{[^}]*justify-self: center; align-self: center; width: min\(416px, 100%\)/);
-  assert.match(css, /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: 48px 0; \}/);
+  assert.match(css, /\.question-comparison \.audio-player-bar:not\(:has\(\.audio-precision-panel\[data-visible='true'\]\)\) \{ grid-template-rows: var\(--audio-row-height\); \}/);
   assert.doesNotMatch(css, /controls-visible \.audio-player-bar \{ animation: audio-enter/);
   assert.match(css, /controls-visible \.observation-center > \.audio-player-bar \{ animation: audio-enter/);
 });
@@ -85,9 +86,10 @@ test('comparison centers both answers without a divider', () => {
 test('mobile long press owns empty reader space without intercepting controls', () => {
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
-  assert.match(view, /onPointerDown=\{\(event\) => \{[\s\S]*event\.pointerType !== 'touch'[\s\S]*\.reading-context-menu, \.word-profile'[\s\S]*wordAtPoint\(\{ clientX, clientY, target \}\)/);
+  assert.match(view, /onContextMenu=\{event => \{ if \(!\(event\.target instanceof Element && event\.target\.closest\('input, textarea'\)\)\) event\.preventDefault\(\); \}\}/);
+  assert.match(view, /onMouseDownCapture=\{\(event\) => \{[\s\S]*event\.target instanceof Element && event\.target\.closest\('button, \.audio-player-bar, \.word-profile, \.google-telugu-input'\)\) return;/);
   assert.doesNotMatch(view, /className="observation-text"[\s\S]{0,200}onPointerDown/);
-  assert.match(css, /\.observation-center \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
+  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.observation-center \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
 });
 
 test('reader batches modifier textures and uses the moving slit while waiting', () => {

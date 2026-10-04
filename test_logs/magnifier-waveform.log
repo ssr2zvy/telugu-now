@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: moving window scales with duration, clamps to 0.25–2 seconds and stays inside the clip
+ok 1 - moving window scales with duration, clamps to 0.25–2 seconds and stays inside the clip
+  ---
+  duration_ms: 1.212767
+  type: 'test'
+  ...
+# Subtest: coarse global buckets stretch into wide bars with one-pixel gaps
+ok 2 - coarse global buckets stretch into wide bars with one-pixel gaps
+  ---
+  duration_ms: 0.655842
+  type: 'test'
+  ...
+# Subtest: max pooling preserves real impulses and silence only in the visible window
+ok 3 - max pooling preserves real impulses and silence only in the visible window
+  ---
+  duration_ms: 0.228026
+  type: 'test'
+  ...
+# Subtest: a brief impulse on a long recording is retained with no timing or encoding change
+ok 4 - a brief impulse on a long recording is retained with no timing or encoding change
+  ---
+  duration_ms: 14.484392
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 118.583261

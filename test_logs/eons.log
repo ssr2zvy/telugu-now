@@ -1,0 +1,162 @@
+TAP version 13
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.153Z","level":"info","event":"queue_unexpectedly_empty"}
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.156Z","level":"info","event":"queue_unexpectedly_empty"}
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.159Z","level":"info","event":"queue_unexpectedly_empty"}
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.161Z","level":"info","event":"queue_unexpectedly_empty"}
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.165Z","level":"info","event":"queue_unexpectedly_empty"}
+# {"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:14:18.167Z","level":"info","event":"queue_unexpectedly_empty"}
+# Subtest: eons include current and prequeued observations by viewing, never by acquisition or polling
+not ok 1 - eons include current and prequeued observations by viewing, never by acquisition or polling
+  ---
+  duration_ms: 265.584018
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:82:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 10
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 10
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:85:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: history revisits, reloads and explicit resumes append timestamps without changing generation or repeat snapshots
+not ok 2 - history revisits, reloads and explicit resumes append timestamps without changing generation or repeat snapshots
+  ---
+  duration_ms: 3.884382
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:116:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:118:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: stop and repeated-name restart permit the same observation in multiple eons and keep outside views
+not ok 3 - stop and repeated-name restart permit the same observation in multiple eons and keep outside views
+  ---
+  duration_ms: 2.103384
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:140:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:142:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: active eons survive actual database startup and empty-current starts do not fabricate prior views
+not ok 4 - active eons survive actual database startup and empty-current starts do not fabricate prior views
+  ---
+  duration_ms: 3.014945
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:165:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:170:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: upgrading a profile with existing history creates no retrospective eons or view events
+not ok 5 - upgrading a profile with existing history creates no retrospective eons or view events
+  ---
+  duration_ms: 2.090762
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:194:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:196:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: view and eon rows isolate profiles and follow queue reset and profile deletion cascades
+not ok 6 - view and eon rows isolate profiles and follow queue reset and profile deletion cascades
+  ---
+  duration_ms: 3.411762
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:212:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:215:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: eon start and navigation commit atomically with their view ledger and queue replacement
+not ok 7 - eon start and navigation commit atomically with their view ledger and queue replacement
+  ---
+  duration_ms: 1.878816
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:243:1'
+  failureType: 'testCodeFailure'
+  error: 'Next observation is not ready.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Function.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:712:13)
+    Function.sqliteTransaction (/home/runner/work/telugu-now/telugu-now/upa/node_modules/better-sqlite3/lib/methods/transaction.js:65:24)
+    Module.navigateNext (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/profile-service.ts:750:6)
+    next (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:73:18)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/eons.test.ts:245:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: eon routes validate names, isolate profiles, reject concurrent starts and use consistent stop statuses
+ok 8 - eon routes validate names, isolate profiles, reject concurrent starts and use consistent stop statuses
+  ---
+  duration_ms: 36.997618
+  type: 'test'
+  ...
+# {"error":"Live parser stopped (1): Traceback (most recent call last):\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 249, in <module>\\n    main()\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 238, in main\\n    worker=LiveParser(args.frequency,args.corpus,args.availability,args.validation)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 47, in __init__\\n    self.db = sqlite3.connect(Path(frequency).resolve().as_uri() + '?mode=rw', uri=True)\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nsqlite3.OperationalError: unable to open database file\\n","timestamp":"2026-10-04T14:14:30.693Z","level":"error","event":"live_parser_failed"}
+# Error: Test "eons include current and prequeued observations by viewing, never by acquisition or polling" at tests/eons.test.ts:82:1 generated asynchronous activity after the test ended. This activity created the error "TypeError: The database connection is not open" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+# Error: Test "view and eon rows isolate profiles and follow queue reset and profile deletion cascades" at tests/eons.test.ts:212:1 generated asynchronous activity after the test ended. This activity created the error "TypeError: The database connection is not open" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+1..8
+# tests 8
+# suites 0
+# pass 1
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12948.675728

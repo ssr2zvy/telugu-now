@@ -110,7 +110,11 @@ export class SelectionEngine {
     private readonly registry: SourceRegistry = sourceRegistry,
     private readonly random: () => number = () => Math.random(),
   ) {
-    this.refreshReference();
+    // Reference data is built lazily on first use (see refreshReference calls in
+    // describeReference/select) rather than here. Building it eagerly would make
+    // constructing the module-level `selectionEngine` singleton below fail at
+    // import time whenever the corpus has not been prepared yet, pre-empting the
+    // clearer `assertPreparedSourcesPresent` check performed during app startup.
   }
 
   private refreshReference(): void {

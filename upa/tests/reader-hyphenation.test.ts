@@ -61,6 +61,6 @@ test('source ranges ignore display-only characters before and inside a word', ()
 
 test('reader page resets animation and question controls in a layout effect', () => {
   const source = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(source, /useLayoutEffect\(\(\) => \{\s*taps.cancel\(\);[\s\S]*?setQuestionControlsVisible\(false\);[\s\S]*?setAudioMotion\('idle'\)/);
+  assert.match(source, /useLayoutEffect\(\(\) => \{\s*taps.cancel\(\);[\s\S]*?setAudioMotion\('idle'\);[\s\S]*?setRecordingRange\(null\);[\s\S]*?setControlsVisible\(Boolean\(questionPhase && textGivenFlow && observation\?\.question\?\.responseAudio\) \|\| Boolean\(observation\?\.kind === 'question' && observation\.question\?\.phase === 'question' && observation\.question\.mode === 'audio-given' && observation\.audio\)\);/);
   assert.match(source, /observation.question.mode === 'audio-given' && observation.audio/);
 });

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: closing settings keeps its leaf and back stack for the same observation
+ok 1 - closing settings keeps its leaf and back stack for the same observation
+  ---
+  duration_ms: 0.747296
+  type: 'test'
+  ...
+# Subtest: overview explicitly resets navigation while repeated opens do not
+ok 2 - overview explicitly resets navigation while repeated opens do not
+  ---
+  duration_ms: 0.125233
+  type: 'test'
+  ...
+# Subtest: appearance groups contain page links and defer controls to leaf pages
+ok 3 - appearance groups contain page links and defer controls to leaf pages
+  ---
+  duration_ms: 19.422092
+  type: 'test'
+  ...
+# Subtest: each color page offers presets and opens a separate color wheel page
+ok 4 - each color page offers presets and opens a separate color wheel page
+  ---
+  duration_ms: 6.513388
+  type: 'test'
+  ...
+# Subtest: the new default migrates the previous neutral default without overriding custom colors
+ok 5 - the new default migrates the previous neutral default without overriding custom colors
+  ---
+  duration_ms: 1.616094
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 401.584002

@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: history positions are stable on entry, forward, back, polling and phase changes
+ok 1 - history positions are stable on entry, forward, back, polling and phase changes
+  ---
+  duration_ms: 1.332586
+  type: 'test'
+  ...
+# Subtest: canceled or failed swipes return to the committed state without advancing it
+ok 2 - canceled or failed swipes return to the committed state without advancing it
+  ---
+  duration_ms: 0.163046
+  type: 'test'
+  ...
+# Subtest: rapid reversal starts from the current frame and obsolete animations cannot overwrite it
+ok 3 - rapid reversal starts from the current frame and obsolete animations cannot overwrite it
+  ---
+  duration_ms: 0.206741
+  type: 'test'
+  ...
+# Subtest: reduced motion and cleared history never animate a long reset or leave frames running
+ok 4 - reduced motion and cleared history never animate a long reset or leave frames running
+  ---
+  duration_ms: 0.186595
+  type: 'test'
+  ...
+# Subtest: horizontal previews are bounded; phases and vertical disclosure do not move the landscape
+ok 5 - horizontal previews are bounded; phases and vertical disclosure do not move the landscape
+  ---
+  duration_ms: 0.133902
+  type: 'test'
+  ...
+# Subtest: pattern coordinates remain bounded through long histories and tile seams are mirrored
+ok 6 - pattern coordinates remain bounded through long histories and tile seams are mirrored
+  ---
+  duration_ms: 6.799471
+  type: 'test'
+  ...
+# Subtest: swipe feedback follows gestures, releases into pending navigation, and cancels cleanly
+ok 7 - swipe feedback follows gestures, releases into pending navigation, and cancels cleanly
+  ---
+  duration_ms: 0.870038
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 198.156715

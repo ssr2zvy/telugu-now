@@ -1,0 +1,25 @@
+TAP version 13
+# Subtest: real corpus quarantine replaces reservations, survives restart and rechecks browser resume without replaying history
+not ok 1 - real corpus quarantine replaces reservations, survives restart and rechecks browser resume without replaying history
+  ---
+  duration_ms: 246.580089
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/queue-audio-validation.test.ts:10:1'
+  failureType: 'testCodeFailure'
+  error: 'Only question type can be changed on this branch.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/queue-audio-validation.test.ts:67:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 405.541867

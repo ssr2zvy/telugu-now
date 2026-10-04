@@ -1,0 +1,527 @@
+TAP version 13
+# {"observationId":"observation-2-0","historyPosition":0,"durationMs":0,"depth":5,"preparing":0,"pending":1,"ready":4,"failed":0,"timestamp":"2026-10-04T14:11:33.182Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-2-1","historyPosition":1,"durationMs":0,"depth":4,"preparing":0,"pending":1,"ready":3,"failed":0,"timestamp":"2026-10-04T14:11:33.185Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-3-0","historyPosition":0,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.192Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-4-0","historyPosition":0,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.196Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-4-1","historyPosition":1,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.202Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-5-0","historyPosition":0,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.204Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-5-0","responseKind":"text","timestamp":"2026-10-04T14:11:33.205Z","level":"info","event":"question_response_saved"}
+# Subtest: Iteration 1 invariants remain intact
+    # Subtest: rejects an unconfigured profile code
+    ok 1 - rejects an unconfigured profile code
+      ---
+      duration_ms: 1.740246
+      type: 'test'
+      ...
+    # Subtest: keeps queue order authoritative over readiness
+    ok 2 - keeps queue order authoritative over readiness
+      ---
+      duration_ms: 51.437375
+      type: 'test'
+      ...
+    # Subtest: reports all queue preparation phases and pads empty slots
+    ok 3 - reports all queue preparation phases and pads empty slots
+      ---
+      duration_ms: 3.982178
+      type: 'test'
+      ...
+    # Subtest: audio hints preserve ordered forward history and ready queue slots without consuming or exposing pending audio
+    ok 4 - audio hints preserve ordered forward history and ready queue slots without consuming or exposing pending audio
+      ---
+      duration_ms: 13.659612
+      type: 'test'
+      ...
+    # Subtest: does not allow Back from the first history entry
+    ok 5 - does not allow Back from the first history entry
+      ---
+      duration_ms: 2.990606
+      type: 'test'
+      ...
+    # Subtest: samples normal and question plans at the configured boundaries
+    ok 6 - samples normal and question plans at the configured boundaries
+      ---
+      duration_ms: 0.308251
+      type: 'test'
+      ...
+    # Subtest: questions show comparison and observation stages before consuming the next observation
+    ok 7 - questions show comparison and observation stages before consuming the next observation
+      ---
+      duration_ms: 8.582643
+      type: 'test'
+      ...
+# {"observationId":"observation-5-0","responseKind":"audio","bytes":3244,"timestamp":"2026-10-04T14:11:33.281Z","level":"info","event":"question_response_saved"}
+# {"observationId":"observation-6-0","historyPosition":0,"durationMs":0,"depth":2,"preparing":0,"pending":0,"ready":2,"failed":0,"timestamp":"2026-10-04T14:11:33.284Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-6-1","historyPosition":1,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.286Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-6-2","historyPosition":2,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.289Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-7-0","historyPosition":0,"durationMs":0,"depth":2,"preparing":0,"pending":0,"ready":2,"failed":0,"timestamp":"2026-10-04T14:11:33.309Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-7-1","historyPosition":1,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.310Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-8-0","historyPosition":0,"durationMs":0,"depth":10,"preparing":0,"pending":0,"ready":10,"failed":0,"timestamp":"2026-10-04T14:11:33.314Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-9-0","historyPosition":0,"durationMs":0,"depth":2,"preparing":0,"pending":0,"ready":2,"failed":0,"timestamp":"2026-10-04T14:11:33.321Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-9-1","historyPosition":1,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.322Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-9-2","historyPosition":2,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.323Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-10-0","historyPosition":0,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.333Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-10-1","historyPosition":1,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.335Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-11-0","historyPosition":0,"durationMs":0,"depth":3,"preparing":0,"pending":0,"ready":3,"failed":0,"timestamp":"2026-10-04T14:11:33.340Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-11-1","historyPosition":1,"durationMs":0,"depth":2,"preparing":0,"pending":0,"ready":2,"failed":0,"timestamp":"2026-10-04T14:11:33.341Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-11-2","historyPosition":2,"durationMs":0,"depth":1,"preparing":0,"pending":0,"ready":1,"failed":0,"timestamp":"2026-10-04T14:11:33.342Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"observation-11-3","historyPosition":3,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:11:33.346Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+    # Subtest: question text and audio responses persist and reload with the question
+    ok 8 - question text and audio responses persist and reload with the question
+      ---
+      duration_ms: 79.487312
+      type: 'test'
+      ...
+    # Subtest: history navigation preserves absolute and visible timing semantics
+    ok 9 - history navigation preserves absolute and visible timing semantics
+      ---
+      duration_ms: 7.580213
+      type: 'test'
+      ...
+    # Subtest: walking through history neither consumes future slots nor creates replacements
+    not ok 10 - walking through history neither consumes future slots nor creates replacements
+      ---
+      duration_ms: 22.177509
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:390:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 3
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 3
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:395:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:390:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: preserves absolute time across an unreported client absence
+    ok 11 - preserves absolute time across an unreported client absence
+      ---
+      duration_ms: 4.980006
+      type: 'test'
+      ...
+    # Subtest: fills to ten and replenishes exactly one-for-one
+    not ok 12 - fills to ten and replenishes exactly one-for-one
+      ---
+      duration_ms: 1.644739
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:416:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        false !== true
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:420:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:416:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: counts only first displays, distinguishes same text, and restores the persisted cursor on relaunch
+    ok 13 - counts only first displays, distinguishes same text, and restores the persisted cursor on relaunch
+      ---
+      duration_ms: 12.153169
+      type: 'test'
+      ...
+    # Subtest: existing profiles get concrete counts and old history snapshots exclude future appearances
+    ok 14 - existing profiles get concrete counts and old history snapshots exclude future appearances
+      ---
+      duration_ms: 6.119567
+      type: 'test'
+      ...
+    # Subtest: repeat totals outlive pruning and navigation skips missing history positions
+    ok 15 - repeat totals outlive pruning and navigation skips missing history positions
+      ---
+      duration_ms: 9.21941
+      type: 'test'
+      ...
+    1..15
+not ok 1 - Iteration 1 invariants remain intact
+  ---
+  duration_ms: 419.386021
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:225:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: Iteration 3 selection, settings, repeats, cache and export
+    # Subtest: contains six selectable sources with three dummy and three prepared catalogs
+    ok 1 - contains six selectable sources with three dummy and three prepared catalogs
+      ---
+      duration_ms: 3.430423
+      type: 'test'
+      ...
+    # Subtest: builds complexity reference version 2 from all six test sources
+    ok 2 - builds complexity reference version 2 from all six test sources
+      ---
+      duration_ms: 1.065436
+      type: 'test'
+      ...
+    # Subtest: rejects noncanonical source weights and persists valid profile settings
+    not ok 3 - rejects noncanonical source weights and persists valid profile settings
+      ---
+      duration_ms: 1.286794
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:615:15'
+      failureType: 'testCodeFailure'
+      error: 'Only question type can be changed on this branch.'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        Module.updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:626:10)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:615:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: persists exact Iteration 3 defaults for a new profile
+    not ok 4 - persists exact Iteration 3 defaults for a new profile
+      ---
+      duration_ms: 1.394957
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:654:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 0.3
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 0.3
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:680:14)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:654:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: persists configurable question sampling probabilities
+    not ok 5 - persists configurable question sampling probabilities
+      ---
+      duration_ms: 1.292577
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:686:15'
+      failureType: 'testCodeFailure'
+      error: 'Only question type can be changed on this branch.'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        Module.updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:690:35)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:686:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: persists the configured default playback rate for a new profile and exposes it in profile state
+    ok 6 - persists the configured default playback rate for a new profile and exposes it in profile state
+      ---
+      duration_ms: 1.708498
+      type: 'test'
+      ...
+    # Subtest: updateProfileAudioSettings persists a valid playback rate and rejects out-of-range or non-finite values
+    ok 7 - updateProfileAudioSettings persists a valid playback rate and rejects out-of-range or non-finite values
+      ---
+      duration_ms: 1.592821
+      type: 'test'
+      ...
+    # Subtest: rejects every invalid settings family, including non-finite values and incomplete source maps
+    ok 8 - rejects every invalid settings family, including non-finite values and incomplete source maps
+      ---
+      duration_ms: 1.540346
+      type: 'test'
+      ...
+    # Subtest: source probability uses row count times profile weight and snapshots exact row probabilities
+    ok 9 - source probability uses row count times profile weight and snapshots exact row probabilities
+      ---
+      duration_ms: 2.342834
+      type: 'test'
+      ...
+    # Subtest: permits repeated source rows as distinct normal acquisitions
+    not ok 10 - permits repeated source rows as distinct normal acquisitions
+      ---
+      duration_ms: 13.59019
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:805:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        + actual - expected
+        
+        + undefined
+        - 'source1'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 'source1'
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:816:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:805:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: settings changes leave existing queue snapshots unchanged and affect only a new replacement
+    not ok 11 - settings changes leave existing queue snapshots unchanged and affect only a new replacement
+      ---
+      duration_ms: 1.526784
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:822:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        0 !== 10
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 10
+      actual: 0
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:828:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:822:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: clearQueue removes queued observations, their acquisitions, and queue items only
+    not ok 12 - clearQueue removes queued observations, their acquisitions, and queue items only
+      ---
+      duration_ms: 1.423951
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:856:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        0 !== 10
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 10
+      actual: 0
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:861:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:856:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: resetting the queue clears queued observations but keeps the currently displayed one
+    not ok 13 - resetting the queue clears queued observations but keeps the currently displayed one
+      ---
+      duration_ms: 1.418818
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:878:15'
+      failureType: 'testCodeFailure'
+      error: "Cannot read properties of undefined (reading 'observation_id')"
+      code: 'ERR_TEST_FAILURE'
+      name: 'TypeError'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:888:121)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:878:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: currentObservation exposes no audio when no source record cache entry exists yet
+    not ok 14 - currentObservation exposes no audio when no source record cache entry exists yet
+      ---
+      duration_ms: 1.343299
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:911:15'
+      failureType: 'testCodeFailure'
+      error: "Cannot read properties of undefined (reading 'observation_id')"
+      code: 'ERR_TEST_FAILURE'
+      name: 'TypeError'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:920:121)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:911:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: currentObservation exposes a streamable audio URL when the resolved source record includes audio media
+    not ok 15 - currentObservation exposes a streamable audio URL when the resolved source record includes audio media
+      ---
+      duration_ms: 69.788924
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:928:15'
+      failureType: 'testCodeFailure'
+      error: 'Only question type can be changed on this branch.'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        Module.updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:956:21)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:928:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: updating settings resets the queue with the new settings while keeping the currently displayed observation
+    not ok 16 - updating settings resets the queue with the new settings while keeping the currently displayed observation
+      ---
+      duration_ms: 1.866837
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:967:15'
+      failureType: 'testCodeFailure'
+      error: "Cannot read properties of undefined (reading 'observation_id')"
+      code: 'ERR_TEST_FAILURE'
+      name: 'TypeError'
+      stack: |-
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:977:121)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:967:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: profile SourceRecord cache turns a repeated resolution into a cache hit
+    ok 17 - profile SourceRecord cache turns a repeated resolution into a cache hit
+      ---
+      duration_ms: 2.703183
+      type: 'test'
+      ...
+    # Subtest: source records and concurrent requests are isolated by profile
+    ok 18 - source records and concurrent requests are isolated by profile
+      ---
+      duration_ms: 3.51069
+      type: 'test'
+      ...
+    # Subtest: historical cached rows with empty media synthesize TextMedia
+    ok 19 - historical cached rows with empty media synthesize TextMedia
+      ---
+      duration_ms: 1.389623
+      type: 'test'
+      ...
+    # Subtest: failed source resolution clears in-flight state so a later attempt can retry and cache
+    ok 20 - failed source resolution clears in-flight state so a later attempt can retry and cache
+      ---
+      duration_ms: 3.32539
+      type: 'test'
+      ...
+    # Subtest: concurrent resolutions of one uncached source record coalesce to one source call
+    ok 21 - concurrent resolutions of one uncached source record coalesce to one source call
+      ---
+      duration_ms: 3.218015
+      type: 'test'
+      ...
+    # Subtest: rejects invalid export counts before any live state changes
+    ok 22 - rejects invalid export counts before any live state changes
+      ---
+      duration_ms: 1.549969
+      type: 'test'
+      ...
+    # Subtest: export freezes one settings snapshot even if profile settings change during source retrieval
+    not ok 23 - export freezes one settings snapshot even if profile settings change during source retrieval
+      ---
+      duration_ms: 1.24649
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1162:15'
+      failureType: 'testCodeFailure'
+      error: 'Only question type can be changed on this branch.'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        Module.updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1166:21)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1162:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: export uses one settings snapshot, generates fresh selections, warms cache and leaves live progression untouched
+    not ok 24 - export uses one settings snapshot, generates fresh selections, warms cache and leaves live progression untouched
+      ---
+      duration_ms: 1.343818
+      type: 'test'
+      location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1226:15'
+      failureType: 'testCodeFailure'
+      error: 'Only question type can be changed on this branch.'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        Module.updateProfileSelectionSettings (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-settings-service.ts:141:82)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1235:21)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:1226:15)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..24
+not ok 2 - Iteration 3 selection, settings, repeats, cache and export
+  ---
+  duration_ms: 127.344256
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/core-implementation.test.ts:539:1'
+  failureType: 'subtestsFailed'
+  error: '12 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# {"error":"Live parser stopped (1): Traceback (most recent call last):\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 249, in <module>\\n    main()\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 238, in main\\n    worker=LiveParser(args.frequency,args.corpus,args.availability,args.validation)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\"/home/runner/work/telugu-now/telugu-now/data-transform/scripts/parse-core/live.py\\", line 47, in __init__\\n    self.db = sqlite3.connect(Path(frequency).resolve().as_uri() + '?mode=rw', uri=True)\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nsqlite3.OperationalError: unable to open database file\\n","timestamp":"2026-10-04T14:11:45.693Z","level":"error","event":"live_parser_failed"}
+# Error: Test "keeps queue order authoritative over readiness" at tests/core-implementation.test.ts:234:15 generated asynchronous activity after the test ended. This activity created the error "TypeError: The database connection is not open" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+1..2
+# tests 41
+# suites 0
+# pass 25
+# fail 16
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12961.827389

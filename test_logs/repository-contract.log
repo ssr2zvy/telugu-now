@@ -1,0 +1,2295 @@
+TAP version 13
+# Subtest: runtime user and global storage paths remain under local-machine data from any working directory
+ok 1 - runtime user and global storage paths remain under local-machine data from any working directory
+  ---
+  duration_ms: 3.09084
+  type: 'test'
+  ...
+# Subtest: controls restrict hover feedback to mouse pointers and retain keyboard and selected states
+not ok 2 - controls restrict hover feedback to mouse pointers and retain keyboard and selected states
+  ---
+  duration_ms: 0.800168
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:49:1'
+  failureType: 'testCodeFailure'
+  error: 'audio-material.css'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    /* Case study 2. Preserve the playback gradient, timing, placement and recording
+       animation. Only cursor material and magnifier visual sampling are refined. */
+    /* Full-duration guide shares the cursor's travel bounds. It paints beneath the
+       existing progress and never participates in seeking or pointer handling. */
+    .audio-scrubber::before {
+      content: '';
+      background: var(--audio-control-color);
+      box-shadow: none;
+      filter: none;
+      opacity: .14;
+      pointer-events: none;
+    }
+    .audio-scrubber-thumb, .audio-speed-thumb {
+      background: radial-gradient(ellipse at 30% 20%, rgb(255 255 255 / .24), transparent 64%), var(--audio-glass-gradient);
+      box-shadow: inset 0 .6px .4px var(--audio-glass-edge), inset 0 -.6px .6px rgb(0 0 0 / .16);
+      opacity: .88;
+      transition: opacity var(--material-duration) ease, filter var(--material-duration) ease, box-shadow var(--material-duration) ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .audio-scrubber:not([aria-disabled='true']):hover .audio-scrubber-thumb,
+      .audio-speed-track:hover .audio-speed-thumb {
+        opacity: 1;
+        filter: brightness(var(--control-brightness, .85)) saturate(1.16) contrast(1.08);
+      }
+    }
+    .audio-scrubber[data-dragging='true'] .audio-scrubber-thumb,
+    .audio-speed-track:active .audio-speed-thumb {
+      opacity: 1;
+      filter: brightness(var(--control-brightness, .85)) saturate(1.2) contrast(1.14);
+    }
+    .audio-magnifier-track { gap: var(--magnifier-gap, 2px); }
+    .audio-magnifier-bar {
+      flex: 0 0 auto;
+      background-size: var(--waveform-paint-width, 100%) var(--audio-detail-track-height);
+      background-position: var(--waveform-paint-x, 0px) center;
+      background-repeat: no-repeat;
+    }
+    /* The Settings preview is illustrative; its existing bars still fill the track. */
+    .appearance-audio-preview .audio-magnifier-bar { flex: 1 1 0; }
+    @media (prefers-reduced-motion: reduce) {
+      .audio-scrubber-thumb, .audio-speed-thumb { transition: none; }
+    }
+    
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:52:37)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: Settings fields use a single rounded focus surface and compact accessible percent units
+ok 3 - Settings fields use a single rounded focus surface and compact accessible percent units
+  ---
+  duration_ms: 256.151619
+  type: 'test'
+  ...
+# Subtest: Settings editable controls retain a real 16px font floor without disabling zoom or keyboard access
+ok 4 - Settings editable controls retain a real 16px font floor without disabling zoom or keyboard access
+  ---
+  duration_ms: 0.509166
+  type: 'test'
+  ...
+# Subtest: Settings secondary labels and inset dividers preserve localized hierarchy
+ok 5 - Settings secondary labels and inset dividers preserve localized hierarchy
+  ---
+  duration_ms: 0.49502
+  type: 'test'
+  ...
+# Subtest: Settings structure uses distinct playback sections and Appearance visual groups
+not ok 6 - Settings structure uses distinct playback sections and Appearance visual groups
+  ---
+  duration_ms: 1.46181
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:143:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /wantsPlaybackRef\.current = autoplay/. Input:
+    
+    "import { playbackFailureMessage } from './playback-error';\n" +
+      "import { useEffect, useRef, useState, type RefObject } from 'react';\n" +
+      "import type { ObservationAudio } from '../../../../shared/contracts';\n" +
+      "import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';\n" +
+      "import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';\n" +
+      "import { bookmarkLoopRange, deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark, type BookmarkLoopRange } from './bookmarks';\n" +
+      "import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';\n" +
+      "import { useAppearance } from '../../appearance';\n" +
+      "import { observePlaybackFeedback } from './playback-feedback';\n" +
+      "import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';\n" +
+      "import { reportClientTelemetry } from '../../api';\n" +
+      '\n' +
+      'export interface AudioPlayerState {\n' +
+      '  audioRef: RefObject<HTMLAudioElement | null>;\n' +
+      '  playing: boolean;\n' +
+      '  loading: boolean;\n' +
+      '  preparationProgress: number;\n' +
+      '  playbackStatus: string | null;\n' +
+      '  playbackError: string | null;\n' +
+      '  currentTime: number;\n' +
+      '  duration: number;\n' +
+      '  playbackRate: number;\n' +
+      "  loopMode: 'off' | 'all' | 'bookmark';\n" +
+      '  waveformPeaks: number[];\n' +
+      '  bookmarks: number[];\n' +
+      '  bookmarksBusy: boolean;\n' +
+      '  bookmarkError: string | null;\n' +
+      '  retryBookmarks: () => void;\n' +
+      '  togglePlay: () => void;\n' +
+      '  pause: () => void;\n' +
+      '  seek: (time: number) => void;\n' +
+      '  beginPointerSeek: (time: number) => void;\n' +
+      '  updatePointerSeek: (time: number) => void;\n' +
+      '  endPointerSeek: () => void;\n' +
+      '  setPlaybackRate: (rate: number) => void;\n' +
+      '  toggleWholeLoop: () => void;\n' +
+      '  toggleBookmarkLoop: () => void;\n' +
+      '  clickBookmarkButton: () => void;\n' +
+      '  prepareReplacementAt: (speechTime: number) => void;\n' +
+      '}\n' +
+      '\n' +
+      'export function useAudioPlayer(\n' +
+      '  audio: ObservationAudio | null,\n' +
+      '  sourceId: string | null,\n' +
+      '  sourceKey: string | null,\n' +
+      '  defaultPlaybackRate: number,\n' +
+      '  observationId?: string | null,\n' +
+      '  autoplay = true,\n' +
+      '  playbackEnabled = true,\n' +
+      '): AudioPlayerState {\n' +
+      '  const { profileCode } = useAppearance();\n' +
+      '  const audioRef = useRef<HTMLAudioElement | null>(null);\n' +
+      '  const leaseRef = useRef<AudioLease | null>(null);\n' +
+      '  const bookmarkClickCountRef = useRef(0);\n' +
+      '  const bookmarkClickTimerRef = useRef<number | null>(null);\n' +
+      '  const playRequestRef = useRef(0);\n' +
+      '  const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));\n' +
+      '  const wantsPlaybackRef = useRef(true);\n' +
+      '  const naturallyCompletedRef = useRef(false);\n' +
+      '  const bookmarkLoopRef = useRef<BookmarkLoopRange | null>(null);\n' +
+      '  const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);\n' +
+      '  const replacementCursorRef = useRef<number | null>(null);\n' +
+      '  const suppressReplacementAutoplayRef = useRef(false);\n' +
+      '  const retryPreparationRef = useRef(false);\n' +
+      '  const [attempt, setAttempt] = useState(0);\n' +
+      '  const [playing, setPlaying] = useState(false);\n' +
+      '  const [loading, setLoading] = useState(Boolean(audio));\n' +
+      '  const [preparationProgress, setPreparationProgress] = useState(audio ? 0 : 1);\n' +
+      '  const [playbackStatus, setPlaybackStatus] = useState<string | null>(null);\n' +
+      '  const [playbackError, setPlaybackError] = useState<string | null>(null);\n' +
+      '  const [mediaError, setMediaError] = useState<string | null>(null);\n' +
+      '  const [currentTime, setCurrentTime] = useState(0);\n' +
+      '  const [duration, setDuration] = useState(0);\n' +
+      '  const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));\n' +
+      "  const [loopMode, setLoopMode] = useState<'off' | 'all' | 'bookmark'>('off');\n" +
+      '  const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);\n' +
+      '  // Persistence remains in original speech seconds, including pending retries.\n' +
+      '  const [bookmarks, setBookmarks] = useState<number[]>([]);\n' +
+      '  const [bookmarksLoading, setBookmarksLoading] = useState(true);\n' +
+      '  const [bookmarksSaving, setBookmarksSaving] = useState(false);\n' +
+      '  const [bookmarkError, setBookmarkError] = useState<string | null>(null);\n' +
+      '  const [bookmarkLoadAttempt, setBookmarkLoadAttempt] = useState(0);\n' +
+      '  const bookmarkVersion = useRef(0);\n' +
+      '  const pendingBookmarks = useRef<number[] | null>(null);\n' +
+      '  const bookmarkWriteInFlight = useRef(false);\n' +
+      '\n' +
+      '  const requestPlayback = (element: HTMLAudioElement, automatic = false) => {\n' +
+      '    naturallyCompletedRef.current = false;\n' +
+      '    wantsPlaybackRef.current = true;\n' +
+      '    naturallyCompletedRef.current = false;\n' +
+      '    pointerSeekRef.current = null;\n' +
+      '    setPlaybackError(null);\n' +
+      '    setMediaError(null);\n' +
+      "    setPlaybackStatus('Loading audio…');\n" +
+      '    if (element.error) element.load();\n' +
+      '    if (element.ended) element.currentTime = 0;\n' +
+      '    const request = ++playRequestRef.current;\n' +
+      '    const source = element.src;\n' +
+      '    void element.play().catch((error: unknown) => {\n' +
+      '      if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;\n' +
+      '      wantsPlaybackRef.current = false;\n' +
+      '      element.pause();\n' +
+      '      setPlaying(false);\n' +
+      '      setPlaybackStatus(null);\n' +
+      '      setPlaybackError(playbackFailureMessage(error, automatic));\n' +
+      '      reportClientTelemetry({\n' +
+      "        event: 'observation_audio_failed',\n" +
+      '        ...(observationId ? { observationId } : {}),\n' +
+      "        stage: 'playback',\n" +
+      "        failureCategory: error instanceof DOMException && error.name === 'NotAllowedError'\n" +
+      "          ? 'playback-not-allowed' : 'playback-rejected',\n" +
+      '      });\n' +
+      '    });\n' +
+      '  };\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    const version = ++bookmarkVersion.current;\n' +
+      '    setBookmarks([]);\n' +
+      '    setBookmarkError(null);\n' +
+      '    setBookmarksLoading(true);\n' +
+      '    setBookmarksSaving(false);\n' +
+      '    bookmarkWriteInFlight.current = false;\n' +
+      '    pendingBookmarks.current = null;\n' +
+      '    bookmarkClickCountRef.current = 0;\n' +
+      '    if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);\n' +
+      '    if (profileCode && sourceId && sourceKey) {\n' +
+      '      void loadBookmarks(profileCode, sourceId, sourceKey).then(saved => {\n' +
+      '        if (bookmarkVersion.current === version) setBookmarks(saved);\n' +
+      '      }).catch(() => {\n' +
+      "        if (bookmarkVersion.current === version) setBookmarkError('Could not load bookmarks.');\n" +
+      '      }).finally(() => { if (bookmarkVersion.current === version) setBookmarksLoading(false); });\n' +
+      '    } else setBookmarksLoading(false);\n' +
+      '    return () => {\n' +
+      '      bookmarkVersion.current += 1;\n' +
+      '      if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);\n' +
+      '    };\n' +
+      '  }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    const element = audioRef.current;\n' +
+      '    if (!element) return;\n' +
+      '    let disposed = false;\n' +
+      '    const replacementCursor = replacementCursorRef.current;\n' +
+      '    const replacingAudio = replacementCursor !== null;\n' +
+      '    if (!replacingAudio) suppressReplacementAutoplayRef.current = false;\n' +
+      '    playRequestRef.current++;\n' +
+      '    wantsPlaybackRef.current = replacingAudio ? false : autoplay && playbackEnabled;\n' +
+      '    element.pause();\n' +
+      "    element.removeAttribute('src');\n" +
+      '    element.load();\n' +
+      '    setPlaying(false);\n' +
+      '    setLoading(Boolean(audio));\n' +
+      '    setPreparationProgress(audio ? 0 : 1);\n' +
+      '    setPlaybackError(null);\n' +
+      '    setMediaError(null);\n' +
+      "    setPlaybackStatus(audio ? 'Preparing audio…' : null);\n" +
+      '    if (!replacingAudio) {\n' +
+      '      setCurrentTime(0);\n' +
+      '      setDuration(0);\n' +
+      '      setWaveformPeaks([]);\n' +
+      '      setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));\n' +
+      "      setLoopMode('off');\n" +
+      '      bookmarkLoopRef.current = null;\n' +
+      '      element.loop = false;\n' +
+      '      playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);\n' +
+      '    }\n' +
+      '    element.preservesPitch = true;\n' +
+      '    const legacy = element as HTMLAudioElement & { webkitPreservesPitch?: boolean };\n' +
+      '    legacy.webkitPreservesPitch = true;\n' +
+      '    if (!audio) return;\n' +
+      "    const lease = preparedAudioCache.acquire(audio.url, 'active', retryPreparationRef.current);\n" +
+      '    const unsubscribeProgress = lease.subscribeProgress(setPreparationProgress);\n' +
+      '    retryPreparationRef.current = false;\n' +
+      '    leaseRef.current = lease;\n' +
+      "    const attach = (clip: NonNullable<ReturnType<AudioLease['value']>>) => {\n" +
+      '      if (disposed) return;\n' +
+      '      element.src = clip.url;\n' +
+      '      element.defaultPlaybackRate = playbackRateRef.current;\n' +
+      '      element.playbackRate = playbackRateRef.current;\n' +
+      '      element.load();\n' +
+      '      setDuration(clip.duration);\n' +
+      '      setWaveformPeaks(clip.waveformPeaks);\n' +
+      '      setLoading(false);\n' +
+      '      setPreparationProgress(1);\n' +
+      '      setPlaybackStatus(null);\n' +
+      '      if (replacementCursor !== null) {\n' +
+      '        const restoredTime = Math.min(replacementCursor, clip.duration);\n' +
+      '        const restoreCursor = () => {\n' +
+      '          if (disposed) return;\n' +
+      '          element.pause();\n' +
+      '          element.currentTime = restoredTime;\n' +
+      '          setCurrentTime(restoredTime);\n' +
+      '          setPlaying(false);\n' +
+      '          replacementCursorRef.current = null;\n' +
+      '        };\n' +
+      '        if (element.readyState >= HTMLMediaElement.HAVE_METADATA) restoreCursor();\n' +
+      "        else element.addEventListener('loadedmetadata', restoreCursor, { once: true });\n" +
+      '      } else if (wantsPlaybackRef.current && playbackEnabled) requestPlayback(element, true);\n' +
+      '    };\n' +
+      '    const cached = lease.value();\n' +
+      '    if (cached) attach(cached);\n' +
+      '    else void lease.ready.then(attach).catch(error => {\n' +
+      '      if (disposed) return;\n' +
+      '      setLoading(false);\n' +
+      '      setPlaybackStatus(null);\n' +
+      "      setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap to retry.`);\n" +
+      '    });\n' +
+      '    return () => {\n' +
+      '      disposed = true;\n' +
+      '      playRequestRef.current++;\n' +
+      '      element.pause();\n' +
+      "      element.removeAttribute('src');\n" +
+      '      element.load();\n' +
+      '      leaseRef.current = null;\n' +
+      '      unsubscribeProgress();\n' +
+      '      // Release only after the native element no longer owns the Blob URL.\n' +
+      '      lease.release();\n' +
+      '    };\n' +
+      '    // Settings seed a new clip, not an already active transport.\n' +
+      '    // eslint-disable-next-line react-hooks/exhaustive-deps\n' +
+      '  }, [audio?.url, sourceId, sourceKey, observationId, attempt]);\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    const element = audioRef.current;\n' +
+      '    if (suppressReplacementAutoplayRef.current || !playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current'... 10182 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { playbackFailureMessage } from './playback-error';
+    import { useEffect, useRef, useState, type RefObject } from 'react';
+    import type { ObservationAudio } from '../../../../shared/contracts';
+    import { clampPlaybackRate, exceedsPrecisionDragThreshold, PRECISION_DRAG_THRESHOLD_SECONDS } from '../../../../shared/audio';
+    import { loadBookmarks, saveBookmarks } from './audio-bookmarks-storage';
+    import { bookmarkLoopRange, deleteNearestPriorBookmark, insertBookmark, nearestPriorBookmark, type BookmarkLoopRange } from './bookmarks';
+    import { AUDIO_PLAYER_PRESENTATION } from './audio-player-presentation';
+    import { useAppearance } from '../../appearance';
+    import { observePlaybackFeedback } from './playback-feedback';
+    import { preparedAudioCache, toPlayerTime, toSpeechTime, type AudioLease } from './prepared-audio';
+    import { reportClientTelemetry } from '../../api';
+    
+    export interface AudioPlayerState {
+      audioRef: RefObject<HTMLAudioElement | null>;
+      playing: boolean;
+      loading: boolean;
+      preparationProgress: number;
+      playbackStatus: string | null;
+      playbackError: string | null;
+      currentTime: number;
+      duration: number;
+      playbackRate: number;
+      loopMode: 'off' | 'all' | 'bookmark';
+      waveformPeaks: number[];
+      bookmarks: number[];
+      bookmarksBusy: boolean;
+      bookmarkError: string | null;
+      retryBookmarks: () => void;
+      togglePlay: () => void;
+      pause: () => void;
+      seek: (time: number) => void;
+      beginPointerSeek: (time: number) => void;
+      updatePointerSeek: (time: number) => void;
+      endPointerSeek: () => void;
+      setPlaybackRate: (rate: number) => void;
+      toggleWholeLoop: () => void;
+      toggleBookmarkLoop: () => void;
+      clickBookmarkButton: () => void;
+      prepareReplacementAt: (speechTime: number) => void;
+    }
+    
+    export function useAudioPlayer(
+      audio: ObservationAudio | null,
+      sourceId: string | null,
+      sourceKey: string | null,
+      defaultPlaybackRate: number,
+      observationId?: string | null,
+      autoplay = true,
+      playbackEnabled = true,
+    ): AudioPlayerState {
+      const { profileCode } = useAppearance();
+      const audioRef = useRef<HTMLAudioElement | null>(null);
+      const leaseRef = useRef<AudioLease | null>(null);
+      const bookmarkClickCountRef = useRef(0);
+      const bookmarkClickTimerRef = useRef<number | null>(null);
+      const playRequestRef = useRef(0);
+      const playbackRateRef = useRef(clampPlaybackRate(defaultPlaybackRate));
+      const wantsPlaybackRef = useRef(true);
+      const naturallyCompletedRef = useRef(false);
+      const bookmarkLoopRef = useRef<BookmarkLoopRange | null>(null);
+      const pointerSeekRef = useRef<{ startTime: number; wasPlaying: boolean; dragging: boolean } | null>(null);
+      const replacementCursorRef = useRef<number | null>(null);
+      const suppressReplacementAutoplayRef = useRef(false);
+      const retryPreparationRef = useRef(false);
+      const [attempt, setAttempt] = useState(0);
+      const [playing, setPlaying] = useState(false);
+      const [loading, setLoading] = useState(Boolean(audio));
+      const [preparationProgress, setPreparationProgress] = useState(audio ? 0 : 1);
+      const [playbackStatus, setPlaybackStatus] = useState<string | null>(null);
+      const [playbackError, setPlaybackError] = useState<string | null>(null);
+      const [mediaError, setMediaError] = useState<string | null>(null);
+      const [currentTime, setCurrentTime] = useState(0);
+      const [duration, setDuration] = useState(0);
+      const [playbackRate, setPlaybackRateState] = useState(clampPlaybackRate(defaultPlaybackRate));
+      const [loopMode, setLoopMode] = useState<'off' | 'all' | 'bookmark'>('off');
+      const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
+      // Persistence remains in original speech seconds, including pending retries.
+      const [bookmarks, setBookmarks] = useState<number[]>([]);
+      const [bookmarksLoading, setBookmarksLoading] = useState(true);
+      const [bookmarksSaving, setBookmarksSaving] = useState(false);
+      const [bookmarkError, setBookmarkError] = useState<string | null>(null);
+      const [bookmarkLoadAttempt, setBookmarkLoadAttempt] = useState(0);
+      const bookmarkVersion = useRef(0);
+      const pendingBookmarks = useRef<number[] | null>(null);
+      const bookmarkWriteInFlight = useRef(false);
+    
+      const requestPlayback = (element: HTMLAudioElement, automatic = false) => {
+        naturallyCompletedRef.current = false;
+        wantsPlaybackRef.current = true;
+        naturallyCompletedRef.current = false;
+        pointerSeekRef.current = null;
+        setPlaybackError(null);
+        setMediaError(null);
+        setPlaybackStatus('Loading audio…');
+        if (element.error) element.load();
+        if (element.ended) element.currentTime = 0;
+        const request = ++playRequestRef.current;
+        const source = element.src;
+        void element.play().catch((error: unknown) => {
+          if (playRequestRef.current !== request || audioRef.current !== element || element.src !== source) return;
+          wantsPlaybackRef.current = false;
+          element.pause();
+          setPlaying(false);
+          setPlaybackStatus(null);
+          setPlaybackError(playbackFailureMessage(error, automatic));
+          reportClientTelemetry({
+            event: 'observation_audio_failed',
+            ...(observationId ? { observationId } : {}),
+            stage: 'playback',
+            failureCategory: error instanceof DOMException && error.name === 'NotAllowedError'
+              ? 'playback-not-allowed' : 'playback-rejected',
+          });
+        });
+      };
+    
+      useEffect(() => {
+        const version = ++bookmarkVersion.current;
+        setBookmarks([]);
+        setBookmarkError(null);
+        setBookmarksLoading(true);
+        setBookmarksSaving(false);
+        bookmarkWriteInFlight.current = false;
+        pendingBookmarks.current = null;
+        bookmarkClickCountRef.current = 0;
+        if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+        if (profileCode && sourceId && sourceKey) {
+          void loadBookmarks(profileCode, sourceId, sourceKey).then(saved => {
+            if (bookmarkVersion.current === version) setBookmarks(saved);
+          }).catch(() => {
+            if (bookmarkVersion.current === version) setBookmarkError('Could not load bookmarks.');
+          }).finally(() => { if (bookmarkVersion.current === version) setBookmarksLoading(false); });
+        } else setBookmarksLoading(false);
+        return () => {
+          bookmarkVersion.current += 1;
+          if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+        };
+      }, [profileCode, sourceId, sourceKey, bookmarkLoadAttempt]);
+    
+      useEffect(() => {
+        const element = audioRef.current;
+        if (!element) return;
+        let disposed = false;
+        const replacementCursor = replacementCursorRef.current;
+        const replacingAudio = replacementCursor !== null;
+        if (!replacingAudio) suppressReplacementAutoplayRef.current = false;
+        playRequestRef.current++;
+        wantsPlaybackRef.current = replacingAudio ? false : autoplay && playbackEnabled;
+        element.pause();
+        element.removeAttribute('src');
+        element.load();
+        setPlaying(false);
+        setLoading(Boolean(audio));
+        setPreparationProgress(audio ? 0 : 1);
+        setPlaybackError(null);
+        setMediaError(null);
+        setPlaybackStatus(audio ? 'Preparing audio…' : null);
+        if (!replacingAudio) {
+          setCurrentTime(0);
+          setDuration(0);
+          setWaveformPeaks([]);
+          setPlaybackRateState(clampPlaybackRate(defaultPlaybackRate));
+          setLoopMode('off');
+          bookmarkLoopRef.current = null;
+          element.loop = false;
+          playbackRateRef.current = clampPlaybackRate(defaultPlaybackRate);
+        }
+        element.preservesPitch = true;
+        const legacy = element as HTMLAudioElement & { webkitPreservesPitch?: boolean };
+        legacy.webkitPreservesPitch = true;
+        if (!audio) return;
+        const lease = preparedAudioCache.acquire(audio.url, 'active', retryPreparationRef.current);
+        const unsubscribeProgress = lease.subscribeProgress(setPreparationProgress);
+        retryPreparationRef.current = false;
+        leaseRef.current = lease;
+        const attach = (clip: NonNullable<ReturnType<AudioLease['value']>>) => {
+          if (disposed) return;
+          element.src = clip.url;
+          element.defaultPlaybackRate = playbackRateRef.current;
+          element.playbackRate = playbackRateRef.current;
+          element.load();
+          setDuration(clip.duration);
+          setWaveformPeaks(clip.waveformPeaks);
+          setLoading(false);
+          setPreparationProgress(1);
+          setPlaybackStatus(null);
+          if (replacementCursor !== null) {
+            const restoredTime = Math.min(replacementCursor, clip.duration);
+            const restoreCursor = () => {
+              if (disposed) return;
+              element.pause();
+              element.currentTime = restoredTime;
+              setCurrentTime(restoredTime);
+              setPlaying(false);
+              replacementCursorRef.current = null;
+            };
+            if (element.readyState >= HTMLMediaElement.HAVE_METADATA) restoreCursor();
+            else element.addEventListener('loadedmetadata', restoreCursor, { once: true });
+          } else if (wantsPlaybackRef.current && playbackEnabled) requestPlayback(element, true);
+        };
+        const cached = lease.value();
+        if (cached) attach(cached);
+        else void lease.ready.then(attach).catch(error => {
+          if (disposed) return;
+          setLoading(false);
+          setPlaybackStatus(null);
+          setPlaybackError(`${error instanceof Error ? error.message : 'Audio preparation failed.'} Tap to retry.`);
+        });
+        return () => {
+          disposed = true;
+          playRequestRef.current++;
+          element.pause();
+          element.removeAttribute('src');
+          element.load();
+          leaseRef.current = null;
+          unsubscribeProgress();
+          // Release only after the native element no longer owns the Blob URL.
+          lease.release();
+        };
+        // Settings seed a new clip, not an already active transport.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
+    
+      useEffect(() => {
+        const element = audioRef.current;
+        if (suppressReplacementAutoplayRef.current || !playbackEnabled || !autoplay || loading || !audio || !element || !element.paused || !leaseRef.current?.value()) return;
+        wantsPlaybackRef.current = true;
+        requestPlayback(element, true);
+      }, [playbackEnabled, autoplay, loading, audio?.url]);
+    
+      useEffect(() => {
+        if (playbackEnabled) return;
+        wantsPlaybackRef.current = false;
+        playRequestRef.current++;
+        audioRef.current?.pause();
+        setPlaying(false);
+        setPlaybackStatus(null);
+      }, [playbackEnabled]);
+    
+      useEffect(() => {
+        const element = audioRef.current;
+        if (!element) return;
+        const stopFeedback = observePlaybackFeedback(element, message => {
+          setMediaError(message);
+          setPlaying(false);
+          setPlaybackStatus(null);
+          reportClientTelemetry({
+            event: 'observation_audio_failed',
+            ...(observationId ? { observationId } : {}),
+            stage: 'playback',
+            failureCategory: 'browser-media-error',
+          });
+        }, actuallyPlaying => {
+          setMediaError(null);
+          if (actuallyPlaying) {
+            setPlaying(true);
+            setPlaybackError(null);
+            setPlaybackStatus(null);
+          }
+        });
+        const sync = () => {
+          if (!element.getAttribute('src')) return;
+          const loop = bookmarkLoopRef.current;
+          if (loop && !element.paused && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+            element.currentTime = loop.start;
+          }
+          setCurrentTime(element.currentTime);
+          if (Number.isFinite(element.duration) && element.duration > 0) setDuration(element.duration);
+        };
+        const onPlaying = () => {
+          if (element.paused || element.ended || !leaseRef.current?.value()) return;
+          setPlaying(true);
+          setPlaybackError(null);
+          setPlaybackStatus(null);
+        };
+        const onPause = () => {
+          if (!element.paused && !element.ended) return;
+          setPlaying(false);
+          if (leaseRef.current?.value()) setPlaybackStatus(null);
+          sync();
+        };
+        const onEnded = () => {
+          const loop = bookmarkLoopRef.current;
+          if (loop) {
+            element.currentTime = loop.start;
+            requestPlayback(element);
+            return;
+          }
+          naturallyCompletedRef.current = true;
+          onPause();
+        };
+        const onWaiting = () => { if (!element.paused) setPlaybackStatus('Loading audio…'); };
+        element.addEventListener('playing', onPlaying);
+        element.addEventListener('pause', onPause);
+        element.addEventListener('waiting', onWaiting);
+        element.addEventListener('loadedmetadata', sync);
+        element.addEventListener('timeupdate', sync);
+        element.addEventListener('seeked', sync);
+        element.addEventListener('ended', onEnded);
+        return () => {
+          stopFeedback();
+          element.removeEventListener('playing', onPlaying);
+          element.removeEventListener('pause', onPause);
+          element.removeEventListener('waiting', onWaiting);
+          element.removeEventListener('loadedmetadata', sync);
+          element.removeEventListener('timeupdate', sync);
+          element.removeEventListener('seeked', sync);
+          element.removeEventListener('ended', onEnded);
+        };
+      }, [audio?.url, sourceId, sourceKey, observationId, attempt]);
+    
+      useEffect(() => {
+        if (!playing) return;
+        let frame: number;
+        const tick = () => {
+          const element = audioRef.current;
+          if (element) {
+            const loop = bookmarkLoopRef.current;
+            if (loop && element.currentTime >= loop.end - PRECISION_DRAG_THRESHOLD_SECONDS) {
+              element.currentTime = loop.start;
+            }
+            setCurrentTime(element.currentTime);
+          }
+          frame = window.requestAnimationFrame(tick);
+        };
+        frame = window.requestAnimationFrame(tick);
+        return () => window.cancelAnimationFrame(frame);
+      }, [playing]);
+    
+      const pause = () => {
+        naturallyCompletedRef.current = false;
+        pointerSeekRef.current = null;
+        wantsPlaybackRef.current = false;
+        playRequestRef.current++;
+        audioRef.current?.pause();
+        setCurrentTime(audioRef.current?.currentTime ?? 0);
+        setPlaying(false);
+        setPlaybackStatus(null);
+      };
+    
+      const prepareReplacementAt = (speechTime: number) => {
+        replacementCursorRef.current = speechTime === 0 ? 0 : toPlayerTime(speechTime);
+        suppressReplacementAutoplayRef.current = true;
+        pause();
+      };
+    
+      const togglePlay = () => {
+        suppressReplacementAutoplayRef.current = false;
+        const element = audioRef.current;
+        if (!element || !audio) return;
+        if (!element.paused) { pause(); return; }
+        if (!leaseRef.current?.value()) {
+          if (loading) {
+            wantsPlaybackRef.current = !wantsPlaybackRef.current;
+            setPlaybackStatus(wantsPlaybackRef.current ? 'Preparing audio…' : null);
+          } else {
+            retryPreparationRef.current = true;
+            setAttempt(value => value + 1);
+          }
+          return;
+        }
+        if (element.ended || (duration > 0 && element.currentTime >= duration)) element.currentTime = 0;
+        requestPlayback(element);
+      };
+    
+      const seekTo = (time: number, resumeNaturalCompletion: boolean) => {
+        const element = audioRef.current;
+        if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+        const safeTime = Math.min(Math.max(0, time), duration);
+        const shouldResume = resumeNaturalCompletion && naturallyCompletedRef.current
+          && safeTime < duration - PRECISION_DRAG_THRESHOLD_SECONDS;
+        element.currentTime = safeTime;
+        setCurrentTime(safeTime);
+        if (shouldResume) requestPlayback(element);
+      };
+      const seek = (time: number) => seekTo(time, true);
+    
+      const beginPointerSeek = (time: number) => {
+        const element = audioRef.current;
+        if (!element || !leaseRef.current?.value() || !Number.isFinite(time)) return;
+        const wasPlaying = (!element.paused && !element.ended) || naturallyCompletedRef.current;
+        pointerSeekRef.current = { startTime: time, wasPlaying, dragging: false };
+        seekTo(time, false);
+      };
+    
+      const updatePointerSeek = (time: number) => {
+        const interaction = pointerSeekRef.current;
+        const element = audioRef.current;
+        if (!interaction || !element || !Number.isFinite(time)) return;
+        if (!interaction.dragging && exceedsPrecisionDragThreshold(interaction.startTime, time)) {
+          interaction.dragging = true;
+          playRequestRef.current++;
+          element.pause();
+          setPlaying(false);
+          setPlaybackStatus(null);
+        }
+        seekTo(time, false);
+      };
+    
+      const endPointerSeek = () => {
+        const interaction = pointerSeekRef.current;
+        pointerSeekRef.current = null;
+        const element = audioRef.current;
+        if (interaction?.dragging && interaction.wasPlaying && element) requestPlayback(element);
+      };
+    
+      const applyPlaybackRate = (rate: number) => {
+        if (!Number.isFinite(rate)) return;
+        const safeRate = clampPlaybackRate(rate);
+        const element = audioRef.current;
+        try {
+          if (element) {
+            element.preservesPitch = true;
+            element.playbackRate = safeRate;
+            element.defaultPlaybackRate = safeRate;
+          }
+          playbackRateRef.current = safeRate;
+          setPlaybackRateState(safeRate);
+        } catch {
+          setPlaybackError('This browser does not support that playback speed.');
+        }
+      };
+    
+      const toggleWholeLoop = () => {
+        const element = audioRef.current;
+        if (!element) return;
+        const enabled = loopMode !== 'all';
+        bookmarkLoopRef.current = null;
+        element.loop = enabled;
+        setLoopMode(enabled ? 'all' : 'off');
+      };
+    
+      const toggleBookmarkLoop = () => {
+        const element = audioRef.current;
+        if (!element || duration <= 0) return;
+        element.loop = false;
+        if (loopMode === 'bookmark') {
+          bookmarkLoopRef.current = null;
+          setLoopMode('off');
+          return;
+        }
+        const range = bookmarkLoopRange(bookmarks.map(toPlayerTime), element.currentTime, duration);
+        bookmarkLoopRef.current = range;
+        setLoopMode('bookmark');
+        seek(range.start);
+      };
+    
+      const persistBookmarks = async (next: number[]) => {
+        if (!profileCode || !sourceId || !sourceKey || bookmarkWriteInFlight.current) return;
+        const version = bookmarkVersion.current;
+        pendingBookmarks.current = next;
+        bookmarkWriteInFlight.current = true;
+        setBookmarksSaving(true);
+        setBookmarkError(null);
+        try {
+          const saved = await saveBookmarks(profileCode, sourceId, sourceKey, next);
+          if (bookmarkVersion.current === version) { setBookmarks(saved); pendingBookmarks.current = null; }
+        } catch {
+          if (bookmarkVersion.current === version) setBookmarkError('Bookmarks not saved.');
+        } finally {
+          if (bookmarkVersion.current === version) { bookmarkWriteInFlight.current = false; setBookmarksSaving(false); }
+        }
+      };
+    
+      const clickBookmarkButton = () => {
+        if (bookmarksLoading || bookmarkWriteInFlight.current || bookmarkError) return;
+        bookmarkClickCountRef.current++;
+        if (bookmarkClickTimerRef.current !== null) window.clearTimeout(bookmarkClickTimerRef.current);
+        bookmarkClickTimerRef.current = window.setTimeout(() => {
+          const clicks = Math.min(3, bookmarkClickCountRef.current);
+          bookmarkClickCountRef.current = 0;
+          bookmarkClickTimerRef.current = null;
+          const playerTime = audioRef.current?.currentTime ?? currentTime;
+          const time = toSpeechTime(playerTime);
+          if (clicks === 1) {
+            const target = nearestPriorBookmark(bookmarks.map(toPlayerTime), playerTime);
+            if (target !== null) seek(target);
+          } else if (clicks === 2) {
+            void persistBookmarks(insertBookmark(bookmarks, time));
+          } else if (playerTime >= toPlayerTime(0)) {
+            void persistBookmarks(deleteNearestPriorBookmark(bookmarks, time));
+          }
+        }, AUDIO_PLAYER_PRESENTATION.bookmarkClickWindowMs);
+      };
+    
+      return {
+        audioRef, playing, loading, preparationProgress, playbackStatus,
+        playbackError: mediaError ?? playbackError,
+        currentTime, duration, playbackRate, loopMode, waveformPeaks,
+        bookmarks: bookmarks.map(toPlayerTime),
+        bookmarksBusy: bookmarksLoading || bookmarksSaving,
+        bookmarkError,
+        retryBookmarks: () => pendingBookmarks.current ? void persistBookmarks(pendingBookmarks.current) : setBookmarkLoadAttempt(value => value + 1),
+        togglePlay, pause, seek, beginPointerSeek, updatePointerSeek, endPointerSeek,
+        setPlaybackRate: applyPlaybackRate, toggleWholeLoop, toggleBookmarkLoop, clickBookmarkButton, prepareReplacementAt,
+      };
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:163:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: questions expose a compact phase icon and a dedicated comparison view
+not ok 7 - questions expose a compact phase icon and a dedicated comparison view
+  ---
+  duration_ms: 0.911022
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:172:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /CircleHelp aria-hidden="true"/. Input:
+    
+    "import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';\n" +
+      "import type { ExplorationStep } from './exploration-steps';\n" +
+      "import { explorationChoices, RandomExploration } from './random-exploration';\n" +
+      "import { useObservationTravel } from './useObservationTravel';\n" +
+      "import { useGradientTravel } from '../GradientBackdrop';\n" +
+      "import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';\n" +
+      "import { useReaderSettingsFade } from './useReaderSettingsFade';\n" +
+      "import { readerNeedsLoadingDots } from './reader-loading';\n" +
+      "import { useReaderSwipes } from './useReaderSwipes';\n" +
+      "import { copyOriginalReaderText } from './reader-hyphenation';\n" +
+      "import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';\n" +
+      'import {\n' +
+      '  useCallback,\n' +
+      '  useMemo,\n' +
+      '  useEffect,\n' +
+      '  useLayoutEffect,\n' +
+      '  useRef,\n' +
+      '  useState,\n' +
+      '  type MouseEvent,\n' +
+      "} from 'react';\n" +
+      "import { ArrowRight, Settings } from 'lucide-react';\n" +
+      'import type {\n' +
+      '  ProfileStateResponse,\n' +
+      "} from '../../../shared/contracts';\n" +
+      'import {\n' +
+      '  AudioPlayerBar,\n' +
+      '  type AudioPlayerBarHandle,\n' +
+      "} from './audio/AudioPlayerBar';\n" +
+      "import type { RecordingTimeline } from './audio/AudioScrubber';\n" +
+      'import {\n' +
+      '  prewarmObservationTypography,\n' +
+      '  useObservationTypography,\n' +
+      "} from './useObservationTypography';\n" +
+      "import { useObservationFontQueue } from './useObservationFontQueue';\n" +
+      "import { WordProfile } from './word/WordProfile';\n" +
+      "import { appearanceModificationColor, useAppearance } from '../appearance';\n" +
+      "import { LoadingSlit } from '../components/LoadingSlit';\n" +
+      "import { ReaderTaps, readerTapRegions } from './reader-taps';\n" +
+      "import { type ScrollDirection } from './reader-scroll';\n" +
+      "import { reportClientTelemetry } from '../api';\n" +
+      "import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';\n" +
+      "import { teluguHighlightRuns } from './telugu-highlighting';\n" +
+      "import { TeluguWordText } from './TeluguGradientText';\n" +
+      "import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';\n" +
+      "import { observationShowsText } from './observation-content';\n" +
+      "import { visibleWordAtPoint } from './visible-glyph-hit-testing';\n" +
+      "import type { VisibleGlyphHit } from './visible-glyph-hit-testing';\n" +
+      "import { ComparisonPage } from './ComparisonPage';\n" +
+      '\n' +
+      'function fontAvailability(fontFamily: string, text: string): boolean | null {\n' +
+      '  try {\n' +
+      '    return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));\n' +
+      '  } catch {\n' +
+      '    return null;\n' +
+      '  }\n' +
+      '}\n' +
+      'interface ObservationViewProps {\n' +
+      '  state: ProfileStateResponse | null;\n' +
+      '  busy: boolean;\n' +
+      "  navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;\n" +
+      '  onMove: (\n' +
+      "    direction: 'back' | 'next',\n" +
+      '  ) => Promise<boolean>;\n' +
+      '  onOpenSettings: (fontFamily: string) => void;\n' +
+      '}\n' +
+      'interface ReaderPoint {\n' +
+      '  clientX: number;\n' +
+      '  clientY: number;\n' +
+      '  target: EventTarget;\n' +
+      '}\n' +
+      'export function ObservationView({\n' +
+      '  state,\n' +
+      '  busy,\n' +
+      '  navigationEvent,\n' +
+      '  onMove,\n' +
+      '  onOpenSettings,\n' +
+      '}: ObservationViewProps) {\n' +
+      '  const { appearance } = useAppearance();\n' +
+      '  const gradientTravel = useGradientTravel();\n' +
+      '  const [\n' +
+      '    controlsVisible,\n' +
+      '    setControlsVisible,\n' +
+      '  ] = useState(false);\n' +
+      "  const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');\n" +
+      '  const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);\n' +
+      '  const [precisionInteraction, setPrecisionInteraction] = useState(0);\n' +
+      '  const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);\n' +
+      '  const seamlessAudioKey = useRef<string | null>(null);\n' +
+      '  const [audioError, setAudioError] = useState<string | null>(null);\n' +
+      '  const questionControlsRef = useRef<QuestionControlsHandle>(null);\n' +
+      '  const evaluationRef=useRef<GrammarEvaluationHandle>(null);\n' +
+      '  const evaluationNavigation=useRef(false);\n' +
+      "  const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');\n" +
+      "  const phaseDirection = useRef<'back' | 'next'>('next');\n" +
+      '  const evaluationDrafts = useRef(new Map<string, boolean>());\n' +
+      '  const [comparisonReady, setComparisonReady] = useState(false);\n' +
+      '  const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);\n' +
+      '  const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);\n' +
+      '  const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);\n' +
+      '  const [gradientPresentation, setGradientPresentation] = useState<{\n' +
+      '    key: string;\n' +
+      '    textures: Array<TeluguGradientTexture | null>;\n' +
+      '  } | null>(null);\n' +
+      '  const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);\n' +
+      '  const screenRef = useRef<HTMLElement>(null);\n' +
+      '  const settingsIdle = useReaderSettingsFade(screenRef);\n' +
+      '  const playerRef = useRef<AudioPlayerBarHandle>(null);\n' +
+      '  const [taps] = useState(() => new ReaderTaps());\n' +
+      '  const gesturePausedPlayback = useRef(false);\n' +
+      '  const observationLoadStartedAt = useRef<number | null>(null);\n' +
+      "  const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';\n" +
+      "  const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';\n" +
+      "  const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';\n" +
+      '  const textComparison = textGivenFlow && comparisonQuestionPhase;\n' +
+      "  const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';\n" +
+      '  useEffect(() => {\n' +
+      '    const screen = screenRef.current;\n' +
+      '    if (textGivenFlow || !controlsVisible || !screen) return;\n' +
+      '    let idleTimer: number;\n' +
+      '    const activePointers = new Set<number>();\n' +
+      '    const scheduleHide = (event?: Event) => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      if (event instanceof PointerEvent) {\n' +
+      "        if (event.type === 'pointerdown') activePointers.add(event.pointerId);\n" +
+      "        if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);\n" +
+      '      }\n' +
+      '      if (activePointers.size > 0) return;\n' +
+      '      idleTimer = window.setTimeout(() => {\n' +
+      "        setAudioMotion('exit');\n" +
+      '        setControlsVisible(false);\n' +
+      '      }, appearance.autoFadeSeconds * 1000);\n' +
+      '    };\n' +
+      "    const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];\n" +
+      '    for (const event of events) screen.addEventListener(event, scheduleHide);\n' +
+      '    scheduleHide();\n' +
+      '    return () => {\n' +
+      '      window.clearTimeout(idleTimer);\n' +
+      '      for (const event of events) screen.removeEventListener(event, scheduleHide);\n' +
+      '    };\n' +
+      '  }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);\n' +
+      '  const observation =\n' +
+      '    state?.currentObservation ?? null;\n' +
+      '  useEffect(() => {\n' +
+      '    if (!observation) return;\n' +
+      '    observationLoadStartedAt.current = performance.now();\n' +
+      "    reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });\n" +
+      '  }, [observation?.id]);\n' +
+      '  const fontAssignments = useObservationFontQueue(state, appearance.fonts);\n' +
+      '  const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily\n' +
+      "    ?? 'Noto Sans Telugu';\n" +
+      "  const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);\n" +
+      '  const explorationSession = useRef<RandomExploration | null>(null);\n' +
+      '  const explorationRef = useRef<ExplorationHandle | null>(null);\n' +
+      '  const [exploration, setExploration] = useState<ExplorationStep | null>(null);\n' +
+      '  const exploring = exploration !== null;\n' +
+      "  const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;\n" +
+      '  const comparisonPhase = comparisonQuestionPhase;\n' +
+      "  const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;\n" +
+      '  const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;\n' +
+      '  const audioReadinessKey = observation && visibleAudio ? `${observation.id}\\0${visibleAudio.url}` : null;\n' +
+      '  const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {\n' +
+      '    if (!key) return;\n' +
+      '    setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress\n' +
+      '      ? current : { key, loading, progress });\n' +
+      '  }, []);\n' +
+      '  const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));\n' +
+      '  // Reset page-owned presentation before paint, including any old exit animation.\n' +
+      '  useLayoutEffect(() => {\n' +
+      '    taps.cancel();\n' +
+      '    setExploration(null);\n' +
+      '    explorationSession.current = null;\n' +
+      '    seamlessAudioKey.current = null;\n' +
+      '    setAudioError(null);\n' +
+      "    setAudioMotion('idle');\n" +
+      "    setPhaseMotion(textGivenFlow ? 'enter' : 'idle');\n" +
+      '    playerRef.current?.dismissPrecision();\n' +
+      '    setComparisonReady(false);\n' +
+      '    setResponseAudio(observation?.question?.responseAudio ?? null);\n' +
+      '    setRecordingRange(null);\n' +
+      "    setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));\n" +
+      '    return () => taps.cancel();\n' +
+      '  }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);\n' +
+      '  const showsObservationText = observationShowsText(observation);\n' +
+      '  const typography =\n' +
+      '    useObservationTypography(\n' +
+      '      observation,\n' +
+      '      assignedFont,\n' +
+      '      showsObservationText,\n' +
+      '    );\n' +
+      '  const presentationHighlightRuns = appearance.highlightMods && observation\n' +
+      '    ? teluguHighlightRuns(observation.text)\n' +
+      '    : null;\n' +
+      '  const highlightRuns = showsObservationText ? presentationHighlightRu'... 30198 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
+    import type { ExplorationStep } from './exploration-steps';
+    import { explorationChoices, RandomExploration } from './random-exploration';
+    import { useObservationTravel } from './useObservationTravel';
+    import { useGradientTravel } from '../GradientBackdrop';
+    import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
+    import { useReaderSettingsFade } from './useReaderSettingsFade';
+    import { readerNeedsLoadingDots } from './reader-loading';
+    import { useReaderSwipes } from './useReaderSwipes';
+    import { copyOriginalReaderText } from './reader-hyphenation';
+    import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
+    import {
+      useCallback,
+      useMemo,
+      useEffect,
+      useLayoutEffect,
+      useRef,
+      useState,
+      type MouseEvent,
+    } from 'react';
+    import { ArrowRight, Settings } from 'lucide-react';
+    import type {
+      ProfileStateResponse,
+    } from '../../../shared/contracts';
+    import {
+      AudioPlayerBar,
+      type AudioPlayerBarHandle,
+    } from './audio/AudioPlayerBar';
+    import type { RecordingTimeline } from './audio/AudioScrubber';
+    import {
+      prewarmObservationTypography,
+      useObservationTypography,
+    } from './useObservationTypography';
+    import { useObservationFontQueue } from './useObservationFontQueue';
+    import { WordProfile } from './word/WordProfile';
+    import { appearanceModificationColor, useAppearance } from '../appearance';
+    import { LoadingSlit } from '../components/LoadingSlit';
+    import { ReaderTaps, readerTapRegions } from './reader-taps';
+    import { type ScrollDirection } from './reader-scroll';
+    import { reportClientTelemetry } from '../api';
+    import { QuestionControls, type QuestionControlsHandle } from './QuestionControls';
+    import { teluguHighlightRuns } from './telugu-highlighting';
+    import { TeluguWordText } from './TeluguGradientText';
+    import { getTeluguGradientCacheSnapshot, hasTeluguGradientTexture, renderTeluguGradientTexture, type TeluguGradientTexture } from './telugu-gradient-renderer';
+    import { observationShowsText } from './observation-content';
+    import { visibleWordAtPoint } from './visible-glyph-hit-testing';
+    import type { VisibleGlyphHit } from './visible-glyph-hit-testing';
+    import { ComparisonPage } from './ComparisonPage';
+    
+    function fontAvailability(fontFamily: string, text: string): boolean | null {
+      try {
+        return document.fonts.check(`400 24px "${fontFamily}"`, text.slice(0, 64));
+      } catch {
+        return null;
+      }
+    }
+    interface ObservationViewProps {
+      state: ProfileStateResponse | null;
+      busy: boolean;
+      navigationEvent: { sequence: number; direction: 'back' | 'next' } | null;
+      onMove: (
+        direction: 'back' | 'next',
+      ) => Promise<boolean>;
+      onOpenSettings: (fontFamily: string) => void;
+    }
+    interface ReaderPoint {
+      clientX: number;
+      clientY: number;
+      target: EventTarget;
+    }
+    export function ObservationView({
+      state,
+      busy,
+      navigationEvent,
+      onMove,
+      onOpenSettings,
+    }: ObservationViewProps) {
+      const { appearance } = useAppearance();
+      const gradientTravel = useGradientTravel();
+      const [
+        controlsVisible,
+        setControlsVisible,
+      ] = useState(false);
+      const [audioMotion, setAudioMotion] = useState<'idle' | 'enter' | 'exit'>('idle');
+      const [audioMotionDirection, setAudioMotionDirection] = useState<ScrollDirection>(1);
+      const [precisionInteraction, setPrecisionInteraction] = useState(0);
+      const [audioReadiness, setAudioReadiness] = useState<{ key: string; loading: boolean; progress: number } | null>(null);
+      const seamlessAudioKey = useRef<string | null>(null);
+      const [audioError, setAudioError] = useState<string | null>(null);
+      const questionControlsRef = useRef<QuestionControlsHandle>(null);
+      const evaluationRef=useRef<GrammarEvaluationHandle>(null);
+      const evaluationNavigation=useRef(false);
+      const [phaseMotion, setPhaseMotion] = useState<'idle' | 'exit' | 'enter'>('idle');
+      const phaseDirection = useRef<'back' | 'next'>('next');
+      const evaluationDrafts = useRef(new Map<string, boolean>());
+      const [comparisonReady, setComparisonReady] = useState(false);
+      const [responseAudio, setResponseAudio] = useState(state?.currentObservation?.question?.responseAudio ?? null);
+      const [recordingRange, setRecordingRange] = useState<RecordingTimeline | null>(null);
+      const [selectedWord, setSelectedWord] = useState<{ word: string; start: number; end: number; observationId: string; grapheme?: {text:string;start:number;end:number} } | null>(null);
+      const [gradientPresentation, setGradientPresentation] = useState<{
+        key: string;
+        textures: Array<TeluguGradientTexture | null>;
+      } | null>(null);
+      const [gradientProgress, setGradientProgress] = useState<{ key: string; completed: number; total: number } | null>(null);
+      const screenRef = useRef<HTMLElement>(null);
+      const settingsIdle = useReaderSettingsFade(screenRef);
+      const playerRef = useRef<AudioPlayerBarHandle>(null);
+      const [taps] = useState(() => new ReaderTaps());
+      const gesturePausedPlayback = useRef(false);
+      const observationLoadStartedAt = useRef<number | null>(null);
+      const questionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'question';
+      const comparisonQuestionPhase = state?.currentObservation?.kind === 'question' && state.currentObservation.question?.phase === 'comparison';
+      const textGivenFlow = state?.currentObservation?.question?.mode === 'text-given';
+      const textComparison = textGivenFlow && comparisonQuestionPhase;
+      const audioGivenQuestionPhase = questionPhase && state.currentObservation?.question?.mode === 'audio-given';
+      useEffect(() => {
+        const screen = screenRef.current;
+        if (textGivenFlow || !controlsVisible || !screen) return;
+        let idleTimer: number;
+        const activePointers = new Set<number>();
+        const scheduleHide = (event?: Event) => {
+          window.clearTimeout(idleTimer);
+          if (event instanceof PointerEvent) {
+            if (event.type === 'pointerdown') activePointers.add(event.pointerId);
+            if (event.type === 'pointerup' || event.type === 'pointercancel' || event.type === 'lostpointercapture') activePointers.delete(event.pointerId);
+          }
+          if (activePointers.size > 0) return;
+          idleTimer = window.setTimeout(() => {
+            setAudioMotion('exit');
+            setControlsVisible(false);
+          }, appearance.autoFadeSeconds * 1000);
+        };
+        const events = ['pointermove', 'pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave', 'keydown', 'focusin', 'focusout'];
+        for (const event of events) screen.addEventListener(event, scheduleHide);
+        scheduleHide();
+        return () => {
+          window.clearTimeout(idleTimer);
+          for (const event of events) screen.removeEventListener(event, scheduleHide);
+        };
+      }, [controlsVisible, appearance.autoFadeSeconds, precisionInteraction, textGivenFlow]);
+      const observation =
+        state?.currentObservation ?? null;
+      useEffect(() => {
+        if (!observation) return;
+        observationLoadStartedAt.current = performance.now();
+        reportClientTelemetry({ event: 'observation_load_started', observationId: observation.id });
+      }, [observation?.id]);
+      const fontAssignments = useObservationFontQueue(state, appearance.fonts);
+      const assignedFont = fontAssignments.find(assignment => assignment.id === observation?.id)?.fontFamily
+        ?? 'Noto Sans Telugu';
+      const choices = useMemo(() => explorationChoices(observation?.text ?? ''), [observation?.text]);
+      const explorationSession = useRef<RandomExploration | null>(null);
+      const explorationRef = useRef<ExplorationHandle | null>(null);
+      const [exploration, setExploration] = useState<ExplorationStep | null>(null);
+      const exploring = exploration !== null;
+      const activeQuestion = observation?.kind === 'question' && observation.question?.phase === 'question' ? observation.question : null;
+      const comparisonPhase = comparisonQuestionPhase;
+      const questionAudio = activeQuestion?.mode === 'text-given' ? responseAudio : observation?.audio ?? null;
+      const visibleAudio = textComparison ? observation?.audio ?? null : comparisonPhase ? null : activeQuestion ? questionAudio : observation?.audio ?? null;
+      const audioReadinessKey = observation && visibleAudio ? `${observation.id}\0${visibleAudio.url}` : null;
+      const handleAudioLoadingChange = useCallback((key: string | null, loading: boolean, progress: number) => {
+        if (!key) return;
+        setAudioReadiness(current => current?.key === key && current.loading === loading && current.progress === progress
+          ? current : { key, loading, progress });
+      }, []);
+      const audioControlsVisible = !exploring && (controlsVisible || Boolean(recordingRange));
+      // Reset page-owned presentation before paint, including any old exit animation.
+      useLayoutEffect(() => {
+        taps.cancel();
+        setExploration(null);
+        explorationSession.current = null;
+        seamlessAudioKey.current = null;
+        setAudioError(null);
+        setAudioMotion('idle');
+        setPhaseMotion(textGivenFlow ? 'enter' : 'idle');
+        playerRef.current?.dismissPrecision();
+        setComparisonReady(false);
+        setResponseAudio(observation?.question?.responseAudio ?? null);
+        setRecordingRange(null);
+        setControlsVisible(Boolean(questionPhase && textGivenFlow && observation?.question?.responseAudio) || Boolean(observation?.kind === 'question' && observation.question?.phase === 'question' && observation.question.mode === 'audio-given' && observation.audio));
+        return () => taps.cancel();
+      }, [taps, state?.profileCode, observation?.id, observation?.question?.phase, observation?.question?.mode, appearance.scrollMode]);
+      const showsObservationText = observationShowsText(observation);
+      const typography =
+        useObservationTypography(
+          observation,
+          assignedFont,
+          showsObservationText,
+        );
+      const presentationHighlightRuns = appearance.highlightMods && observation
+        ? teluguHighlightRuns(observation.text)
+        : null;
+      const highlightRuns = showsObservationText ? presentationHighlightRuns : null;
+      const gradientEndColor = appearanceModificationColor(appearance);
+      // The rolling prewarm window covers every deck entry adjacent to the
+      // current observation - the one behind and the one ahead - so that by the
+      // time the user navigates either direction, its font, size-fit, and
+      // (if enabled) gradient texture are already computed and cached.
+      const neighborAssignments = fontAssignments.filter(assignment => assignment.id !== observation?.id);
+      const [neighborPrewarmReadyIds, setNeighborPrewarmReadyIds] = useState<Set<string>>(new Set());
+      const neighborKey = neighborAssignments.map(assignment => [assignment.id, assignment.fontFamily, assignment.text].join('\0')).join('\u0001');
+      useEffect(() => {
+        if (!neighborKey) {
+          setNeighborPrewarmReadyIds(new Set());
+          return;
+        }
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const worker = async () => {
+          for (const assignment of neighborAssignments) {
+            if (cancelled) return;
+            try {
+              await waitForIdle();
+              if (cancelled) return;
+              await document.fonts.load(`400 220px "${assignment.fontFamily}"`, assignment.text.slice(0, 64));
+              if (cancelled) return;
+              const container = typography.containerRef.current;
+              if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const audioBounds = container.querySelector('.audio-player-bar[data-has-audio="true"]')?.getBoundingClientRect();
+                await prewarmObservationTypography({
+                  id: assignment.id,
+                  text: assignment.text,
+                  fontFamily: assignment.fontFamily,
+                  fontScale: appearance.fontScale,
+                  textOffset: appearance.textOffset,
+                  containerRect: {
+                    left: containerRect.left,
+                    top: containerRect.top,
+                    width: containerRect.width,
+                    height: containerRect.height,
+                  },
+                  audioTop: audioBounds ? audioBounds.top : null,
+                });
+              }
+              if (cancelled) return;
+              if (appearance.highlightMods) {
+                const runs = teluguHighlightRuns(assignment.text).filter(run => run.highlighted);
+                for (const run of runs) {
+                  if (cancelled) return;
+                  await waitForIdle();
+                  if (cancelled) return;
+                  await renderTeluguGradientTexture(run.text, assignment.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+                }
+              }
+            } catch {
+              // The current observation can still fit or render this item on demand.
+              if (!cancelled) reportClientTelemetry({
+                event: 'observation_render_failed',
+                observationId: assignment.id,
+                stage: 'neighbor-prewarm',
+                failureCategory: 'render-fallback',
+              });
+            } finally {
+              if (!cancelled) setNeighborPrewarmReadyIds(current => {
+                if (current.has(assignment.id)) return current;
+                const next = new Set(current);
+                next.add(assignment.id);
+                return next;
+              });
+            }
+          }
+        };
+        void worker().catch(() => {});
+        return () => { cancelled = true; };
+      }, [neighborKey, appearance.highlightMods, appearance.foreground, appearance.fontScale, appearance.textOffset, gradientEndColor, appearance.gradientBarrier]);
+      const neighborsPrewarmed = neighborAssignments.every(assignment => neighborPrewarmReadyIds.has(assignment.id));
+      // On the first load, do not reveal an interactive reader while prewarm work
+      // can still monopolize the main thread. Individual failures are marked done
+      // above and fall back to on-demand rendering, so no timeout escape is needed.
+      const initialGateAppliedRef = useRef(false);
+      const [initialGateResolved, setInitialGateResolved] = useState(false);
+      useEffect(() => {
+        if (initialGateAppliedRef.current || !observation) return;
+        if (!neighborsPrewarmed) return;
+        initialGateAppliedRef.current = true;
+        setInitialGateResolved(true);
+      }, [observation?.id, neighborsPrewarmed]);
+      const presentationGradientKey = presentationHighlightRuns?.some(run => run.highlighted) && observation
+        ? [observation.id, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier, observation.text].join('\0')
+        : null;
+      const gradientKey = showsObservationText ? presentationGradientKey : null;
+      useEffect(() => {
+        if (showsObservationText || !observation) return;
+        const hiddenObservation = observation;
+        let cancelled = false;
+        const waitForIdle = () => new Promise<void>(resolve => {
+          if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => resolve(), { timeout: 250 });
+          else window.setTimeout(resolve, 0);
+        });
+        const run = async () => {
+          await document.fonts.load(`400 220px "${typography.fontFamily}"`, hiddenObservation.text.slice(0, 64));
+          if (!presentationGradientKey || !presentationHighlightRuns
+            || gradientPresentation?.key === presentationGradientKey) return;
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of presentationHighlightRuns) {
+            if (cancelled) return;
+            if (!highlightRun.highlighted) {
+              textures.push(null);
+              continue;
+            }
+            await waitForIdle();
+            if (cancelled) return;
+            textures.push(await renderTeluguGradientTexture(
+              highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+            ));
+          }
+          if (!cancelled) setGradientPresentation({ key: presentationGradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: hiddenObservation.id,
+            stage: 'hidden-prewarm',
+            failureCategory: 'render-fallback',
+          });
+        });
+        return () => { cancelled = true; };
+      }, [showsObservationText, observation?.id, observation?.text, presentationGradientKey, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier]);
+      useEffect(() => {
+        if (!gradientKey || !highlightRuns || gradientPresentation?.key === gradientKey) return;
+        let cancelled = false;
+        const total = highlightRuns.filter(run => run.highlighted).length;
+        setGradientProgress({ key: gradientKey, completed: 0, total });
+        // Each texture is a heavy synchronous canvas computation; yielding to a
+        // frame between runs keeps the main thread free so the cursor (and any
+        // other input handling) doesn't freeze while a whole observation's worth
+        // of gradient textures render back-to-back.
+        const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const run = async () => {
+          const textures: Array<TeluguGradientTexture | null> = [];
+          for (const highlightRun of highlightRuns) {
+            if (cancelled) return;
+            if (highlightRun.highlighted) {
+              if (!hasTeluguGradientTexture(
+                highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier,
+              )) await nextFrame();
+              if (cancelled) return;
+              const texture = await renderTeluguGradientTexture(highlightRun.text, typography.fontFamily, appearance.foreground, gradientEndColor, appearance.gradientBarrier);
+              textures.push(texture);
+              if (!cancelled) setGradientProgress(current => current?.key === gradientKey
+                ? { ...current, completed: current.completed + 1 } : current);
+            } else {
+              textures.push(null);
+            }
+          }
+          if (!cancelled) setGradientPresentation({ key: gradientKey, textures });
+        };
+        void run().catch(() => {
+          if (!cancelled) {
+            setGradientPresentation({ key: gradientKey, textures: highlightRuns.map(() => null) });
+            reportClientTelemetry({
+              event: 'observation_render_failed',
+              ...(observation ? { observationId: observation.id } : {}),
+              stage: 'gradient',
+              failureCategory: 'render-fallback',
+            });
+          }
+        });
+        return () => { cancelled = true; };
+      }, [gradientKey, gradientPresentation?.key]);
+      const gradientsReady = !gradientKey || gradientPresentation?.key === gradientKey;
+      const textReady = typography.ready && gradientsReady;
+      const audioLoading = Boolean(audioReadinessKey)
+        && audioReadinessKey !== seamlessAudioKey.current
+        && (audioReadiness?.key !== audioReadinessKey || audioReadiness.loading);
+      const entryPrepared = Boolean(observation) && (comparisonPhase && !textComparison
+        ? comparisonReady
+        : (!showsObservationText || textReady) && !audioLoading && initialGateResolved);
+      const presentationKey = observation
+        ? `${observation.id}\0${observation.question?.phase ?? observation.kind}`
+        : null;
+      const [paintedPresentationKey, setPaintedPresentationKey] = useState<string | null>(null);
+      useEffect(() => {
+        if (!entryPrepared || !presentationKey) return;
+        let secondFrame = 0;
+        const firstFrame = window.requestAnimationFrame(() => {
+          secondFrame = window.requestAnimationFrame(() => setPaintedPresentationKey(presentationKey));
+        });
+        return () => {
+          window.cancelAnimationFrame(firstFrame);
+          window.cancelAnimationFrame(secondFrame);
+        };
+      }, [entryPrepared, presentationKey]);
+      const [navigationError, setNavigationError] = useState('');
+      const pageTransition = useObservationTravel(screenRef, state?.currentPosition ?? null, Boolean(observation && (textGivenFlow ? textReady : entryPrepared)));
+      const entryReady = entryPrepared && paintedPresentationKey === presentationKey;
+      useEffect(() => {
+        if (!entryReady || !observation || observationLoadStartedAt.current === null) return;
+        reportClientTelemetry({
+          event: 'observation_ready',
+          observationId: observation.id,
+          durationMs: performance.now() - observationLoadStartedAt.current,
+        });
+        observationLoadStartedAt.current = null;
+      }, [entryReady, observation?.id]);
+      const showEntryLoadingIndicator = readerNeedsLoadingDots({
+        entryReady,
+        textVisible: pageTransition.hasOutgoing || Boolean(observation && showsObservationText && (textGivenFlow ? textReady : entryReady)),
+        audioVisible: Boolean(entryReady && audioControlsVisible && visibleAudio),
+        comparisonVisible: Boolean(comparisonPhase && !textComparison && entryReady),
+        errorVisible: Boolean(audioError || state?.grammarError),
+        startVisible: Boolean(!observation && state?.canNext && !busy),
+      });
+      const progressParts = [
+        ...(showsObservationText ? [typography.ready ? 1 : 0] : []),
+        ...(gradientKey ? [gradientProgress?.key === gradientKey && gradientProgress.total
+          ? gradientProgress.completed / gradientProgress.total : 0] : []),
+        ...(audioReadinessKey ? [audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : 0] : []),
+        ...(!initialGateResolved && neighborAssignments.length
+          ? [neighborPrewarmReadyIds.size / neighborAssignments.length] : []),
+      ];
+      const entryProgress = entryReady ? 1 : progressParts.reduce((sum, progress) => sum + progress, 0) / Math.max(1, progressParts.length);
+      useEffect(() => {
+        if (entryReady || !observation) return;
+        const timer = window.setTimeout(() => {
+          console.warn('[telugu-now] observation readiness stalled', {
+            observationId: observation.id,
+            progress: Math.round(entryProgress * 100),
+            gates: {
+              initialPrewarm: initialGateResolved,
+              typography: !showsObservationText || typography.ready,
+              typographyFont: typography.fontFamily,
+              typographyDiagnostics: typography.diagnostics(),
+              fontSetStatus: document.fonts.status,
+              fontAvailable: fontAvailability(typography.fontFamily, observation.text),
+              gradients: !gradientKey || gradientPresentation?.key === gradientKey,
+              gradientProgress: gradientKey && gradientProgress?.key === gradientKey
+                ? { completed: gradientProgress.completed, total: gradientProgress.total }
+                : null,
+              audio: !audioReadinessKey || !audioLoading,
+              audioProgress: audioReadiness?.key === audioReadinessKey ? audioReadiness.progress : null,
+            },
+            gradientCache: getTeluguGradientCacheSnapshot(),
+          });
+          reportClientTelemetry({
+            event: 'observation_render_failed',
+            observationId: observation.id,
+            stage: 'readiness',
+            failureCategory: 'readiness-stalled',
+            durationMs: 5000,
+          });
+        }, 5000);
+        return () => window.clearTimeout(timer);
+      }, [entryReady, observation?.id, entryProgress, initialGateResolved, showsObservationText,
+        typography.ready, gradientKey, gradientPresentation?.key, gradientProgress,
+        audioReadinessKey, audioLoading, audioReadiness]);
+      const canBack =
+        Boolean(state?.canBack) &&
+        !busy &&
+        (!observation || entryReady);
+      const canNext =
+        Boolean(state?.canNext) &&
+        !busy &&
+        (!observation || entryReady);
+      // Going back while the current entry is still loading shows the previous
+      // page immediately; the abandoned load keeps running in the background and
+      // its result is discarded if the user never returns to it.
+      const canBackWhileLoading = Boolean(state?.canBack) && !busy;
+      const move = async (
+        direction: 'back' | 'next',
+      ) => {
+        if(evaluationNavigation.current)return;
+        evaluationNavigation.current=true;
+        let moved = false;
+        try {
+          if (textGivenFlow && questionPhase && !(await questionControlsRef.current?.prepareToLeave())) return;
+          if(direction==='next' && observation?.question?.phase === 'observation' && observation?.grammar && !observation.grammar.discarded &&
+            !(await evaluationRef.current?.commit()))return;
+          setNavigationError('');
+          phaseDirection.current = direction;
+          if (swipeChangesObservation(observation?.question?.phase, direction)) pageTransition.prepare(direction);
+          moved=await onMove(direction);
+          if (!moved) { pageTransition.cancel(); setNavigationError('Could not move. Try again.'); }
+          if(moved && !textGivenFlow)setControlsVisible(false);
+        } catch (error) {
+          pageTransition.cancel();
+          setNavigationError(error instanceof Error ? error.message : 'Could not move. Try again.');
+        } finally {
+          if (!moved) gradientTravel.cancelPreview();
+          evaluationNavigation.current=false;
+        }
+      };
+      const verticalSwipe = (direction: 'up' | 'down') => {
+        if (recordingRange || busy || (activeQuestion?.mode === 'text-given' && !questionControlsRef.current?.canExplore())) return;
+        if (exploring) {
+          explorationRef.current?.pause();
+          const next = explorationSession.current?.move(direction) ?? null;
+          setExploration(next);
+          if (next === null) { explorationSession.current = null; if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+          return;
+        }
+        if (direction === 'up') {
+          if (controlsVisible) {
+            if (!playerRef.current?.dismissPrecision()) { setAudioMotion('exit'); setControlsVisible(false); }
+          } else if (showsObservationText && observation && (choices.letters.length || choices.words.length)) {
+            playerRef.current?.pause(); taps.cancel();
+            explorationSession.current = new RandomExploration(observation.text, appearance);
+            setExploration(explorationSession.current.move('up'));
+          }
+          return;
+        }
+        if (!entryReady || (activeQuestion?.mode === 'text-given' && !responseAudio)) return;
+        if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
+        else playerRef.current?.openAssociatedControls();
+      };
+      const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
+        `${observation?.id}:${observation?.question?.phase}`, direction => {
+          taps.cancel();
+          if (direction === 'up' || direction === 'down') {
+            verticalSwipe(direction);
+          }
+          else if (direction === 'back' ? canBackWhileLoading : canNext) void move(direction);
+          else gradientTravel.cancelPreview();
+        }, () => taps.cancel(), {
+          onDrag: (dx, dy, width) => {
+            if (evaluationNavigation.current || busy) return;
+            const fraction = gradientSwipeFraction(dx, dy, width);
+            const direction = fraction < 0 ? 'back' : 'next';
+            const allowed = direction === 'back' ? canBackWhileLoading : canNext;
+            if (fraction && allowed && swipeChangesObservation(observation?.question?.phase, direction)) {
+              gradientTravel.preview(fraction);
+            } else gradientTravel.cancelPreview();
+          },
+          onCancel: () => { if (!evaluationNavigation.current) gradientTravel.cancelPreview(); },
+        });
+      const wordHitAtPoint = (event: ReaderPoint, contextMenu = false): VisibleGlyphHit | null => {
+        const element = event.target instanceof Element ? event.target.closest('.observation-text') : null;
+        if (!element || !observation) return null;
+        return visibleWordAtPoint(
+          element,
+          observation.text,
+          event.clientX,
+          event.clientY,
+          contextMenu ? 8 : 2,
+          contextMenu ? 4 : 2,
+        );
+      };
+      const wordAtPoint = (event: ReaderPoint, contextMenu = false): string | null => wordHitAtPoint(event, contextMenu)?.text ?? null;
+      return (
+        <main
+          ref={screenRef}
+          {...swipeHandlers}
+          data-swipe-navigation="true"
+          data-exploring={exploring}
+          data-text-given-flow={textGivenFlow}
+          data-phase-motion={phaseMotion}
+          onAnimationEnd={event => { if (event.animationName === 'question-controls-arrive') setPhaseMotion('idle'); }}
+          data-entry-ready={entryReady}
+          data-settings-idle={settingsIdle}
+          data-phase-direction={phaseDirection.current}
+          data-scroll-mode={appearance.scrollMode}
+          data-question-mode={textComparison ? 'text-given' : activeQuestion?.mode}
+          data-question-phase={observation?.question?.phase}
+          data-audio-motion={audioMotion}
+          data-swipe-direction={audioMotionDirection === 1 ? 'right' : 'left'}
+          className={
+            `app-shell observation-screen ${
+              audioControlsVisible
+                ? 'controls-visible'
+                : ''
+            }`
+          }
+          onFocusCapture={(event) => {
+            if (event.target.matches(':focus-visible')) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          onKeyDownCapture={(event) => {
+            if (observation && !entryReady) return;
+            if (event.target === event.currentTarget && (event.key === ' ' || event.key === 'Enter')) {
+              event.preventDefault();
+              if (!event.repeat) playerRef.current?.togglePlay();
+              return;
+            }
+            if (event.target instanceof Element) {
+              if (event.target.closest('.audio-player-bar')) {
+                setControlsVisible(true);
+              }
+            }
+          }}
+          tabIndex={0}
+          aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
+          onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
+          onClick={(event) => {
+            if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
+            // Typing in the keyboard must never count toward the reader's own
+            // single/double-click gestures (playback toggle, back/next navigation).
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            if (observation && !entryReady) return;
+            const bounds = screenRef.current?.getBoundingClientRect();
+            if (!bounds) return;
+            const region = readerTapRegions(event.clientX, event.clientY, bounds);
+            const word = wordHitAtPoint(event);
+            const doubleRegion = word ? `word:${word.start}` : region.double;
+            if (!window.getSelection()?.isCollapsed && !taps.matches(doubleRegion, event.clientX, event.clientY)) {
+              taps.cancel();
+              return;
+            }
+            // A single tap that will end up pausing playback must stop the audio
+            // immediately, before the double-tap resolution delay, so the pause
+            // lands exactly where the user tapped instead of bleeding later.
+            const eagerlyPaused = Boolean(playerRef.current?.isPlaying());
+            if (eagerlyPaused) {
+              gesturePausedPlayback.current = true;
+              playerRef.current?.pause();
+            }
+            taps.tap(doubleRegion, event.clientX, event.clientY, () => {
+              if (gesturePausedPlayback.current) playerRef.current?.resume();
+              gesturePausedPlayback.current = false;
+              window.getSelection()?.removeAllRanges();
+              if (word && observation) {
+                setControlsVisible(false);
+                setSelectedWord({ word: word.text, start: word.start, end: word.end, observationId: observation.id });
+              }
+    
+            }, () => {
+              gesturePausedPlayback.current = false;
+              if (!eagerlyPaused) playerRef.current?.togglePlay();
+            });
+          }}
+          onMouseDownCapture={(event) => {
+            if (event.button !== 0 || event.detail < 2) return;
+            if (event.target instanceof Element && event.target.closest('button, .audio-player-bar, .word-profile, .google-telugu-input')) return;
+            event.preventDefault();
+          }}
+          onDoubleClick={(event) => {
+            if (event.target instanceof Element && event.target.closest('.google-telugu-input')) return;
+            event.preventDefault();
+          }}
+        >
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-left"
+              type="button"
+              aria-label="వెనుక"
+              disabled={!canBack}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canBack) void move('back');
+                }
+              }}
+            />
+          </div>
+          {exploring && observation ? <ExplorationSurface observation={observation} step={exploration!}
+            profileCode={state?.profileCode ?? ''} textRef={typography.textRef} ref={explorationRef} active={!selectedWord}
+            playbackRate={state?.audioSettings.playbackRate ?? 1}
+            onFocus={focus => setSelectedWord({...focus,observationId:observation.id})}/> : null}
+          <section
+            ref={typography.containerRef}
+            className="observation-center"
+            data-entry-loading={Boolean(observation && !entryReady)}
+          >
+            {observation && comparisonPhase && !textComparison ? (
+              <ComparisonPage
+                observation={observation}
+                fontFamily={typography.fontFamily}
+                playbackRate={state?.audioSettings.playbackRate ?? 1}
+                onReady={() => setComparisonReady(true)}
+                onBack={() => { if (canBack) void move('back'); }}
+                onAdvance={() => { if (canNext) void move('next'); }}
+              />
+            ) : observation && showsObservationText ? (
+              <div
+                ref={typography.textRef}
+                className="observation-text"
+                onCopy={copyOriginalReaderText}
+                style={{ ...typography.style, opacity: (textGivenFlow ? textReady : entryReady) ? 1 : 0 }}
+              >
+                <TeluguWordText
+                  text={observation.text}
+                  visibleRange={exploration ?? undefined}
+                  runs={highlightRuns}
+                  textures={gradientPresentation?.key === gradientKey ? gradientPresentation.textures : null}
+                />
+              </div>
+            ) : observation && activeQuestion && visibleAudio ? null : canNext ? (
+              <button
+                className="observation-start"
+                type="button"
+                aria-label="Start observations"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void move('next');
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                <ArrowRight size={32} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            ) : (
+              <div className="observation-placeholder" />
+            )}
+              {showEntryLoadingIndicator ? (
+                <div
+                  className="observation-entry-loading"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (textGivenFlow || event.detail < 2 || !canBackWhileLoading) return;
+                    const bounds = screenRef.current?.getBoundingClientRect();
+                    if (bounds && readerTapRegions(event.clientX, event.clientY, bounds).double === 'back') void move('back');
+                  }}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <LoadingSlit key={presentationKey ?? "empty"} delayMs={250} label={observation ? "Preparing observation" : "Loading observation"} progress={entryProgress} />
+                </div>
+              ) : null}
+              {!comparisonPhase || textComparison ? <AudioPlayerBar
+                ref={playerRef}
+                observationId={observation?.id ?? null}
+                audio={visibleAudio}
+                sourceId={activeQuestion?.mode === 'text-given' ? 'question-response' : observation?.sourceId ?? null}
+                sourceKey={activeQuestion?.mode === 'text-given' ? `${state?.profileCode}:${observation?.id}` : observation?.sourceKey ?? null}
+                defaultPlaybackRate={state?.audioSettings.playbackRate ?? 1}
+                autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
+                persistentDisclosure={Boolean(textGivenFlow)}
+                controlsVisible={audioControlsVisible}
+                playbackEnabled={entryReady && !selectedWord && !exploring}
+                readinessKey={audioReadinessKey}
+                onLoadingChange={handleAudioLoadingChange}
+                onPlaybackErrorChange={setAudioError}
+                recordingRange={activeQuestion?.mode === 'text-given' ? recordingRange : null}
+                reserveAudioSpace={activeQuestion?.mode === 'text-given' || Boolean(textComparison)}
+                onPrecisionInteraction={() => {
+                  taps.cancel();
+                  setControlsVisible(true);
+                  setPrecisionInteraction(value => value + 1);
+                }}
+              /> : null}
+              {observation && activeQuestion ? <QuestionControls
+                key={`${state?.profileCode}:${observation.id}`}
+                ref={questionControlsRef}
+                profileCode={state?.profileCode ?? ''}
+                observationId={observation.id}
+                mode={activeQuestion.mode}
+                keyboard={activeQuestion.keyboard}
+                visible={!exploring}
+                initialText={activeQuestion.responseText}
+                fontFamily={typography.fontFamily}
+                beginRecording={() => playerRef.current?.beginRecording() ?? 0}
+                durationSeconds={() => playerRef.current?.duration() ?? 0}
+                onAudioSaved={(audio) => {
+                  playerRef.current?.prepareAudioReplacement(0);
+                  seamlessAudioKey.current = observation ? `${observation.id}\0${audio.url}` : null;
+                  setResponseAudio(audio);
+                  setControlsVisible(true);
+                }}
+                onRecordingChange={range => { setRecordingRange(range); if (range) setControlsVisible(true); }}
+                onSubmit={() => { if (canNext) void move('next'); }}
+              /> : null}
+          </section>
+          <div className="nav-region">
+            <button
+              className="nav-zone nav-zone-right"
+              type="button"
+              aria-label="తర్వాత"
+              disabled={!canNext}
+              onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
+              onClick={(
+                event:
+                  MouseEvent<HTMLButtonElement>,
+              ) => {
+                if (event.detail === 0) {
+                  event.stopPropagation();
+                  if (canNext) void move('next');
+                }
+              }}
+            />
+          </div>
+          {observation?.grammar && (comparisonPhase || observation.question?.phase === 'observation') ? <GrammarEvaluation showSwitch={Boolean(comparisonPhase) && !exploring} ref={evaluationRef} key={`${state?.profileCode}:${observation.id}`} profileCode={state?.profileCode??''} observationId={observation.id} result={observation.grammar.result} discarded={observation.grammar.discarded??false} initialDraft={evaluationDrafts.current.get(`${state?.profileCode}:${observation.id}`) ?? false} onDraftChange={value => evaluationDrafts.current.set(`${state?.profileCode}:${observation.id}`, value)}/> : null}
+          {state?.grammarError ? <div className="audio-reader-error" role="alert">{state.grammarError}</div> : null}
+          {navigationError ? <div className="audio-reader-error" role="alert">{navigationError}</div> : null}
+          {audioError ? <div className="audio-reader-error" role="alert">{audioError}</div> : null}
+          {selectedWord && selectedWord.observationId === observation?.id ? (
+            <WordProfile key={`${selectedWord.observationId}:${selectedWord.start}`} word={selectedWord.word} sentence={observation.text} initialGrapheme={selectedWord.grapheme} suppressAudioControls={exploring}
+              observationId={selectedWord.observationId} wordStart={selectedWord.start} wordEnd={selectedWord.end}
+              fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
+              onClose={() => setSelectedWord(null)} />
+          ) : null}
+          <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
+    
+        </main>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:176:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Question sampling remains a dedicated three-probability Settings section
+not ok 8 - Question sampling remains a dedicated three-probability Settings section
+  ---
+  duration_ms: 0.446648
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:187:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /sampling: \['questions', 'complexity', 'sources', 'dataSources'\]/. Input:
+    
+    "import { appearanceGroups, appearanceLabels, appearancePageLabel, isAppearancePage, type AppearancePage } from './appearance-navigation';\n" +
+      "import { diagnosticSectionLabel } from './diagnostic';\n" +
+      "import { t } from './language';\n" +
+      "import type { SettingsPage, UiLanguage } from './types';\n" +
+      "import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';\n" +
+      '\n' +
+      'export const settingsPageIcons = {\n' +
+      '  exploration: BookOpen, explorationStart: SlidersHorizontal, explorationEnd: SlidersHorizontal, explorationDraws: SlidersHorizontal,\n' +
+      "  ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,\n" +
+      '  dataSourceDetail: Database,\n' +
+      '  searchAttempt: Activity,\n' +
+      '  currentChain: ListOrdered,\n' +
+      '  nextChainSearch: Activity,\n' +
+      '  lastSearchAttempt: Activity,\n' +
+      '  currentReset: RotateCcw, resetChain: RotateCcw, resetCore: RotateCcw, resetAllCores: RotateCcw,\n' +
+      '  coreProgress: Activity,\n' +
+      '  objectCoverage: Activity,\n' +
+      '  coverageNotes: Activity,\n' +
+      '  searchAndParse: Activity,\n' +
+      '  currentSearches: Activity,\n' +
+      '  allTimeSearches: Activity,\n' +
+      '  cycleHistory: Activity,\n' +
+      '  parserEvents: Activity,\n' +
+      '  parserDetails: Activity,\n' +
+      '\n' +
+      '  diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,\n' +
+      '  parserCurrent: ListOrdered, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,\n' +
+      '  display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,\n' +
+      '  dataSources: Database, trigger: Workflow, source: Database,\n' +
+      '  complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,\n' +
+      '  images: Image, eons: History, blacklist: Ban,\n' +
+      '  questionInfo: CircleHelp,\n' +
+      '  queue: ListOrdered,\n' +
+      '  controlsGuide: BookOpen,\n' +
+      '  about: Info,\n' +
+      '};\n' +
+      '\n' +
+      'export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {\n' +
+      '  ...appearanceGroups,\n' +
+      "  dataSources: ['dataSourceDetail'],\n" +
+      "  index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],\n" +
+      "  external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],\n" +
+      "  observations: ['parser', 'parsingMode', 'exploration', 'dataSources'],\n" +
+      "  exploration: ['explorationStart', 'explorationEnd', 'explorationDraws'],\n" +
+      "  parser: ['parserCurrent', 'diagnostic'],\n" +
+      "  parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],\n" +
+      "  currentReset: ['resetChain','resetCore','resetAllCores'],\n" +
+      "  nextChainSearch: ['lastSearchAttempt'],\n" +
+      "  diagnostic: ['objectCoverage','searchAndParse','cycleHistory','parserEvents','parserDetails'],\n" +
+      "  objectCoverage: ['coverageNotes'],\n" +
+      "  searchAndParse: ['currentSearches','allTimeSearches'],\n" +
+      "  parserEvents: ['diagnosticsDownload'],\n" +
+      "  display: ['playback', 'appearance', 'images'],\n" +
+      '};\n' +
+      '\n' +
+      'export function parentSettingsPage(page: SettingsPage): SettingsPage {\n' +
+      "  return (Object.entries(settingsGroups).find(([, children]) => children?.includes(page))?.[0] as SettingsPage) ?? 'index';\n" +
+      '}\n' +
+      '\n' +
+      'export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {\n' +
+      "  if(page==='exploration')return language==='en'?'Exploration':'అన్వేషణ';\n" +
+      "  if(page==='explorationStart')return language==='en'?'Start probabilities':'ప్రారంభ అవకాశాలు';\n" +
+      "  if(page==='explorationEnd')return language==='en'?'End probabilities':'చివరి అవకాశాలు';\n" +
+      "  if(page==='explorationDraws')return language==='en'?'Transition draws':'మార్పు ఎంపికలు';\n" +
+      "  if(page==='resetChain')return 'Reset chain';\n" +
+      "  if(page==='resetCore')return 'Reset current core';\n" +
+      "  if(page==='resetAllCores')return 'Reset all cores';\n" +
+      '  if(isAppearancePage(page))return appearancePageLabel(page,language);\n' +
+      "  if(page==='dataSourceDetail')return language==='en'?'Data source':'డేటా మూలం';\n" +
+      '  const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};\n' +
+      '  if(parserLabels[page])return parserLabels[page]!;\n' +
+      "  if (page === 'searchAttempt') return 'Search and parse attempt';\n" +
+      "  if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';\n" +
+      "  if (page === 'parser') return language === 'en' ? 'Parser' : 'పార్సర్';\n" +
+      "  if (page === 'parserCurrent') return language === 'en' ? 'Current' : 'ప్రస్తుతం';\n" +
+      "  if (page === 'diagnostic') return language === 'en' ? 'Diagnostics' : 'విశ్లేషణ';\n" +
+      "  if (page === 'diagnosticsDownload') return language === 'en' ? 'Download' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';\n" +
+      "  if (page === 'parsingMode') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';\n" +
+      "  if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';\n" +
+      "  if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';\n" +
+      "  if (page === 'grammarMigration') return 'Grammar Migration';\n" +
+      "  if (page === 'category') return language === 'en' ? 'Category' : 'వర్గం';\n" +
+      "  if (page === 'external') return language === 'en' ? 'External' : 'బాహ్య';\n" +
+      "  if (page === 'epubExport') return language === 'en' ? 'EPUB Export' : 'EPUB ఎగుమతి';\n" +
+      "  if (page === 'htmlExport') return language === 'en' ? 'HTML Export' : 'HTML ఎగుమతి';\n" +
+      "  if (page === 'archiveExport') return language === 'en' ? 'App Archive Export' : 'యాప్ ఆర్కైవ్ ఎగుమతి';\n" +
+      "  if (page === 'display') return language === 'en' ? 'Display' : 'ప్రదర్శన';\n" +
+      "  if (page === 'images') return language === 'en' ? 'Image Generation' : 'చిత్ర సృష్టి';\n" +
+      "  if (page === 'playback') return language === 'en' ? 'Playback Settings' : 'ప్లేబ్యాక్ అమరికలు';\n" +
+      "  if (page === 'eons') return language === 'en' ? 'Eons' : 'యుగాలు';\n" +
+      "  if (page === 'blacklist') return language === 'en' ? 'Blacklist' : 'బ్లాక్‌లిస్ట్';\n" +
+      "  if (page === 'queue') return language === 'en' ? 'View the Queue' : 'క్యూను చూడండి';\n" +
+      "  if (page === 'archiveImport') return language === 'en' ? 'App Archive Import' : 'యాప్ ఆర్కైవ్ దిగుమతి';\n" +
+      "  if (page === 'controlsGuide') return language === 'en' ? 'Controls Guide' : 'నియంత్రణల మార్గదర్శి';\n" +
+      "  if (page === 'about') return language === 'en' ? 'Version & Deployment' : 'వెర్షన్ మరియు అమలు';\n" +
+      "  if (page === 'questionInfo') return diagnosticSectionLabel(language, 'questions');\n" +
+      "  if (page === 'trigger' || page === 'source' || page === 'global' || page === 'complexityInfo') {\n" +
+      "    return diagnosticSectionLabel(language, page === 'complexityInfo' ? 'complexity' : page);\n" +
+      '  }\n' +
+      "  if (page === 'dataSources') return language === 'en' ? 'Data Sources' : t(language, 'dataSources');\n" +
+      "  if (page === 'reset') return language === 'en' ? 'Reset Queue' : t(language, 'resetQueue');\n" +
+      "  const labels = { index: 'settings' } as const;\n" +
+      "  return t(language, page in labels ? labels[page as keyof typeof labels] : page as 'complexity' | 'dataSources' | 'diagnostic' | 'export');\n" +
+      '}\n' +
+      'export function visibleSettingsEntries(page: SettingsPage, migrationAvailable: boolean): SettingsPage[] {\n' +
+      "  return (settingsGroups[page] ?? []).filter(entry => entry !== 'dataSourceDetail' && entry !== 'appearanceFont' && (entry !== 'grammarMigration' || migrationAvailable));\n" +
+      '}\n' +
+      '\n' +
+      "export const exportFormatForPage = {epubExport: 'epub', htmlExport: 'html', archiveExport: 'app-archive'} as const;\n"
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { appearanceGroups, appearanceLabels, appearancePageLabel, isAppearancePage, type AppearancePage } from './appearance-navigation';
+    import { diagnosticSectionLabel } from './diagnostic';
+    import { t } from './language';
+    import type { SettingsPage, UiLanguage } from './types';
+    import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
+    
+    export const settingsPageIcons = {
+      exploration: BookOpen, explorationStart: SlidersHorizontal, explorationEnd: SlidersHorizontal, explorationDraws: SlidersHorizontal,
+      ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,
+      dataSourceDetail: Database,
+      searchAttempt: Activity,
+      currentChain: ListOrdered,
+      nextChainSearch: Activity,
+      lastSearchAttempt: Activity,
+      currentReset: RotateCcw, resetChain: RotateCcw, resetCore: RotateCcw, resetAllCores: RotateCcw,
+      coreProgress: Activity,
+      objectCoverage: Activity,
+      coverageNotes: Activity,
+      searchAndParse: Activity,
+      currentSearches: Activity,
+      allTimeSearches: Activity,
+      cycleHistory: Activity,
+      parserEvents: Activity,
+      parserDetails: Activity,
+    
+      diagnosticsDownload: Download, parsingMode: CircleHelp, complexity: Gauge, sources: SlidersHorizontal, grammarMigration: Database, category: ChartNoAxesCombined,
+      parserCurrent: ListOrdered, index: SlidersHorizontal, observations: BookOpen, external: Download, parser: Workflow, diagnostic: Activity,
+      display: Palette, epubExport: BookOpen, htmlExport: Download, archiveExport: Download, archiveImport: Upload, reset: RotateCcw,
+      dataSources: Database, trigger: Workflow, source: Database,
+      complexityInfo: ChartNoAxesCombined, global: Globe, playback: Gauge, appearance: Sparkles,
+      images: Image, eons: History, blacklist: Ban,
+      questionInfo: CircleHelp,
+      queue: ListOrdered,
+      controlsGuide: BookOpen,
+      about: Info,
+    };
+    
+    export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
+      ...appearanceGroups,
+      dataSources: ['dataSourceDetail'],
+      index: ['observations', 'external', 'display', 'eons', 'controlsGuide', 'about'],
+      external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
+      observations: ['parser', 'parsingMode', 'exploration', 'dataSources'],
+      exploration: ['explorationStart', 'explorationEnd', 'explorationDraws'],
+      parser: ['parserCurrent', 'diagnostic'],
+      parserCurrent: ['currentChain','nextChainSearch','currentReset','coreProgress'],
+      currentReset: ['resetChain','resetCore','resetAllCores'],
+      nextChainSearch: ['lastSearchAttempt'],
+      diagnostic: ['objectCoverage','searchAndParse','cycleHistory','parserEvents','parserDetails'],
+      objectCoverage: ['coverageNotes'],
+      searchAndParse: ['currentSearches','allTimeSearches'],
+      parserEvents: ['diagnosticsDownload'],
+      display: ['playback', 'appearance', 'images'],
+    };
+    
+    export function parentSettingsPage(page: SettingsPage): SettingsPage {
+      return (Object.entries(settingsGroups).find(([, children]) => children?.includes(page))?.[0] as SettingsPage) ?? 'index';
+    }
+    
+    export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
+      if(page==='exploration')return language==='en'?'Exploration':'అన్వేషణ';
+      if(page==='explorationStart')return language==='en'?'Start probabilities':'ప్రారంభ అవకాశాలు';
+      if(page==='explorationEnd')return language==='en'?'End probabilities':'చివరి అవకాశాలు';
+      if(page==='explorationDraws')return language==='en'?'Transition draws':'మార్పు ఎంపికలు';
+      if(page==='resetChain')return 'Reset chain';
+      if(page==='resetCore')return 'Reset current core';
+      if(page==='resetAllCores')return 'Reset all cores';
+      if(isAppearancePage(page))return appearancePageLabel(page,language);
+      if(page==='dataSourceDetail')return language==='en'?'Data source':'డేటా మూలం';
+      const parserLabels:Partial<Record<SettingsPage,string>>={"currentChain": "Chain", "nextChainSearch": "Next chain search", "lastSearchAttempt": "Last search and parse attempt", "currentReset": "Reset", "coreProgress": "Progress by core", "objectCoverage": "Object coverage", "coverageNotes": "Coverage notes", "searchAndParse": "Search and parse", "currentSearches": "Current searches", "allTimeSearches": "All-time searches", "cycleHistory": "Cycle history", "parserEvents": "Events", "parserDetails": "Parser details"};
+      if(parserLabels[page])return parserLabels[page]!;
+      if (page === 'searchAttempt') return 'Search and parse attempt';
+      if (page === 'observations') return language === 'en' ? 'Observations' : 'పరిశీలనలు';
+      if (page === 'parser') return language === 'en' ? 'Parser' : 'పార్సర్';
+      if (page === 'parserCurrent') return language === 'en' ? 'Current' : 'ప్రస్తుతం';
+      if (page === 'diagnostic') return language === 'en' ? 'Diagnostics' : 'విశ్లేషణ';
+      if (page === 'diagnosticsDownload') return language === 'en' ? 'Download' : 'పూర్తి విశ్లేషణను డౌన్‌లోడ్ చేయండి';
+      if (page === 'parsingMode') return language === 'en' ? 'Questions' : 'ప్రశ్నలు';
+      if (page === 'complexity') return language === 'en' ? 'Complexity' : 'సంక్లిష్టత';
+      if (page === 'sources') return language === 'en' ? 'Source Weights' : 'మూలాల బరువులు';
+      if (page === 'grammarMigration') return 'Grammar Migration';
+      if (page === 'category') return language === 'en' ? 'Category' : 'వర్గం';
+      if (page === 'external') return language === 'en' ? 'External' : 'బాహ్య';
+      if (page === 'epubExport') return language === 'en' ? 'EPUB Export' : 'EPUB ఎగుమతి';
+      if (page === 'htmlExport') return language === 'en' ? 'HTML Export' : 'HTML ఎగుమతి';
+      if (page === 'archiveExport') return language === 'en' ? 'App Archive Export' : 'యాప్ ఆర్కైవ్ ఎగుమతి';
+      if (page === 'display') return language === 'en' ? 'Display' : 'ప్రదర్శన';
+      if (page === 'images') return language === 'en' ? 'Image Generation' : 'చిత్ర సృష్టి';
+      if (page === 'playback') return language === 'en' ? 'Playback Settings' : 'ప్లేబ్యాక్ అమరికలు';
+      if (page === 'eons') return language === 'en' ? 'Eons' : 'యుగాలు';
+      if (page === 'blacklist') return language === 'en' ? 'Blacklist' : 'బ్లాక్‌లిస్ట్';
+      if (page === 'queue') return language === 'en' ? 'View the Queue' : 'క్యూను చూడండి';
+      if (page === 'archiveImport') return language === 'en' ? 'App Archive Import' : 'యాప్ ఆర్కైవ్ దిగుమతి';
+      if (page === 'controlsGuide') return language === 'en' ? 'Controls Guide' : 'నియంత్రణల మార్గదర్శి';
+      if (page === 'about') return language === 'en' ? 'Version & Deployment' : 'వెర్షన్ మరియు అమలు';
+      if (page === 'questionInfo') return diagnosticSectionLabel(language, 'questions');
+      if (page === 'trigger' || page === 'source' || page === 'global' || page === 'complexityInfo') {
+        return diagnosticSectionLabel(language, page === 'complexityInfo' ? 'complexity' : page);
+      }
+      if (page === 'dataSources') return language === 'en' ? 'Data Sources' : t(language, 'dataSources');
+      if (page === 'reset') return language === 'en' ? 'Reset Queue' : t(language, 'resetQueue');
+      const labels = { index: 'settings' } as const;
+      return t(language, page in labels ? labels[page as keyof typeof labels] : page as 'complexity' | 'dataSources' | 'diagnostic' | 'export');
+    }
+    export function visibleSettingsEntries(page: SettingsPage, migrationAvailable: boolean): SettingsPage[] {
+      return (settingsGroups[page] ?? []).filter(entry => entry !== 'dataSourceDetail' && entry !== 'appearanceFont' && (entry !== 'grammarMigration' || migrationAvailable));
+    }
+    
+    export const exportFormatForPage = {epubExport: 'epub', htmlExport: 'html', archiveExport: 'app-archive'} as const;
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:190:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: local controller lives under local-machine with no obsolete controller names
+ok 9 - local controller lives under local-machine with no obsolete controller names
+  ---
+  duration_ms: 6.596505
+  type: 'test'
+  ...
+# Subtest: Iteration 2 frontend remains modular across profile, observation, settings, and export packaging
+ok 10 - Iteration 2 frontend remains modular across profile, observation, settings, and export packaging
+  ---
+  duration_ms: 0.583053
+  type: 'test'
+  ...
+# Subtest: Settings routes import, export, controls, and deployment information independently
+not ok 11 - Settings routes import, export, controls, and deployment information independently
+  ---
+  duration_ms: 0.658088
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:389:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /fetch\('\/version\.json'\)/. Input:
+    
+    "import { useEffect, useState } from 'react';\n" +
+      "import type { UiLanguage } from '../types';\n" +
+      '\n' +
+      'interface AboutPageProps {\n' +
+      '  language: UiLanguage;\n' +
+      '}\n' +
+      '\n' +
+      'interface VersionMetadata {\n' +
+      '  version?: string;\n' +
+      '  deployedAt?: string;\n' +
+      '}\n' +
+      '\n' +
+      'export function AboutPage({ language }: AboutPageProps) {\n' +
+      '  const [metadata, setMetadata] = useState<VersionMetadata | null>(null);\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    let active = true;\n' +
+      "    void fetch('/version.json', { cache: 'no-store' })\n" +
+      "      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Version unavailable'))))\n" +
+      '      .then((value: VersionMetadata) => {\n' +
+      '        if (active) setMetadata(value);\n' +
+      '      })\n' +
+      '      .catch(() => {\n' +
+      '        if (active) setMetadata({});\n' +
+      '      });\n' +
+      '    return () => {\n' +
+      '      active = false;\n' +
+      '    };\n' +
+      '  }, []);\n' +
+      '\n' +
+      "  const unavailable = language === 'en' ? 'Unavailable' : 'అందుబాటులో లేదు';\n" +
+      '  const deployedAt = metadata?.deployedAt ? new Date(metadata.deployedAt) : null;\n' +
+      '  const deployedLabel = deployedAt && !Number.isNaN(deployedAt.getTime())\n' +
+      "    ? new Intl.DateTimeFormat(language === 'en' ? 'en' : 'te', { dateStyle: 'long', timeStyle: 'short' }).format(deployedAt)\n" +
+      '    : unavailable;\n' +
+      '\n' +
+      '  return (\n' +
+      '    <div className="settings-info-page">\n' +
+      '      <dl className="settings-info-list">\n' +
+      '        <div>\n' +
+      "          <dt>{language === 'en' ? 'Application' : 'అప్లికేషన్'}</dt>\n" +
+      '          <dd>Telugu Now</dd>\n' +
+      '        </div>\n' +
+      '        <div>\n' +
+      "          <dt>{language === 'en' ? 'Version' : 'వెర్షన్'}</dt>\n" +
+      "          <dd>{metadata === null ? '…' : metadata.version ?? unavailable}</dd>\n" +
+      '        </div>\n' +
+      '        <div>\n' +
+      "          <dt>{language === 'en' ? 'Deployed' : 'డిప్లాయ్ చేసిన సమయం'}</dt>\n" +
+      "          <dd>{metadata === null ? '…' : deployedLabel}</dd>\n" +
+      '        </div>\n' +
+      '      </dl>\n' +
+      '    </div>\n' +
+      '  );\n' +
+      '}\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import { useEffect, useState } from 'react';
+    import type { UiLanguage } from '../types';
+    
+    interface AboutPageProps {
+      language: UiLanguage;
+    }
+    
+    interface VersionMetadata {
+      version?: string;
+      deployedAt?: string;
+    }
+    
+    export function AboutPage({ language }: AboutPageProps) {
+      const [metadata, setMetadata] = useState<VersionMetadata | null>(null);
+    
+      useEffect(() => {
+        let active = true;
+        void fetch('/version.json', { cache: 'no-store' })
+          .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Version unavailable'))))
+          .then((value: VersionMetadata) => {
+            if (active) setMetadata(value);
+          })
+          .catch(() => {
+            if (active) setMetadata({});
+          });
+        return () => {
+          active = false;
+        };
+      }, []);
+    
+      const unavailable = language === 'en' ? 'Unavailable' : 'అందుబాటులో లేదు';
+      const deployedAt = metadata?.deployedAt ? new Date(metadata.deployedAt) : null;
+      const deployedLabel = deployedAt && !Number.isNaN(deployedAt.getTime())
+        ? new Intl.DateTimeFormat(language === 'en' ? 'en' : 'te', { dateStyle: 'long', timeStyle: 'short' }).format(deployedAt)
+        : unavailable;
+    
+      return (
+        <div className="settings-info-page">
+          <dl className="settings-info-list">
+            <div>
+              <dt>{language === 'en' ? 'Application' : 'అప్లికేషన్'}</dt>
+              <dd>Telugu Now</dd>
+            </div>
+            <div>
+              <dt>{language === 'en' ? 'Version' : 'వెర్షన్'}</dt>
+              <dd>{metadata === null ? '…' : metadata.version ?? unavailable}</dd>
+            </div>
+            <div>
+              <dt>{language === 'en' ? 'Deployed' : 'డిప్లాయ్ చేసిన సమయం'}</dt>
+              <dd>{metadata === null ? '…' : deployedLabel}</dd>
+            </div>
+          </dl>
+        </div>
+      );
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:408:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Settings export uses a dedicated format page and keeps format out of selection
+ok 12 - Settings export uses a dedicated format page and keeps format out of selection
+  ---
+  duration_ms: 0.278475
+  type: 'test'
+  ...
+# Subtest: export packaging has one shared viewer runtime and separate HTML/EPUB wrappers
+ok 13 - export packaging has one shared viewer runtime and separate HTML/EPUB wrappers
+  ---
+  duration_ms: 0.282854
+  type: 'test'
+  ...
+# Subtest: EPUB wrapper declares a scripted EPUB 3 package with all local fonts and no ZIP dependency
+ok 14 - EPUB wrapper declares a scripted EPUB 3 package with all local fonts and no ZIP dependency
+  ---
+  duration_ms: 0.237965
+  type: 'test'
+  ...
+# Subtest: live presentation remains local-font, monochrome, keyboard-stable, and activation-randomized
+not ok 15 - live presentation remains local-font, monochrome, keyboard-stable, and activation-randomized
+  ---
+  duration_ms: 3.73948
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:642:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/repository-contract.test.ts:722:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 9
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 387.700224

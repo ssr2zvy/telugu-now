@@ -1,0 +1,72 @@
+TAP version 13
+# Subtest: two-rank Zipf reverses text to audio within every category and resets at the grammar peak boundary
+ok 1 - two-rank Zipf reverses text to audio within every category and resets at the grammar peak boundary
+  ---
+  duration_ms: 1.072937
+  type: 'test'
+  ...
+# Subtest: actual streak updates drive the reset only at the existing gated category transition
+ok 2 - actual streak updates drive the reset only at the existing gated category transition
+  ---
+  duration_ms: 0.254017
+  type: 'test'
+  ...
+# Subtest: failed current and earlier targets use the same regressed position without an independent mode clock
+ok 3 - failed current and earlier targets use the same regressed position without an independent mode clock
+  ---
+  duration_ms: 0.174275
+  type: 'test'
+  ...
+# Subtest: sampling records its exact draw and chosen probability and never mutates progress
+ok 4 - sampling records its exact draw and chosen probability and never mutates progress
+  ---
+  duration_ms: 0.331701
+  type: 'test'
+  ...
+# Subtest: last category still reverses, then completion holds its audio-heavy endpoint even on later failures
+ok 5 - last category still reverses, then completion holds its audio-heavy endpoint even on later failures
+  ---
+  duration_ms: 0.6831
+  type: 'test'
+  ...
+# Subtest: completion and category math remain unchanged in a run through every tier
+ok 6 - completion and category math remain unchanged in a run through every tier
+  ---
+  duration_ms: 0.266026
+  type: 'test'
+  ...
+# Subtest: question diagnostics show saved probabilities, and label old records without inventing a split
+not ok 7 - question diagnostics show saved probabilities, and label old records without inventing a split
+  ---
+  duration_ms: 6.630371
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-question-type.test.ts:70:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /66.67%/. Input:
+    
+    '<table class="diagnostic-table"><tbody><tr><th>Selected question type</th><td>audio-given</td></tr><tr><th>Policy</th><td>category-local-reversing-zipf-v1</td></tr><tr><th>Audio-given probability</th><td>0.33333333333333337</td></tr><tr><th>Text-given probability</th><td>0.6666666666666666</td></tr><tr><th>Random draw</th><td>0.8</td></tr><tr><th>Update timing</th><td>Settings apply when each new question is selected</td></tr></tbody></table>'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: '<table class="diagnostic-table"><tbody><tr><th>Selected question type</th><td>audio-given</td></tr><tr><th>Policy</th><td>category-local-reversing-zipf-v1</td></tr><tr><th>Audio-given probability</th><td>0.33333333333333337</td></tr><tr><th>Text-given probability</th><td>0.6666666666666666</td></tr><tr><th>Random draw</th><td>0.8</td></tr><tr><th>Update timing</th><td>Settings apply when each new question is selected</td></tr></tbody></table>'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-question-type.test.ts:73:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 192.92974

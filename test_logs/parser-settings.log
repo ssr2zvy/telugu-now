@@ -1,0 +1,71 @@
+TAP version 13
+# Subtest: observations hierarchy and back navigation reach each nested page
+not ok 1 - observations hierarchy and back navigation reach each nested page
+  ---
+  duration_ms: 2.939438
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/parser-settings.test.ts:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'parser',
+        'parsingMode',
+    +   'exploration',
+        'dataSources'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'parser'
+    1: 'parsingMode'
+    2: 'dataSources'
+  actual:
+    0: 'parser'
+    1: 'parsingMode'
+    2: 'exploration'
+    3: 'dataSources'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/parser-settings.test.ts:14:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: chain labels use inventory Unicode and never expose internal identifiers as a fallback
+ok 2 - chain labels use inventory Unicode and never expose internal identifiers as a fallback
+  ---
+  duration_ms: 0.847376
+  type: 'test'
+  ...
+# Subtest: overall completion counts mastered objects, not partially earned streaks or mean core percentages
+ok 3 - overall completion counts mastered objects, not partially earned streaks or mean core percentages
+  ---
+  duration_ms: 0.157872
+  type: 'test'
+  ...
+# Subtest: technical sections start collapsed and have native keyboard disclosure
+ok 4 - technical sections start collapsed and have native keyboard disclosure
+  ---
+  duration_ms: 6.113815
+  type: 'test'
+  ...
+# Subtest: current word highlighting preserves span validation for Telugu and refuses repeated guesses
+ok 5 - current word highlighting preserves span validation for Telugu and refuses repeated guesses
+  ---
+  duration_ms: 1.670929
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 378.088787

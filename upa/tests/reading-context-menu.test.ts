@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { readingContextMenuState } from '../frontend/src/observation/ReadingContextMenu';
-import { settingsGroups, settingsPageLabel } from '../frontend/src/settings/navigation';
+import { settingsPageIcons, settingsPageLabel } from '../frontend/src/settings/navigation';
 
 test('right-click menu targets either one word or reader settings', () => {
   assert.deepEqual(readingContextMenuState(120, 80, 'తెలుగు'), {
@@ -21,17 +21,20 @@ test('right-click menu targets either one word or reader settings', () => {
 test('word and settings context menus expose disjoint actions', () => {
   const source = readFileSync(new URL('../frontend/src/observation/ReadingContextMenu.tsx', import.meta.url), 'utf8');
   assert.match(source, /menu\.kind === 'word'/);
-  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript[\s\S]*:\s*<button/);
-  assert.match(source, /ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు/);
+  assert.match(source, /onClick=\{\(\) => void perform\(\(\) => onCopy\(menu\.text\), 'copied'\)\}/);
+  assert.match(source, /aria-label="అమరికలు"[\s\S]*onOpenSettings\?\.\(\)/);
+  assert.doesNotMatch(source, /onBlacklistTranscript|బ్లాక్‌లిస్ట్/);
 });
 
 test('diagnostics report the active font without obsolete keyboard weights', () => {
   const app = readFileSync(new URL('../frontend/src/App.tsx', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../frontend/src/settings/SettingsView.tsx', import.meta.url), 'utf8');
+  const diagnosticPage = readFileSync(new URL('../frontend/src/settings/pages/DiagnosticPage.tsx', import.meta.url), 'utf8');
   const diagnostic = readFileSync(new URL('../frontend/src/settings/diagnostic.ts', import.meta.url), 'utf8');
   assert.match(app, /<SettingsView[\s\S]*fontFamily=\{diagnosticFont\}/);
   assert.match(app, /onOpenSettings=\{\(fontFamily\) => \{[\s\S]*setDiagnosticFont\(fontFamily\)/);
-  assert.match(settings, /<DiagnosticPage[\s\S]*fontFamily=\{fontFamily\}/);
+  assert.match(settings, /fontFamily: string \| null;/);
+  assert.match(diagnosticPage, /buildDiagnosticSections\([\s\S]*fontFamily/);
   assert.match(diagnostic, /fontFamily: \{[\s\S]*en: 'Font'/);
   assert.match(diagnostic, /key: 'fontFamily',[\s\S]*value: fontFamily \?\? t\(language, 'unavailable'\)/);
   assert.doesNotMatch(diagnostic, /keyboardWeights|Keyboard selection weights|33\.3333%/);
@@ -44,36 +47,33 @@ test('word profiles fill the viewport with word and image columns', () => {
   const hitTesting = readFileSync(new URL('../frontend/src/observation/visible-glyph-hit-testing.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/src/styles/word-profile.css', import.meta.url), 'utf8');
   assert.match(source, /<CustomCursor \/>[\s\S]*<header className="word-profile-header" onClick=/);
-  assert.match(source, /className="gradient-field word-profile-gradient"[^>]*><div \/><div \/><div \/>/);
-  assert.match(source, /appearance\.highlightMods \? teluguHighlightRuns\(analysis\.word\)/);
-  assert.match(source, /renderTeluguGradientTexture\(run\.text, fontFamily, appearance\.foreground, gradientEndColor\)/);
+  assert.match(source, /<GradientBackdrop className="gradient-field word-profile-gradient" \/>/);
+  assert.match(source, /appearance\.highlightMods \? teluguHighlightRuns\(word\)/);
+  assert.match(source, /renderTeluguGradientTexture\(run\.text, fontFamily, appearance\.foreground, gradientEndColor/);
   assert.match(source, /<TeluguGradientText key=\{index\} text=\{run\.text\} texture=/);
   assert.match(source, /pane === 'action'[\s\S]*<Sparkles aria-hidden="true" \/>[\s\S]*<Search aria-hidden="true" \/>/);
   assert.doesNotMatch(source, /busy \? <LoaderCircle/);
   assert.doesNotMatch(source, /title=\{analysis\.root\}/);
   assert.match(source, /className="word-profile-back" aria-label="Back to reading"/);
-  assert.match(source, /<ReadingContextMenu[\s\S]*onCopy=[\s\S]*onClose=/);
-  assert.match(source, /<LetterProfile[\s\S]*onBlacklistTranscript=\{onBlacklistTranscript\}/);
-  assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, analysis\.word, event\.clientX, event\.clientY\)/);
+  assert.doesNotMatch(source, /<ReadingContextMenu|onBlacklistTranscript/);
+  assert.match(source, /visibleGraphemeAtPoint\(event\.currentTarget, word, event\.clientX, event\.clientY\)/);
   assert.match(source, /letterTaps\.tap\(hit \? `grapheme:\$\{hit\.start\}`/);
-  assert.match(source, /<LetterProfile letter=\{selectedGrapheme\.text\}/);
+  assert.match(source, /<LetterProfile suppressAudioControls=\{suppressAudioControls\} letter=\{selectedGrapheme\.text\}/);
   assert.doesNotMatch(source, /initiatingWord|excludedWords|letterWordHistory/);
-  assert.match(source, /onBlacklistTranscript=\{onBlacklistTranscript\}/);
-  assert.match(observation, /addBlacklistEntry\(state\.profileCode, observation\.text\.normalize\('NFC'\)\.trim\(\)\)/);
+  assert.match(observation, /selectedWord && selectedWord\.observationId === observation\?\.id \? \([\s\S]*<WordProfile/);
   assert.match(observation, /contextMenu \? 8 : 2,[\s\S]*contextMenu \? 4 : 2/);
-  assert.match(observation, /wordAtPoint\(event, true\)/);
+  assert.match(observation, /const wordAtPoint = \(event: ReaderPoint, contextMenu = false\): string \| null => wordHitAtPoint\(event, contextMenu\)\?\.text \?\? null;/);
   assert.doesNotMatch(observation, /caretPositionFromPoint|caretRangeFromPoint/);
   assert.match(hitTesting, /context\.getImageData/);
   assert.match(hitTesting, /pixels\[pixel \* 4 \+ 3\]! < alphaThreshold/);
   assert.match(hitTesting, /granularity: 'word', hitSlopPx, verticalHitSlopPx/);
   assert.match(hitTesting, /localX - horizontalRadius[\s\S]*localY - verticalRadius/);
   assert.match(letter, /getAlignedLetterAudio\(profileCode, observationId, wordStart, wordEnd, graphemeStart, graphemeEnd, controller\.signal\)/);
-  assert.match(letter, /teluguHighlightRuns\(grapheme\.segment\)/);
-  assert.match(letter, /appearanceFocusedLetterColor\(appearance\)/);
-  assert.match(letter, /run\.focused \? focusColor : appearance\.foreground/);
-  assert.match(letter, /<AudioPlayerBar audio=\{selection\.audio\} sourceId=\{selection\.sourceId\} sourceKey=\{selection\.sourceKey\}/);
-  assert.match(letter, /readingContextMenuState\(event\.clientX, event\.clientY, selection\.word\)/);
-  assert.match(letter, /onCopy=\{onCopy\} onBlacklistTranscript=\{onBlacklistTranscript\}/);
+  assert.match(letter, /appearance\.highlightMods \? teluguHighlightRuns\(selection\.text\)/);
+  assert.match(letter, /const modificationColor = appearanceModificationColor\(appearance\)/);
+  assert.match(letter, /<AudioPlayerBar ref=\{player\} audio=\{selection\.audio\} sourceId=\{selection\.sourceId\} sourceKey=\{selection\.sourceKey\}/);
+  assert.match(letter, /const openMenu = \(event: MouseEvent<HTMLElement>\) => \{/);
+  assert.match(letter, /onContextMenu=\{openMenu\}/);
   assert.doesNotMatch(letter, /silentLeadInUrl|dummyAudio/);
   assert.match(css, /\.word-profile \{[^}]*position: fixed; inset: 0;[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(css, /width: 100vw; max-width: none; height: 100dvh; max-height: none/);
@@ -125,10 +125,11 @@ test('modification controls have dedicated barrier and color pages without an Au
 });
 
 test('queue diagnostics are available under the Diagnostic settings group', () => {
-  assert.ok(settingsGroups.diagnostic?.includes('queue'));
+  assert.ok(settingsPageIcons.queue);
   assert.equal(settingsPageLabel('queue', 'en'), 'View the Queue');
   const view = readFileSync(new URL('../frontend/src/settings/pages/QueueViewPage.tsx', import.meta.url), 'utf8');
   assert.match(view, /data\.slots\.map/);
   assert.match(view, /getTeluguGradientCacheSnapshot/);
   assert.match(view, /Font render/);
+  assert.match(view, /Live preparation state for all ten queue slots/);
 });

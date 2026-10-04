@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: Serper key is read only from the server environment and trimmed
+ok 1 - Serper key is read only from the server environment and trimmed
+  ---
+  duration_ms: 0.698944
+  type: 'test'
+  ...
+# Subtest: CC 4.0 detection accepts exact attribution licenses and rejects broad or older licenses
+ok 2 - CC 4.0 detection accepts exact attribution licenses and rejects broad or older licenses
+  ---
+  duration_ms: 11.507164
+  type: 'test'
+  ...
+# Subtest: Serper image search requests India and Telugu and emits each verified image as it resolves
+ok 3 - Serper image search requests India and Telugu and emits each verified image as it resolves
+  ---
+  duration_ms: 12.986969
+  type: 'test'
+  ...
+# Subtest: Wikimedia images use image metadata instead of an oversized Wikipedia article
+ok 4 - Wikimedia images use image metadata instead of an oversized Wikipedia article
+  ---
+  duration_ms: 1.686275
+  type: 'test'
+  ...
+# Subtest: Serper image search stops after eight qualifying results from a page
+ok 5 - Serper image search stops after eight qualifying results from a page
+  ---
+  duration_ms: 4.729666
+  type: 'test'
+  ...
+# Subtest: Serper image search continues across pages until eight images qualify
+ok 6 - Serper image search continues across pages until eight images qualify
+  ---
+  duration_ms: 1.814816
+  type: 'test'
+  ...
+# Subtest: Serper image search retries an empty Creative Commons-filtered page without the discovery filter
+ok 7 - Serper image search retries an empty Creative Commons-filtered page without the discovery filter
+  ---
+  duration_ms: 0.865461
+  type: 'test'
+  ...
+# Subtest: Serper image search caps a batch at ten pages when fewer than eight qualify
+ok 8 - Serper image search caps a batch at ten pages when fewer than eight qualify
+  ---
+  duration_ms: 2.645336
+  type: 'test'
+  ...
+# Subtest: Serper image search honors the batch duration cap before another page request
+ok 9 - Serper image search honors the batch duration cap before another page request
+  ---
+  duration_ms: 0.345407
+  type: 'test'
+  ...
+# Subtest: Serper image search excludes repeats and images without exact CC 4.0 evidence
+ok 10 - Serper image search excludes repeats and images without exact CC 4.0 evidence
+  ---
+  duration_ms: 0.999239
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 309.432987

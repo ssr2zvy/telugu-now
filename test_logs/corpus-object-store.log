@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: inventory validates and streams all pages as relative keys
+ok 1 - inventory validates and streams all pages as relative keys
+  ---
+  duration_ms: 2.149162
+  type: 'test'
+  ...
+# Subtest: inventory rejects malformed pages before yielding them
+ok 2 - inventory rejects malformed pages before yielding them
+  ---
+  duration_ms: 1.269529
+  type: 'test'
+  ...
+# Subtest: inventory rejects repeated continuation tokens and propagates late listing failures
+ok 3 - inventory rejects repeated continuation tokens and propagates late listing failures
+  ---
+  duration_ms: 0.695964
+  type: 'test'
+  ...
+# Subtest: object keys and prefixes reject traversal, encoded separators and control characters
+ok 4 - object keys and prefixes reject traversal, encoded separators and control characters
+  ---
+  duration_ms: 0.353447
+  type: 'test'
+  ...
+# Subtest: bootstrap downloads canonical key, validates SQLite and preserves existing cache
+ok 5 - bootstrap downloads canonical key, validates SQLite and preserves existing cache
+  ---
+  duration_ms: 24.289521
+  type: 'test'
+  ...
+# Subtest: bootstrap cleans staged files after invalid SQLite, short download and streaming failure
+ok 6 - bootstrap cleans staged files after invalid SQLite, short download and streaming failure
+  ---
+  duration_ms: 7.367095
+  type: 'test'
+  ...
+# Subtest: bootstrap never overwrites a cache created during download
+ok 7 - bootstrap never overwrites a cache created during download
+  ---
+  duration_ms: 6.697781
+  type: 'test'
+  ...
+# Subtest: bootstrap rejects a valid SQLite file with the wrong corpus schema before publishing
+ok 8 - bootstrap rejects a valid SQLite file with the wrong corpus schema before publishing
+  ---
+  duration_ms: 4.623327
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 311.272649

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: parent expiry does not dismiss an arrow while loading
+ok 1 - parent expiry does not dismiss an arrow while loading
+  ---
+  duration_ms: 0.598488
+  type: 'test'
+  ...
+# Subtest: fast navigation invalidates the previous animation and fallback
+ok 2 - fast navigation invalidates the previous animation and fallback
+  ---
+  duration_ms: 0.198301
+  type: 'test'
+  ...
+# Subtest: readiness interruption restarts the full animation generation
+ok 3 - readiness interruption restarts the full animation generation
+  ---
+  duration_ms: 0.091583
+  type: 'test'
+  ...
+# Subtest: completion does not replay an event still retained by the parent
+ok 4 - completion does not replay an event still retained by the parent
+  ---
+  duration_ms: 0.115512
+  type: 'test'
+  ...
+# Subtest: profile switch discards the old arrow and ignores stale completion
+ok 5 - profile switch discards the old arrow and ignores stale completion
+  ---
+  duration_ms: 0.099941
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 94.914613

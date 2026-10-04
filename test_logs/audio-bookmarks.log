@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: insertBookmark keeps the list sorted and de-duplicated
+ok 1 - insertBookmark keeps the list sorted and de-duplicated
+  ---
+  duration_ms: 1.15833
+  type: 'test'
+  ...
+# Subtest: insertBookmark replaces an existing nearby bookmark rather than creating a near-duplicate
+ok 2 - insertBookmark replaces an existing nearby bookmark rather than creating a near-duplicate
+  ---
+  duration_ms: 0.112853
+  type: 'test'
+  ...
+# Subtest: insertBookmark clamps negative times to zero
+ok 3 - insertBookmark clamps negative times to zero
+  ---
+  duration_ms: 0.087984
+  type: 'test'
+  ...
+# Subtest: nearestPriorBookmark finds the closest bookmark strictly before the current time
+ok 4 - nearestPriorBookmark finds the closest bookmark strictly before the current time
+  ---
+  duration_ms: 0.205443
+  type: 'test'
+  ...
+# Subtest: nearestPriorBookmark treats a bookmark essentially at the current time as not prior
+ok 5 - nearestPriorBookmark treats a bookmark essentially at the current time as not prior
+  ---
+  duration_ms: 0.093672
+  type: 'test'
+  ...
+# Subtest: deleteNearestPriorBookmark removes only the nearest prior bookmark
+ok 6 - deleteNearestPriorBookmark removes only the nearest prior bookmark
+  ---
+  duration_ms: 0.104753
+  type: 'test'
+  ...
+# Subtest: deleteNearestPriorBookmark is a no-op when there is no prior bookmark
+ok 7 - deleteNearestPriorBookmark is a no-op when there is no prior bookmark
+  ---
+  duration_ms: 0.116359
+  type: 'test'
+  ...
+# Subtest: bookmark loops start at the nearest prior bookmark and end at the next boundary
+ok 8 - bookmark loops start at the nearest prior bookmark and end at the next boundary
+  ---
+  duration_ms: 0.215008
+  type: 'test'
+  ...
+# Subtest: bookmark API writes are ordered per user and source and reads use that user
+ok 9 - bookmark API writes are ordered per user and source and reads use that user
+  ---
+  duration_ms: 15.835234
+  type: 'test'
+  ...
+# Subtest: browser user data is removed only after confirmed transfer, preserving changed and unrelated data
+ok 10 - browser user data is removed only after confirmed transfer, preserving changed and unrelated data
+  ---
+  duration_ms: 1.495927
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 128.089503

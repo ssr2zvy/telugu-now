@@ -1,0 +1,89 @@
+TAP version 13
+# Subtest: Observations and External expose the requested pages without legacy sampling controls
+not ok 1 - Observations and External expose the requested pages without legacy sampling controls
+  ---
+  duration_ms: 2.630661
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-settings.test.ts:16:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'parser',
+        'parsingMode',
+    +   'exploration',
+        'dataSources'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'parser'
+    1: 'parsingMode'
+    2: 'dataSources'
+  actual:
+    0: 'parser'
+    1: 'parsingMode'
+    2: 'exploration'
+    3: 'dataSources'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-settings.test.ts:17:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: side menu also hides the temporary worker when disabled and has no old controls
+ok 2 - side menu also hides the temporary worker when disabled and has no old controls
+  ---
+  duration_ms: 18.177327
+  type: 'test'
+  ...
+# Subtest: each export destination uses its chosen format without a format chooser
+ok 3 - each export destination uses its chosen format without a format chooser
+  ---
+  duration_ms: 3.207938
+  type: 'test'
+  ...
+# Subtest: current match highlights the saved occurrence and explains other words were not checked
+ok 4 - current match highlights the saved occurrence and explains other words were not checked
+  ---
+  duration_ms: 1.498049
+  type: 'test'
+  ...
+# Subtest: old target-only records say evidence is missing, not loading or failure
+ok 5 - old target-only records say evidence is missing, not loading or failure
+  ---
+  duration_ms: 0.53569
+  type: 'test'
+  ...
+# Subtest: Unicode spans are validated and repeated words without offsets are never guessed
+ok 6 - Unicode spans are validated and repeated words without offsets are never guessed
+  ---
+  duration_ms: 0.224613
+  type: 'test'
+  ...
+# Subtest: current search uses the three explicit worker states and links to attempt pages
+ok 7 - current search uses the three explicit worker states and links to attempt pages
+  ---
+  duration_ms: 5.618207
+  type: 'test'
+  ...
+# Subtest: dedicated download includes all recorded history with no row limit
+ok 8 - dedicated download includes all recorded history with no row limit
+  ---
+  duration_ms: 0.55394
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 7
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 403.620395

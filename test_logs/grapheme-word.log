@@ -1,0 +1,72 @@
+TAP version 13
+# Subtest: grapheme word selection always uses the closest eligible word
+ok 1 - grapheme word selection always uses the closest eligible word
+  ---
+  duration_ms: 8.981901
+  type: 'test'
+  ...
+# Subtest: grapheme word route returns corpus audio and respects profile blacklist
+not ok 2 - grapheme word route returns corpus audio and respects profile blacklist
+  ---
+  duration_ms: 17.755458
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/grapheme-word.test.ts:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        audio: {
+          durationSeconds: 1.25,
+          mimeType: 'audio/wav',
+    +     url: '/api/audio/media/closest.wav?v=2'
+    -     url: '/api/audio/media/next.wav?v=2'
+        },
+    +   complexity: 10,
+    -   complexity: 9,
+        sourceId: 'fixture',
+    +   sourceKey: 'closest',
+    +   word: 'పదములలోనే',
+    -   sourceKey: 'next',
+    -   word: 'మరొకపదము',
+        wordGraphemeCount: 6
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    word: 'మరొకపదము'
+    complexity: 9
+    wordGraphemeCount: 6
+    sourceId: 'fixture'
+    sourceKey: 'next'
+    audio:
+      url: '/api/audio/media/next.wav?v=2'
+      mimeType: 'audio/wav'
+      durationSeconds: 1.25
+  actual:
+    word: 'పదములలోనే'
+    complexity: 10
+    wordGraphemeCount: 6
+    sourceId: 'fixture'
+    sourceKey: 'closest'
+    audio:
+      url: '/api/audio/media/closest.wav?v=2'
+      mimeType: 'audio/wav'
+      durationSeconds: 1.25
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/grapheme-word.test.ts:51:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 316.066891

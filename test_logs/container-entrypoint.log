@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: entrypoint prepares only managed directories and drops privileges before executing the command
+ok 1 - entrypoint prepares only managed directories and drops privileges before executing the command
+  ---
+  duration_ms: 77.19346
+  type: 'test'
+  ...
+# Subtest: entrypoint supports non-root starts and relative data roots without changing ownership
+ok 2 - entrypoint supports non-root starts and relative data roots without changing ownership
+  ---
+  duration_ms: 30.496094
+  type: 'test'
+  ...
+# Subtest: entrypoint rejects unsafe roots and missing commands before initialization
+ok 3 - entrypoint rejects unsafe roots and missing commands before initialization
+  ---
+  duration_ms: 12.729824
+  type: 'test'
+  ...
+# Subtest: entrypoint rejects symbolic links and files before changing any ownership
+ok 4 - entrypoint rejects symbolic links and files before changing any ownership
+  ---
+  duration_ms: 14.157478
+  type: 'test'
+  ...
+# Subtest: entrypoint stops on ownership errors without starting the application
+ok 5 - entrypoint stops on ownership errors without starting the application
+  ---
+  duration_ms: 6.696505
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 243.523198

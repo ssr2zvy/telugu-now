@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: prepared corpus store and data source expose indexed metadata
+ok 1 - prepared corpus store and data source expose indexed metadata
+  ---
+  duration_ms: 48.231413
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 313.409457

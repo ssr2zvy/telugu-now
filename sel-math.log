@@ -1,0 +1,178 @@
+TAP version 13
+# Subtest: global complexity reference v2 is pinned to the intended 72-row dummy distribution
+not ok 1 - global complexity reference v2 is pinned to the intended 72-row dummy distribution
+  ---
+  duration_ms: 0.889316
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:59:1'
+  failureType: 'testCodeFailure'
+  error: 'Global complexity reference is empty.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.describeReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:159:10)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:60:105)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: selection rejects a mismatched complexity-reference version
+not ok 2 - selection rejects a mismatched complexity-reference version
+  ---
+  duration_ms: 1.048303
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:83:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /Unsupported complexity reference version/. Input:
+    
+    'Error: Global complexity reference is empty.'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'Global complexity reference is empty.'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.select (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:185:10)
+    <anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:85:30)
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:85:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:85:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: source selection thresholds exactly follow N_i * w_i
+not ok 3 - source selection thresholds exactly follow N_i * w_i
+  ---
+  duration_ms: 0.165409
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:93:1'
+  failureType: 'testCodeFailure'
+  error: 'Global complexity reference is empty.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.select (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:185:10)
+    probabilityForSource (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:28:17)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:96:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: zero-weight sources are impossible and all-one weights are proportional to row counts
+not ok 4 - zero-weight sources are impossible and all-one weights are proportional to row counts
+  ---
+  duration_ms: 0.113587
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:111:1'
+  failureType: 'testCodeFailure'
+  error: 'Global complexity reference is empty.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.select (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:185:10)
+    probabilityForSource (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:28:17)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:113:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: complexity settings never change the already-chosen source probability
+not ok 5 - complexity settings never change the already-chosen source probability
+  ---
+  duration_ms: 0.099235
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:134:1'
+  failureType: 'testCodeFailure'
+  error: 'Global complexity reference is empty.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.select (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:185:10)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:137:6)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an effectively flat complexity curve converges to uniform per-row selection within any chosen source
+not ok 6 - an effectively flat complexity curve converges to uniform per-row selection within any chosen source
+  ---
+  duration_ms: 0.119537
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:146:1'
+  failureType: 'testCodeFailure'
+  error: 'Global complexity reference is empty.'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    SelectionEngine.refreshReference (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:140:36)
+    SelectionEngine.select (/home/runner/work/telugu-now/telugu-now/upa/server/src/services/selection-engine.ts:185:10)
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/selection-math.test.ts:155:29)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: normal complexity masses normalize to one and preserve symmetry around percentile 0.5
+ok 7 - normal complexity masses normalize to one and preserve symmetry around percentile 0.5
+  ---
+  duration_ms: 56.777724
+  type: 'test'
+  ...
+# Subtest: moving the global percentile target predictably moves row preference
+ok 8 - moving the global percentile target predictably moves row preference
+  ---
+  duration_ms: 65.015245
+  type: 'test'
+  ...
+# Subtest: truncation at percentile boundaries still yields finite normalized probabilities
+ok 9 - truncation at percentile boundaries still yields finite normalized probabilities
+  ---
+  duration_ms: 38.051888
+  type: 'test'
+  ...
+# Subtest: very broad valid spreads remain numerically stable and converge to uniform percentile mass
+ok 10 - very broad valid spreads remain numerically stable and converge to uniform percentile mass
+  ---
+  duration_ms: 65.373787
+  type: 'test'
+  ...
+# Subtest: the smallest positive representable spread does not collapse sigma to zero or throw
+ok 11 - the smallest positive representable spread does not collapse sigma to zero or throw
+  ---
+  duration_ms: 0.257754
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 5
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 511.012608

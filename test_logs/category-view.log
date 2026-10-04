@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: category curve uses actual scheduler distribution at 0
+ok 1 - category curve uses actual scheduler distribution at 0
+  ---
+  duration_ms: 1.301638
+  type: 'test'
+  ...
+# Subtest: category curve uses actual scheduler distribution at 0.5
+ok 2 - category curve uses actual scheduler distribution at 0.5
+  ---
+  duration_ms: 0.200264
+  type: 'test'
+  ...
+# Subtest: category curve uses actual scheduler distribution at 1
+ok 3 - category curve uses actual scheduler distribution at 1
+  ---
+  duration_ms: 0.178165
+  type: 'test'
+  ...
+# Subtest: category curve uses actual scheduler distribution at 1.5
+ok 4 - category curve uses actual scheduler distribution at 1.5
+  ---
+  duration_ms: 0.147805
+  type: 'test'
+  ...
+# Subtest: category curve uses actual scheduler distribution at 2
+ok 5 - category curve uses actual scheduler distribution at 2
+  ---
+  duration_ms: 0.09264
+  type: 'test'
+  ...
+# Subtest: category curve uses actual scheduler distribution at 3
+ok 6 - category curve uses actual scheduler distribution at 3
+  ---
+  duration_ms: 0.097206
+  type: 'test'
+  ...
+# Subtest: completion highlights the whole reversal and holds the final distribution
+ok 7 - completion highlights the whole reversal and holds the final distribution
+  ---
+  duration_ms: 0.206962
+  type: 'test'
+  ...
+# Subtest: one category is represented without invalid probabilities
+ok 8 - one category is represented without invalid probabilities
+  ---
+  duration_ms: 0.119471
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 107.710546

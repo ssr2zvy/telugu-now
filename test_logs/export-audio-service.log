@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: real WAV and FLAC objects become decodable MP3 without forwarding original range/cache metadata
+ok 1 - real WAV and FLAC objects become decodable MP3 without forwarding original range/cache metadata
+  ---
+  duration_ms: 291.592852
+  type: 'test'
+  ...
+# Subtest: conversion validates keys, source extensions and HTTP methods before loading an object
+ok 2 - conversion validates keys, source extensions and HTTP methods before loading an object
+  ---
+  duration_ms: 3.766053
+  type: 'test'
+  ...
+# Subtest: local conversion respects corpus symlink protections and never writes original files
+ok 3 - local conversion respects corpus symlink protections and never writes original files
+  ---
+  duration_ms: 127.641013
+  type: 'test'
+  ...
+# Subtest: conversion errors are explicit, sanitized and release resources
+ok 4 - conversion errors are explicit, sanitized and release resources
+  ---
+  duration_ms: 136.289362
+  type: 'test'
+  ...
+# Subtest: concurrency is bounded without a waiting queue; abort cancels a stalled upstream load
+ok 5 - concurrency is bounded without a waiting queue; abort cancels a stalled upstream load
+  ---
+  duration_ms: 1.538545
+  type: 'test'
+  ...
+# Subtest: oversized metadata, missing encoder and broken upstream fail without leaking streams
+ok 6 - oversized metadata, missing encoder and broken upstream fail without leaking streams
+  ---
+  duration_ms: 5.198099
+  type: 'test'
+  ...
+# Subtest: broken upstream during encoding is sanitized and releases the conversion slot
+ok 7 - broken upstream during encoding is sanitized and releases the conversion slot
+  ---
+  duration_ms: 120.337676
+  type: 'test'
+  ...
+# Subtest: timeouts cover upstream loading as well as ffmpeg input; disconnect destroys a live input stream
+ok 8 - timeouts cover upstream loading as well as ffmpeg input; disconnect destroys a live input stream
+  ---
+  duration_ms: 206.825999
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1206.892834

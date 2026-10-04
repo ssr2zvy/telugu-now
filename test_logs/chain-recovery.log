@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: saved chain words survive missing in-memory parser patterns
+ok 1 - saved chain words survive missing in-memory parser patterns
+  ---
+  duration_ms: 1.418685
+  type: 'test'
+  ...
+# Subtest: search snapshot preserves queue order, restart history and profile isolation
+ok 2 - search snapshot preserves queue order, restart history and profile isolation
+  ---
+  duration_ms: 4.250725
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 118.419236

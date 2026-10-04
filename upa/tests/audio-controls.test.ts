@@ -93,7 +93,7 @@ test('text-given questions reserve audio layout before recording starts', () => 
   }));
   assert.match(markup, /class="audio-player-bar"[^>]*data-has-audio="true"/);
   const observationSource = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(observationSource, /reserveAudioSpace=\{activeQuestion\?\.mode === 'text-given'\}/);
+  assert.match(observationSource, /reserveAudioSpace=\{activeQuestion\?\.mode === 'text-given' \|\| Boolean\(textComparison\)\}/);
 });
 
 test('timestamp defaults off but remains optional and accessible during precision seeking', () => {
@@ -204,13 +204,13 @@ test('expanded playback settings stay compact and collapse on the configured fad
 test('record control overrides the shared transport glyph size', () => {
   const css = readFileSync(new URL('../frontend/src/styles/observation-layout.css', import.meta.url), 'utf8');
   assert.match(css, /\.audio-transport-button \.control-icon \{ width: 17px; height: 17px; \}/);
-  assert.match(css, /--audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 48px; --record-gap:/);
+  assert.match(css, /--audio-row-height: 48px; --audio-detail-height: 92px; --record-button-size: 64px; --record-gap:/);
   assert.match(css, /\.question-record-button \{ width: var\(--record-button-size\); height: var\(--record-button-size\); \}/);
-  assert.match(css, /\.question-record-button \.control-icon \{ width: 25px; height: 25px; \}/);
+  assert.match(css, /\.question-record-button \.control-icon \{ width: 34px; height: 34px; \}/);
   assert.match(css, /\.audio-scrubber-window \{[^}]*z-index: 3;/);
-  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: calc\(var\(--audio-bottom\) - var\(--record-gap\) - var\(--record-button-size\)\); \}/);
+  assert.match(css, /data-question-mode='text-given'\] \.question-record-controls \{ top: auto; bottom: var\(--question-action-bottom, var\(--question-action-floor\)\); \}/);
   assert.match(css, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.observation-screen \{ --record-gap: clamp\(16px, 3dvh, 36px\); \}/);
-  assert.match(css, /--audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 56px; --record-gap:/);
+  assert.match(css, /--audio-row-height: 56px; --audio-detail-height: 112px; --record-button-size: 72px; --record-gap:/);
   assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) and \(orientation: portrait\) \{\s*\.observation-screen \{ --record-gap: clamp\(19px, 3\.5dvh, 42px\); \}/);
   assert.doesNotMatch(css, /data-question-mode='text-given'\] \.(?:observation-text|audio-player-bar)/);
 });
@@ -223,13 +223,11 @@ test('audio-given questions keep the compact keyboard permanently visible', () =
   assert.match(controls, /question-keyboard-controls" data-visible=\{visible\} aria-hidden=\{!visible\} inert=\{!visible\}/);
   assert.match(controls, /GoogleTeluguKeyboard fontFamily=\{fontFamily\} value=\{text\} onChange=\{changeText\} onSubmit=/);
   assert.match(controls, /await updateQuestionText\(profileCode, observationId, \{ text: latestText\.current \}\);[\s\S]*onSubmit\(\)/);
-  assert.match(observation, /const questionControlsAreVisible = activeQuestion\?\.mode === 'audio-given' \|\| questionControlsVisible/);
-  assert.match(observation, /visible=\{questionControlsAreVisible\}/);
+  assert.match(observation, /\{observation && activeQuestion \? <QuestionControls[\s\S]*visible=\{!exploring\}/);
+  assert.doesNotMatch(observation, /questionControlsAreVisible/);
   assert.match(observation, /onSubmit=\{\(\) => \{ if \(canNext\) void move\('next'\); \}\}/);
-  assert.match(observation, /appearance\.toggleTrigger === 'scroll' && !audioGivenQuestionPhase/);
-  assert.doesNotMatch(observation, /if \(audioGivenQuestionPhase\) \{\s*setQuestionControlsVisible/);
-  assert.doesNotMatch(observation, /Boolean\(audioGivenQuestionPhase\)\)\);/);
-  assert.match(observation, /activeQuestion\?\.mode === 'text-given' && appearance\.toggleTrigger === 'tap'/);
+  assert.doesNotMatch(observation, /toggleTrigger/);
+  assert.doesNotMatch(observation, /visible=\{controlsVisible\}/);
   assert.match(css, /data-question-mode='audio-given'\] \.question-controls \{ top: calc\(35% \+ 50px\); bottom: max\(0px, env\(safe-area-inset-bottom\)\); width: min\(860px, calc\(100vw - 2rem\)\); overflow: hidden; \}/);
   assert.match(css, /\.question-answer-editor \{[^}]*width: min\(100%, 725px\); height: 72px;[^}]*font-size: 25px; line-height: 33px;/);
   assert.match(css, /\.question-keyboard \{[^}]*gap: 7px 0; padding: 7px;[^}]*border-radius: 11px;/);
@@ -264,7 +262,7 @@ test('recording replaces the response from zero and waits for explicit playback'
   assert.match(playerSource, /precisionBeforeRecording\.current = precisionMode;[\s\S]*dispatchPrecision\('close'\);[\s\S]*player\.pause\(\);[\s\S]*player\.seek\(0\);[\s\S]*return 0/);
   assert.match(playerSource, /const presentedPrecisionMode = recordingActive \? CLOSED_PRECISION_MODE : precisionMode/);
   assert.match(playerSource, /dispatchPrecision\(\{ type: 'restore', mode: precisionBeforeRecording\.current \}\)/);
-  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*mediaRecorder\.onstart = \(\) => \{[\s\S]*setRecording\(true\)[\s\S]*mediaRecorder\.start\(\);/);
+  assert.match(controlsSource, /recordCursor\.current = beginRecording\(\);[\s\S]*getUserMedia[\s\S]*mediaRecorder\.onstart = \(\) => \{[\s\S]*setRecording\(true\)[\s\S]*mediaRecorder\.start\(1000\);/);
   assert.doesNotMatch(controlsSource, /preRoll|setTimeout\([^,]+, 500\)/);
   assert.match(controlsSource, /audio\/mp4;codecs=mp4a\.40\.2/);
   assert.match(controlsSource, /window\.isSecureContext[\s\S]*navigator\.mediaDevices\?\.getUserMedia[\s\S]*typeof MediaRecorder/);
@@ -305,9 +303,10 @@ test('precision mode cannot leave speed open or reopen the magnifier after dismi
   assert.deepEqual(precisionControls(dismissed, 'close-speed'), CLOSED_PRECISION_MODE);
   assert.deepEqual(precisionControls(magnifier, 'close'), CLOSED_PRECISION_MODE);
   const view = readFileSync(new URL('../frontend/src/observation/ObservationView.tsx', import.meta.url), 'utf8');
-  assert.match(view, /const willTogglePlay = appearance\.scrollMode \|\| region\.single === 'playback'/);
-  assert.match(view, /if \(appearance\.scrollMode\) \{\s*if \(!eagerlyPaused\) playerRef\.current\?\.togglePlay\(\)/);
-  assert.doesNotMatch(view, /region\.single === 'controls'/);
+  assert.match(view, /const region = readerTapRegions\(event\.clientX, event\.clientY, bounds\);[\s\S]*const doubleRegion = word \? `word:\$\{word\.start\}` : region\.double/);
+  assert.match(view, /const eagerlyPaused = Boolean\(playerRef\.current\?\.isPlaying\(\)\);[\s\S]*playerRef\.current\?\.pause\(\);/);
+  assert.match(view, /gesturePausedPlayback\.current = false;[\s\S]*if \(!eagerlyPaused\) playerRef\.current\?\.togglePlay\(\);/);
+  assert.doesNotMatch(view, /region\.single === '(?:controls|playback)'/);
   const scrubber = readFileSync(new URL('../frontend/src/observation/audio/AudioScrubber.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(scrubber, /magnifierOpen && !speedControls/);
   const popover = readFileSync(new URL('../frontend/src/observation/audio/PlaybackSpeedPopover.tsx', import.meta.url), 'utf8');
@@ -344,11 +343,11 @@ test('the bar and dot share icon glass with no play-button row', () => {
   assert.match(css, /\.audio-glass-icon \{ background: var\(--audio-glass-gradient\);/);
   assert.match(css, /\.audio-transport-button svg \{ stroke: var\(--audio-icon-paint\)/);
   assert.match(css, /\.audio-transport-button \.control-icon-fill \{ fill: var\(--audio-icon-paint\); stroke: none/);
-  assert.match(css, /--audio-base-bottom: var\(--audio-placement-bottom\)/);
-  assert.match(css, /--audio-min-bottom: var\(--audio-placement-bottom\)/);
+  assert.match(css, /--audio-base-bottom: calc\(var\(--audio-placement-bottom\) \+ var\(--audio-detail-height\)\)/);
+  assert.match(css, /--audio-min-bottom: max\(12px, env\(safe-area-inset-bottom\)\)/);
   assert.doesNotMatch(css, /safe-area-inset-bottom\) \+ (48|64)px/);
   assert.match(css, /\.audio-transport-button \{[^}]*background: transparent/);
-  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-rows: var\(--audio-row-height\) var\(--audio-detail-height\);[^}]*gap: var\(--audio-timestamp-gap, 1px\) 0;/);
+  assert.match(css, /\.audio-player-bar \{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*grid-template-rows: var\(--audio-row-height\);[^}]*gap: 0;/);
   assert.match(css, /\.audio-precision-panel \{ --audio-detail-track-height: 32px; --audio-detail-track-width: 48%;/);
   assert.match(css, /\.audio-magnifier-track \{[^}]*width: var\(--audio-detail-track-width\); height: var\(--audio-detail-track-height\);/);
   assert.match(css, /\.audio-precision-panel \{[^}]*grid-row: 2;[^}]*display: flex; flex-direction: column/);
@@ -431,6 +430,6 @@ test('mobile observation controls are larger and text wraps only between words',
   const desktopTouchAction = css.indexOf('.observation-screen[data-scroll-mode="true"] { touch-action: pan-y pinch-zoom; }');
   const mobileTouchAction = css.indexOf('.observation-screen[data-scroll-mode="true"] { touch-action: pan-x pinch-zoom; }');
   assert.ok(mobileTouchAction > desktopTouchAction, 'mobile touch action must override the desktop rule');
-  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.audio-player-bar \{ grid-template-rows: 56px 112px; width: min\(520px, calc\(100vw - 24px\)\); \}/);
+  assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.audio-player-bar \{ grid-template-rows: var\(--audio-row-height\); width: min\(520px, calc\(100vw - 24px\)\); \}/);
   assert.match(css, /@media \(max-width: 600px\) and \(hover: none\) and \(pointer: coarse\) \{[\s\S]*\.audio-precision-panel \{ --audio-detail-track-height: 44px; --audio-detail-track-width: 64%; \}/);
 });

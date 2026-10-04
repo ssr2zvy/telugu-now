@@ -88,6 +88,9 @@ if (new Set([databasePath, corpusDatabasePath, corpusAvailabilityPath, audioVali
   throw new Error('User, corpus, frequency, availability, and audio validation databases must be separate files.');
 }
 const defaultSourceWeights = {
+  source1: 1,
+  source2: 1,
+  source3: 1,
   'fleurs-te': 1,
   'shrutilipi-te': 1,
   'indicvoices-te': 1,

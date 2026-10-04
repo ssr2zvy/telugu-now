@@ -1,0 +1,72 @@
+TAP version 13
+# Subtest: browser data transfers into user storage without losing conflicts, malformed values or saved bookmarks
+ok 1 - browser data transfers into user storage without losing conflicts, malformed values or saved bookmarks
+  ---
+  duration_ms: 29.840307
+  type: 'test'
+  ...
+# Subtest: profile preferences isolate users, retain legacy prompts and initialize browser settings only once
+ok 2 - profile preferences isolate users, retain legacy prompts and initialize browser settings only once
+  ---
+  duration_ms: 1.39044
+  type: 'test'
+  ...
+# Subtest: profile preference routes validate profiles and payloads and preserve saved settings during migration
+ok 3 - profile preference routes validate profiles and payloads and preserve saved settings during migration
+  ---
+  duration_ms: 6.584757
+  type: 'test'
+  ...
+# Subtest: scroll mode defaults on for old profiles and opt-out survives unrelated preference updates
+not ok 4 - scroll mode defaults on for old profiles and opt-out survives unrelated preference updates
+  ---
+  duration_ms: 1.754816
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/profile-preferences.test.ts:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/profile-preferences.test.ts:105:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: appearance switches persist per profile through unrelated updates
+ok 5 - appearance switches persist per profile through unrelated updates
+  ---
+  duration_ms: 1.117725
+  type: 'test'
+  ...
+# Subtest: regeneration migration defaults off and preserves existing profile preferences
+ok 6 - regeneration migration defaults off and preserves existing profile preferences
+  ---
+  duration_ms: 1.076185
+  type: 'test'
+  ...
+# Subtest: bookmarks and migration markers persist per profile without overwriting existing user records
+ok 7 - bookmarks and migration markers persist per profile without overwriting existing user records
+  ---
+  duration_ms: 6.643897
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 205.065149

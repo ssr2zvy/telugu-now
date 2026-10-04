@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: playback bounds include 0.1 to 1.5 and clamp older saved defaults
+ok 1 - playback bounds include 0.1 to 1.5 and clamp older saved defaults
+  ---
+  duration_ms: 0.557543
+  type: 'test'
+  ...
+# Subtest: precision dragging moves 1.5 milliseconds per pixel without accumulating feedback
+ok 2 - precision dragging moves 1.5 milliseconds per pixel without accumulating feedback
+  ---
+  duration_ms: 0.12105
+  type: 'test'
+  ...
+# Subtest: magnifier clicks map directly into its visible window and dragging starts beyond one millisecond
+ok 3 - magnifier clicks map directly into its visible window and dragging starts beyond one millisecond
+  ---
+  duration_ms: 0.123854
+  type: 'test'
+  ...
+# Subtest: playback rate clamping preserves fractions and handles lower and non-finite bounds
+ok 4 - playback rate clamping preserves fractions and handles lower and non-finite bounds
+  ---
+  duration_ms: 0.164745
+  type: 'test'
+  ...
+# Subtest: precision seeking retains subpixel accuracy and clamps short and empty clips
+ok 5 - precision seeking retains subpixel accuracy and clamps short and empty clips
+  ---
+  duration_ms: 0.139934
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 101.012936

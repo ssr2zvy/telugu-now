@@ -1,0 +1,19 @@
+TAP version 13
+# {"observationId":"ec2cbf5d-29d3-4c56-b8ec-7769f24abc95","historyPosition":1,"durationMs":0,"depth":0,"preparing":0,"pending":0,"ready":0,"failed":0,"timestamp":"2026-10-04T14:15:09.255Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"observationId":"33f29094-a2ea-4bbd-a0cc-a0403aa2dc97","historyPosition":2,"durationMs":0,"depth":2,"preparing":0,"pending":2,"ready":0,"failed":0,"timestamp":"2026-10-04T14:15:09.298Z","level":"info","event":"queue_consumed_and_replacement_scheduled"}
+# {"error":"Parser restarted.","timestamp":"2026-10-04T14:15:09.600Z","level":"error","event":"live_parser_failed"}
+# Subtest: reset discards only the current chain, preserves the next chain and does not submit an answer
+ok 1 - reset discards only the current chain, preserves the next chain and does not submit an answer
+  ---
+  duration_ms: 758.777997
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 875.334994

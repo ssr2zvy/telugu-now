@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: grammar units count grammatical components and preserve canonical chain sharing
+not ok 1 - grammar units count grammatical components and preserve canonical chain sharing
+  ---
+  duration_ms: 141.935951
+  type: 'test'
+  location: '/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-target-policy.test.ts:6:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    
+    
+    .E.....
+    ======================================================================
+    ERROR: test_catalog_merges_occurrences_without_leaking_vocabulary_bases (__main__.PolicyTests.test_catalog_merges_occurrences_without_leaking_vocabulary_bases)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-target-policy.py", line 89, in test_catalog_merges_occurrences_without_leaking_vocabulary_bases
+        build_grammar.build(corpus, output)
+      File "/home/runner/work/telugu-now/telugu-now/data-transform/scripts/build-grammar/build_grammar.py", line 53, in build
+        labels={key:{'forms':obj.get('forms',[]),'kind':obj.get('kind',[])} for key,obj in _parser.engine.objects.items()}
+                                                                                           ^^^^^^^^^^^^^^
+    AttributeError: 'NoneType' object has no attribute 'engine'
+    
+    ----------------------------------------------------------------------
+    Ran 7 tests in 0.024s
+    
+    FAILED (errors=1)
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/telugu-now/telugu-now/upa/tests/grammar-target-policy.test.ts:9:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 241.987586

@@ -9,9 +9,12 @@ import { logger } from './logger';
 import type { ObservationKind,QuestionKeyboard,QuestionMode,QuestionPool } from '../../../shared/contracts';
 
 export interface ObservationPlan {kind:ObservationKind;requestedPool:QuestionPool|null;questionMode:QuestionMode|null;keyboard:QuestionKeyboard|null}
-export function chooseObservationPlan(random=Math.random, probabilities={question:1,seen:0,audioGiven:0.6}):ObservationPlan {
+export function chooseObservationPlan(random=Math.random, probabilities={question:0.3,seen:0.75,audioGiven:0.6}):ObservationPlan {
+  if(!(random()<probabilities.question))return {kind:'normal',requestedPool:null,questionMode:null,keyboard:null};
   const mode=random()<probabilities.audioGiven?'audio-given':'text-given';
-  return {kind:'question',requestedPool:null,questionMode:mode,keyboard:mode==='audio-given'?'windows-inscript':null};
+  const requestedPool=random()<probabilities.seen?'seen':'unseen';
+  const keyboard=mode==='audio-given'?(draw=>draw<1/3?'windows-inscript':draw<2/3?'mac-standard':'chromebook-dictation')(random()):null;
+  return {kind:'question',requestedPool,questionMode:mode,keyboard};
 }
 export function getQueueCount(profile:string):number{return (db.prepare('SELECT COUNT(*) AS n FROM queue_items WHERE profile_code=?').get(profile) as {n:number}).n;}
 export function getQueueCounts(profile:string,store=db){

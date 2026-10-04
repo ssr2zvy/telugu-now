@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: scroll mode defaults on for new and legacy appearance settings and preserves opt-out
+ok 1 - scroll mode defaults on for new and legacy appearance settings and preserves opt-out
+  ---
+  duration_ms: 0.871101
+  type: 'test'
+  ...
+# Subtest: every horizontal swipe toggles the audio bar regardless of direction
+ok 2 - every horizontal swipe toggles the audio bar regardless of direction
+  ---
+  duration_ms: 0.11131
+  type: 'test'
+  ...
+# Subtest: horizontal swipes fire once, suppress their click, and leave the next intentional tap alone
+ok 3 - horizontal swipes fire once, suppress their click, and leave the next intentional tap alone
+  ---
+  duration_ms: 0.651658
+  type: 'test'
+  ...
+# Subtest: vertical touch swipes reveal audio without changing horizontal desktop gestures
+ok 4 - vertical touch swipes reveal audio without changing horizontal desktop gestures
+  ---
+  duration_ms: 0.177836
+  type: 'test'
+  ...
+# Subtest: off-axis drags, cancellation, other pointers, and tiny movements never reveal audio
+ok 5 - off-axis drags, cancellation, other pointers, and tiny movements never reveal audio
+  ---
+  duration_ms: 0.193299
+  type: 'test'
+  ...
+# Subtest: horizontal wheel bursts accumulate intent and momentum cannot reopen a hidden bar
+ok 6 - horizontal wheel bursts accumulate intent and momentum cannot reopen a hidden bar
+  ---
+  duration_ms: 0.122924
+  type: 'test'
+  ...
+# Subtest: vertical wheel scrolling and invalid deltas do not accumulate horizontal intent
+ok 7 - vertical wheel scrolling and invalid deltas do not accumulate horizontal intent
+  ---
+  duration_ms: 0.15183
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 106.480169

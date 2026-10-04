@@ -1,0 +1,136 @@
+TAP version 13
+# Subtest: appearance validates persisted data and keeps a nonempty font pool
+ok 1 - appearance validates persisted data and keeps a nonempty font pool
+  ---
+  duration_ms: 2.028827
+  type: 'test'
+  ...
+# Subtest: font selection respects exclusions and size scale preserves the content relationship
+ok 2 - font selection respects exclusions and size scale preserves the content relationship
+  ---
+  duration_ms: 0.314416
+  type: 'test'
+  ...
+# Subtest: appearance positions preserve existing baselines and validate persisted offsets
+ok 3 - appearance positions preserve existing baselines and validate persisted offsets
+  ---
+  duration_ms: 0.554071
+  type: 'test'
+  ...
+# Subtest: control darkness and timestamp visibility validate old and new preferences
+ok 4 - control darkness and timestamp visibility validate old and new preferences
+  ---
+  duration_ms: 2.028803
+  type: 'test'
+  ...
+# Subtest: modification color defaults to the nearest font-relative preset
+ok 5 - modification color defaults to the nearest font-relative preset
+  ---
+  duration_ms: 0.662159
+  type: 'test'
+  ...
+# Subtest: modification text-shift preset shifts only the reading color lightness against its background
+ok 6 - modification text-shift preset shifts only the reading color lightness against its background
+  ---
+  duration_ms: 0.325171
+  type: 'test'
+  ...
+# Subtest: emphasized audio preview retains palette color and responds to darkness
+ok 7 - emphasized audio preview retains palette color and responds to darkness
+  ---
+  duration_ms: 1.012218
+  type: 'test'
+  ...
+# Subtest: audio gaps migrate shared spacing and remain independent in either orientation
+ok 8 - audio gaps migrate shared spacing and remain independent in either orientation
+  ---
+  duration_ms: 0.454691
+  type: 'test'
+  ...
+# Subtest: audio controls derive their shared color from the gradient, not text or settings surfaces
+ok 9 - audio controls derive their shared color from the gradient, not text or settings surfaces
+  ---
+  duration_ms: 1.22331
+  type: 'test'
+  ...
+# Subtest: audio shades retain palette color even when complementary gradient colors average to gray
+ok 10 - audio shades retain palette color even when complementary gradient colors average to gray
+  ---
+  duration_ms: 1.151905
+  type: 'test'
+  ...
+# Subtest: pastel controls retain endpoint saturation and lie beyond the gradient luminance extremes
+ok 11 - pastel controls retain endpoint saturation and lie beyond the gradient luminance extremes
+  ---
+  duration_ms: 1.68706
+  type: 'test'
+  ...
+# Subtest: glass controls use broad palette transitions without a repeated specular stripe
+ok 12 - glass controls use broad palette transitions without a repeated specular stripe
+  ---
+  duration_ms: 1.062097
+  type: 'test'
+  ...
+# Subtest: glass lightness variation is halved around the previous blend midpoint
+ok 13 - glass lightness variation is halved around the previous blend midpoint
+  ---
+  duration_ms: 0.233866
+  type: 'test'
+  ...
+# Subtest: appearance auto-fade delay defaults to 15 seconds and validates saved values
+ok 14 - appearance auto-fade delay defaults to 15 seconds and validates saved values
+  ---
+  duration_ms: 0.158872
+  type: 'test'
+  ...
+# Subtest: surface colors remain independent while corner colors adapt to palette and contrast
+ok 15 - surface colors remain independent while corner colors adapt to palette and contrast
+  ---
+  duration_ms: 18.368735
+  type: 'test'
+  ...
+# Subtest: settings leaf pages return to their observation or display group
+ok 16 - settings leaf pages return to their observation or display group
+  ---
+  duration_ms: 0.176725
+  type: 'test'
+  ...
+# Subtest: non-object persisted appearance values recover all defaults
+ok 17 - non-object persisted appearance values recover all defaults
+  ---
+  duration_ms: 0.25043
+  type: 'test'
+  ...
+# Subtest: parsed appearance arrays do not alias persisted settings or shared defaults
+ok 18 - parsed appearance arrays do not alias persisted settings or shared defaults
+  ---
+  duration_ms: 0.230961
+  type: 'test'
+  ...
+# Subtest: gradient validation preserves valid mixed-case hex and rejects malformed palettes atomically
+ok 19 - gradient validation preserves valid mixed-case hex and rejects malformed palettes atomically
+  ---
+  duration_ms: 0.123655
+  type: 'test'
+  ...
+# Subtest: persisted font pools discard duplicates and unknown fonts in canonical order
+ok 20 - persisted font pools discard duplicates and unknown fonts in canonical order
+  ---
+  duration_ms: 0.080062
+  type: 'test'
+  ...
+# Subtest: record and switch position persists and stays within upward offset bounds
+ok 21 - record and switch position persists and stays within upward offset bounds
+  ---
+  duration_ms: 0.09236
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 345.847822
