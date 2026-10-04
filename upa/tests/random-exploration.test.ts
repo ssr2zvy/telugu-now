@@ -35,23 +35,20 @@ test('choose type first, then uniformly choose an occurrence; duplicate words re
   assert.equal(pool.words[0]!.text, pool.words[1]!.text);
 });
 
-test('actual draws reach end probabilities; reverse and forward replay never consume random draws', () => {
+test('draws reach the endpoint and a single reverse gesture exits and resets', () => {
   let calls = 0;
   const settings = { explorationStartWordPercent: 0, explorationEndWordPercent: 100, explorationTransitionDraws: 3 };
   const session = new RandomExploration('నేను ఇక్కడ', settings, () => { calls++; return 0.6; });
-  const first = session.move('up');
-  const second = session.move('up');
-  const third = session.move('up');
-  assert.equal(first?.kind, 'letter'); assert.equal(second?.kind, 'letter'); assert.equal(third?.kind, 'word');
-  assert.equal(session.move('down'), second);
-  assert.equal(session.move('up'), third);
-  assert.equal(calls, 6); assert.equal(session.drawCount, 3);
+  assert.equal(session.move('up')?.kind, 'letter');
+  assert.equal(session.move('up')?.kind, 'letter');
   assert.equal(session.move('up')?.kind, 'word');
-  session.move('down'); session.move('down'); session.move('down');
+  assert.equal(session.move('up')?.kind, 'word');
+  assert.equal(session.drawCount, 4);
   assert.equal(session.move('down'), null);
-  assert.equal(session.move('up'), null, 'exited sessions cannot leak their history');
+  assert.equal(session.drawCount, 0);
+  assert.equal(session.move('up'), null);
+  assert.equal(calls, 8, 'exiting does not draw or replay');
   const nextVisit = new RandomExploration('నేను ఇక్కడ', settings, () => 0.6);
-  assert.equal(nextVisit.drawCount, 0);
   assert.equal(nextVisit.move('up')?.kind, 'letter');
 });
 

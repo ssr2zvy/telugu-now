@@ -11,12 +11,11 @@ export function explorationChoices(text: string) {
   return { letters, words };
 }
 
-/** One visit to exploration. Reverse navigation replays history without new draws. */
+/** One visit to exploration. The reverse gesture exits immediately; no history is retained. */
 export class RandomExploration {
   private readonly settings: ExplorationSettings;
   private readonly choices: ReturnType<typeof explorationChoices>;
-  private readonly history: ExplorationStep[] = [];
-  private index = -1;
+  private draws = 0;
   private closed = false;
 
   constructor(text: string, settings: ExplorationSettings, private readonly random = Math.random) {
@@ -24,22 +23,17 @@ export class RandomExploration {
     this.choices = explorationChoices(text);
   }
 
-  get drawCount() { return this.history.length; }
+  get drawCount() { return this.draws; }
 
   move(direction: 'up' | 'down'): ExplorationStep | null {
     if (this.closed) return null;
-    if (direction === 'down') {
-      if (this.index <= 0) { this.closed = true; return null; }
-      return this.history[--this.index]!;
-    }
-    if (this.index + 1 < this.history.length) return this.history[++this.index]!;
+    if (direction === 'down') { this.closed = true; this.draws = 0; return null; }
     if (!this.choices.letters.length && !this.choices.words.length) { this.closed = true; return null; }
     const word = this.random() < explorationWordProbability(this.settings, this.drawCount);
     let pool = word ? this.choices.words : this.choices.letters;
     if (!pool.length) pool = word ? this.choices.letters : this.choices.words;
     const choice = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(this.random() * pool.length)))]!;
-    this.history.push(choice);
-    this.index++;
+    this.draws++;
     return choice;
   }
 }

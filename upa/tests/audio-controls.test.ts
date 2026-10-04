@@ -174,7 +174,7 @@ test('playback settings reveal speed and loop before the speed editor opens', ()
     if (mode.playback === 'speed') {
       assert.match(markup, /aria-orientation="horizontal"/);
       assert.doesNotMatch(markup, /class="audio-magnifier-track"/);
-      assert.match(markup, /class="audio-speed-readout">0\.80x/);
+      assert.match(markup, /class="audio-speed-readout" aria-label="Close playback speed">0\.80x/);
       assert.doesNotMatch(markup, /aria-label="Loop audio"/);
     }
   }
