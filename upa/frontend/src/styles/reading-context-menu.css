@@ -83,3 +83,15 @@
   min-height: 0;
 }
 .free-typing-content .question-answer-more { display: none; }
+
+.google-telugu-input,
+.google-telugu-input .question-answer-editor,
+.google-telugu-input .question-keyboard button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.google-telugu-input .question-answer-editor {
+  /* Pointer gestures scroll the draft without native selection/caret handles. */
+  touch-action: none;
+}
