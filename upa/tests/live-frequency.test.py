@@ -40,7 +40,7 @@ class LiveTests(unittest.TestCase):
           INSERT INTO occurrences VALUES(1,'s','1','అది'),(2,'s','1','అది'),(3,'s','2','అది'),(4,'s','3','అదే');''');f.close()
         self.patch1=patch.object(live,'CoreParser',Parser);self.patch1.start()
         self.patch2=patch.object(live,'HERE',self.root);self.patch2.start()
-        self.worker=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite')
+        self.worker=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite',parser=Parser())
     def tearDown(self):
         self.worker.db.close();self.worker.source.close()
         if self.worker.validation:self.worker.validation.close()
@@ -152,6 +152,116 @@ class LiveTests(unittest.TestCase):
         while r['pending']:r=self.find()
         self.assertEqual(r['row']['word'],'అది');self.assertEqual(len(self.worker.parser.calls),21)
         self.assertEqual(len(set(self.worker.parser.calls)),21)
+    def limit_words(self, count=2501):
+        self.worker.db.execute('DELETE FROM frequencies')
+        words=['అ'+str(n).zfill(4) for n in range(count)]
+        self.worker.db.executemany('INSERT INTO frequencies VALUES(?,1,NULL)',[(w,) for w in words])
+        self.worker.db.commit()
+        self.worker.patterns['A']=dict(needles=['అ'],maxCodepoints=100)
+        return words
+
+    def finish_search(self, worker=None, search='limit'):
+        worker=worker or self.worker
+        for _ in range(200):
+            result=worker.find({'target':'A','searchId':search,'storageIdentity':'test'})
+            if not result['pending']:return result
+        self.fail('Search did not finish within bounded test batches')
+
+    def test_limit_spans_batches_counts_other_target_parses_and_commits_for_restart(self):
+        words=self.limit_words()
+        other={'separation':'resolved_in_model','analyses':[{'chain':['x']}],'vocabulary_expression_matches':[]}
+        with patch.object(self.worker.parser,'analyze',return_value=other) as analyze:
+            first=self.find(search='limit')
+            self.assertTrue(first['pending']);self.assertEqual(first['examined'],16)
+            result=self.finish_search()
+            self.assertEqual(analyze.call_count,2500)
+        self.assertEqual(result['stopReason'],'word-limit')
+        self.assertFalse(result['pending']);self.assertIsNone(result['row'])
+        self.assertEqual(result['examined'],2500)
+        self.assertEqual(result['parsed'],2500)  # Parsed for B, never matched A.
+        self.assertEqual(result['matching'],0)
+        self.assertNotIn('limit',self.worker.searches)
+        with sqlite3.connect(self.root/'frequency.sqlite') as disk:
+            self.assertEqual(disk.execute('SELECT COUNT(*) FROM frequencies WHERE parse_result IS NOT NULL').fetchone()[0],2500)
+        fresh=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite',parser=Parser())
+        try:
+            self.assertEqual(fresh.version,self.worker.version)
+            self.assertEqual(fresh.checked,2500)
+            fresh.patterns['A']=dict(needles=['అ'],maxCodepoints=100)
+            with patch.object(fresh,'observation',return_value={'word':words[-1]}):
+                next_result=self.finish_search(fresh,'after-restart')
+            self.assertEqual(fresh.parser.calls,[words[-1]])
+            self.assertEqual(next_result['row']['word'],words[-1])
+            self.assertEqual(next_result['stopReason'],'matched')
+        finally:
+            fresh.db.close();fresh.source.close()
+
+    def test_limit_preserves_no_parse_results(self):
+        self.limit_words()
+        with patch.object(self.worker.parser,'analyze',return_value={'separation':'ambiguous'}):
+            result=self.finish_search()
+        self.assertEqual(result['stopReason'],'word-limit')
+        self.assertEqual(result['checked'],2500);self.assertEqual(result['parsed'],0)
+        with sqlite3.connect(self.root/'frequency.sqlite') as disk:
+            self.assertEqual(disk.execute("SELECT COUNT(*) FROM frequencies WHERE json_extract(parse_result,'$.status')='no_parse'").fetchone()[0],2500)
+
+    def test_match_on_word_2500_wins_over_limit(self):
+        words=self.limit_words()
+        match=Parser().analyze(words[2499])
+        with patch.object(self.worker.parser,'analyze',side_effect=lambda word: match if word==words[2499] else {'separation':'ambiguous'}), patch.object(self.worker,'observation',return_value={'word':words[2499]}):
+            result=self.finish_search()
+        self.assertEqual(result['examined'],2500)
+        self.assertEqual(result['matching'],1)
+        self.assertEqual(result['stopReason'],'matched')
+        self.assertEqual(result['row']['word'],words[2499])
+
+    def test_natural_exhaustion_before_limit(self):
+        with patch.object(self.worker.parser,'analyze',return_value={'separation':'ambiguous'}):
+            result=self.finish_search()
+        self.assertEqual(result['examined'],2)
+        self.assertEqual(result['stopReason'],'exhausted')
+        self.assertFalse(result['pending'])
+
+    def test_resource_interruption_is_persisted_distinctly_and_next_word_can_match(self):
+        from unittest.mock import Mock
+        skipped=dict(status='resource_limit',reason='time-limit',targets=[],memoryLimitMB=512,timeLimitMs=10000)
+        self.worker.runner=Mock()
+        self.worker.runner.parse.side_effect=[skipped,dict(status='parsed',targets=['A'])]
+        events=[]
+        first=self.worker.find({'target':'A','searchId':'guard','storageIdentity':'test'},events.append)
+        self.assertTrue(first['pending']);self.assertEqual(first['limited'],1)
+        self.assertEqual(first['checked'],1);self.assertEqual(first['stats']['rejected'],0)
+        self.assertEqual(first['stats']['resourceLimited'],1)
+        event=next(p['resourceLimit'] for p in events if 'resourceLimit' in p)
+        self.assertEqual(event['reason'],'time-limit')
+        second=self.finish_search(search='guard')
+        self.assertIsNotNone(second['row']);self.assertEqual(second['checked'],2)
+        with sqlite3.connect(self.root/'frequency.sqlite') as disk:
+            saved=json.loads(disk.execute('SELECT parse_result FROM frequencies WHERE normalized_word=?',(event['word'],)).fetchone()[0])
+            self.assertEqual(saved['status'],'resource_limit')
+        fresh=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite',parser=Parser())
+        try:
+            again=self.finish_search(fresh,'retry')
+            self.assertEqual(again['row']['word'],second['row']['word'])
+            self.assertEqual(fresh.parser.calls,[],'interrupted word must not be retried')
+            self.assertEqual(again['stats']['resourceLimited'],1)
+            self.assertEqual(again['stats']['rejected'],0)
+        finally:fresh.db.close();fresh.source.close()
+
+    def test_abandoned_attempts_count_toward_2500_limit(self):
+        from unittest.mock import Mock
+        self.limit_words()
+        self.worker.runner=Mock()
+        self.worker.runner.parse.return_value=dict(status='resource_limit',reason='memory-limit',targets=[],memoryLimitMB=512,timeLimitMs=10000)
+        for n in range(2500):
+            result=self.find(search='interrupted')
+            self.assertEqual(result['pending'],n<2499)
+        self.assertEqual(result['stopReason'],'word-limit')
+        self.assertEqual(result['limited'],2500)
+        self.assertEqual(result['checked'],2500)
+        self.assertEqual(self.worker.runner.parse.call_count,2500)
+        self.assertEqual(result['stats']['rejected'],0)
+
     def test_exact_compatible_cache_is_preserved_but_worker_edits_do_not_change_identity(self):
         self.find()
         version=self.worker.version
@@ -159,7 +269,7 @@ class LiveTests(unittest.TestCase):
         (self.root/'live.py').write_text('# Counters and worker plumbing only')
         self.worker.db.execute("UPDATE metadata SET parse_cache_version='previous-assets'")
         self.worker.db.commit()
-        w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite')
+        w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite',parser=Parser())
         self.assertEqual(w.checked,1)
         self.assertEqual(w.version,version)
         self.assertEqual(sum(w.counts.values()),2)
@@ -167,7 +277,7 @@ class LiveTests(unittest.TestCase):
 
     def test_parser_version_change_invalidates_cache(self):
         self.find();self.worker.db.execute("UPDATE metadata SET parse_cache_version='old'");self.worker.db.commit()
-        w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite')
+        w=live.LiveParser(self.root/'frequency.sqlite',self.root/'corpus.sqlite',self.root/'availability.sqlite',parser=Parser())
         self.assertEqual(w.checked,0);self.assertEqual(w.counts,{})
         w.db.close();w.source.close()
     def test_all_registered_forms_pass_unicode_and_length_bounds(self):

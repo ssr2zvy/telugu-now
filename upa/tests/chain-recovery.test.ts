@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
+import { searchStopReason } from '../frontend/src/settings/pages/SearchAttemptDetails';
 import { chainActivity } from '../server/src/parsing/chain-activity';
 import { chainWord, targetUnicode } from '../frontend/src/settings/parser-display';
 import type { TargetDiagnostic } from '../shared/parsing-diagnostics';
@@ -25,7 +26,7 @@ test('search snapshot preserves queue order, restart history and profile isolati
     INSERT INTO queue_items VALUES('a','second',2),('a','first',1);
     INSERT INTO selection_attempts VALUES('second','t2'),('first','t1');`);
   for(const [id,word,n] of [['first','నేను',1],['second','ఇది',2]] as const) db.prepare('INSERT INTO observation_acquisitions VALUES(?,?,?,?)').run('a',id,JSON.stringify({cycleId:'new',word}),n);
-  for(const column of ['returned','examined','parsed','matching','reused','search_succeeded'])db.exec(`ALTER TABLE live_searches ADD COLUMN ${column} INTEGER`);
+  for(const column of ['limited','returned','examined','parsed','matching','reused','search_succeeded'])db.exec(`ALTER TABLE live_searches ADD COLUMN ${column} INTEGER`);
   for(const column of ['word','stage','error'])db.exec(`ALTER TABLE live_searches ADD COLUMN ${column} TEXT`);
   db.prepare("UPDATE live_searches SET returned=16,examined=10,parsed=2,matching=1,reused=2,stage='parsing',search_succeeded=1 WHERE id='s2'").run();
   const result=chainActivity(db,'a');
@@ -38,5 +39,13 @@ test('search snapshot preserves queue order, restart history and profile isolati
   assert.equal(result.lastAttempt?.id,'s1');assert.equal(result.lastAttempt?.returned,null);
   assert.equal(result.chainSearches[0]?.id,'new');assert.equal(result.chainSearches[0]?.searches[0]?.examined,10);
   assert.deepEqual(result.allTime,{successfulSearches:0,examined:10,legacyEvaluated:4,trackedSince:3});
+  db.prepare("UPDATE live_searches SET ended_at=5,checked=2500,examined=2500,matching=0,outcome='word-limit',stage='finished' WHERE id='s2'").run();
+  const capped=chainActivity(db,'a');
+  assert.equal(capped.activeSearch,null);
+  assert.equal(capped.lastAttempt?.outcome,'word-limit');
+  assert.equal(capped.lastAttempt?.searchSucceeded,true);
+  assert.equal(capped.searchTotals.exhausted,1);
+  assert.equal(capped.searchTotals.interrupted,1,'word cap must not count as a worker interruption');
+  assert.equal(searchStopReason(capped.lastAttempt!), '2,500 parse attempts without a match for this object');
   db.close();
 });

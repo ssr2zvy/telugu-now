@@ -8,13 +8,14 @@ import { parsingAssets } from './state';
 import { logger } from '../services/logger';
 
 export interface WordStats {
-  total:number; checked:number; parsed:number; rejected:number; tokens:number;
+  resourceLimited?:number; total:number; checked:number; parsed:number; rejected:number; tokens:number;
   matches:Record<string,number>; parserVersion:string;
   patterns?:Record<string,{needles:string[];maxCodepoints:number;scope:string}>;
 }
 export interface WordRow {source_id:string;source_key:string;text:string;audio_key:string;word:string;matched_targets:string[];observation_selection:{policy:string;poolSize:number|null;length:number;lengthMetric:string};occurrence:Record<string,unknown>}
-export interface SearchProgress {stage:'searching'|'parsing'|'selecting';checked:number;returned:number;examined:number;parsed:number;matching:number;reused:number}
+export interface SearchProgress {limited?:number;resourceLimit?:{word:string;reason:string;memoryLimitMB:number;timeLimitMs:number};stage:'searching'|'parsing'|'selecting';checked:number;returned:number;examined:number;parsed:number;matching:number;reused:number}
 export interface FindResult extends Omit<SearchProgress,'stage'> {row:WordRow|null;pending:boolean;source:string;checked:number;matchedWords:number;
+  stopReason:'word-limit'|'matched'|'exhausted'|null;
   pattern:{needles:string[];maxCodepoints:number;scope:string};stats:WordStats}
 let child:ChildProcessWithoutNullStreams|undefined;
 let ready:Promise<void>|undefined;
@@ -35,10 +36,11 @@ export function savedWordStats():WordStats|null {
     // A full ready queue need not start the parser merely to display saved totals.
     frequency=new Database(config.frequencyDatabasePath,{readonly:true,fileMustExist:true});
     const totals=frequency.prepare(`SELECT COUNT(*) AS total,COUNT(parse_result) AS checked,
-      COALESCE(SUM(json_extract(parse_result,'$.status')='parsed'),0) AS parsed FROM frequencies`).get() as {total:number;checked:number;parsed:number};
+      COALESCE(SUM(json_extract(parse_result,'$.status')='parsed'),0) AS parsed,
+      COALESCE(SUM(json_extract(parse_result,'$.status')='resource_limit'),0) AS resourceLimited FROM frequencies`).get() as {total:number;checked:number;parsed:number;resourceLimited:number};
     const matches=Object.fromEntries((frequency.prepare(`SELECT j.value AS target,COUNT(*) AS n FROM frequencies f,json_each(f.parse_result,'$.targets') j GROUP BY j.value`).all() as Array<{target:string;n:number}>).map(row=>[row.target,row.n]));
     const meta=frequency.prepare('SELECT total_occurrences,parse_cache_version FROM metadata').get() as {total_occurrences:number;parse_cache_version:string};
-    const stats={...totals,rejected:totals.checked-totals.parsed,tokens:meta.total_occurrences,parserVersion:meta.parse_cache_version,matches};
+    const stats={...totals,rejected:totals.checked-totals.parsed-totals.resourceLimited,tokens:meta.total_occurrences,parserVersion:meta.parse_cache_version,matches};
     saveStats(stats);return stats;
   }catch{return null;}finally{frequency?.close();}
 }
@@ -88,7 +90,7 @@ export function ensureWordWorker():Promise<void> {
   });
   return ready;
 }
-export async function findWord(request:Record<string,unknown>,onProgress?:(progress:SearchProgress)=>void):Promise<FindResult>{
+async function sendWordRequest(request:Record<string,unknown>,onProgress?:(progress:SearchProgress)=>void):Promise<FindResult>{
   await ensureWordWorker();
   const process=child;
   if(!process)throw new Error('Parser restarted; search will retry.');
@@ -102,3 +104,12 @@ export async function findWord(request:Record<string,unknown>,onProgress?:(progr
   });
 }
 export function stopWordWorker(){cancelWorker?.(new Error('Parser restarted.'));}
+
+// The Python coordinator is serialized. Start each watchdog only when its
+// request is actually dispatched, not while another profile is using the parser.
+let requestTail:Promise<unknown>=Promise.resolve();
+export function findWord(request:Record<string,unknown>,onProgress?:(progress:SearchProgress)=>void):Promise<FindResult>{
+  const result=requestTail.then(()=>sendWordRequest(request,onProgress));
+  requestTail=result.catch(()=>{});
+  return result;
+}

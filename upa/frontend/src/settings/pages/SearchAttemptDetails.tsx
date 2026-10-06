@@ -1,6 +1,6 @@
 import type { SearchAttempt } from '../../../../shared/parsing-diagnostics';
 export function searchStopReason(attempt:SearchAttempt):string {
-  const reasons:Record<string,string>={'new-parse':'Match found','cached-parse':'Cached match found',exhausted:'Candidates exhausted','chain-discarded':'Chain discarded','process-restarted':'Server restarted','worker-error':'Search or parser failed','manual-retry':'Search restarted'};
+  const reasons:Record<string,string>={'new-parse':'Match found','cached-parse':'Cached match found',exhausted:'Candidates exhausted','word-limit':'2,500 parse attempts without a match for this object','chain-discarded':'Chain discarded','process-restarted':'Server restarted','worker-error':'Search or parser failed','manual-retry':'Search restarted'};
   if(attempt.error?.toLowerCase().includes('timed out'))return 'Parser timed out';
   return attempt.outcome ? reasons[attempt.outcome]??attempt.outcome : 'Still running';
 }
@@ -15,6 +15,7 @@ export function SearchAttemptDetails({attempt}:{attempt:SearchAttempt|null|undef
     <dt>Words examined</dt><dd>{count(attempt.examined)}</dd>
     <dt>Words evaluated by parser</dt><dd>{count(attempt.checked)}</dd>
     <dt>Words parsed successfully</dt><dd>{count(attempt.parsed)}</dd>
+    <dt>Resource-limited attempts</dt><dd>{count(attempt.limited??null)}</dd>
     <dt>Cached results examined</dt><dd>{count(attempt.reused)}</dd>
     <dt>Words matching this object</dt><dd>{count(attempt.matching)}</dd>
     <dt>Stopped because</dt><dd>{searchStopReason(attempt)}</dd>

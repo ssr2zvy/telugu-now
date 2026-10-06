@@ -30,7 +30,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS live_cycles(
   pattern_json TEXT,from_target TEXT);
   CREATE INDEX IF NOT EXISTS live_searches_cycle ON live_searches(cycle_id,started_at);`);
 // NULL means these measurements predate tracking; never invent historic counts.
-for(const [name,type] of Object.entries({returned:'INTEGER',examined:'INTEGER',parsed:'INTEGER',matching:'INTEGER',reused:'INTEGER',stage:'TEXT',search_succeeded:'INTEGER',error:'TEXT'})) {
+for(const [name,type] of Object.entries({limited:'INTEGER',returned:'INTEGER',examined:'INTEGER',parsed:'INTEGER',matching:'INTEGER',reused:'INTEGER',stage:'TEXT',search_succeeded:'INTEGER',error:'TEXT'})) {
   if(!(db.prepare('PRAGMA table_info(live_searches)').all() as Array<{name:string}>).some(column=>column.name===name))db.exec(`ALTER TABLE live_searches ADD COLUMN ${name} ${type}`);
 }
 db.exec(`CREATE TABLE IF NOT EXISTS live_chain_resets(profile_code TEXT PRIMARY KEY,requested_at INTEGER NOT NULL);
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS live_discarded_observations(observation_id TEXT PRIMA
 export function isDiscarded(id:string,profile:string):boolean{return Boolean(db.prepare('SELECT 1 FROM live_discarded_observations WHERE observation_id=? AND profile_code=?').get(id,profile));}
 export const guider=new Map<string,{generating:boolean;cycleId:string|null}>();
 function recordSearchProgress(id:string,progress:SearchProgress) {
-  db.prepare('UPDATE live_searches SET checked=?,returned=?,examined=?,parsed=?,matching=?,reused=?,stage=?,search_succeeded=COALESCE(?,search_succeeded) WHERE id=? AND ended_at IS NULL')
-    .run(progress.checked,progress.returned,progress.examined,progress.parsed,progress.matching,progress.reused,progress.stage,progress.stage==='searching'?null:1,id);
+  db.prepare('UPDATE live_searches SET checked=?,returned=?,examined=?,limited=?,parsed=?,matching=?,reused=?,stage=?,search_succeeded=COALESCE(?,search_succeeded) WHERE id=? AND ended_at IS NULL')
+    .run(progress.checked,progress.returned,progress.examined,progress.limited??0,progress.parsed,progress.matching,progress.reused,progress.stage,progress.stage==='searching'?null:1,id);
 }
 db.prepare("UPDATE live_cycles SET ended_at=?,end_reason='process-restarted' WHERE ended_at IS NULL").run(Date.now());
 db.prepare("UPDATE live_searches SET ended_at=?,outcome='process-restarted' WHERE ended_at IS NULL").run(Date.now());
@@ -123,6 +123,8 @@ async function fill(profile:string){
         found=await findWord({target:target.id,searchId,storageIdentity:audioStorageIdentity(config),blocked},progress=>{
           if(discardedCycles.has(chain.id))return;
           recordSearchProgress(searchId,progress);
+          if(progress.resourceLimit)coreEvent(profile,'word-resource-limit',{core:target.core,targetId:target.id},
+            {cycleId:chain.id,searchId,...progress.resourceLimit});
           liveSelection.set(profile,{phase:progress.stage,target:target.id,checked:progress.checked,error:null});
         });
         if(discardedCycles.has(chain.id))return;
@@ -130,12 +132,17 @@ async function fill(profile:string){
         db.prepare('UPDATE live_searches SET checked=?,pattern_json=? WHERE id=?').run(found.checked,JSON.stringify(found.pattern),searchId);
         liveSelection.set(profile,{phase:'searching',target:target.id,checked:found.checked,error:null});
       }while(found.pending);
-      db.prepare("UPDATE live_searches SET ended_at=?,outcome=?,word=?,stage='finished',search_succeeded=1 WHERE id=?").run(Date.now(),found.row?found.source:'exhausted',found.row?.word??null,searchId);
+      db.prepare("UPDATE live_searches SET ended_at=?,outcome=?,word=?,stage='finished',search_succeeded=1 WHERE id=?").run(Date.now(),found.row?found.source:found.stopReason??'exhausted',found.row?.word??null,searchId);
       const current=coreProgress(profile);
       if(current.core!==target.core||(current.streaks[target.id]??0)>=3)continue;
       if(found.row){reserve(profile,target.id,found.row,chain,found.source);
         void import('./preparation-service').then(({preparationService})=>preparationService.kick());
-      }else chain.exhausted.add(target.id);
+      }else {
+        // Includes the word limit: keep the last successful object as current.
+        // The next pass chooses a new seed, or a different neighbor of current;
+        // with no eligible neighbors it closes this chain and starts another.
+        chain.exhausted.add(target.id);
+      }
     }
     liveSelection.set(profile,{phase:'ready',target:null,checked:0,error:null});
   }catch(error){

@@ -48,7 +48,7 @@ export function parsingDiagnostics(profile:string,store:Database.Database=db):Pa
   return {version:1,generatedAt:Date.now(),auditStartedAt:(store.prepare('SELECT started_at FROM core_diagnostic_install WHERE id=1').get() as {started_at:number}).started_at,
     ...activity,guider:guider.get(profile)??{generating:false,cycleId:null},
     currentChain,currentCore:core,inventoryId:inventory,catalogError:workerError,progressError,targets,
-    cache:wordStats?{total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected,validParses:Object.values(wordStats.matches).reduce((sum,n)=>sum+n,0)}:null,
+    cache:wordStats?{resourceLimited:wordStats.resourceLimited??0,total:wordStats.total,checked:wordStats.checked,parsed:wordStats.parsed,rejected:wordStats.rejected,validParses:Object.values(wordStats.matches).reduce((sum,n)=>sum+n,0)}:null,
     selectionPolicy:'shortest-codepoints-v1',worker:{phase:workerPhase,error:workerError},
     queue:{...getQueueCounts(profile,store),errors:(store.prepare(`SELECT DISTINCT o.preparation_error AS error
       FROM queue_items q JOIN observations o ON o.id=q.observation_id
