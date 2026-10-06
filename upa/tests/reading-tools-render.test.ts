@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { load } from 'cheerio';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ReadingContextMenu } from '../frontend/src/observation/ReadingContextMenu';
@@ -14,7 +15,7 @@ test('reading menu offers exactly two icon-only actions for every text scope', (
     assert.equal((html.match(/role="menuitem"/g) ?? []).length, 2);
     assert.match(html, /aria-label="Copy"/);
     assert.match(html, /aria-label="Free typing"/);
-    assert.equal(html.replace(/<[^>]*>/g, ''), '');
+    assert.equal(load(html).text(), '');
   }
 });
 
