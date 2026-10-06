@@ -1,6 +1,6 @@
 export interface SearchAttempt {
   id:string; cycleId:string; targetId:string; core:number; startedAt:number; endedAt:number|null;
-  checked:number; returned:number|null; examined:number|null; parsed:number|null; matching:number|null; reused:number|null;
+  limited?:number|null; checked:number; returned:number|null; examined:number|null; parsed:number|null; matching:number|null; reused:number|null;
   outcome:string|null; word:string|null; stage:string|null; searchSucceeded:boolean|null; error:string|null;
 }
 export interface ChainSearch {
@@ -32,7 +32,7 @@ export interface ParsingDiagnostics {
   version:1; generatedAt:number; auditStartedAt:number; currentCore:number;
   inventoryId:string|null; catalogError:string|null; progressError:string|null;
   levels:CoreDiagnostic[]; targets:TargetDiagnostic[];
-  cache:{total:number;checked:number;parsed:number;rejected:number;validParses?:number}|null;
+  cache:{resourceLimited?:number;total:number;checked:number;parsed:number;rejected:number;validParses?:number}|null;
   selectionPolicy:'shortest-codepoints-v1';
   worker:{phase:string;error:string|null};
   queue:{depth:number;preparing:number;ready:number;pending:number;failed:number;errors:string[]};

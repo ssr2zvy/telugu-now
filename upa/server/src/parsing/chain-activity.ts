@@ -11,7 +11,7 @@ export function chainActivity(store:Database.Database,profile:string) {
     ORDER BY s.started_at DESC LIMIT 1`).get(profile) as NonNullable<ParsingDiagnostics['activeSearch']>|undefined;
   const searchTotals=store.prepare(`SELECT COUNT(*) AS total,COALESCE(SUM(checked),0) AS checked,
     COALESCE(SUM(outcome IN('new-parse','cached-parse')),0) AS matched,
-    COALESCE(SUM(outcome='exhausted'),0) AS exhausted,
+    COALESCE(SUM(outcome IN('exhausted','word-limit')),0) AS exhausted,
     COALESCE(SUM(outcome IN('process-restarted','worker-error','manual-retry')),0) AS interrupted
     FROM live_searches s JOIN live_cycles c ON c.id=s.cycle_id WHERE c.profile_code=?`).get(profile) as NonNullable<ParsingDiagnostics['searchTotals']>;
   const recentCycles=(store.prepare(`SELECT id,core,started_at AS startedAt,ended_at AS endedAt,end_reason AS endReason
@@ -20,7 +20,7 @@ export function chainActivity(store:Database.Database,profile:string) {
       FROM observation_acquisitions WHERE profile_code=? AND json_extract(selection_snapshot_json,'$.cycleId')=?
       ORDER BY acquisition_number`).all(profile,cycle.id) as Array<{word:string|null}>).flatMap(row=>row.word?[row.word]:[])}));
   const attemptSql=`SELECT s.id,s.cycle_id AS cycleId,s.target_id AS targetId,c.core,s.started_at AS startedAt,s.ended_at AS endedAt,
-    s.checked,s.returned,s.examined,s.parsed,s.matching,s.reused,s.outcome,s.word,s.stage,s.search_succeeded AS searchSucceeded,s.error
+    s.checked,s.returned,s.examined,s.limited,s.parsed,s.matching,s.reused,s.outcome,s.word,s.stage,s.search_succeeded AS searchSucceeded,s.error
     FROM live_searches s JOIN live_cycles c ON c.id=s.cycle_id`;
   const readAttempts=(where:string,...args:unknown[]) => (store.prepare(attemptSql+where).all(...args) as SearchAttempt[])
     .map(attempt=>({...attempt,searchSucceeded:attempt.searchSucceeded===null?null:Boolean(attempt.searchSucceeded)}));

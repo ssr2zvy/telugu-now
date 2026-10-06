@@ -3,6 +3,11 @@
 No sentence/context parsing, occurrence copies, or used-observation exclusions.
 """
 import argparse
+import atexit
+import gc
+import os
+import select
+import subprocess
 from collections import Counter, defaultdict
 import hashlib
 import inspect
@@ -17,6 +22,10 @@ import unicodedata
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / 'parser'))
 from core_parser import CoreParser
+
+# Per object/searchId, across all 16-word batches. A scheduling change must not
+# invalidate the on-volume word cache (live.py is excluded from its fingerprint).
+NO_MATCH_PARSE_LIMIT = 2500
 
 
 def compact(value):
@@ -39,10 +48,158 @@ def resolved_targets(result, graph):
             targets.add(tid)
     return dict(status='parsed', targets=sorted(targets)) if targets else dict(status='no_parse', reason='no_core_target', targets=[])
 
+def positive_setting(name, default):
+    value = int(os.environ.get(name, default))
+    if value <= 0:
+        raise ValueError(name + ' must be positive')
+    return value
+
+
+def patterns_for(parser, graph):
+    forms = defaultdict(set)
+    alias = graph['original_to_selectable']
+    for word, records in parser.index.items():
+        for record in records:
+            tid = alias.get('CHAIN:'+','.join(record['chain']))
+            if tid:
+                forms[tid].add(unicodedata.normalize('NFC', word))
+    for tid, target in graph['nodes'].items():
+        if target['kind'] == 'vocabulary':
+            forms[tid].update(unicodedata.normalize('NFC', s) for s in target.get('forms', []))
+    patterns = {}
+    for tid, target in graph['nodes'].items():
+        realizations = [s for s in forms[tid] if s and not any(c.isspace() for c in s)]
+        needles = sorted(set(s if target['kind']=='vocabulary' else s[-2:] for s in realizations))
+        patterns[tid] = dict(needles=needles, maxCodepoints=max([len(s) for s in realizations], default=0),
+                             scope='registered-single-word-realizations')
+    return patterns, forms
+
+
+def memory_ceiling(megabytes, hard_megabytes=None):
+    # Linux/Fly: a hard address-space limit rejects allocations before the child
+    # can exhaust the machine. Do not silently run unbounded on unsupported hosts.
+    import resource
+    resource.setrlimit(resource.RLIMIT_AS, (megabytes*1024*1024, (hard_megabytes or megabytes)*1024*1024))
+
+
+def parser_child():
+    # If the coordinator is killed (including the old outer watchdog), this child
+    # must die too, rather than surviving to overlap a replacement parser index.
+    import ctypes
+    import signal
+    parent = os.getppid()
+    if sys.platform != 'linux':
+        raise RuntimeError('Isolated parsing requires Linux process resource limits')
+    if ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) != 0:
+        raise RuntimeError('Could not install parser parent-death protection')
+    if parent == 1 or os.getppid() != parent:
+        return
+    memory_ceiling(positive_setting('GRAMMAR_PARSE_MEMORY_MB', 512))
+    parser = CoreParser()
+    graph = json.loads((HERE / 'graph.json').read_text())
+    patterns, forms = patterns_for(parser, graph)
+    print(compact(dict(ready=True, patterns=patterns)), flush=True)
+    del forms, patterns
+    gc.collect()
+    gc.freeze()  # Do not rescan the permanent index when collecting each word.
+    emergency = bytearray(64*1024)
+    for line in sys.stdin:
+        request = json.loads(line)
+        try:
+            result = resolved_targets(parser.analyze(request['word']), graph)
+            parser._productive_cache.clear()
+            # Recursive parse closures can form cycles; release them between words.
+            gc.collect()
+            print(compact(dict(result=result)), flush=True)
+        except MemoryError:
+            del emergency
+            # Keep the message small; exit to release every allocator/cache page.
+            print('{"resourceLimit":"memory-limit"}', flush=True)
+            return
+
+
+class GuardedParser:
+    """One persistent index process, supervised independently for every word."""
+    def __init__(self, command=None, word_timeout_ms=None, startup_timeout_ms=None):
+        self.command = command or [sys.executable, str(HERE / 'live.py'), '--parse-child']
+        self.word_timeout = (word_timeout_ms or positive_setting('GRAMMAR_WORD_TIMEOUT_MS', 10000))/1000
+        self.startup_timeout = (startup_timeout_ms or positive_setting('GRAMMAR_PARSE_STARTUP_TIMEOUT_MS', 90000))/1000
+        self.memory_mb = positive_setting('GRAMMAR_PARSE_MEMORY_MB', 512)
+        self.process = None
+        self.buffer = bytearray()
+        self.patterns = {}
+        self.start()
+        atexit.register(self.close)
+
+    def read(self, seconds):
+        deadline = time.monotonic()+seconds
+        while True:
+            if b'\n' in self.buffer:
+                line, _, tail = self.buffer.partition(b'\n')
+                self.buffer = bytearray(tail)
+                return json.loads(line)
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('Parser response exceeded its budget')
+            if not select.select([self.process.stdout], [], [], remaining)[0]:
+                raise TimeoutError('Parser response exceeded its budget')
+            chunk = os.read(self.process.stdout.fileno(), 65536)
+            if not chunk:
+                raise RuntimeError('Parser child exited before replying')
+            self.buffer.extend(chunk)
+            if len(self.buffer) > 16*1024*1024:
+                raise RuntimeError('Parser reply exceeded its size limit')
+
+    def start(self):
+        self.close()
+        self.process = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr)
+        try:
+            message = self.read(self.startup_timeout)
+            if not message.get('ready'):
+                raise RuntimeError('Parser child did not initialize')
+            self.patterns = message['patterns']
+        except BaseException:
+            self.close()
+            # Startup failures are infrastructure failures, not evidence about a word.
+            raise
+
+    def close(self):
+        process, self.process = self.process, None
+        self.buffer.clear()
+        if process:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            process.stdin.close()
+            process.stdout.close()
+
+    def parse(self, word):
+        if self.process is None:
+            self.start()
+        try:
+            self.process.stdin.write((compact(dict(word=word))+'\n').encode())
+            self.process.stdin.flush()
+            message = self.read(self.word_timeout)
+            if 'resourceLimit' in message:
+                reason = message['resourceLimit']
+            else:
+                return message['result']
+        except TimeoutError:
+            reason = 'time-limit'
+        except (BrokenPipeError, RuntimeError, ValueError, KeyError):
+            # A signal/EOF alone cannot establish OOM. Preserve the distinction.
+            reason = 'worker-interrupted'
+        self.close()
+        return dict(status='resource_limit', reason=reason, targets=[],
+                    occurredAt=int(time.time()*1000), memoryLimitMB=self.memory_mb,
+                    timeLimitMs=round(self.word_timeout*1000))
+
 
 class LiveParser:
-    def __init__(self, frequency, corpus, availability, validation=None):
-        self.parser = CoreParser()
+    def __init__(self, frequency, corpus, availability, validation=None, parser=None):
+        # Tests may inject a tiny parser; production always uses the isolated child.
+        self.parser = parser
+        self.runner = None if parser is not None else GuardedParser()
         self.graph = json.loads((HERE / 'graph.json').read_text())
         self.db = sqlite3.connect(Path(frequency).resolve().as_uri() + '?mode=rw', uri=True)
         self.db.row_factory = sqlite3.Row
@@ -98,29 +255,16 @@ class LiveParser:
         if not indexed:
             self.db.execute('CREATE INDEX live_occurrences_word ON occurrences(normalized_word)')
         self.db.commit()
-        self.forms = defaultdict(set)
-        alias = self.graph['original_to_selectable']
-        for word, records in self.parser.index.items():
-            for record in records:
-                tid = alias.get('CHAIN:'+','.join(record['chain']))
-                if tid:
-                    self.forms[tid].add(unicodedata.normalize('NFC', word))
-        for tid, target in self.graph['nodes'].items():
-            if target['kind'] == 'vocabulary':
-                self.forms[tid].update(unicodedata.normalize('NFC', s) for s in target.get('forms', []))
-        self.patterns = {}
-        for tid, target in self.graph['nodes'].items():
-            forms = [s for s in self.forms[tid] if s and not any(c.isspace() for c in s)]
-            # Every registered realization passes this Unicode prefilter. Exact full
-            # chain matching happens in resolved_targets, never in the SQL filter.
-            needles = sorted(set(s if target['kind']=='vocabulary' else s[-2:] for s in forms))
-            self.patterns[tid] = dict(needles=needles, maxCodepoints=max([len(s) for s in forms], default=0),
-                                      scope='registered-single-word-realizations')
+        if self.parser is not None:
+            self.patterns, self.forms = patterns_for(self.parser, self.graph)
+        else:
+            self.patterns = self.runner.patterns
         self.db.create_function('unicode_candidate', 2, self.candidate, deterministic=True)
-        self.counts = Counter(); self.checked = self.parsed = 0
+        self.counts = Counter(); self.checked = self.parsed = self.resource_limited = 0
         for row in self.db.execute('SELECT parse_result FROM frequencies WHERE parse_result IS NOT NULL'):
             result = json.loads(row[0]); self.checked += 1
             self.parsed += result['status'] == 'parsed'
+            self.resource_limited += result['status'] == 'resource_limit'
             self.counts.update(result['targets'])
         self.total = self.db.execute('SELECT COUNT(*) FROM frequencies').fetchone()[0]
         self.tokens = meta['total_occurrences']
@@ -131,7 +275,7 @@ class LiveParser:
 
     def stats(self):
         return dict(total=self.total, checked=self.checked, parsed=self.parsed,
-                    rejected=self.checked-self.parsed, tokens=self.tokens, matches=dict(self.counts),
+                    rejected=self.checked-self.parsed-self.resource_limited,resourceLimited=self.resource_limited, tokens=self.tokens, matches=dict(self.counts),
                     parserVersion=self.version, patterns=self.patterns)
 
     def observation(self, word, storage_identity, blocked, core=1):
@@ -168,15 +312,15 @@ class LiveParser:
     def find(self, request, progress=None):
         tid = request['target']
         pattern = self.patterns[tid]
-        state = self.searches.setdefault(request['searchId'], dict(length=0, cached=0, cursor='', checked=0, returned=0, examined=0, parsed=0, matching=0, reused=0, seen=set(), returned_words=set()))
+        state = self.searches.setdefault(request['searchId'], dict(length=0, cached=0, cursor='', checked=0, returned=0, examined=0, limited=0, parsed=0, matching=0, reused=0, seen=set(), returned_words=set()))
         # Shortest word takes priority over cache novelty. At equal length, try
         # unchecked words first, then reuse a saved match. No extra disk index.
         # Cursor uses the row's rank BEFORE parsing; a newly cached unusable word
         # may be revisited once, but is never parsed twice.
-        def report(stage):
+        def report(stage, **extra):
             if progress:
                 progress(dict(stage=stage, checked=state['checked'], returned=state['returned'],
-                    examined=state['examined'], parsed=state['parsed'], matching=state['matching'], reused=state['reused']))
+                    examined=state['examined'], limited=state['limited'], parsed=state['parsed'], matching=state['matching'], reused=state['reused'], **extra))
         report('searching')
         rows = self.db.execute("""SELECT normalized_word,parse_result FROM frequencies
             WHERE (length(normalized_word),parse_result IS NOT NULL,normalized_word)>(?,?,?)
@@ -190,7 +334,10 @@ class LiveParser:
         report('parsing')
         found = None
         source = 'new-parse'
+        batch_started = time.monotonic()
+        processed = 0
         for row in rows:
+            processed += 1
             word, saved = row
             state.update(length=len(word), cached=int(saved is not None), cursor=word)
             if word in state['seen']:
@@ -200,9 +347,19 @@ class LiveParser:
             source = 'cached-parse' if saved is not None else 'new-parse'
             if saved is None:
                 state['checked'] += 1
-                result = resolved_targets(self.parser.analyze(word), self.graph)
-                self.parser._productive_cache.clear()
+                if self.runner is not None:
+                    result = self.runner.parse(word)
+                else:
+                    result = resolved_targets(self.parser.analyze(word), self.graph)
+                    self.parser._productive_cache.clear()
+                if result['status'] == 'resource_limit':
+                    state['limited'] += 1
+                    self.resource_limited += 1
                 self.db.execute('UPDATE frequencies SET parse_result=? WHERE normalized_word=?', (compact(result),word))
+                self.db.commit()  # Each finished/interrupted attempt survives the next child failure.
+                if result['status'] == 'resource_limit':
+                    report('parsing', resourceLimit=dict(word=word, reason=result['reason'],
+                           memoryLimitMB=result['memoryLimitMB'], timeLimitMs=result['timeLimitMs']))
                 state['parsed'] += result['status']=='parsed'
                 self.checked += 1; self.parsed += result['status']=='parsed'; self.counts.update(result['targets'])
             else:
@@ -216,21 +373,38 @@ class LiveParser:
                 if found:
                     found['matched_targets'] = result['targets']
                     break
+            # Other core targets do not count as a match for this request.
+            # Check after parsing so a match on word 2,500 can still succeed.
+            if state['checked'] >= NO_MATCH_PARSE_LIMIT and state['matching'] == 0:
+                break
+            # Yield after a slow/interrupted word; do not stack 16 word deadlines
+            # inside one request to the Node coordinator.
+            if time.monotonic()-batch_started >= 0.25 or result['status'] == 'resource_limit':
+                break
+        # Commit even when capped: a later attempt can skip these saved misses.
         self.db.commit()
-        pending = not found and len(rows)==16
+        limited = state['checked'] >= NO_MATCH_PARSE_LIMIT and state['matching'] == 0
+        pending = not found and not limited and (processed < len(rows) or len(rows)==16)
         response = dict(row=found,pending=pending,source=source,checked=state['checked'],
-                        returned=state['returned'],examined=state['examined'],parsed=state['parsed'],matching=state['matching'],reused=state['reused'],
+                        stopReason='word-limit' if limited else 'matched' if found else None if pending else 'exhausted',
+                        returned=state['returned'],examined=state['examined'],limited=state['limited'],parsed=state['parsed'],matching=state['matching'],reused=state['reused'],
                         matchedWords=self.counts[tid],pattern=pattern,stats=self.stats_summary())
         if not pending:
             self.searches.pop(request['searchId'], None)
         return response
 
     def stats_summary(self):
-        return dict(total=self.total,checked=self.checked,parsed=self.parsed,rejected=self.checked-self.parsed,
+        return dict(total=self.total,checked=self.checked,parsed=self.parsed,rejected=self.checked-self.parsed-self.resource_limited,resourceLimited=self.resource_limited,
                     tokens=self.tokens,matches=dict(self.counts),parserVersion=self.version)
 
 
 def main():
+    if sys.argv[1:] == ['--parse-child']:
+        parser_child()
+        return
+    # Separate the small SQLite coordinator from the large grammar index.
+    supervisor_mb = positive_setting('GRAMMAR_COORDINATOR_MEMORY_MB', 128)
+    memory_ceiling(supervisor_mb, max(supervisor_mb, positive_setting('GRAMMAR_PARSE_MEMORY_MB', 512)))
     ap=argparse.ArgumentParser()
     for name in ('frequency','corpus','availability','validation'):
         ap.add_argument('--'+name, required=name!='validation')
