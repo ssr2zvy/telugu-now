@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useReadingTools } from '../useReadingTools';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import type { AlignedLetterAudio } from '../../../../shared/contracts';
 import { getAlignedLetterAudio } from '../../api';
@@ -22,7 +23,6 @@ interface LetterProfileProps {
   profileCode: string;
   fontFamily: ObservationFontFamily;
   playbackRate: number;
-  onCopy: (word: string) => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -33,7 +33,7 @@ interface LetterRun {
 
 export function LetterProfile({ letter, observationId, word, wordStart, wordEnd, graphemeStart, graphemeEnd,
   profileCode, fontFamily, playbackRate,
-  onCopy, onBack, suppressAudioControls = false }: LetterProfileProps) {
+  onBack, suppressAudioControls = false }: LetterProfileProps) {
   const { appearance } = useAppearance();
   const [selection, setSelection] = useState<AlignedLetterAudio | null>(null);
   const [error, setError] = useState('');
@@ -74,22 +74,20 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
   }, [gradientKey]);
   const gradientsReady = Boolean(selection) && gradientPresentation?.key === gradientKey;
   const ready = gradientsReady && !audioLoading;
-  const openMenu = (event: MouseEvent<HTMLElement>) => {
-    if (!selection) return;
-    event.preventDefault();
-  };
+  const readingTools = useReadingTools(selection?.text ?? letter, `${observationId}:${wordStart}:${graphemeStart}:${graphemeEnd}`,
+    fontFamily, true, () => player.current?.pause());
 
   return (
-    <section className={`letter-profile-page ${suppressAudioControls ? 'exploration-focus' : 'controls-visible'}`} aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
+    <section {...readingTools.bind()} data-reading-tools="true" className={`letter-profile-page ${suppressAudioControls ? 'exploration-focus' : 'controls-visible'}`} aria-labelledby="letter-profile-title" aria-busy={!ready && !error}>
       <button type="button" className="word-profile-back" aria-label="Back to word" onClick={onBack}>
         <ArrowLeft size={20} aria-hidden="true" />
       </button>
       {!ready && !error ? <LoadingSlit key={letter} delayMs={250} label="Finding a word for this letter" /> : null}
       {selection ? <div className="letter-profile-center" data-ready={ready} onClick={event => {
-        if ((event.target as HTMLElement).closest('.audio-player-bar')) return;
+        if (readingTools.open || (event.target as HTMLElement).closest('.audio-player-bar')) return;
         player.current?.togglePlay();
       }}>
-        <h2 id="letter-profile-title" lang="te" aria-label={selection.text} onContextMenu={openMenu}
+        <h2 id="letter-profile-title" lang="te" aria-label={selection.text}
           style={{ '--word-graphemes': 1,
             fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif` } as CSSProperties}>
           {runs.map((run, index) => <span key={index}>
@@ -99,12 +97,13 @@ export function LetterProfile({ letter, observationId, word, wordStart, wordEnd,
           </span>)}
         </h2>
         <AudioPlayerBar ref={player} audio={selection.audio} sourceId={selection.sourceId} sourceKey={selection.sourceKey}
-          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible={!suppressAudioControls} playbackEnabled
+          defaultPlaybackRate={playbackRate} autoplay={false} controlsVisible={!suppressAudioControls} playbackEnabled={!readingTools.open}
           readinessKey={`${selection.sourceId}:${selection.sourceKey}`}
           onLoadingChange={(_key, loading) => setAudioLoading(loading)}
           onPlaybackErrorChange={message => setError(message ?? '')} />
       </div> : null}
       {error ? <p className="word-profile-error" role="alert">{error}</p> : null}
+      {readingTools.surface}
     </section>
   );
 }

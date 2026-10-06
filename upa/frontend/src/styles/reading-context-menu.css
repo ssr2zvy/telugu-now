@@ -1,6 +1,6 @@
 .reading-context-menu {
   position: fixed;
-  z-index: 20;
+  z-index: 80;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -38,3 +38,48 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+[data-reading-tools] .observation-text,
+[data-reading-tools] .word-profile-header,
+[data-reading-tools] .letter-profile-center h2 {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.free-typing-screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--surface);
+  color: var(--foreground);
+  overflow: auto;
+}
+.free-typing-screen::backdrop { background: var(--surface); }
+.free-typing-content {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: min(100%, 1000px);
+  height: 100%;
+  min-height: 300px;
+  margin: auto;
+  padding: max(68px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  display: grid;
+}
+.free-typing-content .google-telugu-input {
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-self: stretch;
+}
+.free-typing-content .question-answer-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.free-typing-content .question-answer-more { display: none; }
