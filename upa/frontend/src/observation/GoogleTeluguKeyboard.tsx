@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ArrowUp, CornerDownLeft, Delete } from 'lucide-react';
+import { useKeyboardCopyMenu } from './useKeyboardCopyMenu';
 import { useAppearance } from '../appearance';
 import { compatibleObservationFonts } from '../presentation';
 
@@ -108,6 +109,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
     return pool[Math.floor(Math.random() * pool.length)]!;
   });
   const editor = useRef<HTMLTextAreaElement>(null);
+  const copyMenu = useKeyboardCopyMenu(editor, value);
   const latestPropValue = useRef(value);
   const draftValue = useRef(value);
   const selection = useRef({ start: value.length, end: value.length });
@@ -220,7 +222,8 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
   const topRow = shifted && controlAlt ? SHIFT_CTRL_ALT_TOP_ROW : shifted ? SHIFT_TOP_ROW : controlAlt ? CTRL_ALT_TOP_ROW : TOP_ROW;
   const homeRow = shifted && controlAlt ? SHIFT_CTRL_ALT_HOME_ROW : shifted ? SHIFT_HOME_ROW : controlAlt ? CTRL_ALT_HOME_ROW : HOME_ROW;
   const bottomRow = shifted && controlAlt ? SHIFT_CTRL_ALT_BOTTOM_ROW : shifted ? SHIFT_BOTTOM_ROW : controlAlt ? CTRL_ALT_BOTTOM_ROW : BOTTOM_ROW;
-  return <div className="google-telugu-input">
+  return <div className="google-telugu-input" {...copyMenu.handlers}>
+    {copyMenu.surface}
     {scrolledUp ? <div className="question-answer-more" aria-hidden="true">&hellip;</div> : null}
     <textarea ref={editor} className="question-answer-editor" style={{ fontFamily: fontFamily ? `"${fontFamily}", 'Noto Sans Telugu', sans-serif` : undefined, caretColor: caretIdle ? 'var(--keyboard-accent)' : 'transparent' }} lang="te" aria-label={freeTyping ? 'Free typing' : 'Typed answer'} value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { const next = freeTyping ? event.target.value.replace(/\r\n?/g, '\n') : event.target.value.replace(/\r\n?|\n/g, ' '); draftValue.current = next; const caret = Math.min(event.target.selectionStart, next.length); select(caret); snapToEndPending.current = caret >= next.length; noteTyping(); onChange(next); }} onSelect={event => select(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
     <div className="question-keyboard" aria-label="Telugu InScript keyboard" style={{ '--question-keyboard-font': `"${keyFontFamily}"` } as CSSProperties}>

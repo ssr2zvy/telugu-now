@@ -36,3 +36,13 @@ test('question keyboard still exposes its original answer and comparison actions
   assert.match(html, /aria-label="Typed answer"/);
   assert.doesNotMatch(html, /aria-label="New line"/);
 });
+
+test('keyboard menu has only the icon-only Copy action', () => {
+  const html = renderToStaticMarkup(createElement(ReadingContextMenu, {
+    menu: { text: 'తెలుగు\nభాష', x: 100, y: 150 }, onCopy: async () => {}, onClose() {},
+  }));
+  const $ = load(html);
+  assert.equal($('[role="menuitem"]').length, 1);
+  assert.equal($('[role="menuitem"]').attr('aria-label'), 'Copy');
+  assert.equal($.text(), '');
+});

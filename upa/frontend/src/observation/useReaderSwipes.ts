@@ -7,7 +7,7 @@ export interface ReaderSwipeFeedback {
   onCancel(): void;
 }
 
-const ownKeys = 'input, textarea, select, [contenteditable="true"], [role="slider"], .word-profile';
+const ownKeys = 'input, textarea, select, [contenteditable="true"], [role="slider"], .word-profile, .google-telugu-input, .reading-context-menu';
 export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: boolean, page: string,
   onSwipe: (direction: ReaderSwipe) => void, cancelTap: () => void, feedback?: ReaderSwipeFeedback) {
   const callbacks = useRef({ onSwipe, cancelTap, feedback });
@@ -52,7 +52,7 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
     if(!enabled || !element)return;
     const gesture=new ReaderWheel();
     const wheel=(event:WheelEvent)=>{
-      if(event.ctrlKey || event.target instanceof Element && event.target.closest('input,textarea,select,[role="slider"],.word-profile'))return;
+      if(event.ctrlKey || event.target instanceof Element && event.target.closest('input,textarea,select,[role="slider"],.word-profile,.google-telugu-input,.reading-context-menu'))return;
       event.preventDefault();
       const direction=gesture.move(event.deltaX,event.deltaY,event.deltaMode,element.clientHeight,performance.now());
       if(direction){callbacks.current.cancelTap();callbacks.current.onSwipe(direction);}
@@ -64,7 +64,7 @@ export function useReaderSwipes(screen: RefObject<HTMLElement | null>, enabled: 
     onPointerDownCapture(event: PointerEvent<HTMLElement>) {
       if (origin.current?.moved) callbacks.current.feedback?.onCancel();
       suppressClick.current = false;
-      if (!enabled || !event.isPrimary || event.button !== 0) { origin.current = null; callbacks.current.feedback?.onCancel(); return; }
+      if (!enabled || !event.isPrimary || event.button !== 0 || (event.target instanceof Element && event.target.closest('.google-telugu-input,.reading-context-menu'))) { origin.current = null; callbacks.current.feedback?.onCancel(); return; }
       // Controls retain taps, while deliberate drags navigate without activating them.
       const control=event.target instanceof Element && Boolean(event.target.closest('button, [role="slider"], input, textarea, .audio-player-bar, .question-controls, .grammar-evaluation'));
       const audio = event.target instanceof Element && Boolean(event.target.closest('[role="slider"]'));

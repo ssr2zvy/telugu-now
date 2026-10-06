@@ -1,22 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type DOMAttributes } from 'react';
+import { copyText } from './copy-text';
 import { FreeTypingScreen } from './FreeTypingScreen';
 import { ReadingContextMenu, type ReadingContextMenuState } from './ReadingContextMenu';
 
 type Handlers = Pick<DOMAttributes<HTMLElement>, 'onPointerDownCapture' | 'onPointerMoveCapture' | 'onPointerUpCapture' | 'onPointerCancelCapture' | 'onClickCapture' | 'onContextMenuCapture'>;
 const ownActions = 'button:not(.nav-zone),input,textarea,select,[role="slider"],.audio-player-bar,.google-telugu-input,.reading-context-menu,.free-typing-screen,.word-image-preview';
 
-async function copyText(text: string) {
-  try { await navigator.clipboard.writeText(text); }
-  catch {
-    // Keep fallback inside the topmost modal; body is inert beneath word/letter dialogs.
-    const parent = [...document.querySelectorAll('dialog[open]')].at(-1) ?? document.body;
-    const input = document.createElement('textarea');
-    input.value = text; input.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-    parent.append(input); input.select();
-    try { if (!document.execCommand('copy')) throw new Error('Copy unavailable'); }
-    finally { input.remove(); }
-  }
-}
 
 export function useReadingTools(text: string, scope: string, fontFamily: string, enabled: boolean, pause: () => void) {
   const [menu, setMenu] = useState<ReadingContextMenuState | null>(null);

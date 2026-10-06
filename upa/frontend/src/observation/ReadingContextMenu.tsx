@@ -9,7 +9,7 @@ export function readingContextMenuState(x: number, y: number, text: string): Rea
 
 export function ReadingContextMenu({ menu, onCopy, onKeyboard, onClose }: {
   menu: ReadingContextMenuState; onCopy: (text: string) => Promise<void>;
-  onKeyboard: () => void; onClose: () => void;
+  onKeyboard?: () => void; onClose: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -62,7 +62,7 @@ export function ReadingContextMenu({ menu, onCopy, onKeyboard, onClose }: {
     <button type="button" role="menuitem" className="reading-context-menu-action" aria-label={copied ? 'Copied' : 'Copy'} onClick={() => void copy()}>
       {copied ? <Check size={20} aria-hidden="true"/> : <Copy size={20} aria-hidden="true"/>}
     </button>
-    <button type="button" role="menuitem" className="reading-context-menu-action" aria-label="Free typing" onClick={onKeyboard}><Keyboard size={20} aria-hidden="true"/></button>
+    {onKeyboard ? <button type="button" role="menuitem" className="reading-context-menu-action" aria-label="Free typing" onClick={onKeyboard}><Keyboard size={20} aria-hidden="true"/></button> : null}
     {error ? <span className="reading-context-menu-status" role="alert">{error}</span> : null}
   </div>;
 }
