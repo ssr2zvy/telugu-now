@@ -1,3 +1,4 @@
+import { useReadingTools } from '../useReadingTools';
 import { GradientBackdrop } from '../../GradientBackdrop';
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowLeft, Copy, Images, Info, Plus, Search, Sparkles } from 'lucide-react';
@@ -16,21 +17,6 @@ import { useAudioPlayer } from '../audio/useAudioPlayer';
 import type { AlignedWordAudio } from '../../../../shared/contracts';
 import { useWordImageNavigation } from './useWordImageNavigation';
 import { LoadingSlit } from '../../components/LoadingSlit';
-
-async function copyWord(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return;
-  } catch {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    try { if (!document.execCommand('copy')) throw new Error('Copy unavailable.'); } finally { document.body.removeChild(textarea); }
-  }
-}
 
 async function copyImage(blob: Blob): Promise<void> {
   if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Image copying is not supported by this browser.');
@@ -260,6 +246,9 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
   const [letterTaps] = useState(() => new ReaderTaps());
   const dialog = useRef<HTMLDialogElement>(null);
   const wordPlayer = useAudioPlayer(alignedWord?.audio ?? null, null, null, playbackRate, observationId, playWhenReady, !selectedGrapheme);
+  const readingTools = useReadingTools(word, `${observationId}:${wordStart}:${wordEnd}`, fontFamily, !selectedGrapheme, () => {
+    letterTaps.cancel(); wordPlayer.pause(); setPlayWhenReady(false);
+  });
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -293,7 +282,7 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
     if (alignmentError) setAlignmentAttempt(value => value + 1);
   };
   return (
-    <dialog ref={dialog} className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
+    <dialog ref={dialog} {...readingTools.bind()} data-reading-tools="true" className="word-profile" data-letter-page={Boolean(selectedGrapheme)} aria-labelledby={selectedGrapheme ? 'letter-profile-title' : 'word-profile-title'}
       onCancel={event => {
         event.preventDefault();
         event.stopPropagation();
@@ -314,9 +303,9 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
         observationId={observationId} word={word} wordStart={wordStart} wordEnd={wordEnd}
         graphemeStart={selectedGrapheme.start} graphemeEnd={selectedGrapheme.end}
         profileCode={profileCode} fontFamily={fontFamily} playbackRate={playbackRate}
-        onCopy={copyWord}
         onBack={() => setSelectedGrapheme(null)} /> : <>
       <header className="word-profile-header" onClick={event => {
+        if (readingTools.open) return;
         const hit = visibleGraphemeAtPoint(event.currentTarget, word, event.clientX, event.clientY);
         letterTaps.tap(hit ? `grapheme:${hit.start}` : 'word', event.clientX, event.clientY, () => {
           if (!hit) return;
@@ -341,6 +330,7 @@ export function WordProfile({ word, sentence, initialGrapheme, suppressAudioCont
       <WordImage key={word} word={word} sentence={sentence} />
 
       </>}
+      {readingTools.surface}
     </dialog>
   );
 }

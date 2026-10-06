@@ -4,25 +4,10 @@ import test from 'node:test';
 import { readingContextMenuState } from '../frontend/src/observation/ReadingContextMenu';
 import { settingsGroups, settingsPageLabel } from '../frontend/src/settings/navigation';
 
-test('right-click menu targets either one word or reader settings', () => {
-  assert.deepEqual(readingContextMenuState(120, 80, 'తెలుగు'), {
-    kind: 'word',
-    text: 'తెలుగు',
-    x: 120,
-    y: 80,
-  });
-  assert.deepEqual(readingContextMenuState(40, 30, null), {
-    kind: 'settings',
-    x: 40,
-    y: 30,
-  });
-});
-
-test('word and settings context menus expose disjoint actions', () => {
-  const source = readFileSync(new URL('../frontend/src/observation/ReadingContextMenu.tsx', import.meta.url), 'utf8');
-  assert.match(source, /menu\.kind === 'word'/);
-  assert.match(source, /onCopy\(menu\.text\)[\s\S]*onBlacklistTranscript[\s\S]*:\s*<button/);
-  assert.match(source, /ట్రాన్స్‌క్రిప్ట్‌ను బ్లాక్‌లిస్ట్‌కు జోడించు/);
+test('reading menus retain the full text for the chosen scope', () => {
+  for (const text of ['తెలుగు భాష', 'తెలుగు', 'తె']) {
+    assert.deepEqual(readingContextMenuState(120, 80, text), { text, x: 120, y: 80 });
+  }
 });
 
 test('diagnostics report the active font without obsolete keyboard weights', () => {

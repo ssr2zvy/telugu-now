@@ -118,6 +118,7 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
   useEffect(() => {
     if (mode !== 'audio-given') return;
     const submitFromPhysicalKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('.free-typing-screen, .reading-context-menu')) return;
       if (event.key !== 'Enter' || event.repeat || event.isComposing) return;
       event.preventDefault();
       event.stopPropagation();
