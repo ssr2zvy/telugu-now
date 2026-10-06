@@ -6,6 +6,7 @@ import { useGradientTravel } from '../GradientBackdrop';
 import { gradientSwipeFraction, swipeChangesObservation } from './gradient-travel';
 import { useReaderSettingsFade } from './useReaderSettingsFade';
 import { readerNeedsLoadingDots } from './reader-loading';
+import { useReadingTools } from './useReadingTools';
 import { useReaderSwipes } from './useReaderSwipes';
 import { copyOriginalReaderText } from './reader-hyphenation';
 import { GrammarEvaluation, type GrammarEvaluationHandle } from './GrammarEvaluation';
@@ -513,7 +514,11 @@ export function ObservationView({
     if (!controlsVisible) { setAudioMotion('enter'); setControlsVisible(true); }
     else playerRef.current?.openAssociatedControls();
   };
-  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord),
+  const readingTools = useReadingTools(observation?.text ?? '', `${observation?.id}:${observation?.question?.phase}`, typography.fontFamily,
+    Boolean(observation && entryReady && !selectedWord && !recordingRange), () => {
+      taps.cancel(); playerRef.current?.pause(); explorationRef.current?.pause();
+    });
+  const swipeHandlers = useReaderSwipes(screenRef, Boolean(!selectedWord && !readingTools.open),
     `${observation?.id}:${observation?.question?.phase}`, direction => {
       taps.cancel();
       if (direction === 'up' || direction === 'down') {
@@ -549,7 +554,8 @@ export function ObservationView({
   return (
     <main
       ref={screenRef}
-      {...swipeHandlers}
+      {...readingTools.bind(swipeHandlers)}
+      data-reading-tools="true"
       data-swipe-navigation="true"
       data-exploring={exploring}
       data-text-given-flow={textGivenFlow}
@@ -594,6 +600,7 @@ export function ObservationView({
       aria-label="Reader. Tap to play or pause. Swipe left or right to navigate, down to open audio controls, up to close. Arrow keys do the same."
       onContextMenu={event => { if (!(event.target instanceof Element && event.target.closest('input, textarea'))) event.preventDefault(); }}
       onClick={(event) => {
+        if (readingTools.open) return;
         if (exploring) { explorationRef.current?.tap(event.clientX, event.clientY); return; }
         // Typing in the keyboard must never count toward the reader's own
         // single/double-click gestures (playback toggle, back/next navigation).
@@ -731,7 +738,7 @@ export function ObservationView({
             autoplay={textGivenFlow && (questionPhase || comparisonPhase) ? false : state?.audioSettings.autoplay ?? true}
             persistentDisclosure={Boolean(textGivenFlow)}
             controlsVisible={audioControlsVisible}
-            playbackEnabled={entryReady && !selectedWord && !exploring}
+            playbackEnabled={entryReady && !selectedWord && !exploring && !readingTools.open}
             readinessKey={audioReadinessKey}
             onLoadingChange={handleAudioLoadingChange}
             onPlaybackErrorChange={setAudioError}
@@ -795,6 +802,7 @@ export function ObservationView({
       ) : null}
       <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
 
+      {readingTools.surface}
     </main>
   );
 }
