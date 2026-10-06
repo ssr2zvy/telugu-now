@@ -71,6 +71,31 @@ test('saved settings survive profile normalization; legacy profiles get defaults
   assert.deepEqual(parseExploration({ explorationStartWordPercent: NaN, explorationEndWordPercent: Infinity }), DEFAULT_EXPLORATION);
 });
 
+test('letters do not repeat across positions until all distinct letters have appeared', () => {
+  const text = 'కక మక';
+  const settings = { ...DEFAULT_EXPLORATION, explorationStartWordPercent: 0, explorationEndWordPercent: 0 };
+  const session = new RandomExploration(text, settings, () => 0);
+  const first = session.move('up')!;
+  const second = session.move('up')!;
+  assert.equal(first.text, 'క');
+  assert.equal(second.text, 'మ');
+  assert.equal(text.slice(second.start, second.end), 'మ', 'original position is retained');
+  assert.equal(session.move('up')?.text, 'క');
+  assert.equal(session.move('up')?.text, 'క', 'after exhaustion repeats are unrestricted');
+  assert.equal(session.drawCount, 4);
+  session.move('down');
+  assert.equal(new RandomExploration(text, settings, () => 0).move('up')?.text, 'క');
+});
+
+test('word draws do not consume unseen letters or reset their coverage', () => {
+  const values = [0.9, 0, 0.1, 0, 0.9, 0];
+  const settings = { ...DEFAULT_EXPLORATION, explorationStartWordPercent: 50, explorationEndWordPercent: 50 };
+  const session = new RandomExploration('కక మక', settings, () => values.shift()!);
+  assert.equal(session.move('up')?.text, 'క');
+  assert.equal(session.move('up')?.kind, 'word');
+  assert.equal(session.move('up')?.text, 'మ');
+});
+
 test('exploration settings have dedicated pages within observations', () => {
   assert.ok(visibleSettingsEntries('observations', false).includes('exploration'));
   assert.equal(parentSettingsPage('exploration'), 'observations');

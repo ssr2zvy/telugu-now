@@ -490,7 +490,13 @@ export function ObservationView({
       explorationRef.current?.pause();
       const next = explorationSession.current?.move(direction) ?? null;
       setExploration(next);
-      if (next === null) { explorationSession.current = null; if(direction === 'up') playerRef.current?.rewind(); setAudioMotion('enter'); setControlsVisible(Boolean(visibleAudio)); }
+      if (next === null) {
+        explorationSession.current = null;
+        if (direction === 'up') playerRef.current?.rewind();
+        // This gesture exits exploration only. The next downward gesture opens audio.
+        setAudioMotion('idle');
+        setControlsVisible(false);
+      }
       return;
     }
     if (direction === 'up') {
