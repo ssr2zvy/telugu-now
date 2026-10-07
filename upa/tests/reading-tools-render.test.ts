@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ReadingContextMenu } from '../frontend/src/observation/ReadingContextMenu';
 import { FreeTypingScreen } from '../frontend/src/observation/FreeTypingScreen';
+import { KeyboardCopyButton } from '../frontend/src/observation/KeyboardCopyButton';
 import { GoogleTeluguKeyboard } from '../frontend/src/observation/GoogleTeluguKeyboard';
 
 test('reading menu offers exactly two icon-only actions for every text scope', () => {
@@ -37,12 +38,11 @@ test('question keyboard still exposes its original answer and comparison actions
   assert.doesNotMatch(html, /aria-label="New line"/);
 });
 
-test('keyboard menu has only the icon-only Copy action', () => {
-  const html = renderToStaticMarkup(createElement(ReadingContextMenu, {
-    menu: { text: 'తెలుగు\nభాష', x: 100, y: 150 }, onCopy: async () => {}, onClose() {},
-  }));
+test('typing copy is a corner icon, not a long-press menu action', () => {
+  const html = renderToStaticMarkup(createElement(KeyboardCopyButton, { text: 'తెలుగు' }));
   const $ = load(html);
-  assert.equal($('[role="menuitem"]').length, 1);
-  assert.equal($('[role="menuitem"]').attr('aria-label'), 'Copy');
+  assert.equal($('button.keyboard-copy.reader-settings').length, 1);
+  assert.equal($('button').attr('aria-label'), 'Copy');
+  assert.equal($('[role="menu"]').length, 0);
   assert.equal($.text(), '');
 });

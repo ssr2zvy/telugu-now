@@ -118,7 +118,7 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
   useEffect(() => {
     if (mode !== 'audio-given') return;
     const submitFromPhysicalKeyboard = (event: globalThis.KeyboardEvent) => {
-      if (event.target instanceof Element && event.target.closest('.free-typing-screen, .reading-context-menu')) return;
+      if (event.target instanceof Element && event.target.closest('.free-typing-screen, .reading-context-menu, .keyboard-copy, .keyboard-selection-handle')) return;
       if (event.key !== 'Enter' || event.repeat || event.isComposing) return;
       event.preventDefault();
       event.stopPropagation();
@@ -284,7 +284,7 @@ export function QuestionControls({ ref, profileCode, observationId, mode, keyboa
   </div>;
 
   return <div className="question-controls question-keyboard-controls" data-visible={visible} aria-hidden={!visible} inert={!visible}>
-    <GoogleTeluguKeyboard fontFamily={fontFamily} value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
+    <GoogleTeluguKeyboard active={visible} fontFamily={fontFamily} value={text} onChange={changeText} onSubmit={() => { void submitText(); }} />
     {error ? <div className="question-response-error" role="alert">{error}</div> : null}
   </div>;
 }
