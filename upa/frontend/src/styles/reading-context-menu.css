@@ -95,3 +95,20 @@
   /* Pointer gestures scroll the draft without native selection/caret handles. */
   touch-action: none;
 }
+
+.keyboard-editor-frame { position: relative; justify-self: center; width: min(100%, 725px); height: 72px; min-height: 0; }
+.keyboard-editor-frame .question-answer-editor { position: relative; z-index: 1; width: 100%; height: 100%; caret-color: transparent; }
+.keyboard-editor-frame .question-answer-editor::selection { background: transparent; color: inherit; }
+.free-typing-content .keyboard-editor-frame { width: 100%; height: 100%; }
+.keyboard-selection-overlay, .keyboard-selection-handles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.keyboard-selection-overlay { z-index: 2; }
+.keyboard-selection-handles { z-index: 3; }
+.keyboard-selection-fill { position: absolute; background: color-mix(in srgb, var(--foreground) 18%, transparent); border-radius: 2px; }
+.keyboard-custom-caret { position: absolute; width: 2px; background: var(--keyboard-accent, var(--foreground)); }
+.keyboard-selection-handle { position: absolute; width: 44px; height: 36px; border: 0; padding: 0; background: transparent; color: var(--foreground); pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }
+.keyboard-selection-handle span { position: absolute; left: 19px; top: 8px; width: 6px; height: 10px; border-radius: 4px; background: currentColor; }
+.keyboard-text-lens { position: fixed; z-index: 100; width: 180px; height: 68px; transform: translateX(-50%); overflow: hidden; pointer-events: none; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--foreground); box-shadow: 0 5px 20px rgb(0 0 0 / .18); user-select: none; -webkit-user-select: none; }
+.keyboard-lens-caret { position: absolute; left: 90px; top: 13px; height: 42px; width: 2px; background: var(--keyboard-accent, var(--foreground)); }
+.reader-settings.keyboard-copy { right: calc(max(16px, env(safe-area-inset-right) - 4px) + 48px); }
+.reader-settings.keyboard-copy:disabled { opacity: .35; }
+.keyboard-copy-error { position: fixed; top: max(60px, env(safe-area-inset-top)); right: 20px; }
