@@ -1,3 +1,4 @@
+import { repositoryRoutes } from './repository/routes';
 import { accessGate } from './access/gate';
 import { normalizeQuestionRecording } from './services/recording-audio';
 import { parsingRoutes } from './parsing/routes';
@@ -97,6 +98,7 @@ app.get('/api/data-sources', (c) =>
 app.on(['GET', 'HEAD'], '/api/audio/*', serveAudio());
 app.all('/api/export-audio/*', serveExportAudio());
 app.route('/api/word-images', wordImageRoutes(db));
+app.route('/api/profiles', repositoryRoutes(db, code => config.profileCodes.has(code)));
 app.route('/api/profiles', parsingRoutes());
 app.route('/api/profiles', grammarRoutes());
 app.route('/api/profiles', profilePreferencesRoutes(db, code => config.profileCodes.has(code)));

@@ -19,7 +19,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
-import { ArrowRight, Settings } from 'lucide-react';
+import { ArrowRight, Settings, FolderOpen } from 'lucide-react';
 import type {
   ProfileStateResponse,
 } from '../../../shared/contracts';
@@ -63,6 +63,7 @@ interface ObservationViewProps {
     direction: 'back' | 'next',
   ) => Promise<boolean>;
   onOpenSettings: (fontFamily: string) => void;
+  onOpenRepository?: (fontFamily: string) => void;
 }
 interface ReaderPoint {
   clientX: number;
@@ -75,6 +76,7 @@ export function ObservationView({
   navigationEvent,
   onMove,
   onOpenSettings,
+  onOpenRepository,
 }: ObservationViewProps) {
   const { appearance } = useAppearance();
   const gradientTravel = useGradientTravel();
@@ -800,6 +802,11 @@ export function ObservationView({
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onClose={() => setSelectedWord(null)} />
       ) : null}
+      {onOpenRepository ? <button type="button" className="reader-settings reader-repository" aria-label="సంచికలు" onClick={async event => {
+        event.stopPropagation(); taps.cancel();
+        if (questionControlsRef.current && !(await questionControlsRef.current.prepareToLeave())) return;
+        playerRef.current?.pause(); explorationRef.current?.pause(); onOpenRepository(typography.fontFamily);
+      }}><FolderOpen aria-hidden="true"/></button> : null}
       <button type="button" className="reader-settings" aria-label="Settings" onClick={event=>{event.stopPropagation();taps.cancel();onOpenSettings(typography.fontFamily);}}><Settings aria-hidden="true"/></button>
 
       {readingTools.surface}

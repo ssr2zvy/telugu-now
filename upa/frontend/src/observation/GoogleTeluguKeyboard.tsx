@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { ArrowUp, CornerDownLeft, Delete } from 'lucide-react';
+import { ArrowUp, CornerDownLeft, Delete, TextSelect } from 'lucide-react';
 import { useKeyboardSelection } from './useKeyboardSelection';
 import { useAppearance } from '../appearance';
 import { compatibleObservationFonts } from '../presentation';
@@ -102,7 +102,7 @@ function removeLastGrapheme(value: string): string {
   return value.slice(0, segments.at(-1)?.index ?? 0);
 }
 
-export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, freeTyping = false, active = true }: { active?: boolean; freeTyping?: boolean; fontFamily?: string | undefined; value: string; onChange: (value: string) => void; onSubmit: () => void }) {
+export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, freeTyping = false, active = true, documentMode = false, keyboardVisible = true, onActivate, showCopy = true }: { documentMode?: boolean; keyboardVisible?: boolean; onActivate?: () => void; showCopy?: boolean; active?: boolean; freeTyping?: boolean; fontFamily?: string | undefined; value: string; onChange: (value: string) => void; onSubmit: () => void }) {
   const { appearance } = useAppearance();
   const [keyFontFamily] = useState(() => {
     const pool = compatibleObservationFonts(appearance.fonts);
@@ -111,7 +111,8 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
   const editor = useRef<HTMLTextAreaElement>(null);
   const latestPropValue = useRef(value);
   const draftValue = useRef(value);
-  const selection = useRef({ start: value.length, end: value.length });
+  const selection = useRef({ start: documentMode ? 0 : value.length, end: documentMode ? 0 : value.length });
+  const [selectionMode, setSelectionMode] = useState(false);
   const [shifted, setShifted] = useState(false);
   const [controlAlt, setControlAlt] = useState(false);
   const [scrolledUp, setScrolledUp] = useState(false);
@@ -120,7 +121,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
   // so the snap decision cannot be derived from live selection state.
   const snapToEndPending = useRef(false);
   const [caretIdle, setCaretIdle] = useState(true);
-  const editing = useKeyboardSelection(editor, value, selection, active, caretIdle);
+  const editing = useKeyboardSelection(editor, value, selection, active, caretIdle, { selectionMode, documentMode, keyboardVisible, showCopy, ...(onActivate ? {onActivate} : {}) });
   const caretIdleTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Hides the caret on every keystroke (virtual or hardware) and lets it
   // reappear once typing has paused for CARET_IDLE_DELAY_MS.
@@ -155,6 +156,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
     // silently changing line metrics without any value change to re-trigger
     // the snap above -- this is what "settles after a bit of typing" was:
     // the box looked fine on the fallback font, then clipped once it swapped.
+    if (documentMode) return;
     let cancelled = false;
     void document.fonts.ready.then(() => { if (!cancelled) snapIfAtEnd(); });
     return () => { cancelled = true; };
@@ -223,20 +225,20 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
   const topRow = shifted && controlAlt ? SHIFT_CTRL_ALT_TOP_ROW : shifted ? SHIFT_TOP_ROW : controlAlt ? CTRL_ALT_TOP_ROW : TOP_ROW;
   const homeRow = shifted && controlAlt ? SHIFT_CTRL_ALT_HOME_ROW : shifted ? SHIFT_HOME_ROW : controlAlt ? CTRL_ALT_HOME_ROW : HOME_ROW;
   const bottomRow = shifted && controlAlt ? SHIFT_CTRL_ALT_BOTTOM_ROW : shifted ? SHIFT_BOTTOM_ROW : controlAlt ? CTRL_ALT_BOTTOM_ROW : BOTTOM_ROW;
-  return <div className="google-telugu-input" {...editing.handlers}>
+  return <div className={`google-telugu-input${documentMode ? ' document-keyboard' : ''}`} data-keyboard-visible={keyboardVisible} {...editing.handlers}>
     {editing.chrome}
     {scrolledUp ? <div className="question-answer-more" aria-hidden="true">&hellip;</div> : null}
     <div className="keyboard-editor-frame">
     {editing.overlay}
-    <textarea ref={editor} className="question-answer-editor" style={{ fontFamily: fontFamily ? `"${fontFamily}", 'Noto Sans Telugu', sans-serif` : undefined, caretColor: 'transparent' }} lang="te" aria-label={freeTyping ? 'Free typing' : 'Typed answer'} value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { const next = freeTyping ? event.target.value.replace(/\r\n?/g, '\n') : event.target.value.replace(/\r\n?|\n/g, ' '); draftValue.current = next; const caret = Math.min(event.target.selectionStart, next.length); select(caret); snapToEndPending.current = caret >= next.length; noteTyping(); onChange(next); }} onSelect={editing.onNativeSelect} onFocus={editing.onFocus} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+    <textarea readOnly={documentMode && !keyboardVisible} ref={editor} className="question-answer-editor" style={{ fontFamily: fontFamily ? `"${fontFamily}", 'Noto Sans Telugu', sans-serif` : undefined, caretColor: 'transparent' }} lang="te" aria-label={freeTyping ? 'Free typing' : 'Typed answer'} value={value} inputMode="none" onScroll={syncScrolledUp} onChange={event => { const next = freeTyping ? event.target.value.replace(/\r\n?/g, '\n') : event.target.value.replace(/\r\n?|\n/g, ' '); draftValue.current = next; const caret = Math.min(event.target.selectionStart, next.length); select(caret); snapToEndPending.current = caret >= next.length; noteTyping(); onChange(next); }} onSelect={editing.onNativeSelect} onFocus={editing.onFocus} onKeyDown={onKeyDown} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
     {editing.handles}
     </div>
-    <div className="question-keyboard" aria-label="Telugu InScript keyboard" style={{ '--question-keyboard-font': `"${keyFontFamily}"` } as CSSProperties}>
+    {keyboardVisible ? <div className="question-keyboard" aria-label="Telugu InScript keyboard" style={{ '--question-keyboard-font': `"${keyFontFamily}"` } as CSSProperties}>
       <div className="question-keyboard-row question-number-row">{numberRow.map(characterKey)}<button type="button" className="question-backspace-key" aria-label="Backspace" onClick={backspace}><Delete aria-hidden="true" strokeWidth={1.5} /></button></div>
       <div className="question-keyboard-row question-top-row">{topRow.map(characterKey)}</div>
       <div className="question-keyboard-row question-home-row">{homeRow.map(characterKey)}{enterKey}</div>
       <div className="question-keyboard-row question-bottom-row">{shiftKey}{bottomRow.map(characterKey)}{shiftKey}</div>
-      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}</div>
-    </div>
+      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-selection-key" aria-label="ఎంపిక" aria-pressed={selectionMode} onPointerDown={event => event.preventDefault()} onClick={() => { editing.toggleSelection(!selectionMode); setSelectionMode(current => !current); }}><TextSelect aria-hidden="true"/></button><button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}</div>
+    </div> : null}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { RepositoryView } from './repository/RepositoryView';
 import { useState } from 'react';
 import { useGradientTravel } from './GradientBackdrop';
 import { AppearanceProvider } from './appearance';
@@ -9,12 +10,14 @@ import { useSettingsController } from './settings/useSettingsController';
 import './styles.css';
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const session = useProfileSession(settingsOpen);
+  const [repositoryOpen, setRepositoryOpen] = useState(false);
+  const session = useProfileSession(settingsOpen || repositoryOpen);
   return <AppearanceProvider key={session.profileCode ?? 'entry'} profileCode={session.profileCode}>
-    <AppContent session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
+    <AppContent repositoryOpen={repositoryOpen} setRepositoryOpen={setRepositoryOpen} session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
   </AppearanceProvider>;
 }
-function AppContent({ session, settingsOpen, setSettingsOpen }: {
+function AppContent({ session, settingsOpen, setSettingsOpen, repositoryOpen, setRepositoryOpen }: {
+  repositoryOpen: boolean; setRepositoryOpen: (open: boolean) => void;
   session: ProfileSession;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
@@ -38,6 +41,9 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
       />
     );
   }
+  if (repositoryOpen) return <RepositoryView profile={session.profileCode} fontFamily={diagnosticFont ?? 'Noto Sans Telugu'} onClose={() => {
+    setRepositoryOpen(false); session.setObservationVisible(document.visibilityState === 'visible');
+  }}/>;
   if (settingsOpen && session.state) {
     return (
       <SettingsView
@@ -59,6 +65,9 @@ function AppContent({ session, settingsOpen, setSettingsOpen }: {
       busy={session.busy}
       navigationEvent={session.navigationEvent}
       onMove={session.move}
+      onOpenRepository={(fontFamily) => {
+        gradientTravel.cancelPreview(); setDiagnosticFont(fontFamily); session.setObservationVisible(false); setRepositoryOpen(true);
+      }}
       onOpenSettings={(fontFamily) => {
         gradientTravel.cancelPreview();
         setDiagnosticFont(fontFamily);
