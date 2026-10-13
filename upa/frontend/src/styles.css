@@ -9,6 +9,7 @@
 @import './styles/audio-material.css';
 @import './styles/settings-material.css';
 @import './styles/entry-and-evaluation.css';
+@import './styles/repository.css';
 
 .profile-preferences-error {
 	position: fixed;

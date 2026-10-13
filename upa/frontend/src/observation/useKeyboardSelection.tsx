@@ -7,7 +7,7 @@ type Selection = { start: number; end: number };
 interface Drag { id: number; x: number; y: number; top: number; anchor: number; active: boolean; moved: boolean; mode: 'range' | 'caret'; biasX: number; biasY: number }
 
 export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | null>, value: string,
-  selection: RefObject<Selection>, enabled: boolean, caretVisible: boolean) {
+  selection: RefObject<Selection>, enabled: boolean, caretVisible: boolean, options: { selectionMode: boolean; documentMode: boolean; keyboardVisible: boolean; showCopy: boolean; onActivate?: () => void }) {
   const [layout, setLayout] = useState<TextLayout | null>(null);
   const [revision, update] = useState(0);
   const [scroll, setScroll] = useState({ x: 0, y: 0 });
@@ -19,14 +19,16 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const frame = useRef(0);
   const suppressClick = useRef(false);
-  const latest = useRef({ value, enabled }); latest.current = { value, enabled };
+  const latest = useRef({ value, enabled, options }); latest.current = { value, enabled, options };
+  const focusOffset = useRef(selection.current.end);
   const refresh = () => {
     const element = editor.current;
     if (!element || !latest.current.enabled || !element.clientWidth) return;
-    layoutRef.current = measureKeyboardText(element); setLayout(layoutRef.current);
+    layoutRef.current = measureKeyboardText(element, latest.current.options.documentMode); setLayout(layoutRef.current);
     setScroll({ x: element.scrollLeft, y: element.scrollTop });
   };
   const select = (start: number, end = start) => {
+    focusOffset.current = end;
     selection.current = { start: Math.min(start, end), end: Math.max(start, end) };
     update(n => n + 1);
   };
@@ -40,14 +42,26 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     selection.current = { start: Math.min(selection.current.start, value.length), end: Math.min(selection.current.end, value.length) };
     setNativeRange();
   }, [value, revision]);
-  useLayoutEffect(refresh, [value, enabled]);
+  useLayoutEffect(refresh, [value, enabled, options.keyboardVisible]);
+  useLayoutEffect(() => {
+    const element = editor.current;
+    if (!options.documentMode || !options.keyboardVisible || !element || !layoutRef.current) return;
+    const box = caretBox(layoutRef.current,focusOffset.current);
+    if (box.y + box.height > element.scrollTop + element.clientHeight - 12) element.scrollTop = box.y + box.height - element.clientHeight + 12;
+    else if (box.y < element.scrollTop + 12) element.scrollTop = Math.max(0,box.y - 12);
+    refresh();
+  },[options.keyboardVisible]);
   const stop = () => { clearTimeout(timer.current); timer.current = undefined; cancelAnimationFrame(frame.current); frame.current = 0; };
   const abandon = () => { stop(); drag.current = null; setLens(null); };
   useEffect(() => {
     const element = editor.current;
     if (!element) return;
     const prevent = (event: Event) => event.preventDefault();
-    const scrolled = () => setScroll({ x: element.scrollLeft, y: element.scrollTop });
+    let scrollFrame = 0;
+    const scrolled = () => {
+      setScroll({ x: element.scrollLeft, y: element.scrollTop });
+      if (latest.current.options.documentMode && !scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; refresh(); });
+    };
     // Native WebKit touch editing is disabled. All touch selection UI is ours.
     element.addEventListener('touchstart', prevent, { passive: false });
     element.addEventListener('selectstart', prevent);
@@ -57,7 +71,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     let alive = true;
     void document.fonts.ready.then(() => { if (alive) refresh(); });
     return () => {
-      alive = false; stop(); drag.current = null; resize.disconnect();
+      alive = false; cancelAnimationFrame(scrollFrame); stop(); drag.current = null; resize.disconnect();
       element.removeEventListener('touchstart', prevent); element.removeEventListener('selectstart', prevent);
       element.removeEventListener('scroll', scrolled); window.removeEventListener('blur', abandon);
     };
@@ -80,7 +94,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     if (!point?.active || !element) return;
     const rect = element.getBoundingClientRect();
     const speed = !point.moved ? 0 : point.y < rect.top + 20 ? -8 : point.y > rect.bottom - 20 ? 8 : 0;
-    if (speed) { element.scrollTop += speed; moveSelection(point); }
+    if (speed) { element.scrollTop += speed; if (latest.current.options.documentMode) refresh(); moveSelection(point); }
     frame.current = requestAnimationFrame(autoScroll);
   };
   const begin = (point: Drag) => {
@@ -100,7 +114,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
       const kind = handle?.dataset.selectionHandle;
       const anchor = kind === 'start' ? selection.current.end : kind === 'end' ? selection.current.start : offsetAt(event.clientX, event.clientY);
       const point: Drag = { id: event.pointerId, x: event.clientX, y: event.clientY, top: editor.current?.scrollTop ?? 0,
-        anchor, active: false, moved: false, mode: kind === 'caret' ? 'caret' : 'range', biasX: 0, biasY: 0 };
+        anchor, active: false, moved: false, mode: kind === 'start' || kind === 'end' || latest.current.options.selectionMode ? 'range' : 'caret', biasX: 0, biasY: 0 };
       if (handle && editor.current && layoutRef.current) {
         const offset = kind === 'end' ? selection.current.end : selection.current.start;
         const box = caretBox(layoutRef.current, offset, kind === 'end');
@@ -128,8 +142,11 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
       const point = drag.current;
       if (!point || point.id !== event.pointerId) return;
       event.preventDefault(); event.stopPropagation();
-      if (point.active) { point.x = event.clientX; point.y = event.clientY; moveSelection(point); }
-      else if (!point.moved) { editor.current?.focus({ preventScroll: true }); setFocused(true); }
+      if (point.active) { point.x = event.clientX; point.y = event.clientY; moveSelection(point); latest.current.options.onActivate?.(); }
+      else if (!point.moved) {
+        if (latest.current.options.documentMode) { select(offsetAt(event.clientX,event.clientY)); latest.current.options.onActivate?.(); }
+        editor.current?.focus({ preventScroll: true }); setFocused(true);
+      }
       abandon(); setNativeRange();
     },
     onPointerCancelCapture() { abandon(); suppressClick.current = true; },
@@ -153,15 +170,15 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
   };
   const overlay = layout && enabled ? <div className="keyboard-selection-overlay" aria-hidden="true">
     {selectionBoxes(layout, current.start, current.end).map((box, index) => <span key={index} className="keyboard-selection-fill" style={{ ...pos(box), width: box.width }}/>) }
-    {focused && !ranged && caretVisible ? <span className="keyboard-custom-caret" style={pos(caretBox(layout, current.start))}/> : null}
+    {focused && !ranged && caretVisible && options.keyboardVisible ? <span className="keyboard-custom-caret" style={pos(caretBox(layout, current.start))}/> : null}
   </div> : null;
-  const handles = layout && enabled && adjusting ? <div className="keyboard-selection-handles">
+  const handles = layout && enabled && adjusting && options.keyboardVisible ? <div className="keyboard-selection-handles">
     {ranged ? <>{handle(current.start, 'start')}{handle(current.end, 'end')}</> : handle(current.start, 'caret')}
   </div> : null;
-  const host = enabled && editor.current && (editor.current.closest('dialog[open]') ?? editor.current.closest('.observation-screen') ?? editor.current.closest('.appearance-root'));
+  const host = enabled && editor.current && (editor.current.closest('.repository-document') ?? editor.current.closest('dialog[open]') ?? editor.current.closest('.observation-screen') ?? editor.current.closest('.appearance-root'));
   const magnified = lens && layout ? caretBox(layout, lens.offset) : null;
   const chrome = host ? createPortal(<>
-    <KeyboardCopyButton text={ranged ? value.slice(current.start, current.end) : value}/>
+    {options.showCopy ? <KeyboardCopyButton text={ranged ? value.slice(current.start, current.end) : value}/> : null}
     {lens && layout && magnified ? <div className="keyboard-text-lens" aria-hidden="true"
       style={{ left: Math.max(94, Math.min(window.innerWidth - 94, lens.x)), top: Math.max(8, lens.y - 100) }}>
       <div style={{ ...layout.style, position: 'absolute', left: 0, top: 0, transformOrigin: '0 0',
@@ -170,6 +187,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     </div> : null}
   </>, host) : null;
   return { select, handlers, overlay, handles, chrome,
+    toggleSelection: (on: boolean) => { abandon(); if (!on) select(focusOffset.current); },
     onFocus: () => setFocused(true),
     onNativeSelect: () => {
       if (drag.current) return;

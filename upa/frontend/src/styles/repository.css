@@ -1,0 +1,53 @@
+.reader-settings.reader-repository { right: calc(max(16px, env(safe-area-inset-right) - 4px) + 48px); }
+.reader-settings.keyboard-copy { right: calc(max(16px, env(safe-area-inset-right) - 4px) + 96px); }
+.google-telugu-input { -webkit-tap-highlight-color: transparent; }
+.question-selection-key { flex: 0 0 36px; }
+.question-keyboard .question-selection-key[aria-pressed='true'] { background: var(--wash); box-shadow: inset 0 -2px currentColor; }
+.question-selection-key svg { width: 20px; height: 20px; }
+.repository-screen, .repository-document { position: fixed; inset: 0; height: 100dvh; overflow: hidden; }
+.repository-screen { background: var(--surface); color: var(--foreground); display: flex; flex-direction: column; }
+.repository-screen button, .repository-document button, .repository-entry-dialog button, .repository-delete-dialog button { -webkit-touch-callout: none; }
+.repository-toolbar, .repository-file-toolbar { position: relative; z-index: 2; display: flex; align-items: center; gap: 4px; min-height: 64px; padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
+.repository-toolbar button, .repository-file-toolbar button, .repository-row > button:not(.repository-entry), .repository-row-actions button, .repository-form-actions button, .repository-delete-actions button, button.repository-state { display: inline-grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 0; padding: 0; background: transparent; color: inherit; border-radius: 6px; touch-action: manipulation; }
+.repository-toolbar svg, .repository-file-toolbar svg, .repository-row svg, .repository-form-actions svg, .repository-delete-dialog svg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.6; }
+.repository-toolbar button:disabled, .repository-file-toolbar button:disabled, .repository-entry-dialog button:disabled, .repository-delete-dialog button:disabled { opacity: .4; }
+.repository-path { min-width: 0; flex: 1; display: flex; align-items: center; overflow-x: auto; }
+.repository-path button:not(:first-child) { width: auto; max-width: 200px; padding: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repository-list { position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; padding: 12px max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+.repository-row { position: relative; display: flex; align-items: center; gap: 10px; min-height: 64px; }
+.repository-entry { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 0; padding: 16px 0; border: 0; background: transparent; color: inherit; text-align: left; }
+.repository-entry span { overflow-wrap: anywhere; }
+.repository-row-actions { display: flex; border-radius: 8px; background: var(--wash); }
+.repository-state { display: block; margin: 40px auto; }
+.repository-spin { animation: repository-spin 1s linear infinite; }
+@keyframes repository-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .repository-spin { animation: none; } }
+.repository-entry-dialog, .repository-delete-dialog { border: 0; border-radius: 16px; background: var(--surface); color: var(--foreground); padding: 16px; max-width: calc(100vw - 16px); box-sizing: border-box; }
+.repository-entry-dialog { width: min(800px, calc(100vw - 16px)); max-height: calc(100dvh - 24px); overflow-y: auto; }
+.repository-entry-dialog::backdrop, .repository-delete-dialog::backdrop { background: rgb(0 0 0 / .25); }
+.repository-form-actions { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.repository-kind { display: flex; gap: 12px; }
+.repository-kind button[aria-pressed='true'] { background: var(--wash); }
+.repository-entry-dialog .question-answer-editor { text-align: left; }
+.repository-delete-dialog { width: min(360px, calc(100vw - 32px)); }
+.repository-delete-item { display: flex; align-items: center; gap: 16px; padding: 20px 8px; overflow-wrap: anywhere; }
+.repository-delete-actions { display: flex; justify-content: space-between; }
+.repository-document { display: flex; flex-direction: column; background: #fff; color: #000; }
+.repository-file-toolbar { background: #fff; color: #000; padding-right: 160px; }
+.repository-file-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repository-file-toolbar .repository-back { position: absolute; right: calc(max(16px, env(safe-area-inset-right)) + 48px); }
+.repository-file-toolbar .repository-close { position: absolute; right: max(16px, env(safe-area-inset-right)); }
+.repository-document > .keyboard-copy { position: absolute; color: #000; --control-icon-paint: #000; }
+.repository-hide-keyboard { position: relative; }
+.repository-hide-keyboard span { position: absolute; bottom: -1px; font-size: 15px; }
+.document-keyboard { flex: 1; min-height: 0; gap: 0; grid-template-rows: minmax(0,1fr) auto; }
+.document-keyboard[data-keyboard-visible='false'] { grid-template-rows: minmax(0,1fr); }
+.document-keyboard .keyboard-editor-frame { width: 100%; height: 100%; --keyboard-accent: #000; --foreground: #000; }
+.document-keyboard .question-answer-editor { padding: 20px max(24px,env(safe-area-inset-right)) 32px max(24px,env(safe-area-inset-left)); background: #fff; color: #000; text-align: left; font-size: 24px; line-height: 1.65; }
+.document-keyboard .question-answer-more { display: none; }
+.document-keyboard .question-keyboard { padding: 12px max(8px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); }
+.repository-document .keyboard-text-lens { color: #000; background: #fff; --keyboard-accent: #000; }
+.repository-document .keyboard-copy-error { color: #000; }
+
+/* Documents stay white even when the app dims its ordinary controls. */
+.appearance-root .document-keyboard .question-answer-editor { filter: none; }
