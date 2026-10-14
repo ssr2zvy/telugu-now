@@ -82,10 +82,9 @@ export function RepositoryView({ profile, fontFamily, onClose }: { profile: stri
     } catch { setMoveFailed(true); }
     finally { movePending.current = false; setMoving(false); }
   };
-  if (file) return <RepositoryFileEditor key={file.id} profile={profile} file={file} fontFamily={fontFamily}
-    onBack={() => { setFile(null); reload(); }} onClose={onClose}/>;
   return <section className="repository-screen" data-move-mode={Boolean(move)} aria-label="సంచికలు">
     <GradientBackdrop/>
+    <div className="repository-explorer" inert={Boolean(file)} aria-hidden={Boolean(file)}>
     <header className="repository-toolbar">
       <nav className="repository-path" aria-label="దారి">
         <button type="button" aria-label="మూలం" disabled={moving} onClick={() => setPath([])}><FolderOpen/></button>
@@ -115,6 +114,8 @@ export function RepositoryView({ profile, fontFamily, onClose }: { profile: stri
       {moveFailed ? <CircleAlert role="img" aria-label="తరలించలేకపోయాము"/> : null}
       <button type="button" aria-label="ఇక్కడికి తరలించు" disabled={moving || loading || failed || parentId === move.entry.parentId} onClick={() => void confirmMove()}>{moving ? <LoaderCircle className="repository-spin"/> : <Check/>}</button>
     </div> : null}
+    </div>
+    {file ? <RepositoryFileEditor key={file.id} profile={profile} file={file} fontFamily={fontFamily} onBack={() => { setFile(null); reload(); }}/> : null}
     {form ? <EntryForm key={form.entry?.id ?? 'new'} form={form} fontFamily={fontFamily} close={() => setForm(null)} submit={async (name,kind) => {
       if (form.entry) await repositoryApi.update(profile,form.entry.id,{revision:form.entry.revision,name});
       else await repositoryApi.create(profile,parentId,kind,name);

@@ -1,7 +1,7 @@
 .reader-settings.reader-repository { right: calc(max(16px, env(safe-area-inset-right) - 4px) + 48px); }
 .google-telugu-input { -webkit-tap-highlight-color: transparent; }
 .question-selection-key { flex: 0 0 36px; }
-.question-keyboard .question-selection-key[aria-pressed='true'] { background: var(--wash); box-shadow: inset 0 -2px currentColor; }
+.question-keyboard .question-selection-key[aria-pressed='true'] { background: var(--wash); box-shadow: none; }
 .question-selection-key svg { width: 20px; height: 20px; }
 .repository-screen, .repository-document { position: fixed; inset: 0; height: 100dvh; overflow: hidden; }
 .repository-screen { background: var(--surface); color: var(--foreground); display: flex; flex-direction: column; }
@@ -58,3 +58,16 @@
 .repository-move-confirm button { display: grid; place-items: center; width: 48px; height: 48px; border: 0; border-radius: 50%; background: var(--surface); color: inherit; touch-action: manipulation; }
 .repository-move-confirm svg { width: 24px; height: 24px; stroke-width: 1.6; }
 .repository-move-confirm button:disabled, .repository-entry:disabled { opacity: .4; }
+.repository-explorer { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.repository-document { z-index: 4; transition: transform 260ms cubic-bezier(.22,.61,.36,1); touch-action: none; }
+.repository-document[data-dragging='true'] { transition: none; }
+.repository-file-toolbar { padding-right: max(24px,env(safe-area-inset-right)); padding-left: max(24px,env(safe-area-inset-left)); }
+.repository-file-name { font-size: var(--file-title-size,26px); line-height: 1.5; }
+.document-keyboard .question-answer-editor { font-size: var(--file-text-size,20px); }
+.question-top-row .question-hide-key { flex-basis: 104px; }
+.repository-save-warning { position: absolute; z-index: 6; top: 76px; left: 16px; right: 16px; display: flex; gap: 12px; align-items: center; padding: 12px; background: #fff; color: #000; border-radius: 12px; box-shadow: 0 3px 20px #0002; }
+.repository-save-warning span { flex: 1; }
+.repository-save-warning button { border: 0; background: transparent; color: inherit; padding: 8px; }
+.repository-save-warning svg { width: 18px; height: 18px; }
+.repository-save-status { display: grid; place-items: center; padding: 28px; }
+@media(prefers-reduced-motion:reduce) { .repository-document { transition: none; } }

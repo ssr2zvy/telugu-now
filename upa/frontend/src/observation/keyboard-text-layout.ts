@@ -8,10 +8,12 @@ export function letterBoundaries(value: string): number[] {
   return [...new Intl.Segmenter('te', { granularity: 'grapheme' }).segment(value)].map(part => part.index).concat(value.length);
 }
 
-const boundaryCache = new WeakMap<HTMLTextAreaElement, { value: string; bounds: number[] }>();
+const boundaryCache = new WeakMap<HTMLElement, { value: string; bounds: number[] }>();
 
 /** Measure the complete shaped text, without wrapping individual Telugu code points in spans. */
-export function measureKeyboardText(editor: HTMLTextAreaElement, visibleOnly = false): TextLayout {
+export function measureKeyboardText(editor: HTMLTextAreaElement | HTMLDivElement, visibleOnly = false): TextLayout {
+  const direct = editor instanceof HTMLDivElement;
+  const value = direct ? (editor.textContent ?? '').replace(/\u200b$/, '') : editor.value;
   const computed = getComputedStyle(editor);
   const style: CSSProperties = { boxSizing: 'border-box', width: editor.clientWidth,
     whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
@@ -27,17 +29,17 @@ export function measureKeyboardText(editor: HTMLTextAreaElement, visibleOnly = f
   Object.assign(mirror.style, style, { width: `${editor.clientWidth}px`, position: 'fixed', left: '-100000px', top: '0', visibility: 'hidden', pointerEvents: 'none' });
   mirror.lang = 'te';
   // A zero-width sentinel measures the last line, including empty/trailing-newline drafts.
-  const node = document.createTextNode(editor.value + '\u200b'); mirror.append(node);
-  document.body.append(mirror);
+  const node = direct ? editor.firstChild as Text : document.createTextNode(value + '\u200b');
+  if (!direct) { mirror.append(node); document.body.append(mirror); }
   try {
-    const origin = mirror.getBoundingClientRect();
+    const origin = (direct ? editor : mirror).getBoundingClientRect();
     const range = document.createRange();
     const box = (start: number, end: number): TextBox => {
       range.setStart(node, start); range.setEnd(node, end);
       // A range can expose multiple fragments at a wrap. Never union them
       // into one rectangle spanning two rows.
       const rect = Array.from(range.getClientRects()).find(rect => rect.height > 0) ?? range.getBoundingClientRect();
-      return { x: rect.left - origin.left, y: rect.top - origin.top, width: rect.width, height: rect.height || parseFloat(computed.lineHeight) || 33 };
+      return { x: rect.left - origin.left + (direct ? editor.scrollLeft : 0), y: rect.top - origin.top + (direct ? editor.scrollTop : 0), width: rect.width, height: rect.height || parseFloat(computed.lineHeight) || 33 };
     };
     const firstBox = box(0,Math.min(1,node.length));
     const lineHeight = parseFloat(computed.lineHeight) || firstBox.height;
@@ -49,8 +51,8 @@ export function measureKeyboardText(editor: HTMLTextAreaElement, visibleOnly = f
       return { ...raw, y: paddingTop + line * lineHeight + 1, height: Math.max(1,lineHeight - 2) };
     };
     let cached = boundaryCache.get(editor);
-    if (!cached || cached.value !== editor.value) {
-      cached = { value: editor.value, bounds: letterBoundaries(editor.value) }; boundaryCache.set(editor,cached);
+    if (!cached || cached.value !== value) {
+      cached = { value: value, bounds: letterBoundaries(value) }; boundaryCache.set(editor,cached);
     }
     const bounds = cached.bounds;
     let first = 0, last = bounds.length - 1;
@@ -70,7 +72,7 @@ export function measureKeyboardText(editor: HTMLTextAreaElement, visibleOnly = f
       last = Math.min(last,lower(editor.scrollTop + editor.clientHeight * 2) + 1);
     }
     const letters = bounds.slice(first,last).map((start,index) => ({ ...rowBox(box(start,bounds[first + index + 1]!)),start,end:bounds[first + index + 1]! }));
-    return { letters, end: rowBox(box(editor.value.length, editor.value.length + 1)), style, width: editor.clientWidth, length: editor.value.length };
+    return { letters, end: rowBox(box(value.length, value.length + 1)), style, width: editor.clientWidth, length: value.length };
   } finally { mirror.remove(); }
 }
 
