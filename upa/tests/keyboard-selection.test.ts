@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { letterBoundaries, nearestLetterOffset, selectionBoxes, caretBox, type TextLayout } from '../frontend/src/observation/keyboard-text-layout';
+import { letterBoundaries, nearestLetterHit, nearestLetterOffset, selectionBoxes, caretBox, type TextLayout } from '../frontend/src/observation/keyboard-text-layout';
 
 const layout: TextLayout = { width: 90, style: {}, end: { x: 40, y: 30, width: 0, height: 20 }, letters: [
   { start: 0, end: 2, x: 10, y: 0, width: 20, height: 20 },
@@ -26,4 +26,25 @@ test('a multiword range paints separate lines and its handles respect line wraps
   ]);
   assert.equal(caretBox(layout, 6).y, 30);
   assert.equal(caretBox(layout, 6, true).y, 0);
+});
+
+test('overlapping font bounds cannot pull a touch at a later line start into a preceding line', () => {
+  const overlapping: TextLayout = {width:200,style:{},end:{x:100,y:33,width:0,height:50},letters:[
+    {start:0,end:1,x:10,y:0,width:30,height:50},
+    {start:1,end:2,x:35,y:33,width:30,height:50},
+  ]};
+  assert.equal(nearestLetterOffset(overlapping,10,45),1);
+});
+
+test('cursor height follows font size rather than an oversized font range box', () => {
+  const tall:TextLayout={...layout,style:{fontSize:'16px'}};
+  assert.equal(caretBox(tall,0).height,16);
+  assert.equal(caretBox(tall,9).height,16);
+});
+
+test('soft-wrap hits preserve the side of the line break that was touched', () => {
+  const end=nearestLetterHit(layout,70,10),start=nearestLetterHit(layout,10,40);
+  assert.deepEqual(end,{offset:6,trailing:true});assert.deepEqual(start,{offset:6,trailing:false});
+  assert.equal(caretBox(layout,end.offset,end.trailing).y,0);
+  assert.equal(caretBox(layout,start.offset,start.trailing).y,30);
 });

@@ -53,3 +53,58 @@ test('repository routes reject invalid profiles, malformed bodies, and cross-pro
     assert.equal((await send('/001/repository/entries','POST',{name:'nested',kind:'file',parentId:file.id})).status,400);
   } finally { db.close(); }
 });
+
+test('moving a file or folder preserves content/descendants and checks cycles, profiles, collisions and revisions atomically', () => {
+  const db=fixture(); try {
+    const store=repositoryStore(db);
+    const create=(name:string,kind:'file'|'folder',parentId:string|null=null,profile='001')=>store.create(profile,{name,kind,parentId});
+    const source=create('source','folder'); const target=create('target','folder');
+    const nested=create('nested','folder',source.id);const file=create('file','file',nested.id);
+    store.update('001',file.id,{revision:1,content:'తెలుగు\nపత్రం'});
+    const foreign=create('other','folder',null,'002');
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:source.id}),/invalid-move/);
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:nested.id}),/invalid-move/);
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:foreign.id}),/not-found/);
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:file.id}),/not-folder/);
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:42}),/invalid-parent/);
+    const duplicate=create('source','file',target.id);
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:target.id}),/duplicate-name/);
+    assert.equal(store.get('001',source.id).parentId,null);assert.equal(store.get('001',source.id).revision,1);
+    store.remove('001',duplicate.id,1);
+    const moved=store.update('001',source.id,{revision:1,parentId:target.id});
+    assert.equal(moved.parentId,target.id);assert.equal(moved.revision,2);
+    assert.equal(store.get('001',nested.id).parentId,source.id);assert.equal(store.get('001',file.id).content,'తెలుగు\nపత్రం');
+    assert.throws(()=>store.update('001',source.id,{revision:1,parentId:null}),/stale-revision/);
+    const movedFile=store.update('001',file.id,{revision:2,parentId:null});
+    assert.equal(movedFile.parentId,null);assert.equal(movedFile.content,'తెలుగు\nపత్రం');
+    store.remove('001',target.id,1);assert.throws(()=>store.get('001',nested.id),/not-found/);
+    assert.equal(store.get('001',file.id).id,file.id);assert.deepEqual(db.pragma('foreign_key_check'),[]);
+  } finally { db.close(); }
+});
+
+test('moving checks the depth of every descendant, not only the folder being moved', () => {
+  const db=fixture();try {
+    const store=repositoryStore(db);let parent:string|null=null;
+    for(let i=0;i<64;i++)parent=store.create('001',{name:String(i),kind:'folder',parentId:parent}).id;
+    const folder=store.create('001',{name:'subtree',kind:'folder',parentId:null});
+    const child=store.create('001',{name:'child',kind:'file',parentId:folder.id});
+    assert.throws(()=>store.update('001',folder.id,{revision:1,parentId:parent}),/depth-limit/);
+    assert.equal(store.get('001',folder.id).parentId,null);
+    // A leaf fits exactly at the supported depth.
+    assert.equal(store.update('001',child.id,{revision:1,parentId:parent}).parentId,parent);
+  } finally { db.close(); }
+});
+
+test('move API supports root destinations and rejects cross-profile destination folders', async () => {
+  const db=fixture();try {
+    const store=repositoryStore(db);const app=repositoryRoutes(db,()=>true);
+    const file=store.create('001',{name:'file',kind:'file',parentId:null});
+    const folder=store.create('001',{name:'folder',kind:'folder',parentId:null});
+    const foreign=store.create('002',{name:'folder',kind:'folder',parentId:null});
+    const move=(revision:number,parentId:string|null)=>app.request(`/001/repository/entries/${file.id}`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({revision,parentId})});
+    assert.equal((await move(1,foreign.id)).status,404);
+    const result=await move(1,folder.id);assert.equal(result.status,200);assert.equal((await result.json()).parentId,folder.id);
+    assert.equal((await move(1,null)).status,409);
+    assert.equal((await move(2,null)).status,200);assert.equal(store.get('001',file.id).parentId,null);
+  } finally {db.close();}
+});

@@ -14,6 +14,6 @@ export const repositoryApi = {
   list: (profile: string, parent: string | null) => request<RepositoryEntry[]>(profile,parent ? `?parent=${encodeURIComponent(parent)}` : ''),
   get: (profile: string, id: string) => request<RepositoryFile>(profile,`/${encodeURIComponent(id)}`),
   create: (profile: string, parentId: string | null, kind: RepositoryKind, name: string) => request<RepositoryFile>(profile,'','POST',{parentId,kind,name}),
-  update: (profile: string, id: string, body: {revision: number; name?: string; content?: string}) => request<RepositoryFile>(profile,`/${encodeURIComponent(id)}`,'PUT',body),
+  update: (profile: string, id: string, body: {revision: number; name?: string; content?: string; parentId?: string | null}) => request<RepositoryFile>(profile,`/${encodeURIComponent(id)}`,'PUT',body),
   remove: (profile: string, entry: RepositoryEntry) => request<void>(profile,`/${encodeURIComponent(entry.id)}`,'DELETE',{revision:entry.revision}),
 };

@@ -1,25 +1,25 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DOMAttributes, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { KeyboardCopyButton } from './KeyboardCopyButton';
-import { caretBox, measureKeyboardText, nearestLetterOffset, selectionBoxes, type TextLayout, type TextBox } from './keyboard-text-layout';
+import { caretBox, measureKeyboardText, nearestLetterHit, selectionBoxes, type TextLayout, type TextBox } from './keyboard-text-layout';
 
 type Selection = { start: number; end: number };
 interface Drag { id: number; x: number; y: number; top: number; anchor: number; active: boolean; moved: boolean; mode: 'range' | 'caret'; biasX: number; biasY: number }
 
 export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | null>, value: string,
-  selection: RefObject<Selection>, enabled: boolean, caretVisible: boolean, options: { selectionMode: boolean; documentMode: boolean; keyboardVisible: boolean; showCopy: boolean; onActivate?: () => void }) {
+  selection: RefObject<Selection>, enabled: boolean, caretVisible: boolean, options: { selectionMode: boolean; documentMode: boolean; keyboardVisible: boolean; onActivate?: () => void }) {
   const [layout, setLayout] = useState<TextLayout | null>(null);
   const [revision, update] = useState(0);
   const [scroll, setScroll] = useState({ x: 0, y: 0 });
   const [focused, setFocused] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
-  const [lens, setLens] = useState<{ x: number; y: number; offset: number } | null>(null);
+  const [lens, setLens] = useState<{ x: number; y: number; offset: number; trailing: boolean } | null>(null);
   const layoutRef = useRef<TextLayout | null>(null);
   const drag = useRef<Drag | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const frame = useRef(0);
   const suppressClick = useRef(false);
   const latest = useRef({ value, enabled, options }); latest.current = { value, enabled, options };
+  const focusTrailing = useRef(false);
   const focusOffset = useRef(selection.current.end);
   const refresh = () => {
     const element = editor.current;
@@ -27,7 +27,8 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     layoutRef.current = measureKeyboardText(element, latest.current.options.documentMode); setLayout(layoutRef.current);
     setScroll({ x: element.scrollLeft, y: element.scrollTop });
   };
-  const select = (start: number, end = start) => {
+  const select = (start: number, end = start, trailing = false) => {
+    focusTrailing.current = trailing;
     focusOffset.current = end;
     selection.current = { start: Math.min(start, end), end: Math.max(start, end) };
     update(n => n + 1);
@@ -68,9 +69,11 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
     element.addEventListener('scroll', scrolled);
     const resize = new ResizeObserver(refresh); resize.observe(element);
     window.addEventListener('blur', abandon);
+    document.fonts.addEventListener('loadingdone',refresh);
     let alive = true;
     void document.fonts.ready.then(() => { if (alive) refresh(); });
     return () => {
+      document.fonts.removeEventListener('loadingdone',refresh);
       alive = false; cancelAnimationFrame(scrollFrame); stop(); drag.current = null; resize.disconnect();
       element.removeEventListener('touchstart', prevent); element.removeEventListener('selectstart', prevent);
       element.removeEventListener('scroll', scrolled); window.removeEventListener('blur', abandon);
@@ -79,15 +82,15 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
   useEffect(() => { if (!enabled) { abandon(); setAdjusting(false); } }, [enabled]);
   const offsetAt = (x: number, y: number) => {
     const element = editor.current; const measured = layoutRef.current;
-    if (!element || !measured) return 0;
+    if (!element || !measured) return {offset:0,trailing:false};
     const rect = element.getBoundingClientRect();
-    return nearestLetterOffset(measured, x - rect.left - element.clientLeft + element.scrollLeft,
+    return nearestLetterHit(measured, x - rect.left - element.clientLeft + element.scrollLeft,
       Math.max(rect.top + 2, Math.min(rect.bottom - 2, y)) - rect.top - element.clientTop + element.scrollTop);
   };
   const moveSelection = (point: Drag) => {
-    const offset = offsetAt(point.x - point.biasX, point.y - point.biasY);
-    select(point.mode === 'caret' ? offset : point.anchor, offset);
-    setLens({ x: point.x, y: point.y, offset });
+    const hit = offsetAt(point.x - point.biasX, point.y - point.biasY);
+    select(point.mode === 'caret' ? hit.offset : point.anchor, hit.offset, hit.trailing);
+    setLens({ x: point.x, y: point.y, ...hit });
   };
   const autoScroll = () => {
     const point = drag.current; const element = editor.current;
@@ -112,7 +115,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
       abandon(); suppressClick.current = false; refresh();
       event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
       const kind = handle?.dataset.selectionHandle;
-      const anchor = kind === 'start' ? selection.current.end : kind === 'end' ? selection.current.start : offsetAt(event.clientX, event.clientY);
+      const anchor = kind === 'start' ? selection.current.end : kind === 'end' ? selection.current.start : offsetAt(event.clientX, event.clientY).offset;
       const point: Drag = { id: event.pointerId, x: event.clientX, y: event.clientY, top: editor.current?.scrollTop ?? 0,
         anchor, active: false, moved: false, mode: kind === 'start' || kind === 'end' || latest.current.options.selectionMode ? 'range' : 'caret', biasX: 0, biasY: 0 };
       if (handle && editor.current && layoutRef.current) {
@@ -144,7 +147,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
       event.preventDefault(); event.stopPropagation();
       if (point.active) { point.x = event.clientX; point.y = event.clientY; moveSelection(point); latest.current.options.onActivate?.(); }
       else if (!point.moved) {
-        if (latest.current.options.documentMode) { select(offsetAt(event.clientX,event.clientY)); latest.current.options.onActivate?.(); }
+        if (latest.current.options.documentMode) { const hit = offsetAt(event.clientX,event.clientY); select(hit.offset,hit.offset,hit.trailing); latest.current.options.onActivate?.(); }
         editor.current?.focus({ preventScroll: true }); setFocused(true);
       }
       abandon(); setNativeRange();
@@ -163,36 +166,35 @@ export function useKeyboardSelection(editor: RefObject<HTMLTextAreaElement | nul
   const pos = (box: TextBox) => ({ left: box.x - scroll.x, top: box.y - scroll.y, height: box.height });
   const handle = (offset: number, kind: 'start' | 'end' | 'caret') => {
     if (!layout) return null;
-    const box = caretBox(layout, offset, kind === 'end');
+    const box = caretBox(layout, offset, kind === 'end' || (kind === 'caret' && focusTrailing.current));
     return <button type="button" className="keyboard-selection-handle" data-selection-handle={kind}
       aria-label={kind === 'caret' ? 'Move cursor' : `Move selection ${kind}`} tabIndex={-1}
-      style={{ left: box.x - scroll.x - 22, top: box.y + box.height - scroll.y - 12 }}><span/></button>;
+      style={{ left: box.x - scroll.x - 12, top: box.y + box.height - scroll.y - 6 }}><span/></button>;
   };
   const overlay = layout && enabled ? <div className="keyboard-selection-overlay" aria-hidden="true">
     {selectionBoxes(layout, current.start, current.end).map((box, index) => <span key={index} className="keyboard-selection-fill" style={{ ...pos(box), width: box.width }}/>) }
-    {focused && !ranged && caretVisible && options.keyboardVisible ? <span className="keyboard-custom-caret" style={pos(caretBox(layout, current.start))}/> : null}
+    {focused && !ranged && caretVisible && options.keyboardVisible ? <span className="keyboard-custom-caret" style={pos(caretBox(layout, current.start, focusTrailing.current))}/> : null}
   </div> : null;
   const handles = layout && enabled && adjusting && options.keyboardVisible ? <div className="keyboard-selection-handles">
     {ranged ? <>{handle(current.start, 'start')}{handle(current.end, 'end')}</> : handle(current.start, 'caret')}
   </div> : null;
   const host = enabled && editor.current && (editor.current.closest('.repository-document') ?? editor.current.closest('dialog[open]') ?? editor.current.closest('.observation-screen') ?? editor.current.closest('.appearance-root'));
-  const magnified = lens && layout ? caretBox(layout, lens.offset) : null;
+  const magnified = lens && layout ? caretBox(layout, lens.offset, lens.trailing) : null;
   const chrome = host ? createPortal(<>
-    {options.showCopy ? <KeyboardCopyButton text={ranged ? value.slice(current.start, current.end) : value}/> : null}
     {lens && layout && magnified ? <div className="keyboard-text-lens" aria-hidden="true"
       style={{ left: Math.max(94, Math.min(window.innerWidth - 94, lens.x)), top: Math.max(8, lens.y - 100) }}>
       <div style={{ ...layout.style, position: 'absolute', left: 0, top: 0, transformOrigin: '0 0',
         transform: `translate(${90 - magnified.x * 1.8}px, ${34 - (magnified.y + magnified.height / 2) * 1.8}px) scale(1.8)` }}>{value}{'\u200b'}</div>
-      <span className="keyboard-lens-caret"/>
+      <span className="keyboard-lens-caret" style={{height: Math.min(42,magnified.height * 1.8),top: 34 - Math.min(42,magnified.height * 1.8)/2}}/>
     </div> : null}
   </>, host) : null;
-  return { select, handlers, overlay, handles, chrome,
+  return { select, handlers, overlay, handles, chrome, copyText: ranged ? value.slice(current.start, current.end) : value,
     toggleSelection: (on: boolean) => { abandon(); if (!on) select(focusOffset.current); },
     onFocus: () => setFocused(true),
     onNativeSelect: () => {
       if (drag.current) return;
       const element = editor.current;
-      if (element && (element.selectionStart !== selection.current.start || element.selectionEnd !== selection.current.end)) select(element.selectionStart, element.selectionEnd);
+      if (element && element.value === latest.current.value && (element.selectionStart !== selection.current.start || element.selectionEnd !== selection.current.end)) select(element.selectionStart, element.selectionEnd);
     },
     onEdit: () => { setAdjusting(false); setFocused(true); },
   };
