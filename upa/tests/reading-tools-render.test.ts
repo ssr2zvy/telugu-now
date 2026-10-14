@@ -38,10 +38,11 @@ test('question keyboard still exposes its original answer and comparison actions
   assert.doesNotMatch(html, /aria-label="New line"/);
 });
 
-test('typing copy is a corner icon, not a long-press menu action', () => {
+test('typing copy is a keyboard key, not a corner or long-press menu action', () => {
   const html = renderToStaticMarkup(createElement(KeyboardCopyButton, { text: 'తెలుగు' }));
   const $ = load(html);
-  assert.equal($('button.keyboard-copy.reader-settings').length, 1);
+  assert.equal($('button.keyboard-copy.question-copy-key').length, 1);
+  assert.equal($('.reader-settings').length, 0);
   assert.equal($('button').attr('aria-label'), 'Copy');
   assert.equal($('[role="menu"]').length, 0);
   assert.equal($.text(), '');

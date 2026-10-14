@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ArrowUp, CornerDownLeft, Delete, TextSelect } from 'lucide-react';
+import { KeyboardCopyButton } from './KeyboardCopyButton';
+import { KeyboardPasteButton } from './KeyboardPasteButton';
 import { useKeyboardSelection } from './useKeyboardSelection';
 import { useAppearance } from '../appearance';
 import { compatibleObservationFonts } from '../presentation';
@@ -121,7 +123,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
   // so the snap decision cannot be derived from live selection state.
   const snapToEndPending = useRef(false);
   const [caretIdle, setCaretIdle] = useState(true);
-  const editing = useKeyboardSelection(editor, value, selection, active, caretIdle, { selectionMode, documentMode, keyboardVisible, showCopy, ...(onActivate ? {onActivate} : {}) });
+  const editing = useKeyboardSelection(editor, value, selection, active, caretIdle, { selectionMode, documentMode, keyboardVisible, ...(onActivate ? {onActivate} : {}) });
   const caretIdleTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Hides the caret on every keystroke (virtual or hardware) and lets it
   // reappear once typing has paused for CARET_IDLE_DELAY_MS.
@@ -169,8 +171,8 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
       end: Math.min(selection.current.end, value.length),
     };
   }
-  const select = (start: number, end = start) => {
-    editing.select(start, end);
+  const select = (start: number, end = start, trailing = false) => {
+    editing.select(start, end, trailing);
   };
   const restoreEditorSelection = (start: number, end = start) => {
     const element = editor.current;
@@ -192,7 +194,8 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
     snapToEndPending.current = caret >= next.length;
     noteTyping();
     onChange(next);
-    requestAnimationFrame(() => restoreEditorSelection(caret));
+    // Use the latest selection: rapid edits must not replay an older caret.
+    requestAnimationFrame(() => restoreEditorSelection(selection.current.start,selection.current.end));
   };
   const backspace = () => {
     const currentValue = draftValue.current;
@@ -202,11 +205,11 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
     const shortened = start === end ? removeLastGrapheme(before) : before;
     const next = shortened + currentValue.slice(end);
     draftValue.current = next;
-    select(shortened.length);
+    select(shortened.length,shortened.length,true);
     snapToEndPending.current = shortened.length >= next.length;
     noteTyping();
     onChange(next);
-    requestAnimationFrame(() => restoreEditorSelection(shortened.length));
+    requestAnimationFrame(() => restoreEditorSelection(selection.current.start,selection.current.end));
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -238,7 +241,7 @@ export function GoogleTeluguKeyboard({ value, onChange, onSubmit, fontFamily, fr
       <div className="question-keyboard-row question-top-row">{topRow.map(characterKey)}</div>
       <div className="question-keyboard-row question-home-row">{homeRow.map(characterKey)}{enterKey}</div>
       <div className="question-keyboard-row question-bottom-row">{shiftKey}{bottomRow.map(characterKey)}{shiftKey}</div>
-      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-selection-key" aria-label="ఎంపిక" aria-pressed={selectionMode} onPointerDown={event => event.preventDefault()} onClick={() => { editing.toggleSelection(!selectionMode); setSelectionMode(current => !current); }}><TextSelect aria-hidden="true"/></button><button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}</div>
+      <div className="question-keyboard-row question-keyboard-actions">{controlKey}<button type="button" className="question-selection-key" aria-label="ఎంపిక" aria-pressed={selectionMode} onPointerDown={event => event.preventDefault()} onClick={() => { editing.toggleSelection(!selectionMode); setSelectionMode(current => !current); }}><TextSelect aria-hidden="true"/></button>{showCopy ? <KeyboardCopyButton text={editing.copyText} active={active}/> : null}<KeyboardPasteButton active={active} onPaste={text => edit(freeTyping ? text.replace(/\r\n?/g, '\n') : text.replace(/\r\n?|\n/g, ' '))}/><button type="button" className="question-space-key" aria-label="Space" onClick={() => edit(' ')} />{controlKey}</div>
     </div> : null}
   </div>;
 }

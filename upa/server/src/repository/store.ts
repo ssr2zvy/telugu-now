@@ -57,13 +57,32 @@ export function repositoryStore(db: Database.Database) {
       unique(() => db.prepare('INSERT INTO repository_entries(profile_code,id,parent_id,kind,name,updated_at) VALUES(?,?,?,?,?,?)').run(profile,id,parentId,input.kind as RepositoryKind,name,Date.now()));
       return get(profile,id);
     }),
-    update: db.transaction((profile: string, id: string, input: {revision: unknown; name?: unknown; content?: unknown}) => {
+    update: db.transaction((profile: string, id: string, input: {revision: unknown; name?: unknown; content?: unknown; parentId?: unknown}) => {
       const row = get(profile,id); const revision = revisionOf(input.revision);
       if (row.revision !== revision) throw new RepositoryError(409,'stale-revision');
-      if (input.name === undefined && input.content === undefined) throw new RepositoryError(400,'empty-update');
+      if (input.name === undefined && input.content === undefined && input.parentId === undefined) throw new RepositoryError(400,'empty-update');
       const name = input.name === undefined ? row.name : nameOf(input.name);
       if (input.content !== undefined && (row.kind !== 'file' || typeof input.content !== 'string' || Buffer.byteLength(input.content,'utf8') > REPOSITORY_CONTENT_LIMIT)) throw new RepositoryError(400,'invalid-content');
-      unique(() => db.prepare('UPDATE repository_entries SET name=?,content=?,revision=revision+1,updated_at=? WHERE profile_code=? AND id=?').run(name,input.content ?? row.content,Date.now(),profile,id));
+      let parentId = row.parentId;
+      if (input.parentId !== undefined) {
+        if (input.parentId !== null && typeof input.parentId !== 'string') throw new RepositoryError(400,'invalid-parent');
+        parentId = input.parentId as string | null;
+        directory(profile,parentId);
+        let ancestor = parentId; let depth = 0;
+        while (ancestor !== null) {
+          if (ancestor === id) throw new RepositoryError(400,'invalid-move');
+          if (++depth > 64) throw new RepositoryError(400,'depth-limit');
+          ancestor = get(profile,ancestor).parentId;
+        }
+        // Include the entire moved subtree when checking the existing depth limit.
+        const subtree = db.prepare(`WITH RECURSIVE tree(id,depth) AS (
+          SELECT id,0 FROM repository_entries WHERE profile_code=? AND id=?
+          UNION ALL SELECT child.id,tree.depth+1 FROM repository_entries child
+          JOIN tree ON child.parent_id=tree.id WHERE child.profile_code=?
+        ) SELECT MAX(depth) AS height FROM tree`).get(profile,id,profile) as {height:number};
+        if (depth + subtree.height > 64) throw new RepositoryError(400,'depth-limit');
+      }
+      unique(() => db.prepare('UPDATE repository_entries SET name=?,content=?,parent_id=?,revision=revision+1,updated_at=? WHERE profile_code=? AND id=?').run(name,input.content ?? row.content,parentId,Date.now(),profile,id));
       return get(profile,id);
     }),
     remove: db.transaction((profile: string, id: string, revision: unknown) => {
