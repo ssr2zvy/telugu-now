@@ -109,3 +109,15 @@
 .keyboard-selection-handle span { position: absolute; left: 10.5px; top: 3px; width: 3px; height: 6px; border-radius: 4px; background: currentColor; }
 .keyboard-text-lens { position: fixed; z-index: 100; width: 180px; height: 68px; transform: translateX(-50%); overflow: hidden; pointer-events: none; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--foreground); box-shadow: 0 5px 20px rgb(0 0 0 / .18); user-select: none; -webkit-user-select: none; }
 .keyboard-lens-caret { position: absolute; left: 90px; top: 13px; height: 42px; width: 1px; background: var(--keyboard-accent, var(--foreground)); }
+
+/* Only this non-editable surface paints text. The native input cannot paint a
+   second iOS selection, and range geometry uses the same shaped text node. */
+.keyboard-text-surface { white-space: pre-wrap; overflow-wrap: break-word; user-select: none; -webkit-user-select: none; }
+.keyboard-editor-frame .keyboard-native-input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; padding: 0; border: 0; overflow: hidden; }
+.question-keyboard .question-keyboard-actions .question-selection-key,
+.question-keyboard .question-keyboard-actions .question-copy-key,
+.question-keyboard .question-keyboard-actions .question-paste-key { flex: 0 0 30px; min-width: 30px; padding: 3px; }
+.question-keyboard .question-keyboard-actions svg { width: 14px; height: 14px; stroke-width: 1.5; }
+.question-keyboard .question-selection-key[aria-pressed='true'] { box-shadow: none; border: 0; background: var(--wash); }
+.question-keyboard .question-keyboard-actions .question-control-key { flex: 0 0 54px; min-width: 54px; font-size: 11px; }
+.question-keyboard .question-hide-key svg { width: 15px; height: 15px; }

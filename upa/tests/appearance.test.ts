@@ -350,3 +350,14 @@ test('record and switch position persists and stays within upward offset bounds'
   assert.equal(parseAppearance({questionActionOffset: NaN}).questionActionOffset, 0);
   assert.equal(parseAppearance({}).questionActionOffset, 0);
 });
+
+
+test('file editor sizes migrate independently and are bounded', () => {
+  const defaults = parseAppearance({});
+  assert.ok(defaults.fileTitleSize > defaults.fileTextSize);
+  assert.equal(parseAppearance({fileTitleSize:32,fileTextSize:18}).fileTitleSize,32);
+  assert.equal(parseAppearance({fileTitleSize:32,fileTextSize:18}).fileTextSize,18);
+  assert.equal(parseAppearance({fileTitleSize:Infinity,fileTextSize:NaN}).fileTextSize,20);
+  assert.equal(parseAppearance({fileTitleSize:999,fileTextSize:-5}).fileTitleSize,48);
+  assert.equal(parseAppearance({fileTitleSize:999,fileTextSize:-5}).fileTextSize,12);
+});

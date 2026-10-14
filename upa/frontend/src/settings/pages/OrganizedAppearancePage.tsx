@@ -20,7 +20,7 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
   const text=(en:string,te:string)=>language==='en'?en:te;
   const title=appearancePageLabel(page,language);
   const reset=(apply:()=>void)=><button type="button" className="appearance-icon-action" aria-label={text('Reset','పునరుద్ధరించు')} onClick={apply}><RotateCcw aria-hidden="true"/></button>;
-  const slider=(key:'fontScale'|'textOffset'|'audioOffset'|'questionActionOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'magnifierBarGap'|'gradientBarrier'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
+  const slider=(key:'fileTitleSize'|'fileTextSize'|'fontScale'|'textOffset'|'audioOffset'|'questionActionOffset'|'controlDarkness'|'audioTimestampGap'|'timestampMagnifierGap'|'magnifierBarGap'|'gradientBarrier'|'autoFadeSeconds',min:number,max:number,unit:string,disabled=false)=>
     <section className="appearance-control-page"><div className="appearance-section-heading"><label htmlFor={`appearance-${key}`}>{title}</label>{reset(()=>updateAppearance({[key]:DEFAULT_APPEARANCE[key]}))}</div>
       <div className="appearance-scale"><input id={`appearance-${key}`} type="range" min={min} max={max} step={1} disabled={disabled} value={appearance[key]}
         style={{'--range-progress':`${(appearance[key]-min)/(max-min)*100}%`} as CSSProperties}
@@ -69,6 +69,8 @@ export function OrganizedAppearancePage({language,page='appearance',onNavigate,f
     }
   }else if(page==='appearanceFonts')content=<nav className="settings-index">{compatibleObservationFonts(OBSERVATION_FONTS).map(name=><button type="button" key={name} onClick={()=>onFont(name)}><span className="appearance-font-glyph" style={{fontFamily:`"${name}"`}} lang="te" aria-hidden="true">అ</span><span>{name}</span><ChevronRight className="settings-entry-chevron" aria-hidden="true"/></button>)}</nav>;
   else if(page==='appearanceFont')content=font?<><p className="appearance-font-sample" style={{fontFamily:`"${font}"`}} lang="te">తెలుగు</p><label className="appearance-switch-row"><span>{font}</span><input type="checkbox" role="switch" checked={appearance.fonts.includes(font)} disabled={compatibleObservationFonts(appearance.fonts).length===1&&appearance.fonts.includes(font)} onChange={event=>updateAppearance({fonts:event.target.checked?[...appearance.fonts,font]:appearance.fonts.filter(name=>name!==font)})}/></label></>:<p>{text('Choose a font.','ఫాంట్‌ను ఎంచుకోండి.')}</p>;
+  else if(page==='appearanceFileTitleSize')content=slider('fileTitleSize',16,48,' px');
+  else if(page==='appearanceFileTextSize')content=slider('fileTextSize',12,40,' px');
   else if(page==='appearanceSize')content=slider('fontScale',0,100,'');
   else if(page==='appearanceTextPosition')content=slider('textOffset',-APPEARANCE_OFFSET_LIMIT,APPEARANCE_OFFSET_LIMIT,' px');
   else if(page==='appearanceQuestionActionPosition')content=slider('questionActionOffset',0,APPEARANCE_OFFSET_LIMIT,' px');

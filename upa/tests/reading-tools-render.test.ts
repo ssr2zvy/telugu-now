@@ -47,3 +47,19 @@ test('typing copy is a keyboard key, not a corner or long-press menu action', ()
   assert.equal($('[role="menu"]').length, 0);
   assert.equal($.text(), '');
 });
+
+
+test('custom editor has one visible shaped text surface and compact keyboard actions', () => {
+  const $ = load(renderToStaticMarkup(createElement(GoogleTeluguKeyboard, {
+    value: 'తెలుగు భాష', onChange() {}, onSubmit() {}, documentMode:true, onHide() {},
+  })));
+  assert.equal($('.keyboard-text-surface').text(),'తెలుగు భాష\u200b');
+  assert.equal($('textarea.question-answer-editor').length,0);
+  assert.equal($('textarea.keyboard-native-input').length,1);
+  assert.equal($('.repository-hide-keyboard').length,0);
+  assert.equal($('.question-top-row .question-hide-key').length,1);
+  assert.equal($('.question-control-key').text(),'క్+త్+ల్');
+  const actions=$('.question-keyboard-actions button').toArray();
+  assert.ok(actions.findIndex(e=>$(e).hasClass('question-space-key')) < actions.findIndex(e=>$(e).hasClass('question-copy-key')));
+  assert.equal($('.lucide-text-select').length,0);
+});

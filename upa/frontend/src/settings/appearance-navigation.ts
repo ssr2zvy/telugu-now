@@ -1,5 +1,8 @@
 // Appearance routes are shared by the header, menu, back navigation and controls.
 export const appearanceLabels = {
+  appearanceFileEditor: ["File editor", "పత్ర సవరణ"],
+  appearanceFileTitleSize: ["Title size", "శీర్షిక పరిమాణం"],
+  appearanceFileTextSize: ["Text size", "వచన పరిమాణం"],
   appearanceQuestionActionPosition: ["Record / switch position", "రికార్డ్ / స్విచ్ స్థానం"],
   appearanceHighlightEnabled: ["Enabled", "ప్రారంభించు"],
   appearanceMagnifierBarGap: ["Magnifier gap", "బార్ నుండి మాగ్నిఫైయర్"],
@@ -154,7 +157,9 @@ export const appearanceLabels = {
 } as const;
 export type AppearancePage = 'appearance' | keyof typeof appearanceLabels;
 export const appearanceGroups:Partial<Record<AppearancePage,AppearancePage[]>> = {
+  appearanceFileEditor: ["appearanceFileTitleSize", "appearanceFileTextSize"],
   "appearance": [
+    "appearanceFileEditor",
     "appearanceBackground",
     "appearanceText",
     "appearanceModifications",

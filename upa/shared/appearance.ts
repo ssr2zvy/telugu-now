@@ -19,6 +19,8 @@ export interface AppearanceSettings extends ExplorationSettings {
   foregroundDefaultVersion: 2;
   surface: string | null;
   fontScale: number;
+  fileTitleSize: number;
+  fileTextSize: number;
   textOffset: number;
   audioOffset: number;
   questionActionOffset: number;
@@ -52,6 +54,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   foregroundDefaultVersion: 2,
   surface: null,
   fontScale: 50,
+  fileTitleSize: 26,
+  fileTextSize: 20,
   textOffset: 0,
   audioOffset: 0,
   questionActionOffset: 0,
@@ -99,6 +103,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     surface: isColor(candidate.surface) ? candidate.surface : null,
     fontScale: typeof candidate.fontScale === 'number' && Number.isFinite(candidate.fontScale)
       ? Math.max(0, Math.min(100, candidate.fontScale)) : 50,
+    fileTitleSize: typeof candidate.fileTitleSize === 'number' && Number.isFinite(candidate.fileTitleSize) ? Math.round(Math.max(16,Math.min(48,candidate.fileTitleSize))) : 26,
+    fileTextSize: typeof candidate.fileTextSize === 'number' && Number.isFinite(candidate.fileTextSize) ? Math.round(Math.max(12,Math.min(40,candidate.fileTextSize))) : 20,
     textOffset: parseOffset(candidate.textOffset),
     audioOffset: parseOffset(candidate.audioOffset),
     questionActionOffset: Math.max(0, parseOffset(candidate.questionActionOffset)),
