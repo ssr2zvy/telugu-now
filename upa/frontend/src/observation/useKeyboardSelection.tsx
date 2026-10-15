@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DOMAttributes, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { caretBox, letterBoundaries, measureKeyboardText, nearestLetterHit, selectionBoxes, type TextLayout, type TextBox } from './keyboard-text-layout';
+import { caretBox, letterBoundaries, measureKeyboardText, nearestLetterHit, textLineHit, selectionBoxes, type TextLayout, type TextBox } from './keyboard-text-layout';
 
 type Selection = { start: number; end: number };
 interface Drag { id: number; x: number; y: number; top: number; anchor: number; active: boolean; moved: boolean; mode: 'range' | 'caret'; blank: boolean; biasX: number; biasY: number }
@@ -89,6 +89,13 @@ export function useKeyboardSelection(editor: RefObject<HTMLDivElement | null>, i
     return nearestLetterHit(measured, x - rect.left - element.clientLeft + element.scrollLeft,
       Math.max(rect.top + 2, Math.min(rect.bottom - 2, y)) - rect.top - element.clientTop + element.scrollTop);
   };
+  const lineHitAt = (x: number, y: number) => {
+    const element = editor.current, measured = layoutRef.current;
+    if (!element || !measured) return null;
+    const rect = element.getBoundingClientRect();
+    if (x<rect.left || x>rect.right || y<rect.top || y>rect.bottom) return null;
+    return textLineHit(measured,x-rect.left+element.scrollLeft,y-rect.top+element.scrollTop);
+  };
   const isText = (x: number, y: number) => {
     const element = editor.current, measured = layoutRef.current;
     if (!element || !measured) return false;
@@ -145,7 +152,7 @@ export function useKeyboardSelection(editor: RefObject<HTMLDivElement | null>, i
       const kind = handle?.dataset.selectionHandle;
       const anchor = kind === 'start' ? selection.current.end : kind === 'end' ? selection.current.start : offsetAt(event.clientX, event.clientY).offset;
       const point: Drag = { id: event.pointerId, x: event.clientX, y: event.clientY, top: editor.current?.scrollTop ?? 0,
-        anchor, active: false, moved: false, mode: kind === 'start' || kind === 'end' || latest.current.options.selectionMode ? 'range' : 'caret', biasX: 0, biasY: 0, blank: !handle && !isText(event.clientX,event.clientY) };
+        anchor, active: false, moved: false, mode: kind === 'start' || kind === 'end' || latest.current.options.selectionMode ? 'range' : 'caret', biasX: 0, biasY: 0, blank: !handle && !lineHitAt(event.clientX,event.clientY) };
       if (handle && editor.current && layoutRef.current) {
         const offset = kind === 'end' ? selection.current.end : selection.current.start;
         const box = caretBox(layoutRef.current, offset, kind === 'end');
@@ -175,8 +182,13 @@ export function useKeyboardSelection(editor: RefObject<HTMLDivElement | null>, i
       event.preventDefault(); event.stopPropagation();
       if (point.active) { point.x = event.clientX; point.y = event.clientY; moveSelection(point); latest.current.options.onActivate?.(); }
       else if (!point.moved) {
-        if (point.blank) { clearSelectionMode(); if (!latest.current.value) latest.current.options.onActivate?.(); }
-        else {
+        if (point.blank) clearSelectionMode();
+        else if (!isText(event.clientX,event.clientY)) {
+          clearSelectionMode();
+          const hit=lineHitAt(event.clientX,event.clientY);
+          if (hit) {select(hit.offset,hit.offset,hit.trailing); latest.current.options.onActivate?.(); setFocused(true);}
+          lastTap.current.time=0;
+        } else {
           const now = performance.now(), previous = lastTap.current;
           if (now - previous.time < 350 && Math.hypot(event.clientX-previous.x,event.clientY-previous.y) < 24) {
             selectWord(event.clientX,event.clientY); lastTap.current = {time:now,x:event.clientX,y:event.clientY};
