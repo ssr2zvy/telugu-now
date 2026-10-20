@@ -1,3 +1,4 @@
+import { ModifierIcon } from '../modifiers/ModifierView';
 import { ExplorationSurface, type ExplorationHandle } from './ExplorationSurface';
 import type { ExplorationStep } from './exploration-steps';
 import { explorationChoices, RandomExploration } from './random-exploration';
@@ -63,6 +64,7 @@ interface ObservationViewProps {
     direction: 'back' | 'next',
   ) => Promise<boolean>;
   onOpenSettings: (fontFamily: string) => void;
+  onOpenModifiers?: (fontFamily: string) => void;
   onOpenRepository?: (fontFamily: string) => void;
 }
 interface ReaderPoint {
@@ -77,6 +79,7 @@ export function ObservationView({
   onMove,
   onOpenSettings,
   onOpenRepository,
+  onOpenModifiers,
 }: ObservationViewProps) {
   const { appearance } = useAppearance();
   const gradientTravel = useGradientTravel();
@@ -802,6 +805,11 @@ export function ObservationView({
           fontFamily={typography.fontFamily} playbackRate={state?.audioSettings.playbackRate ?? 1}
           onClose={() => setSelectedWord(null)} />
       ) : null}
+      {onOpenModifiers ? <button type="button" className="reader-settings reader-modifier" aria-label="రూపాల అభ్యాసం" onClick={async event => {
+        event.stopPropagation(); taps.cancel();
+        if (questionControlsRef.current && !(await questionControlsRef.current.prepareToLeave())) return;
+        playerRef.current?.pause(); explorationRef.current?.pause(); onOpenModifiers(typography.fontFamily);
+      }}><ModifierIcon/></button> : null}
       {onOpenRepository ? <button type="button" className="reader-settings reader-repository" aria-label="సంచికలు" onClick={async event => {
         event.stopPropagation(); taps.cancel();
         if (questionControlsRef.current && !(await questionControlsRef.current.prepareToLeave())) return;

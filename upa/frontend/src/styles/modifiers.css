@@ -1,0 +1,27 @@
+.reader-settings.reader-modifier { right: calc(max(16px, env(safe-area-inset-right) - 4px) + 96px); }
+.modifier-screen { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.modifier-screen .reader-settings { position: fixed; transition: opacity 220ms ease; }
+.modifier-screen[data-settings-idle='true'] .reader-settings { opacity: 0; }
+.modifier-screen .reader-settings:focus-visible { opacity: 1; }
+.modifier-content { width: min(100%, 780px); margin: 0 auto; padding: max(100px, calc(env(safe-area-inset-top) + 80px)) 28px max(100px, calc(env(safe-area-inset-bottom) + 80px)); animation: modifier-enter 200ms ease-out both; }
+.modifier-content[data-direction='back'] { --modifier-enter-x: -36px; }
+.modifier-grammar { font-size: clamp(1.8rem, 5vw, 3rem); line-height: 1.65; text-align: center; overflow-wrap: anywhere; margin-bottom: 2.5rem; }
+.modifier-examples { display: grid; gap: 2.2rem; }
+.modifier-example p { margin: 0; overflow-wrap: anywhere; }
+.modifier-transformation { font-size: clamp(1.05rem, 3.8vw, 1.65rem); line-height: 1.9; }
+.modifier-sentence { margin-top: .7rem !important; font-size: clamp(1.15rem, 4vw, 1.8rem); line-height: 1.85; }
+.modifier-screen .modifier-switch { margin-top: 2.7rem; }
+.modifier-switch { width: 86px; height: 40px; flex-shrink: 0; }
+.modifier-remaining { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); right: max(24px, env(safe-area-inset-right)); font-family: 'Manrope Variable', sans-serif; color: var(--muted); font-size: 1rem; pointer-events: none; }
+.modifier-retry { position: fixed; left: 24px; bottom: 24px; }
+.modifier-retry button, .modifier-reset-confirm button { padding: 12px; border: 0; background: var(--wash); color: var(--foreground); border-radius: 50%; }
+.modifier-settings-count { margin-left: auto; padding-inline: 16px; color: var(--muted); }
+.modifier-entry-list { padding: 0; margin: 0; list-style: none; }
+.modifier-entry-list li { display: flex; align-items: center; gap: 20px; padding-block: 20px; overflow-wrap: anywhere; }
+.modifier-entry-list li > div { flex: 1; min-width: 0; }
+.modifier-entry-example { margin-top: 8px; color: var(--muted); font-size: .9em; line-height: 1.7; }
+.modifier-reset p { line-height: 1.8; }
+.modifier-reset-confirm { display: flex; gap: 24px; }
+.modifier-settings .secondary-action { display: inline-flex; gap: 12px; align-items: center; }
+@keyframes modifier-enter { from { opacity: 0; transform: translateX(var(--modifier-enter-x, 36px)); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .modifier-content { animation: none; } }
