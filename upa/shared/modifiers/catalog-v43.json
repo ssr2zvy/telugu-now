@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.7",
+  "schema_version": "1.10",
   "audit": {
     "method": "Iterative language-model judgment: compare missing everyday uses with less conversational retained entries; not measured corpus frequency.",
     "status": "curated_audit_with_passage_followup",
@@ -13,7 +13,7 @@
       "quotatives, focus, questions, indefinites, reports and address",
       "postpositions, comparisons, counters, distribution and connective helper words"
     ],
-    "stopping_rule": "An initial judgment audit was completed, then new passages exposed additional variants and uses. Versions 1.3 through 1.6 include those follow-up examples; coverage is revisable and is not claimed to be exhaustive. Version 1.7 incorporates additional temporal, purpose/manner, positional and stem variants.",
+    "stopping_rule": "An initial judgment audit was completed, then new passages exposed additional variants and uses. Versions 1.3 through 1.6 include those follow-up examples; coverage is revisable and is not claimed to be exhaustive. Version 1.7 incorporates additional temporal, purpose/manner, positional and stem variants. Version 1.8 follows a further common-use gap review; no exhaustive-coverage claim. Version 1.9 checks patterns in the official Avant Telugu learner response. Version 1.10 extends three existing families with practice-passage examples.",
     "baseline_entries": 119,
     "baseline_examples": 156,
     "new_entry_ids": [
@@ -55,7 +55,22 @@
       "free_asalu",
       "degree_correlative",
       "after_aaka",
-      "relative_manner_purpose"
+      "relative_manner_purpose",
+      "inferential_anterior",
+      "anterior_conditional",
+      "negative_embedded",
+      "prohibitive_modal",
+      "desiderative_state",
+      "felt_desire",
+      "prospective_aux",
+      "past_obligation",
+      "negative_before",
+      "cessation_aux",
+      "inception_aux",
+      "free_still",
+      "free_again",
+      "free_together",
+      "liking_predicate"
     ],
     "corrections": [
       "సరి → సారి for occasion counting",
@@ -81,10 +96,17 @@
     {
       "url": "https://languageinindia.com/aug2019/profrajendrandravidianlanguagesgrammaticalizationverbs1.pdf",
       "purpose": "Background on Telugu modal auxiliaries; not an independent verification of every corpus analysis."
+    },
+    {
+      "url": "https://www.avantassessment.com/writing-examples/telugu",
+      "purpose": "Official learner response pattern coverage only; the same response appears at Levels 5 and 6. Learner errors are possible. This review does not assign an unambiguous proficiency score or infer frequency."
     }
   ],
   "title": "Telugu modifier examples and exact Unicode transformations",
   "scope_notes": [
+    "Version 1.10 adds three practice-passage examples within existing families: కొను → కొన్నాక, పెట్టు → పెట్టాను, కావాలి → కావాల్సింది. The last is explicitly contracted and illustrates past need rather than necessarily unfulfilled duty.",
+    "Version 1.9 adds eleven examples from a review of the official Avant Telugu learner-response patterns: వలన, వీటి, వీటితో, habitual/ongoing auxiliary agreement, expanded/contracted cessation-completive, reflexive-progressive and reflexive-modal combinations, nominal dative stem change, and adjective + negative copula. Existing learning families are extended; learner errors are not promoted to new forms.",
+    "Version 1.8 adds 24 common-use examples, including inferred anterior విని ఉంటావు/విని ఉంటాడు, anterior conditionals, embedded negatives, prohibitive కూడదు, desire, prospective బోతున్న, past obligation, negative-before, cessation/inception, ఇంకా/మళ్లీ/కలిసి, liking and explicit inflection combinations. Coverage prioritization is language-model judgment, not measured corpus frequency.",
     "Version 1.7 adds eleven passage-follow-up examples: వచ్చినాక, వచ్చాక, ఉన్నాక; relative + లా in తగిలేలా, దొర్లేలా, ఎగిరేలా; positional పై/క్రింద; and తిన్నాను, వేశాను, తీసుకుని. Two new learning families; existing examples and practice progress preserved.",
     "Version 1.6 adds nine examples from the work-from-home passage: abstract త, సరిపడా, negative-emphasis అసలు, paired కీ ... కీ, matching ఎంత ... అంతే, మారుతుంటుంది, చేయాల్సిన, ఉండవచ్చని, and గంటలైనా. Three new learning families cover the two standalone modifiers and the degree-correlative construction; the other examples extend existing families.",
     "Version 1.5 adds ఒకే → ఒకేలా, చేయాలి → చేయాలో, and తీసుకొను → తీసుకుంటాను as variants/combinations within existing entries.",
@@ -105,8 +127,8 @@
     "Combination notes: లోని = లో + attributive ని; లోకి = లో + కి; manner బాగానే = బాగా + నే; temporal రాగానే is a different construction; కుండానే = కుండా + నే; తున్న = తూ + ఉండు with contraction; ఉన్నట్లుగా = ఉన్న + ట్లు + గా; చేయడానికి includes verbal-noun oblique + కి; ఆడినప్పుడు = ఆడిన + అప్పుడు; చేయాలంటే = చేయాలి + అంటే with sandhi.",
     "Long vowels can express focus, inclusion, or interrogative meaning, depending on the construction. Unicode identity alone does not determine grammar."
   ],
-  "entry_count": 158,
-  "example_count": 283,
+  "entry_count": 173,
+  "example_count": 321,
   "entries": [
     {
       "id": "plural",
@@ -486,6 +508,66 @@
             "U+0C28",
             "U+0C3F"
           ]
+        },
+        {
+          "modifier_surface": "టి",
+          "modifier_unicode": [
+            "U+0C1F",
+            "U+0C3F"
+          ],
+          "base": "ఇవి",
+          "result": "వీటి",
+          "source_context": "వీటి గురించి చెప్పు.",
+          "note": "Irregular plural demonstrative oblique; exact replacement, not a productive టి suffix.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 0,
+            "remove": "ఇవి",
+            "remove_unicode": [
+              "U+0C07",
+              "U+0C35",
+              "U+0C3F"
+            ],
+            "append": "వీటి",
+            "append_unicode": [
+              "U+0C35",
+              "U+0C40",
+              "U+0C1F",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "వీటి గురించి చెప్పు.",
+          "example_id": "oblique_5",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C07",
+            "U+0C35",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C40",
+            "U+0C1F",
+            "U+0C3F"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "ending_or_operation",
@@ -1276,6 +1358,76 @@
             "U+0C15",
             "U+0C3F"
           ]
+        },
+        {
+          "modifier_surface": "కి",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C3F"
+          ],
+          "base": "ఆరోగ్యం",
+          "result": "ఆరోగ్యానికి",
+          "source_context": "నడక ఆరోగ్యానికి మంచిది.",
+          "note": "Nominal oblique ఆరోగ్యాని + కి; exact Unicode edit includes stem change from final ం.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 6,
+            "remove": "ం",
+            "remove_unicode": [
+              "U+0C02"
+            ],
+            "append": "ానికి",
+            "append_unicode": [
+              "U+0C3E",
+              "U+0C28",
+              "U+0C3F",
+              "U+0C15",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నడక ఆరోగ్యానికి మంచిది.",
+          "example_id": "dative_7",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C06",
+            "U+0C30",
+            "U+0C4B",
+            "U+0C17",
+            "U+0C4D",
+            "U+0C2F",
+            "U+0C02"
+          ],
+          "result_unicode": [
+            "U+0C06",
+            "U+0C30",
+            "U+0C4B",
+            "U+0C17",
+            "U+0C4D",
+            "U+0C2F",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C3F",
+            "U+0C15",
+            "U+0C3F"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "ending_or_operation",
@@ -1342,6 +1494,63 @@
             "U+0C24",
             "U+0C4B"
           ]
+        },
+        {
+          "modifier_surface": "తో",
+          "modifier_unicode": [
+            "U+0C24",
+            "U+0C4B"
+          ],
+          "base": "వీటి",
+          "result": "వీటితో",
+          "source_context": "వీటితో ఆడవచ్చు.",
+          "note": "Plural demonstrative oblique + instrumental; with these.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "తో",
+            "append_unicode": [
+              "U+0C24",
+              "U+0C4B"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "త",
+              "codepoint": "U+0C24",
+              "name": "TELUGU LETTER TA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "వీటితో ఆడవచ్చు.",
+          "example_id": "instrumental_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C40",
+            "U+0C1F",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C40",
+            "U+0C1F",
+            "U+0C3F",
+            "U+0C24",
+            "U+0C4B"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "ending_or_operation",
@@ -3390,6 +3599,74 @@
             "U+0C28",
             "U+0C41"
           ]
+        },
+        {
+          "modifier_surface": "ాను",
+          "modifier_unicode": [
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ],
+          "base": "పెట్టు",
+          "result": "పెట్టాను",
+          "source_context": "నేను బండిలో పెట్టాను.",
+          "note": "Full first-person singular past form; includes past formation and agreement, not a universal append-only suffix.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "ాను",
+            "append_unicode": [
+              "U+0C3E",
+              "U+0C28",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నేను బండిలో పెట్టాను.",
+          "example_id": "past_5",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C2A",
+            "U+0C46",
+            "U+0C1F",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C2A",
+            "U+0C46",
+            "U+0C1F",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ]
         }
       ],
       "inventory_kind": "ending_or_operation",
@@ -4495,6 +4772,70 @@
             "U+0C2E",
             "U+0C46"
           ]
+        },
+        {
+          "modifier_surface": "ని",
+          "modifier_unicode": [
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "base": "ఆడేవాడు",
+          "result": "ఆడేవాడిని",
+          "source_context": "నేను చిన్నప్పుడు ఆడేవాడిని.",
+          "note": "First-person agreement on habitual past construction; complete multi-component example.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 6,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "ిని",
+            "append_unicode": [
+              "U+0C3F",
+              "U+0C28",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నేను చిన్నప్పుడు ఆడేవాడిని.",
+          "example_id": "personal_nominal_6",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C47",
+            "U+0C35",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C47",
+            "U+0C35",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3F"
+          ]
         }
       ],
       "inventory_kind": "ending_or_operation",
@@ -4954,6 +5295,78 @@
             "U+0C32",
             "U+0C47",
             "U+0C35",
+            "U+0C41"
+          ]
+        },
+        {
+          "modifier_surface": "లేదు",
+          "modifier_unicode": [
+            "U+0C32",
+            "U+0C47",
+            "U+0C26",
+            "U+0C41"
+          ],
+          "base": "చేయు",
+          "result": "చేయలేదు",
+          "source_context": "నేను ఆ పని చేయలేదు.",
+          "note": "Past negation with lexical stem change; did not do, not necessarily could not do.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "లేదు",
+            "append_unicode": [
+              "U+0C32",
+              "U+0C47",
+              "U+0C26",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "ే",
+              "codepoint": "U+0C47",
+              "name": "TELUGU VOWEL SIGN EE"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నేను ఆ పని చేయలేదు.",
+          "example_id": "negative_predicate_3",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C32",
+            "U+0C47",
+            "U+0C26",
             "U+0C41"
           ]
         }
@@ -7083,6 +7496,133 @@
             "U+0C28",
             "U+0C41"
           ]
+        },
+        {
+          "modifier_surface": "కుంటున్నారు",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C41",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C30",
+            "U+0C41"
+          ],
+          "base": "ఆడు",
+          "result": "ఆడుకుంటున్నారు",
+          "source_context": "పిల్లలు బయట ఆడుకుంటున్నారు.",
+          "note": "Composite కొను + progressive + human plural agreement; playful/self-involved use, not always literal for oneself.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కుంటున్నారు",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C41",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C41",
+              "U+0C28",
+              "U+0C4D",
+              "U+0C28",
+              "U+0C3E",
+              "U+0C30",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ర",
+              "codepoint": "U+0C30",
+              "name": "TELUGU LETTER RA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "పిల్లలు బయట ఆడుకుంటున్నారు.",
+          "example_id": "reflexive_aux_5",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C41",
+            "U+0C15",
+            "U+0C41",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C30",
+            "U+0C41"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "construction",
@@ -7523,6 +8063,169 @@
             "U+0C1A",
             "U+0C41"
           ]
+        },
+        {
+          "modifier_surface": "వచ్చు",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C41"
+          ],
+          "base": "చేయు",
+          "result": "చేయవచ్చు",
+          "source_context": "నువ్వు ఈ పని చేయవచ్చు.",
+          "note": "Permission or possibility according to context; explicit చేయు example alongside existing ఉండు examples.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "వచ్చు",
+            "append_unicode": [
+              "U+0C35",
+              "U+0C1A",
+              "U+0C4D",
+              "U+0C1A",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "చ",
+              "codepoint": "U+0C1A",
+              "name": "TELUGU LETTER CA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "చ",
+              "codepoint": "U+0C1A",
+              "name": "TELUGU LETTER CA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు ఈ పని చేయవచ్చు.",
+          "example_id": "possibility_aux_3",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C41"
+          ]
+        },
+        {
+          "modifier_surface": "వచ్చు",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C41"
+          ],
+          "base": "ఆడుకో",
+          "result": "ఆడుకోవచ్చు",
+          "source_context": "ఇక్కడ ఆడుకోవచ్చు.",
+          "note": "Reflexive/playful verb + possibility or permission modal; composite example.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "వచ్చు",
+            "append_unicode": [
+              "U+0C35",
+              "U+0C1A",
+              "U+0C4D",
+              "U+0C1A",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "చ",
+              "codepoint": "U+0C1A",
+              "name": "TELUGU LETTER CA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "చ",
+              "codepoint": "U+0C1A",
+              "name": "TELUGU LETTER CA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఇక్కడ ఆడుకోవచ్చు.",
+          "example_id": "possibility_aux_4",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C41",
+            "U+0C15",
+            "U+0C4B"
+          ],
+          "result_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C41",
+            "U+0C15",
+            "U+0C4B",
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C41"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "construction",
@@ -9857,6 +10560,204 @@
             "U+0C26",
             "U+0C3F"
           ]
+        },
+        {
+          "modifier_surface": "ఉంటాము",
+          "modifier_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C2E",
+            "U+0C41"
+          ],
+          "base": "చూస్తూ",
+          "result": "చూస్తూ ఉంటాము",
+          "source_context": "మేము సాయంత్రం ఆకాశాన్ని చూస్తూ ఉంటాము.",
+          "note": "Converb + nonpast ఉండు with first-person plural agreement; ongoing or habitual according to context. Constructed context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 6,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఉంటాము",
+            "append_unicode": [
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C3E",
+              "U+0C2E",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "మ",
+              "codepoint": "U+0C2E",
+              "name": "TELUGU LETTER MA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "మేము సాయంత్రం ఆకాశాన్ని చూస్తూ ఉంటాము.",
+          "example_id": "continuative_aux_7",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C42",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C42"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C42",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C42",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C2E",
+            "U+0C41"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
+        },
+        {
+          "modifier_surface": "ఉంటుంది",
+          "modifier_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "చేస్తూ",
+          "result": "చేస్తూ ఉంటుంది",
+          "source_context": "ఆమె పని చేస్తూ ఉంటుంది.",
+          "note": "Converb + nonpast ఉండు with nonmasculine singular agreement; ongoing/habitual use.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 6,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఉంటుంది",
+            "append_unicode": [
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C41",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఆమె పని చేస్తూ ఉంటుంది.",
+          "example_id": "continuative_aux_8",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C42"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C42",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "construction",
@@ -9937,6 +10838,151 @@
             "U+0C2F",
             "U+0C41"
           ]
+        },
+        {
+          "modifier_surface": "వేసి",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C47",
+            "U+0C38",
+            "U+0C3F"
+          ],
+          "base": "మాని",
+          "result": "మానివేసి",
+          "source_context": "ఆ పని మానివేసి వచ్చాను.",
+          "note": "Cessation converb + completion auxiliary converb; expanded counterpart of sample మానేసి.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "వేసి",
+            "append_unicode": [
+              "U+0C35",
+              "U+0C47",
+              "U+0C38",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "ే",
+              "codepoint": "U+0C47",
+              "name": "TELUGU VOWEL SIGN EE"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఆ పని మానివేసి వచ్చాను.",
+          "example_id": "completion_do_aux_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C3F",
+            "U+0C35",
+            "U+0C47",
+            "U+0C38",
+            "U+0C3F"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
+        },
+        {
+          "modifier_surface": "వేసి",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C47",
+            "U+0C38",
+            "U+0C3F"
+          ],
+          "base": "మాని",
+          "result": "మానేసి",
+          "source_context": "ఆ పని మానేసి వచ్చాను.",
+          "note": "Common contraction of మానివేసి, observed in sample; includes cessation + completive + converb.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ి",
+            "remove_unicode": [
+              "U+0C3F"
+            ],
+            "append": "ేసి",
+            "append_unicode": [
+              "U+0C47",
+              "U+0C38",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "ే",
+              "codepoint": "U+0C47",
+              "name": "TELUGU VOWEL SIGN EE"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఆ పని మానేసి వచ్చాను.",
+          "example_id": "completion_do_aux_3",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": true,
+          "base_unicode": [
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C47",
+            "U+0C38",
+            "U+0C3F"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "construction",
@@ -14492,6 +15538,75 @@
             "U+0C4D",
             "U+0C32"
           ]
+        },
+        {
+          "modifier_surface": "వలన",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C32",
+            "U+0C28"
+          ],
+          "base": "వర్షం",
+          "result": "వర్షం వలన",
+          "source_context": "వర్షం వలన వెళ్లలేదు.",
+          "note": "వలన variant of వల్ల, observed in the Avant learner sample; practice sentence is constructed.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " వలన",
+            "append_unicode": [
+              "U+0020",
+              "U+0C35",
+              "U+0C32",
+              "U+0C28"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "వర్షం వలన వెళ్లలేదు.",
+          "example_id": "free_33_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C30",
+            "U+0C4D",
+            "U+0C37",
+            "U+0C02"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C30",
+            "U+0C4D",
+            "U+0C37",
+            "U+0C02",
+            "U+0020",
+            "U+0C35",
+            "U+0C32",
+            "U+0C28"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "function_word",
@@ -14962,6 +16077,85 @@
             "U+0C26",
             "U+0C41"
           ]
+        },
+        {
+          "modifier_surface": "కాదు",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C3E",
+            "U+0C26",
+            "U+0C41"
+          ],
+          "base": "మంచిది",
+          "result": "మంచిది కాదు",
+          "source_context": "ఇది మంచిది కాదు.",
+          "note": "Adjective nominalization + negative copula; components already covered, explicit sample-pattern combination.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 6,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " కాదు",
+            "append_unicode": [
+              "U+0020",
+              "U+0C15",
+              "U+0C3E",
+              "U+0C26",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఇది మంచిది కాదు.",
+          "example_id": "free_38_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C2E",
+            "U+0C02",
+            "U+0C1A",
+            "U+0C3F",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C2E",
+            "U+0C02",
+            "U+0C1A",
+            "U+0C3F",
+            "U+0C26",
+            "U+0C3F",
+            "U+0020",
+            "U+0C15",
+            "U+0C3E",
+            "U+0C26",
+            "U+0C41"
+          ],
+          "source_url": "https://www.avantassessment.com/writing-examples/telugu",
+          "source_relation": "Pattern observed in Avant learner response; example is constructed or normalized, not a verbatim quotation."
         }
       ],
       "inventory_kind": "function_word",
@@ -21646,6 +22840,66 @@
             "U+0C3E",
             "U+0C15"
           ]
+        },
+        {
+          "modifier_surface": "ఆక",
+          "modifier_unicode": [
+            "U+0C06",
+            "U+0C15"
+          ],
+          "base": "కొను",
+          "result": "కొన్నాక",
+          "source_context": "పండు కొన్నాక ఇంటికి వచ్చాను.",
+          "note": "Composite past-temporal form: కొను → కొన్న + ఆక. Stem doubling is part of this verb-specific transformation; compare expanded కొన్న తరువాత.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "్నాక",
+            "append_unicode": [
+              "U+0C4D",
+              "U+0C28",
+              "U+0C3E",
+              "U+0C15"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఆ",
+              "codepoint": "U+0C06",
+              "name": "TELUGU LETTER AA"
+            },
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "పండు కొన్నాక ఇంటికి వచ్చాను.",
+          "example_id": "after_aaka_4",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C15",
+            "U+0C4A",
+            "U+0C28",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C15",
+            "U+0C4A",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C15"
+          ]
         }
       ]
     },
@@ -21825,6 +23079,2219 @@
             "U+0C47",
             "U+0C32",
             "U+0C3E"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inferential_anterior",
+      "category": "construction",
+      "meaning": "probably has done / will have done",
+      "examples": [
+        {
+          "modifier_surface": "ఉంటావు",
+          "modifier_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C35",
+            "U+0C41"
+          ],
+          "base": "విని",
+          "result": "విని ఉంటావు",
+          "source_context": "నువ్వు ఆ వార్త విని ఉంటావు.",
+          "note": "Converb + nonpast ఉండు, second person: inference about a completed event. With a future reference time it can mean will have heard; not an unconditional counterfactual would have heard.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఉంటావు",
+            "append_unicode": [
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C3E",
+              "U+0C35",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు ఆ వార్త విని ఉంటావు.",
+          "example_id": "inferential_anterior_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C35",
+            "U+0C41"
+          ]
+        },
+        {
+          "modifier_surface": "ఉంటాడు",
+          "modifier_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C41"
+          ],
+          "base": "విని",
+          "result": "విని ఉంటాడు",
+          "source_context": "అతను ఆ వార్త విని ఉంటాడు.",
+          "note": "Converb + nonpast ఉండు, masculine third person: probably has heard; future-perfect reading depends on temporal context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఉంటాడు",
+            "append_unicode": [
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C3E",
+              "U+0C21",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "డ",
+              "codepoint": "U+0C21",
+              "name": "TELUGU LETTER DDA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అతను ఆ వార్త విని ఉంటాడు.",
+          "example_id": "inferential_anterior_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "anterior_conditional",
+      "category": "construction",
+      "meaning": "if someone has / had done",
+      "examples": [
+        {
+          "modifier_surface": "ఉంటే",
+          "modifier_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C47"
+          ],
+          "base": "వచ్చి",
+          "result": "వచ్చి ఉంటే",
+          "source_context": "నువ్వు నిన్న వచ్చి ఉంటే బాగుండేది.",
+          "note": "Converb + conditional ఉండు; context here is unreal past: it would have been nice if you had come.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఉంటే",
+            "append_unicode": [
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C1F",
+              "U+0C47"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ే",
+              "codepoint": "U+0C47",
+              "name": "TELUGU VOWEL SIGN EE"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు నిన్న వచ్చి ఉంటే బాగుండేది.",
+          "example_id": "anterior_conditional_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C1A",
+            "U+0C4D",
+            "U+0C1A",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C1F",
+            "U+0C47"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_embedded",
+      "category": "construction",
+      "meaning": "negative conditional / concessive / action noun",
+      "examples": [
+        {
+          "modifier_surface": "కపోతే",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C47"
+          ],
+          "base": "రా",
+          "result": "రాకపోతే",
+          "source_context": "నువ్వు రాకపోతే నేను వెళ్తాను.",
+          "note": "Negative embedded base + conditional పోతే: if you do not come.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 2,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కపోతే",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C2A",
+              "U+0C4B",
+              "U+0C24",
+              "U+0C47"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ప",
+              "codepoint": "U+0C2A",
+              "name": "TELUGU LETTER PA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            },
+            {
+              "character": "త",
+              "codepoint": "U+0C24",
+              "name": "TELUGU LETTER TA"
+            },
+            {
+              "character": "ే",
+              "codepoint": "U+0C47",
+              "name": "TELUGU VOWEL SIGN EE"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు రాకపోతే నేను వెళ్తాను.",
+          "example_id": "negative_embedded_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C30",
+            "U+0C3E",
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C47"
+          ]
+        },
+        {
+          "modifier_surface": "కపోయినా",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C2F",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3E"
+          ],
+          "base": "రా",
+          "result": "రాకపోయినా",
+          "source_context": "నువ్వు రాకపోయినా పరవాలేదు.",
+          "note": "Negative embedded base + concessive పోయినా: even if you do not come; tense depends on context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 2,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కపోయినా",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C2A",
+              "U+0C4B",
+              "U+0C2F",
+              "U+0C3F",
+              "U+0C28",
+              "U+0C3E"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ప",
+              "codepoint": "U+0C2A",
+              "name": "TELUGU LETTER PA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            },
+            {
+              "character": "య",
+              "codepoint": "U+0C2F",
+              "name": "TELUGU LETTER YA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు రాకపోయినా పరవాలేదు.",
+          "example_id": "negative_embedded_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C30",
+            "U+0C3E",
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C2F",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3E"
+          ]
+        },
+        {
+          "modifier_surface": "కపోవడం",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C35",
+            "U+0C21",
+            "U+0C02"
+          ],
+          "base": "రా",
+          "result": "రాకపోవడం",
+          "source_context": "అతను రాకపోవడం మంచిదే.",
+          "note": "Nominalized negative event: his not coming. Combination example.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 2,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కపోవడం",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C2A",
+              "U+0C4B",
+              "U+0C35",
+              "U+0C21",
+              "U+0C02"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ప",
+              "codepoint": "U+0C2A",
+              "name": "TELUGU LETTER PA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            },
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "డ",
+              "codepoint": "U+0C21",
+              "name": "TELUGU LETTER DDA"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అతను రాకపోవడం మంచిదే.",
+          "example_id": "negative_embedded_3",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C30",
+            "U+0C3E",
+            "U+0C15",
+            "U+0C2A",
+            "U+0C4B",
+            "U+0C35",
+            "U+0C21",
+            "U+0C02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prohibitive_modal",
+      "category": "construction",
+      "meaning": "must not / should not",
+      "examples": [
+        {
+          "modifier_surface": "కూడదు",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C42",
+            "U+0C21",
+            "U+0C26",
+            "U+0C41"
+          ],
+          "base": "చేయ",
+          "result": "చేయకూడదు",
+          "source_context": "అలా చేయకూడదు.",
+          "note": "Bound infinitival base చేయ + negative modal కూడదు; do not add another క before కూడదు.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కూడదు",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C42",
+              "U+0C21",
+              "U+0C26",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ూ",
+              "codepoint": "U+0C42",
+              "name": "TELUGU VOWEL SIGN UU"
+            },
+            {
+              "character": "డ",
+              "codepoint": "U+0C21",
+              "name": "TELUGU LETTER DDA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అలా చేయకూడదు.",
+          "example_id": "prohibitive_modal_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C15",
+            "U+0C42",
+            "U+0C21",
+            "U+0C26",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "desiderative_state",
+      "category": "construction",
+      "meaning": "want to do",
+      "examples": [
+        {
+          "modifier_surface": "ాలని ఉంది",
+          "modifier_unicode": [
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "చేయు",
+          "result": "చేయాలని ఉంది",
+          "source_context": "నాకు ఆ పని చేయాలని ఉంది.",
+          "note": "Obligation/wish form + అని + ఉంది; desire construction, not an obligation statement.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "ాలని ఉంది",
+            "append_unicode": [
+              "U+0C3E",
+              "U+0C32",
+              "U+0C28",
+              "U+0C3F",
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": " ",
+              "codepoint": "U+0020",
+              "name": "SPACE"
+            },
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నాకు ఆ పని చేయాలని ఉంది.",
+          "example_id": "desiderative_state_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        },
+        {
+          "modifier_surface": "ాలని ఉంది",
+          "modifier_unicode": [
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "తిను",
+          "result": "తినాలని ఉంది",
+          "source_context": "నాకు తినాలని ఉంది.",
+          "note": "Desire construction with dative experiencer నాకు.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "ాలని ఉంది",
+            "append_unicode": [
+              "U+0C3E",
+              "U+0C32",
+              "U+0C28",
+              "U+0C3F",
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": " ",
+              "codepoint": "U+0020",
+              "name": "SPACE"
+            },
+            {
+              "character": "ఉ",
+              "codepoint": "U+0C09",
+              "name": "TELUGU LETTER U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నాకు తినాలని ఉంది.",
+          "example_id": "desiderative_state_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C24",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C24",
+            "U+0C3F",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "felt_desire",
+      "category": "construction",
+      "meaning": "feel like doing",
+      "examples": [
+        {
+          "modifier_surface": "అనిపిస్తుంది",
+          "modifier_unicode": [
+            "U+0C05",
+            "U+0C28",
+            "U+0C3F",
+            "U+0C2A",
+            "U+0C3F",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "వెళ్లాలని",
+          "result": "వెళ్లాలని అనిపిస్తుంది",
+          "source_context": "నాకు బయటికి వెళ్లాలని అనిపిస్తుంది.",
+          "note": "Quotative wish + feeling predicate: I feel like going out.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 9,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " అనిపిస్తుంది",
+            "append_unicode": [
+              "U+0020",
+              "U+0C05",
+              "U+0C28",
+              "U+0C3F",
+              "U+0C2A",
+              "U+0C3F",
+              "U+0C38",
+              "U+0C4D",
+              "U+0C24",
+              "U+0C41",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "అ",
+              "codepoint": "U+0C05",
+              "name": "TELUGU LETTER A"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "ప",
+              "codepoint": "U+0C2A",
+              "name": "TELUGU LETTER PA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "త",
+              "codepoint": "U+0C24",
+              "name": "TELUGU LETTER TA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నాకు బయటికి వెళ్లాలని అనిపిస్తుంది.",
+          "example_id": "felt_desire_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C35",
+            "U+0C46",
+            "U+0C33",
+            "U+0C4D",
+            "U+0C32",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C35",
+            "U+0C46",
+            "U+0C33",
+            "U+0C4D",
+            "U+0C32",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C28",
+            "U+0C3F",
+            "U+0020",
+            "U+0C05",
+            "U+0C28",
+            "U+0C3F",
+            "U+0C2A",
+            "U+0C3F",
+            "U+0C38",
+            "U+0C4D",
+            "U+0C24",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prospective_aux",
+      "category": "construction",
+      "meaning": "be going to / be about to",
+      "examples": [
+        {
+          "modifier_surface": "బోతున్నాను",
+          "modifier_unicode": [
+            "U+0C2C",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ],
+          "base": "చేయు",
+          "result": "చేయబోతున్నాను",
+          "source_context": "నేను వంట చేయబోతున్నాను.",
+          "note": "Prospective auxiliary పోవు surfaces as బో after infinitival base; progressive and agreement included. Can mean going to, not necessarily immediate.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "బోతున్నాను",
+            "append_unicode": [
+              "U+0C2C",
+              "U+0C4B",
+              "U+0C24",
+              "U+0C41",
+              "U+0C28",
+              "U+0C4D",
+              "U+0C28",
+              "U+0C3E",
+              "U+0C28",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "బ",
+              "codepoint": "U+0C2C",
+              "name": "TELUGU LETTER BA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            },
+            {
+              "character": "త",
+              "codepoint": "U+0C24",
+              "name": "TELUGU LETTER TA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నేను వంట చేయబోతున్నాను.",
+          "example_id": "prospective_aux_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C2C",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ]
+        },
+        {
+          "modifier_surface": "బోతున్నాడు",
+          "modifier_unicode": [
+            "U+0C2C",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C41"
+          ],
+          "base": "రా",
+          "result": "రాబోతున్నాడు",
+          "source_context": "అతను రాబోతున్నాడు.",
+          "note": "Prospective + progressive + masculine agreement; coming/going to come.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 2,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "బోతున్నాడు",
+            "append_unicode": [
+              "U+0C2C",
+              "U+0C4B",
+              "U+0C24",
+              "U+0C41",
+              "U+0C28",
+              "U+0C4D",
+              "U+0C28",
+              "U+0C3E",
+              "U+0C21",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "బ",
+              "codepoint": "U+0C2C",
+              "name": "TELUGU LETTER BA"
+            },
+            {
+              "character": "ో",
+              "codepoint": "U+0C4B",
+              "name": "TELUGU VOWEL SIGN OO"
+            },
+            {
+              "character": "త",
+              "codepoint": "U+0C24",
+              "name": "TELUGU LETTER TA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "డ",
+              "codepoint": "U+0C21",
+              "name": "TELUGU LETTER DDA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అతను రాబోతున్నాడు.",
+          "example_id": "prospective_aux_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C30",
+            "U+0C3E",
+            "U+0C2C",
+            "U+0C4B",
+            "U+0C24",
+            "U+0C41",
+            "U+0C28",
+            "U+0C4D",
+            "U+0C28",
+            "U+0C3E",
+            "U+0C21",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "past_obligation",
+      "category": "construction",
+      "meaning": "should have / was supposed to",
+      "examples": [
+        {
+          "modifier_surface": "వలసింది",
+          "modifier_unicode": [
+            "U+0C35",
+            "U+0C32",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "చేయు",
+          "result": "చేయవలసింది",
+          "source_context": "నువ్వు నిన్న ఆ పని చేయవలసింది.",
+          "note": "Retrospective obligation; context can imply an unfulfilled duty. Distinct from present చేయాలి.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "వలసింది",
+            "append_unicode": [
+              "U+0C35",
+              "U+0C32",
+              "U+0C38",
+              "U+0C3F",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "వ",
+              "codepoint": "U+0C35",
+              "name": "TELUGU LETTER VA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు నిన్న ఆ పని చేయవలసింది.",
+          "example_id": "past_obligation_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C35",
+            "U+0C32",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        },
+        {
+          "modifier_surface": "ాల్సింది",
+          "modifier_unicode": [
+            "U+0C3E",
+            "U+0C32",
+            "U+0C4D",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "చేయు",
+          "result": "చేయాల్సింది",
+          "source_context": "నువ్వు నిన్న ఆ పని చేయాల్సింది.",
+          "note": "Common contracted counterpart of చేయవలసింది.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 3,
+            "remove": "ు",
+            "remove_unicode": [
+              "U+0C41"
+            ],
+            "append": "ాల్సింది",
+            "append_unicode": [
+              "U+0C3E",
+              "U+0C32",
+              "U+0C4D",
+              "U+0C38",
+              "U+0C3F",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నువ్వు నిన్న ఆ పని చేయాల్సింది.",
+          "example_id": "past_obligation_2",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": true,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C41"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C47",
+            "U+0C2F",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C4D",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        },
+        {
+          "modifier_surface": "ాల్సింది",
+          "modifier_unicode": [
+            "U+0C3E",
+            "U+0C32",
+            "U+0C4D",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "base": "కావాలి",
+          "result": "కావాల్సింది",
+          "source_context": "ఆ రోజు నాకు ఎక్కువ నిద్ర కావాల్సింది.",
+          "note": "Contracted కావలసింది in a past need/want construction: I needed more sleep that day. With కావాలి this need reading differs from the retrospective duty reading of చేయవలసింది. Exact replacement is example-specific.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "ి",
+            "remove_unicode": [
+              "U+0C3F"
+            ],
+            "append": "్సింది",
+            "append_unicode": [
+              "U+0C4D",
+              "U+0C38",
+              "U+0C3F",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఆ రోజు నాకు ఎక్కువ నిద్ర కావాల్సింది.",
+          "example_id": "past_obligation_3",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": true,
+          "base_unicode": [
+            "U+0C15",
+            "U+0C3E",
+            "U+0C35",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C15",
+            "U+0C3E",
+            "U+0C35",
+            "U+0C3E",
+            "U+0C32",
+            "U+0C4D",
+            "U+0C38",
+            "U+0C3F",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_before",
+      "category": "construction",
+      "meaning": "before doing / before someone does",
+      "examples": [
+        {
+          "modifier_surface": "కముందు",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C2E",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C41"
+          ],
+          "base": "రా",
+          "result": "రాకముందు",
+          "source_context": "అతను రాకముందు చెప్పు.",
+          "note": "Negative converb + ముందు; different surface from వచ్చే ముందు.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 2,
+            "remove": "",
+            "remove_unicode": [],
+            "append": "కముందు",
+            "append_unicode": [
+              "U+0C15",
+              "U+0C2E",
+              "U+0C41",
+              "U+0C02",
+              "U+0C26",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "మ",
+              "codepoint": "U+0C2E",
+              "name": "TELUGU LETTER MA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అతను రాకముందు చెప్పు.",
+          "example_id": "negative_before_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C30",
+            "U+0C3E",
+            "U+0C15",
+            "U+0C2E",
+            "U+0C41",
+            "U+0C02",
+            "U+0C26",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cessation_aux",
+      "category": "construction",
+      "meaning": "stop doing",
+      "examples": [
+        {
+          "modifier_surface": "మాను",
+          "modifier_unicode": [
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ],
+          "base": "చెప్పడం",
+          "result": "చెప్పడం మాను",
+          "source_context": "అబద్ధాలు చెప్పడం మాను.",
+          "note": "Verbal noun + cessation verb; imperative context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 7,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " మాను",
+            "append_unicode": [
+              "U+0020",
+              "U+0C2E",
+              "U+0C3E",
+              "U+0C28",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "మ",
+              "codepoint": "U+0C2E",
+              "name": "TELUGU LETTER MA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            },
+            {
+              "character": "న",
+              "codepoint": "U+0C28",
+              "name": "TELUGU LETTER NA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "అబద్ధాలు చెప్పడం మాను.",
+          "example_id": "cessation_aux_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C46",
+            "U+0C2A",
+            "U+0C4D",
+            "U+0C2A",
+            "U+0C21",
+            "U+0C02"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C46",
+            "U+0C2A",
+            "U+0C4D",
+            "U+0C2A",
+            "U+0C21",
+            "U+0C02",
+            "U+0020",
+            "U+0C2E",
+            "U+0C3E",
+            "U+0C28",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inception_aux",
+      "category": "construction",
+      "meaning": "start doing",
+      "examples": [
+        {
+          "modifier_surface": "మొదలుపెట్టు",
+          "modifier_unicode": [
+            "U+0C2E",
+            "U+0C4A",
+            "U+0C26",
+            "U+0C32",
+            "U+0C41",
+            "U+0C2A",
+            "U+0C46",
+            "U+0C1F",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C41"
+          ],
+          "base": "చదవడం",
+          "result": "చదవడం మొదలుపెట్టు",
+          "source_context": "ఇప్పుడు చదవడం మొదలుపెట్టు.",
+          "note": "Verbal noun + inception verb; imperative context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 5,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " మొదలుపెట్టు",
+            "append_unicode": [
+              "U+0020",
+              "U+0C2E",
+              "U+0C4A",
+              "U+0C26",
+              "U+0C32",
+              "U+0C41",
+              "U+0C2A",
+              "U+0C46",
+              "U+0C1F",
+              "U+0C4D",
+              "U+0C1F",
+              "U+0C41"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "మ",
+              "codepoint": "U+0C2E",
+              "name": "TELUGU LETTER MA"
+            },
+            {
+              "character": "ొ",
+              "codepoint": "U+0C4A",
+              "name": "TELUGU VOWEL SIGN O"
+            },
+            {
+              "character": "ద",
+              "codepoint": "U+0C26",
+              "name": "TELUGU LETTER DA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            },
+            {
+              "character": "ప",
+              "codepoint": "U+0C2A",
+              "name": "TELUGU LETTER PA"
+            },
+            {
+              "character": "ె",
+              "codepoint": "U+0C46",
+              "name": "TELUGU VOWEL SIGN E"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ు",
+              "codepoint": "U+0C41",
+              "name": "TELUGU VOWEL SIGN U"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఇప్పుడు చదవడం మొదలుపెట్టు.",
+          "example_id": "inception_aux_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C1A",
+            "U+0C26",
+            "U+0C35",
+            "U+0C21",
+            "U+0C02"
+          ],
+          "result_unicode": [
+            "U+0C1A",
+            "U+0C26",
+            "U+0C35",
+            "U+0C21",
+            "U+0C02",
+            "U+0020",
+            "U+0C2E",
+            "U+0C4A",
+            "U+0C26",
+            "U+0C32",
+            "U+0C41",
+            "U+0C2A",
+            "U+0C46",
+            "U+0C1F",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C41"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "free_still",
+      "category": "construction",
+      "meaning": "still / yet / more",
+      "examples": [
+        {
+          "modifier_surface": "ఇంకా",
+          "modifier_unicode": [
+            "U+0C07",
+            "U+0C02",
+            "U+0C15",
+            "U+0C3E"
+          ],
+          "base": "ఉంది",
+          "result": "ఇంకా ఉంది",
+          "source_context": "ఇంకా ఉంది.",
+          "note": "Standalone helper placed before predicate; still remains / there is more, depending on context.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 0,
+            "remove": "ఉంది",
+            "remove_unicode": [
+              "U+0C09",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ],
+            "append": "ఇంకా ఉంది",
+            "append_unicode": [
+              "U+0C07",
+              "U+0C02",
+              "U+0C15",
+              "U+0C3E",
+              "U+0020",
+              "U+0C09",
+              "U+0C02",
+              "U+0C26",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఇ",
+              "codepoint": "U+0C07",
+              "name": "TELUGU LETTER I"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            },
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ా",
+              "codepoint": "U+0C3E",
+              "name": "TELUGU VOWEL SIGN AA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "ఇంకా ఉంది.",
+          "example_id": "free_still_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ],
+          "result_unicode": [
+            "U+0C07",
+            "U+0C02",
+            "U+0C15",
+            "U+0C3E",
+            "U+0020",
+            "U+0C09",
+            "U+0C02",
+            "U+0C26",
+            "U+0C3F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "free_again",
+      "category": "construction",
+      "meaning": "again",
+      "examples": [
+        {
+          "modifier_surface": "మళ్లీ",
+          "modifier_unicode": [
+            "U+0C2E",
+            "U+0C33",
+            "U+0C4D",
+            "U+0C32",
+            "U+0C40"
+          ],
+          "base": "రా",
+          "result": "మళ్లీ రా",
+          "source_context": "మళ్లీ రా.",
+          "note": "Standalone repetition helper.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 0,
+            "remove": "రా",
+            "remove_unicode": [
+              "U+0C30",
+              "U+0C3E"
+            ],
+            "append": "మళ్లీ రా",
+            "append_unicode": [
+              "U+0C2E",
+              "U+0C33",
+              "U+0C4D",
+              "U+0C32",
+              "U+0C40",
+              "U+0020",
+              "U+0C30",
+              "U+0C3E"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "మ",
+              "codepoint": "U+0C2E",
+              "name": "TELUGU LETTER MA"
+            },
+            {
+              "character": "ళ",
+              "codepoint": "U+0C33",
+              "name": "TELUGU LETTER LLA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "ీ",
+              "codepoint": "U+0C40",
+              "name": "TELUGU VOWEL SIGN II"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "మళ్లీ రా.",
+          "example_id": "free_again_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C30",
+            "U+0C3E"
+          ],
+          "result_unicode": [
+            "U+0C2E",
+            "U+0C33",
+            "U+0C4D",
+            "U+0C32",
+            "U+0C40",
+            "U+0020",
+            "U+0C30",
+            "U+0C3E"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "free_together",
+      "category": "construction",
+      "meaning": "together with",
+      "examples": [
+        {
+          "modifier_surface": "కలిసి",
+          "modifier_unicode": [
+            "U+0C15",
+            "U+0C32",
+            "U+0C3F",
+            "U+0C38",
+            "U+0C3F"
+          ],
+          "base": "నాతో",
+          "result": "నాతో కలిసి",
+          "source_context": "నాతో కలిసి రా.",
+          "note": "Comitative phrase + కలిసి; lexical converb functioning as a common helper.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " కలిసి",
+            "append_unicode": [
+              "U+0020",
+              "U+0C15",
+              "U+0C32",
+              "U+0C3F",
+              "U+0C38",
+              "U+0C3F"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "క",
+              "codepoint": "U+0C15",
+              "name": "TELUGU LETTER KA"
+            },
+            {
+              "character": "ల",
+              "codepoint": "U+0C32",
+              "name": "TELUGU LETTER LA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            },
+            {
+              "character": "స",
+              "codepoint": "U+0C38",
+              "name": "TELUGU LETTER SA"
+            },
+            {
+              "character": "ి",
+              "codepoint": "U+0C3F",
+              "name": "TELUGU VOWEL SIGN I"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నాతో కలిసి రా.",
+          "example_id": "free_together_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C28",
+            "U+0C3E",
+            "U+0C24",
+            "U+0C4B"
+          ],
+          "result_unicode": [
+            "U+0C28",
+            "U+0C3E",
+            "U+0C24",
+            "U+0C4B",
+            "U+0020",
+            "U+0C15",
+            "U+0C32",
+            "U+0C3F",
+            "U+0C38",
+            "U+0C3F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "liking_predicate",
+      "category": "construction",
+      "meaning": "like doing",
+      "examples": [
+        {
+          "modifier_surface": "ఇష్టం",
+          "modifier_unicode": [
+            "U+0C07",
+            "U+0C37",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C02"
+          ],
+          "base": "ఆడడం",
+          "result": "ఆడడం ఇష్టం",
+          "source_context": "నాకు ఆడడం ఇష్టం.",
+          "note": "Verbal noun + liking predicate with dative experiencer; standalone predicate, not an inflectional suffix.",
+          "operation": {
+            "type": "replace_suffix",
+            "keep_codepoints": 4,
+            "remove": "",
+            "remove_unicode": [],
+            "append": " ఇష్టం",
+            "append_unicode": [
+              "U+0020",
+              "U+0C07",
+              "U+0C37",
+              "U+0C4D",
+              "U+0C1F",
+              "U+0C02"
+            ]
+          },
+          "modifier_characters": [
+            {
+              "character": "ఇ",
+              "codepoint": "U+0C07",
+              "name": "TELUGU LETTER I"
+            },
+            {
+              "character": "ష",
+              "codepoint": "U+0C37",
+              "name": "TELUGU LETTER SSA"
+            },
+            {
+              "character": "్",
+              "codepoint": "U+0C4D",
+              "name": "TELUGU SIGN VIRAMA"
+            },
+            {
+              "character": "ట",
+              "codepoint": "U+0C1F",
+              "name": "TELUGU LETTER TTA"
+            },
+            {
+              "character": "ం",
+              "codepoint": "U+0C02",
+              "name": "TELUGU SIGN ANUSVARA"
+            }
+          ],
+          "is_bound_result": false,
+          "attachment_scope": "example_specific",
+          "context_sentence": "నాకు ఆడడం ఇష్టం.",
+          "example_id": "liking_predicate_1",
+          "context_provenance": "constructed_practice_sentence",
+          "context_contains_exact_result": true,
+          "is_contracted_surface": false,
+          "base_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C21",
+            "U+0C02"
+          ],
+          "result_unicode": [
+            "U+0C06",
+            "U+0C21",
+            "U+0C21",
+            "U+0C02",
+            "U+0020",
+            "U+0C07",
+            "U+0C37",
+            "U+0C4D",
+            "U+0C1F",
+            "U+0C02"
           ]
         }
       ]

@@ -4,8 +4,8 @@ import { withRequestDeadline } from '../request-deadline';
 async function request<T>(profile: string, path: string, method = 'GET', body?: unknown): Promise<T> {
   return withRequestDeadline(async signal => {
     const response = await fetch(`/api/profiles/${encodeURIComponent(profile)}/modifiers/${path}`, {
-      method, signal, headers: { 'content-type': 'application/json' },
-      ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+      method, signal, headers: { 'content-type': body instanceof File ? 'application/zip' : 'application/json' },
+      ...(body === undefined ? {} : {body: body instanceof File ? body : JSON.stringify(body)}),
     });
     if (!response.ok) throw new Error('modifier-request-failed');
     const result = await response.json();
@@ -20,5 +20,7 @@ export const modifierApi = {
   state: (profile: string) => request<ModifierState>(profile, 'state'),
   draw: (profile: string, current: string | null) => request<ModifierDraw>(profile, 'draw', 'POST', {current}),
   setExcluded: (profile: string, id: string, excluded: boolean) => request<ModifierState>(profile, `entries/${encodeURIComponent(id)}`, 'PUT', {excluded}),
+  setOmitted: (profile: string, id: string, omitted: boolean) => request<ModifierState>(profile, `omissions/${encodeURIComponent(id)}`, 'PUT', {omitted}),
+  importZip: (profile: string, file: File) => request<ModifierState>(profile, 'import', 'POST', file),
   reset: (profile: string) => request<ModifierState>(profile, 'reset', 'POST'),
 };

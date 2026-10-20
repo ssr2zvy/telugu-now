@@ -25,3 +25,9 @@
 .modifier-settings .secondary-action { display: inline-flex; gap: 12px; align-items: center; }
 @keyframes modifier-enter { from { opacity: 0; transform: translateX(var(--modifier-enter-x, 36px)); } to { opacity: 1; transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) { .modifier-content { animation: none; } }
+
+.modifier-omit-menu { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); }
+.modifier-omit-menu button, .modifier-empty-reset, .modifier-entry-list button { background: var(--wash); color: var(--foreground); border: 0; border-radius: 20px; padding: 12px; }
+.modifier-empty-reset { position: fixed; bottom: 18px; right: 70px; }
+.modifier-import { position: relative; display: inline-flex; padding: 20px; cursor: pointer; }
+.modifier-import input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
