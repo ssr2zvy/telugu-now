@@ -1,5 +1,6 @@
 import type { AppearancePage } from './appearance-navigation';
 export type SettingsPage =
+  | 'modifierMode' | 'modifierExcluded' | 'modifierSeen' | 'modifierUnseen' | 'modifierReset'
   | 'exploration' | 'explorationStart' | 'explorationEnd' | 'explorationDraws'
   | AppearancePage
   | 'dataSourceDetail'

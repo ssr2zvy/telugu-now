@@ -1,3 +1,5 @@
+import { ModifierSettings, type ModifierPage } from '../modifiers/ModifierSettings';
+import type { ModifierController } from '../modifiers/useModifierMode';
 import { ExplorationSettingsPage } from './pages/ExplorationSettingsPage';
 import { isAppearancePage } from './appearance-navigation';
 import { ParserDetailPage } from './pages/ParserDetailPage';
@@ -27,12 +29,14 @@ import { ImportPage } from './pages/ImportPage';
 import { ControlsGuidePage } from './pages/ControlsGuidePage';
 import { AboutPage } from './pages/AboutPage';
 interface SettingsViewProps {
+  modifiers: ModifierController;
   state: ProfileStateResponse;
   controller: SettingsController;
   fontFamily: string | null;
   onClose: () => void;
 }
 export function SettingsView({
+  modifiers,
   state,
   controller,
   fontFamily,
@@ -62,6 +66,7 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
+  if (['modifierMode','modifierExcluded','modifierSeen','modifierUnseen','modifierReset'].includes(page)) return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ModifierSettings key={page} controller={modifiers} page={page as ModifierPage} language={language} onNavigate={controller.enterPage}/></SettingsShell>;
   if(page==='explorationStart' || page==='explorationEnd' || page==='explorationDraws')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ExplorationSettingsPage page={page} language={language}/></SettingsShell>;
   if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>
     <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>

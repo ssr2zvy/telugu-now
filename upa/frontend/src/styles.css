@@ -10,6 +10,7 @@
 @import './styles/settings-material.css';
 @import './styles/entry-and-evaluation.css';
 @import './styles/repository.css';
+@import './styles/modifiers.css';
 
 .profile-preferences-error {
 	position: fixed;

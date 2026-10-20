@@ -1,3 +1,5 @@
+import { ModifierView } from './modifiers/ModifierView';
+import { useModifierMode } from './modifiers/useModifierMode';
 import { RepositoryView } from './repository/RepositoryView';
 import { useState } from 'react';
 import { useGradientTravel } from './GradientBackdrop';
@@ -11,17 +13,20 @@ import './styles.css';
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
-  const session = useProfileSession(settingsOpen || repositoryOpen);
+  const [modifierOpen, setModifierOpen] = useState(false);
+  const session = useProfileSession(settingsOpen || repositoryOpen || modifierOpen);
   return <AppearanceProvider key={session.profileCode ?? 'entry'} profileCode={session.profileCode}>
-    <AppContent repositoryOpen={repositoryOpen} setRepositoryOpen={setRepositoryOpen} session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
+    <AppContent modifierOpen={modifierOpen} setModifierOpen={setModifierOpen} repositoryOpen={repositoryOpen} setRepositoryOpen={setRepositoryOpen} session={session} settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
   </AppearanceProvider>;
 }
-function AppContent({ session, settingsOpen, setSettingsOpen, repositoryOpen, setRepositoryOpen }: {
+function AppContent({ modifierOpen, setModifierOpen, session, settingsOpen, setSettingsOpen, repositoryOpen, setRepositoryOpen }: {
+  modifierOpen: boolean; setModifierOpen: (open: boolean) => void;
   repositoryOpen: boolean; setRepositoryOpen: (open: boolean) => void;
   session: ProfileSession;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
 }) {
+  const modifiers = useModifierMode(session.profileCode);
   const gradientTravel = useGradientTravel();
   const [diagnosticFont, setDiagnosticFont] = useState<string | null>(null);
   const settings = useSettingsController({
@@ -42,29 +47,37 @@ function AppContent({ session, settingsOpen, setSettingsOpen, repositoryOpen, se
     );
   }
   if (repositoryOpen) return <RepositoryView profile={session.profileCode} fontFamily={diagnosticFont ?? 'Noto Sans Telugu'} onClose={() => {
-    setRepositoryOpen(false); session.setObservationVisible(document.visibilityState === 'visible');
+    setRepositoryOpen(false); session.setObservationVisible(!modifierOpen && document.visibilityState === 'visible');
   }}/>;
   if (settingsOpen && session.state) {
     return (
       <SettingsView
         state={session.state}
         controller={settings}
+        modifiers={modifiers}
         fontFamily={diagnosticFont}
         onClose={() => {
           setSettingsOpen(false);
           session.setObservationVisible(
-            document.visibilityState === 'visible',
+            !modifierOpen && document.visibilityState === 'visible',
           );
         }}
       />
     );
   }
+  if (modifierOpen) return <ModifierView controller={modifiers} fontFamily={diagnosticFont ?? 'Noto Sans Telugu'}
+    onClose={() => { setModifierOpen(false); session.setObservationVisible(document.visibilityState === 'visible'); }}
+    onSettings={() => { settings.prepareOpen(); setSettingsOpen(true); }}
+    onRepository={() => setRepositoryOpen(true)}/>;
   return (
     <ObservationView
       state={session.state}
       busy={session.busy}
       navigationEvent={session.navigationEvent}
       onMove={session.move}
+      onOpenModifiers={(fontFamily) => {
+        gradientTravel.cancelPreview(); setDiagnosticFont(fontFamily); session.setObservationVisible(false); setModifierOpen(true);
+      }}
       onOpenRepository={(fontFamily) => {
         gradientTravel.cancelPreview(); setDiagnosticFont(fontFamily); session.setObservationVisible(false); setRepositoryOpen(true);
       }}
