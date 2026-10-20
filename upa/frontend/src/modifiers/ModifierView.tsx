@@ -22,6 +22,11 @@ export function ModifierView({ controller: mode, fontFamily, onClose, onSettings
   const idle = useReaderSettingsFade(screen);
   const pointer = useRef<{ id: number; x: number; y: number } | null>(null);
   const wheel = useRef({ distance: 0, last: 0, blockedUntil: 0 });
+  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [omitMenu, setOmitMenu] = useState(false);
+  const cancelHold = () => { if (hold.current) clearTimeout(hold.current); hold.current = null; };
+  useEffect(() => { setOmitMenu(false); cancelHold(); }, [mode.index, mode.entry?.id]);
+  useEffect(() => cancelHold, []);
   const [direction, setDirection] = useState<'next' | 'back'>('next');
   const actions = useRef(mode); actions.current = mode;
   const move = (back: boolean) => {
@@ -42,17 +47,22 @@ export function ModifierView({ controller: mode, fontFamily, onClose, onSettings
   }, []);
   const entry = mode.entry;
   return <main ref={screen} className="app-shell modifier-screen" style={{fontFamily}} data-settings-idle={idle} aria-busy={mode.busy}
+    onContextMenu={event => event.preventDefault()}
+    onPointerMove={event => { const start = pointer.current; if (start && Math.hypot(event.clientX-start.x,event.clientY-start.y)>10) cancelHold(); }}
     onPointerDown={event => {
       if (!event.isPrimary || event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
       pointer.current = {id:event.pointerId,x:event.clientX,y:event.clientY};
+      cancelHold();
+      hold.current = setTimeout(() => { pointer.current = null; setOmitMenu(true); }, 550);
       event.currentTarget.setPointerCapture(event.pointerId);
     }}
     onPointerUp={event => {
+      cancelHold();
       const start = pointer.current; pointer.current = null;
       if (!start || start.id !== event.pointerId) return;
       const dx = event.clientX - start.x, dy = event.clientY - start.y;
       if (Math.abs(dx) >= 55 && Math.abs(dx) > Math.abs(dy) * 1.4) move(dx > 0);
-    }} onPointerCancel={() => { pointer.current = null; }}
+    }} onPointerCancel={() => { cancelHold(); pointer.current = null; }}
     onWheel={event => {
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
       const now = performance.now(), value = wheel.current;
@@ -70,8 +80,10 @@ export function ModifierView({ controller: mode, fontFamily, onClose, onSettings
         <p className="modifier-transformation"><span>{example.base}</span>{example.modifier_surface ? <> + <span>{example.modifier_surface}</span></> : null} → <span>{example.result}</span></p>
         <p className="modifier-sentence">{example.context_sentence}</p>
       </section>)}</div>
-      <ModifierSwitch checked={mode.excluded} disabled={mode.busy} onChange={() => { void mode.setExcluded(entry.id, !mode.excluded); }}/>
+      <ModifierSwitch checked={mode.excluded} disabled={mode.busy || mode.omitted} onChange={() => { void mode.setExcluded(entry.id, !mode.excluded); }}/>
     </article> : null}
+    {omitMenu && entry ? <div className="modifier-omit-menu"><button type="button" aria-label="తదుపరి చక్రాల నుండి కూడా తీసివేయి" disabled={mode.busy} aria-pressed={mode.omitted} onClick={() => { void mode.setOmitted(entry.id, !mode.omitted); setOmitMenu(false); }}>???</button></div> : null}
+    {mode.remaining === 0 ? <button className="modifier-empty-reset" type="button" aria-label="మళ్లీ ప్రారంభించు" disabled={mode.busy} onClick={() => { void mode.reset(); }}><RotateCcw/></button> : null}
     <output className="modifier-remaining" aria-label="మిగిలినవి">{mode.remaining ?? '…'}</output>
     {mode.error ? <div className="modifier-retry"><button type="button" aria-label="మళ్లీ ప్రయత్నించు" onClick={mode.retry}><RotateCcw/></button><span role="alert">సేవ్ చేయలేకపోయాము లేదా లోడ్ కాలేదు.</span></div> : null}
   </main>;

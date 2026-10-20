@@ -66,7 +66,7 @@ export function SettingsView({
     onClose,
     onToggleLanguage: controller.toggleLanguage,
   };
-  if (['modifierMode','modifierExcluded','modifierSeen','modifierUnseen','modifierReset'].includes(page)) return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ModifierSettings key={page} controller={modifiers} page={page as ModifierPage} language={language} onNavigate={controller.enterPage}/></SettingsShell>;
+  if (['modifierMode','modifierExcluded','modifierSeen','modifierUnseen', 'modifierOmitted', 'modifierImport','modifierReset'].includes(page)) return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ModifierSettings key={page} controller={modifiers} page={page as ModifierPage} language={language} onNavigate={controller.enterPage}/></SettingsShell>;
   if(page==='explorationStart' || page==='explorationEnd' || page==='explorationDraws')return <SettingsShell {...shellProps} title={settingsPageLabel(page,language)} onBack={controller.backToIndex}><ExplorationSettingsPage page={page} language={language}/></SettingsShell>;
   if(isAppearancePage(page))return <SettingsShell {...shellProps} title={page==='appearanceFont'?(controller.selectedFont??settingsPageLabel(page,language)):settingsPageLabel(page,language)} onBack={controller.backToIndex}>
     <OrganizedAppearancePage language={language} page={page} onNavigate={controller.enterPage} font={controller.selectedFont} onFont={controller.openAppearanceFont}/>

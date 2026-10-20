@@ -1,72 +1,48 @@
 # Modifier mode
 
-Source: the supplied Telugu_Modifier_Examples(1).zip (requested Library revision 43).
-Its internal schema version is 1.7: 158 grammar entries, 283 examples.
-The original JSON is retained unchanged in shared/modifiers/catalog-v43.json.
-Catalog SHA-256: 5596a182d508fa1bb8b32ea9ecedf558ef3d7f184dd5dd9fa8e0f4a8bf9bb820.
-The archive's personal practice_progress.json is not imported.
+Bundled source: Telugu_Modifier_Examples(2).zip, schema 1.10, 173 entries and
+321 examples. The original JSON is preserved in catalog-v43.json (the existing
+filename is retained for compatibility). Every entry displays all examples.
 
-## Reading
+Triangle opens Modifier mode; ? returns to observations. Horizontal swipes or
+arrow keys navigate. Vertical scrolling reads long entries. Back/forward replays
+session history without new draws, including the former latest entry; only moving
+beyond that entry draws randomly. This history stays in memory while switching
+modes/settings; a reload starts fresh. Normal observation navigation is unchanged.
 
-The equilateral triangle sits immediately left of Repository and Settings.
-It becomes a question mark in Modifier mode; the question mark returns to the
-normal observation. Settings and Repository return to the active mode on close.
-The normal observation is marked not visible while Modifier mode is active.
+Switch on removes an entry from the current round. Switch off restores it.
+Long press on the page opens an icon-only ??? action. Activating it omits that
+entry from the count and random draws across all future rounds. Settings →
+Modifier mode → ??? lists omitted entries and offers a restore icon. Restoring
+also clears an ordinary switched-on exclusion so the entry is eligible again.
+Historical pages remain accessible even if their entry was subsequently omitted.
 
-Each page is one grammar entry, with all its examples. The entry's modifier
-surfaces appear at the top. Examples show base + modifier → result, followed by
-the supplied context sentence. Stem-only operations with no modifier surface
-show base → result; their title shows the actual removal/replacement operation.
-No English learning labels or invented translations are added.
-Long entries scroll vertically. An unlabeled switch appears below all examples.
+At zero remaining, an inline reset icon starts a fresh round. Settings also has
+a confirmed reset. Both reset ordinary switches and seen status, clear navigation
+history, and preserve ??? omissions. If every entry is omitted the count stays
+zero until something is restored through the ??? settings page.
 
-Swipe left / ArrowLeft draws uniformly from eligible grammar entries using
-Node's crypto.randomInt. Swipe right / ArrowRight revisits session history.
-Horizontal trackpad scrolling also navigates. Vertical scrolling does not.
-When several entries are eligible the current one cannot immediately repeat.
-When only one remains it may repeat. When none remain the count is zero and
-no new entry is drawn; settings or history can restore an entry.
-A forward draw after revisiting history starts a new random continuation.
+Settings → Modifier mode → Import accepts the same ZIP format. The upload icon
+opens the device file picker; the adjacent number shows the loaded entry count.
+Import validates a single telugu_modifiers.json anywhere in the archive, without
+extracting files to disk or executing scripts. Compressed and expanded catalog
+size limits are 8 MiB. Malformed/duplicate entries and ambiguous archives fail
+without replacing the previous catalog. An error/retry control is shown.
 
-Switch on excludes the whole entry, including all examples. Off restores it.
-Switches remain editable on history pages. Mutations complete before further
-navigation; failed requests leave the confirmed state visible and offer retry.
-The bottom-right count is the number of eligible entries, including the current
-entry when its switch is off.
+Import starts a new round using only the imported entries. ??? omissions match
+stable entry IDs and survive import/reset; IDs absent from an imported catalog
+are retained in storage and take effect if subsequently reimported. Existing
+ordinary progress remains on upgrade; import explicitly resets it. Archive
+practice progress is never imported.
 
-## Settings and storage
+Catalogs, omissions and ordinary progress are per profile in the existing SQLite
+volume database. Profile deletion cascades to all three tables. Other profiles
+keep their own catalog/progress. No deployment or startup configuration changes.
 
-Settings → Modifier mode has separate pages for switched-on entries, seen but
-switched-off entries, unseen entries, and reset. Each entry belongs to exactly
-one group. Lists use actual Telugu forms and an example to distinguish entries.
-Seen/excluded lists also allow changing switches. Reset requires confirmation
-and restores all entries to unseen/available for the current profile only.
+Validation: production build and eight focused API/storage/catalog tests pass.
+React DOM integration covers back/forward reuse and latest-boundary random draw,
+rapid input, long press, persistent omissions, reset, failed saves, switches and
+horizontal/vertical gesture isolation. Actual iPhone touch testing remains needed.
 
-modifier_progress is created automatically in the existing profile database on
-the persistent volume. It stores profile code, stable catalog entry ID, excluded
-status and first appearance timestamp; at most 158 rows per profile for v43.
-Profile deletion cascades to this table. No access secrets or Fly configuration
-changes are needed. The site-wide access gate protects the new routes, which
-also validate the profile and entry IDs. Core parser progress is not modified.
-Session navigation history stays in memory; exclusions and appearance status
-survive reloads and deployments. Removing this patch leaves the stored rows
-intact but unused.
-
-## Validation
-
-- TypeScript and complete client/server production build passed.
-- Six focused tests cover every catalog transformation, grouping, random-draw
-  eligibility, exclusion/restoration, exhausted pools, persistence, profile
-  isolation, deletion, input validation and settings hierarchy.
-- React DOM integration checks passed under StrictMode: all examples, icons,
-  switch state, rapid input locking, history, failed-save/retry, settings lists,
-  reset, both horizontal swipe directions, vertical-scroll isolation, return.
-  This was a simulated DOM check, not an iPhone/Safari visual test.
-- Full suite via node --import tsx --test tests/*.test.ts: 409 passed, 81 failed.
-  Untouched base main: 403 passed, the same 81 test names failed. No added
-  failures. Existing suite failures are outside this feature's scope.
-- Browser binaries could not be downloaded in the build environment, so actual
-  WebKit/iPhone layout and touch behavior still need a device smoke test.
-
-Focused checks: cd upa && node --import tsx --test tests/modifiers.test.ts
-Production build: cd upa && npm ci && npm run build
+Commands: cd upa && npm ci && npm run build
+node --import tsx --test tests/modifiers.test.ts

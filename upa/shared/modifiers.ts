@@ -14,9 +14,9 @@ export interface ModifierEntry { id: string; examples: ModifierExample[] }
 export const modifierEntries: readonly ModifierEntry[] = source.entries;
 export const modifierById = new Map(modifierEntries.map(entry => [entry.id, entry]));
 export interface ModifierProgress { id: string; excluded: boolean; seenAt: number }
-export interface ModifierState { progress: ModifierProgress[] }
+export interface ModifierState { progress: ModifierProgress[]; entries?: ModifierEntry[]; omitted?: string[] }
 export interface ModifierDraw extends ModifierState { entryId: string | null }
-export type ModifierGroup = 'excluded' | 'seen' | 'unseen';
+export type ModifierGroup = 'excluded' | 'seen' | 'unseen' | 'omitted';
 
 export function modifierTitle(entry: ModifierEntry): string {
   const surfaces = [...new Set(entry.examples.map(example => example.modifier_surface).filter(Boolean))];
@@ -25,15 +25,15 @@ export function modifierTitle(entry: ModifierEntry): string {
 }
 export function modifierGroups(state: ModifierState): Record<ModifierGroup, ModifierEntry[]> {
   const progress = new Map(state.progress.map(item => [item.id, item]));
-  const groups: Record<ModifierGroup, ModifierEntry[]> = { excluded: [], seen: [], unseen: [] };
-  for (const entry of modifierEntries) {
+  const groups: Record<ModifierGroup, ModifierEntry[]> = { excluded: [], seen: [], unseen: [], omitted: [] };
+  for (const entry of state.entries ?? modifierEntries) {
     const item = progress.get(entry.id);
-    groups[item?.excluded ? 'excluded' : item ? 'seen' : 'unseen'].push(entry);
+    groups[state.omitted?.includes(entry.id) ? 'omitted' : item?.excluded ? 'excluded' : item ? 'seen' : 'unseen'].push(entry);
   }
   return groups;
 }
 export function availableModifiers(state: ModifierState, current: string | null): ModifierEntry[] {
   const excluded = new Set(state.progress.filter(item => item.excluded).map(item => item.id));
-  const pool = modifierEntries.filter(entry => !excluded.has(entry.id));
+  const pool = (state.entries ?? modifierEntries).filter(entry => !excluded.has(entry.id) && !state.omitted?.includes(entry.id));
   return pool.length > 1 ? pool.filter(entry => entry.id !== current) : pool;
 }

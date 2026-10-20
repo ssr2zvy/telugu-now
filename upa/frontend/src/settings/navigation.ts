@@ -5,7 +5,7 @@ import type { SettingsPage, UiLanguage } from './types';
 import { Activity, Ban, BookOpen, ChartNoAxesCombined, CircleHelp, Database, Download, Gauge, Globe, History, Image, Info, ListOrdered, Palette, RotateCcw, SlidersHorizontal, Sparkles, Upload, Workflow } from 'lucide-react';
 
 export const settingsPageIcons = {
-  modifierMode: BookOpen, modifierExcluded: BookOpen, modifierSeen: BookOpen, modifierUnseen: BookOpen, modifierReset: RotateCcw,
+  modifierOmitted: BookOpen, modifierImport: BookOpen, modifierMode: BookOpen, modifierExcluded: BookOpen, modifierSeen: BookOpen, modifierUnseen: BookOpen, modifierReset: RotateCcw,
   exploration: BookOpen, explorationStart: SlidersHorizontal, explorationEnd: SlidersHorizontal, explorationDraws: SlidersHorizontal,
   ...Object.fromEntries(Object.keys(appearanceLabels).map(page=>[page,Palette])) as Record<Exclude<AppearancePage,'appearance'>,typeof Palette>,
   dataSourceDetail: Database,
@@ -39,7 +39,7 @@ export const settingsPageIcons = {
 export const settingsGroups: Partial<Record<SettingsPage, SettingsPage[]>> = {
   ...appearanceGroups,
   dataSources: ['dataSourceDetail'],
-  modifierMode: ['modifierExcluded', 'modifierSeen', 'modifierUnseen', 'modifierReset'],
+  modifierMode: ['modifierExcluded', 'modifierSeen', 'modifierUnseen', 'modifierOmitted', 'modifierImport', 'modifierReset'],
   index: ['observations', 'modifierMode', 'external', 'display', 'eons', 'controlsGuide', 'about'],
   external: ['epubExport', 'htmlExport', 'archiveExport', 'archiveImport'],
   observations: ['parser', 'parsingMode', 'exploration', 'dataSources'],
@@ -61,7 +61,7 @@ export function parentSettingsPage(page: SettingsPage): SettingsPage {
 
 export function settingsPageLabel(page: SettingsPage, language: UiLanguage): string {
   const modifierLabels: Partial<Record<SettingsPage, [string,string]>> = {
-    modifierMode: ['Modifier mode','రూపాల అభ్యాసం'], modifierExcluded: ['Switched on','తీసివేసినవి'],
+    modifierOmitted: ['???','???'], modifierImport: ['Import','దిగుమతి'], modifierMode: ['Modifier mode','రూపాల అభ్యాసం'], modifierExcluded: ['Switched on','తీసివేసినవి'],
     modifierSeen: ['Seen · switched off','చూసినవి · మిగిలినవి'], modifierUnseen: ['Not yet seen','ఇంకా చూడనివి'], modifierReset: ['Reset','మళ్లీ ప్రారంభించు'],
   };
   if (modifierLabels[page]) return modifierLabels[page]![language === 'en' ? 0 : 1];
